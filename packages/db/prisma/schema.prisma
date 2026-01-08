@@ -1,0 +1,126 @@
+// Prisma schema for quickdraw-based fullstack application
+// Generated from @quickdraw/core patterns
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// User & Authentication Models
+// ============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  
+  // Service-level access control: { "chatService": "Admin", "userService": "Read" }
+  serviceAccess Json?     @map("service_access")
+  
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  chatMembers   ChatMember[]
+  messages      Message[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  provider          String   // "discord", "google"
+  providerAccountId String   @map("provider_account_id")
+  accessToken       String?  @map("access_token")
+  refreshToken      String?  @map("refresh_token")
+  expiresAt         Int?     @map("expires_at")
+  tokenType         String?  @map("token_type")
+  scope             String?
+  
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ============================================================================
+// Chat Models
+// ============================================================================
+
+model Chat {
+  id        String   @id @default(cuid())
+  title     String
+  
+  // Entry-level ACL stored as JSON array
+  // Format: [{ "userId": "...", "level": "Read" | "Moderate" | "Admin" }]
+  acl       Json?
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  members   ChatMember[]
+  messages  Message[]
+
+  @@map("chats")
+}
+
+model ChatMember {
+  id        String   @id @default(cuid())
+  chatId    String   @map("chat_id")
+  userId    String   @map("user_id")
+  level     String   @default("Read") // "Read", "Moderate", "Admin"
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+  @@map("chat_members")
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  chatId    String   @map("chat_id")
+  userId    String   @map("user_id")
+  content   String
+  role      String   @default("user") // "user", "assistant", "system"
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt])
+  @@map("messages")
+}

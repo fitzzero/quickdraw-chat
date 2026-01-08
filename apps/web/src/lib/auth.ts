@@ -1,0 +1,51 @@
+const AUTH_TOKEN_KEY = "auth_token";
+
+/**
+ * Get the stored auth token from localStorage
+ */
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+/**
+ * Store the auth token in localStorage
+ */
+export function setAuthToken(token: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(AUTH_TOKEN_KEY, token);
+}
+
+/**
+ * Remove the auth token from localStorage
+ */
+export function clearAuthToken(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+/**
+ * Parse JWT payload (client-side only, not verified)
+ */
+export function parseJWTPayload(token: string): { userId: string; email?: string } | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    
+    const payload = JSON.parse(atob(parts[1]!));
+    return {
+      userId: payload.userId,
+      email: payload.email,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get the API URL for OAuth redirect
+ */
+export function getOAuthUrl(provider: "discord" | "google"): string {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  return `${apiUrl}/auth/${provider}`;
+}

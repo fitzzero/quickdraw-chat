@@ -1,0 +1,234 @@
+---
+description: Testing patterns for services and components
+globs: "**/*.test.{ts,tsx}"
+alwaysApply: false
+---
+
+## Testing Patterns
+
+### Test Organization
+
+```
+apps/api/src/
+├── services/
+│   └── chat/
+│       └── index.ts
+└── __tests__/
+    ├── setup.ts            # Global test setup
+    ├── utils/
+    │   └── socket.ts       # Socket test helpers
+    └── services/
+        └── chat.int.test.ts
+```
+
+### Integration Tests (Services)
+
+**Test file template:**
+
+```typescript
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
+
+describe("<Service>Service Integration", () => {
+  let stop: () => Promise<void>;
+  let port: number;
+  let users: Awaited<ReturnType<typeof seedTestUsers>>;
+
+  beforeAll(async () => {
+    // Start test server
+    const server = await startTestServer();
+    port = server.port;
+    stop = server.stop;
+  });
+
+  afterAll(async () => {
+    await stop();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase();
+    users = await seedTestUsers();
+  });
+
+  it("should create entity with proper ACL", async () => {
+    const client = await connectAsUser(port, users.regular.id);
+    
+    const result = await emitWithAck(client, "chatService:createChat", {
+      title: "Test Chat",
+    });
+    
+    expect(result.id).toBeDefined();
+    client.close();
+  });
+
+  it("should deny access to non-members", async () => {
+    // Create chat as admin
+    const admin = await connectAsUser(port, users.admin.id);
+    const chat = await emitWithAck(admin, "chatService:createChat", {
+      title: "Private Chat",
+    });
+    admin.close();
+
+    // Try to access as regular user (not invited)
+    const outsider = await connectAsUser(port, users.regular.id);
+    await expect(
+      emitWithAck(outsider, "chatService:subscribe", { entryId: chat.id })
+    ).rejects.toThrow();
+    outsider.close();
+  });
+});
+```
+
+### Socket Test Helpers
+
+```typescript
+// apps/api/src/__tests__/utils/socket.ts
+import { io as ioClient, Socket } from "socket.io-client";
+import type { ServiceResponse } from "@project/shared";
+
+export async function connectAsUser(port: number, userId: string) {
+  const socket = ioClient(`http://localhost:${port}`, {
+    auth: { userId },
+    transports: ["websocket"],
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    socket.on("connect", resolve);
+    socket.on("connect_error", reject);
+    setTimeout(() => reject(new Error("Connection timeout")), 5000);
+  });
+
+  return socket;
+}
+
+export function emitWithAck<TPayload, TResponse>(
+  socket: Socket,
+  event: string,
+  payload: TPayload
+): Promise<TResponse> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Timeout")), 5000);
+    
+    socket.emit(event, payload, (response: ServiceResponse<TResponse>) => {
+      clearTimeout(timeout);
+      if (response.success) {
+        resolve(response.data);
+      } else {
+        reject(new Error(response.error));
+      }
+    });
+  });
+}
+```
+
+### Test Database
+
+```typescript
+// packages/db/src/testing.ts
+import { testPrisma } from "./index";
+
+export async function resetDatabase() {
+  await testPrisma.$executeRaw`TRUNCATE TABLE "messages" CASCADE`;
+  await testPrisma.$executeRaw`TRUNCATE TABLE "chat_members" CASCADE`;
+  await testPrisma.$executeRaw`TRUNCATE TABLE "chats" CASCADE`;
+  await testPrisma.$executeRaw`TRUNCATE TABLE "users" CASCADE`;
+}
+
+export async function seedTestUsers() {
+  return {
+    admin: await testPrisma.user.create({
+      data: {
+        email: "admin@test.com",
+        name: "Admin",
+        serviceAccess: { chatService: "Admin" },
+      },
+    }),
+    regular: await testPrisma.user.create({
+      data: { email: "user@test.com", name: "User" },
+    }),
+  };
+}
+```
+
+### Component Tests
+
+```typescript
+// apps/web/src/components/chat/__tests__/ChatList.test.tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { ChatList } from "../ChatList";
+import { TestWrapper } from "../../__tests__/utils";
+
+describe("ChatList", () => {
+  it("should display chats", () => {
+    const chats = [
+      { id: "1", title: "Chat 1", memberCount: 2, lastMessageAt: null },
+    ];
+
+    render(
+      <ChatList
+        chats={chats}
+        isLoading={false}
+        onSelectChat={vi.fn()}
+        onRefresh={vi.fn()}
+      />,
+      { wrapper: TestWrapper }
+    );
+
+    expect(screen.getByText("Chat 1")).toBeInTheDocument();
+  });
+
+  it("should call onSelectChat when clicked", () => {
+    const onSelectChat = vi.fn();
+    const chats = [{ id: "1", title: "Chat 1", memberCount: 1, lastMessageAt: null }];
+
+    render(
+      <ChatList
+        chats={chats}
+        isLoading={false}
+        onSelectChat={onSelectChat}
+        onRefresh={vi.fn()}
+      />,
+      { wrapper: TestWrapper }
+    );
+
+    fireEvent.click(screen.getByText("Chat 1"));
+    expect(onSelectChat).toHaveBeenCalledWith("1");
+  });
+});
+```
+
+### Running Tests
+
+```bash
+# All tests
+pnpm test
+
+# Specific package
+pnpm --filter @project/api test
+
+# Watch mode
+pnpm --filter @project/api test:watch
+
+# Coverage
+pnpm test:coverage
+```
+
+### ACL Test Scenarios
+
+Always test these scenarios:
+1. **Admin** - Service-level Admin access
+2. **Moderator** - Service-level Moderate access
+3. **Entry Admin** - Entry-level Admin via ACL
+4. **Entry Read** - Entry-level Read via ACL
+5. **Outsider** - No access (should fail)
+6. **Self** - Own data access (if applicable)
+
+### Test Environment
+
+Set these in `.env.test`:
+```
+DATABASE_URL=postgresql://dev:dev@localhost:5432/project_test
+ENABLE_DEV_CREDENTIALS=true
+LOG_LEVEL=error
+```

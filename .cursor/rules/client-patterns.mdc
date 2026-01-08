@@ -1,0 +1,205 @@
+---
+description: Client-side patterns for React components and hooks
+globs: apps/web/src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+## Client Patterns
+
+### Hooks
+
+**useService** - For invoking service methods:
+
+```typescript
+import { useService } from "../hooks";
+
+function CreateChatButton() {
+  const createChat = useService("chatService", "createChat", {
+    onSuccess: (data) => {
+      router.push(`/chat/${data.id}`);
+    },
+    onError: (error) => {
+      toast.error(error);
+    },
+  });
+
+  return (
+    <Button
+      onClick={() => createChat.mutate({ title: "New Chat" })}
+      disabled={createChat.isPending}
+    >
+      {createChat.isPending ? "Creating..." : "Create Chat"}
+    </Button>
+  );
+}
+```
+
+**useSubscription** - For real-time entity data:
+
+```typescript
+import { useSubscription } from "../hooks";
+
+function ChatHeader({ chatId }: { chatId: string }) {
+  const { data: chat, isLoading, error } = useSubscription("chatService", chatId);
+
+  if (isLoading) return <Skeleton />;
+  if (error) return <ErrorMessage error={error} />;
+  if (!chat) return <NotFound />;
+
+  return <Typography>{chat.title}</Typography>;
+}
+```
+
+### Socket Context
+
+Access socket state via `useSocket`:
+
+```typescript
+import { useSocket } from "../providers";
+
+function ConnectionStatus() {
+  const { isConnected, userId, serviceAccess } = useSocket();
+  
+  // Check permissions
+  const isAdmin = serviceAccess.chatService === "Admin";
+}
+```
+
+### Component Structure
+
+**File organization:**
+```
+src/
+├── components/
+│   ├── chat/           # Feature-specific components
+│   │   ├── ChatList.tsx
+│   │   ├── ChatWindow.tsx
+│   │   └── index.ts    # Re-exports
+│   └── ui/             # Shared UI components
+├── hooks/
+│   ├── useService.ts
+│   ├── useSubscription.ts
+│   └── index.ts
+├── providers/
+│   ├── SocketProvider.tsx
+│   ├── ThemeProvider.tsx
+│   └── index.tsx       # Combined providers
+```
+
+### Styling
+
+**Use MUI's sx prop** for component styling:
+
+```typescript
+<Box
+  sx={{
+    p: 2,
+    borderRadius: 2,
+    bgcolor: "background.paper",
+    "&:hover": { bgcolor: "action.hover" },
+  }}
+>
+```
+
+**Use theme variables** for consistency:
+
+```typescript
+sx={{
+  color: "primary.main",
+  bgcolor: "background.default",
+  borderColor: "divider",
+}}
+```
+
+**Avoid:**
+- Inline styles without sx
+- CSS-in-JS with styled-components (use MUI styled if needed)
+- Tailwind classes (not configured)
+
+### Type Safety
+
+**Service method types** come from `@project/shared`:
+
+```typescript
+import type { ServiceMethodsMap, ChatServiceMethods } from "@project/shared";
+
+// Type is inferred automatically
+const createChat = useService("chatService", "createChat");
+// createChat.mutate expects: { title: string; members?: ... }
+// createChat.data is: { id: string } | undefined
+```
+
+**Subscription data types:**
+
+```typescript
+import type { SubscriptionDataMap } from "@project/shared";
+
+const { data } = useSubscription("chatService", chatId);
+// data is: SubscriptionDataMap["chatService"] | null
+```
+
+### Error Handling
+
+**Hook-level:**
+
+```typescript
+const mutation = useService("chatService", "createChat", {
+  onError: (error) => {
+    // error is a string message
+    toast.error(error);
+  },
+});
+```
+
+**Component-level:**
+
+```typescript
+if (mutation.isError) {
+  return <Alert severity="error">{mutation.error}</Alert>;
+}
+```
+
+### Loading States
+
+Use MUI components for consistency:
+
+```typescript
+if (isLoading) {
+  return (
+    <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+      <CircularProgress />
+    </Box>
+  );
+}
+```
+
+Or with skeletons:
+
+```typescript
+if (isLoading) {
+  return <Skeleton variant="rectangular" height={200} />;
+}
+```
+
+### Forms
+
+For socket-synced inputs, see the Socket input components in `@quickdraw/core/client`:
+- `SocketTextField` - Text input with debounce
+- `SocketCheckbox` - Boolean toggle
+- `SocketSelect` - Select dropdown
+- `SocketSlider` - Range input
+- `SocketSwitch` - Toggle switch
+
+Example:
+
+```typescript
+import { SocketTextField } from "@quickdraw/core/client";
+
+<SocketTextField
+  state={chat}
+  update={(patch) => updateChat.mutateAsync({ id: chat.id, ...patch })}
+  property="title"
+  commitMode="debounce"
+  debounceMs={500}
+/>
+```
