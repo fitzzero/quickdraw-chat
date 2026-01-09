@@ -1,9 +1,7 @@
 "use client";
 
-import * as React from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import type { ServiceResponse, SubscriptionDataMap, AccessLevel } from "@project/shared";
-import { useSocket } from "../providers";
+import { useSubscription as useQuickdrawSubscription } from "@fitzzero/quickdraw-core/client";
+import type { SubscriptionDataMap, AccessLevel } from "@project/shared";
 
 interface UseSubscriptionOptions<TData> {
   enabled?: boolean;
@@ -12,6 +10,13 @@ interface UseSubscriptionOptions<TData> {
   requiredLevel?: AccessLevel;
 }
 
+/**
+ * Typed wrapper around quickdraw-core's useSubscription hook.
+ * Provides project-specific type inference and includes subscription deduplication.
+ * 
+ * Multiple components subscribing to the same entity will share a single
+ * socket subscription, preventing duplicate network traffic.
+ */
 export function useSubscription<TService extends keyof SubscriptionDataMap>(
   serviceName: TService,
   entryId: string | null,
@@ -19,74 +24,9 @@ export function useSubscription<TService extends keyof SubscriptionDataMap>(
 ) {
   type TData = SubscriptionDataMap[TService];
 
-  const { socket, isConnected } = useSocket();
-  const queryClient = useQueryClient();
-  const [isSubscribed, setIsSubscribed] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [data, setData] = React.useState<TData | null>(null);
-
-  const { enabled = true, onData, onError, requiredLevel = "Read" } = options;
-
-  const queryKey = [serviceName, "subscription", entryId];
-
-  const onDataRef = React.useRef(onData);
-  const onErrorRef = React.useRef(onError);
-  React.useEffect(() => {
-    onDataRef.current = onData;
-    onErrorRef.current = onError;
-  }, [onData, onError]);
-
-  React.useEffect(() => {
-    if (!socket || !isConnected || !enabled || !entryId) {
-      return;
-    }
-
-    const subscribeEvent = `${serviceName}:subscribe`;
-    const updateEvent = `${serviceName}:update:${entryId}`;
-
-    // Handle updates
-    const handleUpdate = (updateData: Partial<TData>) => {
-      const asAny = updateData as { deleted?: boolean };
-      if (asAny.deleted) {
-        setData(null);
-        return;
-      }
-
-      setData((prev) => {
-        const merged = prev ? { ...prev, ...updateData } : (updateData as TData);
-        onDataRef.current?.(merged);
-        return merged;
-      });
-    };
-
-    socket.on(updateEvent, handleUpdate);
-
-    // Subscribe
-    socket.emit(subscribeEvent, { entryId, requiredLevel }, (response: ServiceResponse<TData>) => {
-      if (response.success && response.data) {
-        setData(response.data);
-        setIsSubscribed(true);
-        setError(null);
-        onDataRef.current?.(response.data);
-      } else if (!response.success) {
-        setError(response.error);
-        setIsSubscribed(false);
-        onErrorRef.current?.(response.error);
-      }
-    });
-
-    return () => {
-      socket.off(updateEvent, handleUpdate);
-      socket.emit(`${serviceName}:unsubscribe`, { entryId });
-      setIsSubscribed(false);
-    };
-  }, [socket, isConnected, enabled, entryId, serviceName, requiredLevel]);
-
-  return {
-    data,
-    isLoading: !data && !error && enabled && !!entryId,
-    isError: !!error,
-    error,
-    isSubscribed,
-  };
+  return useQuickdrawSubscription<TData>(
+    serviceName as string,
+    entryId,
+    options
+  );
 }

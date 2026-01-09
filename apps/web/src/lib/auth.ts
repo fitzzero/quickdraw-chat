@@ -24,19 +24,35 @@ export function clearAuthToken(): void {
   localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
+interface JWTPayload {
+  userId: string;
+  email?: string;
+}
+
 /**
  * Parse JWT payload (client-side only, not verified)
  */
-export function parseJWTPayload(token: string): { userId: string; email?: string } | null {
+export function parseJWTPayload(token: string): JWTPayload | null {
   try {
     const parts = token.split(".");
-    if (parts.length !== 3) return null;
+    if (parts.length !== 3 || !parts[1]) return null;
     
-    const payload = JSON.parse(atob(parts[1]!));
-    return {
-      userId: payload.userId,
-      email: payload.email,
-    };
+    const decoded = atob(parts[1]);
+    const payload: unknown = JSON.parse(decoded);
+    
+    if (
+      typeof payload === "object" &&
+      payload !== null &&
+      "userId" in payload &&
+      typeof (payload as { userId: unknown }).userId === "string"
+    ) {
+      const typedPayload = payload as { userId: string; email?: string };
+      return {
+        userId: typedPayload.userId,
+        email: typedPayload.email,
+      };
+    }
+    return null;
   } catch {
     return null;
   }

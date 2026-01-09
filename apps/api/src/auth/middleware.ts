@@ -1,8 +1,8 @@
-import type { QuickdrawSocket } from "../core/BaseService";
+import type { QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 import type { AccessLevel } from "@project/shared";
 import { prisma } from "@project/db";
-import { verifyJWT, type JWTPayload } from "./jwt";
-import { logger } from "../utils/logger";
+import { verifyJWT } from "./jwt.js";
+import { logger } from "../utils/logger.js";
 
 /**
  * Authenticate a socket connection.

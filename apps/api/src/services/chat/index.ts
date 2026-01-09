@@ -1,6 +1,6 @@
-import type { Chat, Prisma } from "@prisma/client";
+import type { Chat, Prisma, PrismaClient } from "@project/db";
 import type { ChatServiceMethods, ACL, AccessLevel } from "@project/shared";
-import { BaseService, type QuickdrawSocket } from "../../core/BaseService";
+import { BaseService } from "@fitzzero/quickdraw-core/server";
 
 export class ChatService extends BaseService<
   Chat,
@@ -8,13 +8,13 @@ export class ChatService extends BaseService<
   Prisma.ChatUpdateInput,
   ChatServiceMethods
 > {
-  constructor() {
-    super({ serviceName: "chatService", hasEntryACL: true });
-    this.initMethods();
-  }
+  private readonly prisma: PrismaClient;
 
-  protected getDelegate() {
-    return this.db.chat;
+  constructor(prisma: PrismaClient) {
+    super({ serviceName: "chatService", hasEntryACL: true });
+    this.prisma = prisma;
+    this.setDelegate(prisma.chat);
+    this.initMethods();
   }
 
   // Check if user is a member of the chat with sufficient access
@@ -24,7 +24,7 @@ export class ChatService extends BaseService<
     requiredLevel: AccessLevel
   ): Promise<boolean> {
     // Check chat membership
-    const member = await this.db.chatMember.findUnique({
+    const member = await this.prisma.chatMember.findUnique({
       where: { chatId_userId: { chatId, userId } },
       select: { level: true },
     });
@@ -39,7 +39,7 @@ export class ChatService extends BaseService<
       if (!ctx.userId) throw new Error("Authentication required");
 
       // Create chat and add creator as Admin
-      const chat = await this.db.chat.create({
+      const chat = await this.prisma.chat.create({
         data: {
           title: payload.title,
           acl: [{ userId: ctx.userId, level: "Admin" }],
@@ -64,7 +64,7 @@ export class ChatService extends BaseService<
       "updateTitle",
       "Moderate",
       async (payload, _ctx) => {
-        const updated = await this.db.chat.update({
+        const updated = await this.prisma.chat.update({
           where: { id: payload.id },
           data: { title: payload.title },
           select: { id: true, title: true },
@@ -82,14 +82,14 @@ export class ChatService extends BaseService<
       "Moderate",
       async (payload, _ctx) => {
         // Add or update membership
-        await this.db.chatMember.upsert({
+        await this.prisma.chatMember.upsert({
           where: { chatId_userId: { chatId: payload.id, userId: payload.userId } },
           update: { level: payload.level },
           create: { chatId: payload.id, userId: payload.userId, level: payload.level },
         });
 
         // Update ACL on chat
-        const chat = await this.db.chat.findUnique({
+        const chat = await this.prisma.chat.findUnique({
           where: { id: payload.id },
           select: { acl: true },
         });
@@ -98,7 +98,7 @@ export class ChatService extends BaseService<
         const newAcl = currentAcl.filter((a) => a.userId !== payload.userId);
         newAcl.push({ userId: payload.userId, level: payload.level });
         
-        await this.db.chat.update({
+        await this.prisma.chat.update({
           where: { id: payload.id },
           data: { acl: newAcl },
         });
@@ -113,12 +113,12 @@ export class ChatService extends BaseService<
       "removeUser",
       "Moderate",
       async (payload, _ctx) => {
-        await this.db.chatMember.delete({
+        await this.prisma.chatMember.delete({
           where: { chatId_userId: { chatId: payload.id, userId: payload.userId } },
         });
 
         // Update ACL
-        const chat = await this.db.chat.findUnique({
+        const chat = await this.prisma.chat.findUnique({
           where: { id: payload.id },
           select: { acl: true },
         });
@@ -126,7 +126,7 @@ export class ChatService extends BaseService<
         const currentAcl = (chat?.acl as ACL) ?? [];
         const newAcl = currentAcl.filter((a) => a.userId !== payload.userId);
         
-        await this.db.chat.update({
+        await this.prisma.chat.update({
           where: { id: payload.id },
           data: { acl: newAcl },
         });
@@ -143,12 +143,12 @@ export class ChatService extends BaseService<
       async (payload, ctx) => {
         if (!ctx.userId) throw new Error("Authentication required");
 
-        await this.db.chatMember.delete({
+        await this.prisma.chatMember.delete({
           where: { chatId_userId: { chatId: payload.id, userId: ctx.userId } },
         });
 
         // Update ACL
-        const chat = await this.db.chat.findUnique({
+        const chat = await this.prisma.chat.findUnique({
           where: { id: payload.id },
           select: { acl: true },
         });
@@ -156,7 +156,7 @@ export class ChatService extends BaseService<
         const currentAcl = (chat?.acl as ACL) ?? [];
         const newAcl = currentAcl.filter((a) => a.userId !== ctx.userId);
         
-        await this.db.chat.update({
+        await this.prisma.chat.update({
           where: { id: payload.id },
           data: { acl: newAcl },
         });
@@ -173,7 +173,7 @@ export class ChatService extends BaseService<
       const page = payload.page ?? 1;
       const pageSize = Math.min(payload.pageSize ?? 20, 100);
 
-      const memberships = await this.db.chatMember.findMany({
+      const memberships = await this.prisma.chatMember.findMany({
         where: { userId: ctx.userId },
         include: {
           chat: {
@@ -205,7 +205,7 @@ export class ChatService extends BaseService<
       "deleteChat",
       "Admin",
       async (payload, _ctx) => {
-        await this.db.chat.delete({ where: { id: payload.id } });
+        await this.prisma.chat.delete({ where: { id: payload.id } });
         this.emitUpdate(payload.id, { id: payload.id, deleted: true } as Partial<Chat>);
         return { id: payload.id, deleted: true as const };
       },

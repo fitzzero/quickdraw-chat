@@ -8,17 +8,17 @@ Object.defineProperty(window, "matchMedia", {
     matches: false,
     media: query,
     onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    addListener: () => { /* noop */ },
+    removeListener: () => { /* noop */ },
+    addEventListener: () => { /* noop */ },
+    removeEventListener: () => { /* noop */ },
     dispatchEvent: () => false,
   }),
 });
 
 // Mock ResizeObserver
 global.ResizeObserver = class ResizeObserver {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
+  observe() { /* noop */ }
+  unobserve() { /* noop */ }
+  disconnect() { /* noop */ }
 };

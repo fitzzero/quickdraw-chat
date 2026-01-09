@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Box, Typography, Paper, IconButton, Tooltip } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
-import { useSubscription, useService } from "../../hooks";
+import { useSubscription } from "../../hooks";
 import { useSocket } from "../../providers";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
@@ -19,7 +19,7 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(true);
 
   // Subscribe to chat updates
-  const { data: chat, isLoading: isChatLoading } = useSubscription("chatService", chatId);
+  const { data: chat } = useSubscription("chatService", chatId);
 
   // Load messages on mount and when chatId changes
   React.useEffect(() => {

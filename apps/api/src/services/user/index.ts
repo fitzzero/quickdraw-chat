@@ -1,6 +1,6 @@
-import type { User, Prisma } from "@prisma/client";
+import type { User, Prisma, PrismaClient } from "@project/db";
 import type { UserServiceMethods, AccessLevel } from "@project/shared";
-import { BaseService, type QuickdrawSocket } from "../../core/BaseService";
+import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 
 export class UserService extends BaseService<
   User,
@@ -8,13 +8,13 @@ export class UserService extends BaseService<
   Prisma.UserUpdateInput,
   UserServiceMethods
 > {
-  constructor() {
-    super({ serviceName: "userService", hasEntryACL: false });
-    this.initMethods();
-  }
+  private readonly prisma: PrismaClient;
 
-  protected getDelegate() {
-    return this.db.user;
+  constructor(prisma: PrismaClient) {
+    super({ serviceName: "userService", hasEntryACL: false });
+    this.prisma = prisma;
+    this.setDelegate(prisma.user);
+    this.initMethods();
   }
 
   // Users can access their own data
@@ -32,7 +32,7 @@ export class UserService extends BaseService<
     this.defineMethod("getMe", "Read", async (_payload, ctx) => {
       if (!ctx.userId) return null;
       
-      const user = await this.db.user.findUnique({
+      const user = await this.prisma.user.findUnique({
         where: { id: ctx.userId },
         select: {
           id: true,
@@ -64,7 +64,7 @@ export class UserService extends BaseService<
           throw new Error("Cannot update other users");
         }
 
-        const updated = await this.db.user.update({
+        const updated = await this.prisma.user.update({
           where: { id: payload.id },
           data: {
             name: payload.data.name,

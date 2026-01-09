@@ -54,9 +54,9 @@ export function MessageInput({ chatId, onMessageSent, disabled }: MessageInputPr
         maxRows={4}
         placeholder="Type a message..."
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        onChange={(e) => { setMessage(e.target.value); }}
         onKeyDown={handleKeyDown}
-        disabled={disabled || postMessage.isPending}
+        disabled={disabled ?? postMessage.isPending}
         size="small"
       />
       <IconButton

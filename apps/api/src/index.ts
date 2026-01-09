@@ -8,14 +8,14 @@ import { config } from "dotenv";
 config({ path: "../../.env.local" });
 config();
 
-import { logger } from "./utils/logger";
-import { ServiceRegistry } from "./core/ServiceRegistry";
-import type { QuickdrawSocket } from "./core/BaseService";
-import { UserService } from "./services/user";
-import { ChatService } from "./services/chat";
-import { MessageService } from "./services/message";
-import { authenticateSocket } from "./auth/middleware";
-import { registerDiscordRoutes } from "./auth/discord";
+import { logger } from "./utils/logger.js";
+import { ServiceRegistry, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
+import { prisma } from "@project/db";
+import { UserService } from "./services/user/index.js";
+import { ChatService } from "./services/chat/index.js";
+import { MessageService } from "./services/message/index.js";
+import { authenticateSocket } from "./auth/middleware.js";
+import { registerDiscordRoutes } from "./auth/discord.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -54,16 +54,16 @@ const io = new SocketIOServer(httpServer, {
 });
 
 // Initialize service registry
-const serviceRegistry = new ServiceRegistry(io);
+const serviceRegistry = new ServiceRegistry(io, { logger });
 
 // Register services
-const userService = new UserService();
+const userService = new UserService(prisma);
 serviceRegistry.registerService("userService", userService);
 
-const chatService = new ChatService();
+const chatService = new ChatService(prisma);
 serviceRegistry.registerService("chatService", chatService);
 
-const messageService = new MessageService();
+const messageService = new MessageService(prisma);
 serviceRegistry.registerService("messageService", messageService);
 
 // Apply authentication middleware

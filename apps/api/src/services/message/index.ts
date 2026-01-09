@@ -1,6 +1,6 @@
-import type { Message, Prisma } from "@prisma/client";
+import type { Message, Prisma, PrismaClient } from "@project/db";
 import type { MessageServiceMethods, MessageDTO, AccessLevel } from "@project/shared";
-import { BaseService, type QuickdrawSocket } from "../../core/BaseService";
+import { BaseService } from "@fitzzero/quickdraw-core/server";
 
 export class MessageService extends BaseService<
   Message,
@@ -8,13 +8,13 @@ export class MessageService extends BaseService<
   Prisma.MessageUpdateInput,
   MessageServiceMethods
 > {
-  constructor() {
-    super({ serviceName: "messageService", hasEntryACL: false });
-    this.initMethods();
-  }
+  private readonly prisma: PrismaClient;
 
-  protected getDelegate() {
-    return this.db.message;
+  constructor(prisma: PrismaClient) {
+    super({ serviceName: "messageService", hasEntryACL: false });
+    this.prisma = prisma;
+    this.setDelegate(prisma.message);
+    this.initMethods();
   }
 
   // Messages inherit access from their parent chat
@@ -23,21 +23,13 @@ export class MessageService extends BaseService<
     chatId: string,
     requiredLevel: AccessLevel
   ): Promise<boolean> {
-    const member = await this.db.chatMember.findUnique({
+    const member = await this.prisma.chatMember.findUnique({
       where: { chatId_userId: { chatId, userId } },
       select: { level: true },
     });
 
     if (!member) return false;
     return this.isLevelSufficient(member.level as AccessLevel, requiredLevel);
-  }
-
-  // Emit message update to chat subscribers (not message subscribers)
-  private emitToChat(chatId: string, messageData: MessageDTO): void {
-    const eventName = `chatService:message:${chatId}`;
-    // Get chat subscribers and emit
-    // Note: In a real implementation, you'd have access to the chat service's subscribers
-    // For now, we emit to the socket room
   }
 
   private initMethods(): void {
@@ -49,7 +41,7 @@ export class MessageService extends BaseService<
       const hasAccess = await this.checkChatAccess(ctx.userId, payload.chatId, "Read");
       if (!hasAccess) throw new Error("Access denied to chat");
 
-      const message = await this.db.message.create({
+      const message = await this.prisma.message.create({
         data: {
           chatId: payload.chatId,
           userId: ctx.userId,
@@ -91,7 +83,7 @@ export class MessageService extends BaseService<
 
       const whereClause: Prisma.MessageWhereInput = { chatId: payload.chatId };
       if (payload.before) {
-        const beforeMessage = await this.db.message.findUnique({
+        const beforeMessage = await this.prisma.message.findUnique({
           where: { id: payload.before },
           select: { createdAt: true },
         });
@@ -100,7 +92,7 @@ export class MessageService extends BaseService<
         }
       }
 
-      const messages = await this.db.message.findMany({
+      const messages = await this.prisma.message.findMany({
         where: whereClause,
         include: {
           user: {
@@ -128,7 +120,7 @@ export class MessageService extends BaseService<
       "Moderate",
       async (payload, ctx) => {
         // Get the message to check chat access
-        const message = await this.db.message.findUnique({
+        const message = await this.prisma.message.findUnique({
           where: { id: payload.id },
           select: { chatId: true, userId: true },
         });
@@ -145,7 +137,7 @@ export class MessageService extends BaseService<
           throw new Error("Cannot delete this message");
         }
 
-        await this.db.message.delete({ where: { id: payload.id } });
+        await this.prisma.message.delete({ where: { id: payload.id } });
         this.emitUpdate(payload.id, { id: payload.id, deleted: true } as unknown as Partial<Message>);
 
         return { id: payload.id, deleted: true as const };

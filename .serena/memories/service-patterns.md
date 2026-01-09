@@ -4,12 +4,12 @@
 
 1. **Create the service file**: `apps/api/src/services/<name>/index.ts`
 
-2. **Extend BaseService with proper types**:
+2. **Extend BaseService from @fitzzero/quickdraw-core**:
 
 ```typescript
-import type { <Entity>, Prisma } from "@prisma/client";
+import type { <Entity>, Prisma, PrismaClient } from "@project/db";
 import type { <Entity>ServiceMethods, AccessLevel } from "@project/shared";
-import { BaseService, type QuickdrawSocket } from "../../core/BaseService";
+import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 
 export class <Entity>Service extends BaseService<
   <Entity>,
@@ -17,13 +17,13 @@ export class <Entity>Service extends BaseService<
   Prisma.<Entity>UpdateInput,
   <Entity>ServiceMethods
 > {
-  constructor() {
-    super({ serviceName: "<entity>Service", hasEntryACL: true });
-    this.initMethods();
-  }
+  private readonly prisma: PrismaClient;
 
-  protected getDelegate() {
-    return this.db.<entity>;
+  constructor(prisma: PrismaClient) {
+    super({ serviceName: "<entity>Service", hasEntryACL: true });
+    this.prisma = prisma;
+    this.setDelegate(prisma.<entity>);
+    this.initMethods();
   }
 
   private initMethods(): void {
@@ -47,9 +47,18 @@ export type <Entity>ServiceMethods = {
 4. **Register the service** in `apps/api/src/index.ts`:
 
 ```typescript
-const <entity>Service = new <Entity>Service();
+import { prisma } from "@project/db";
+
+const <entity>Service = new <Entity>Service(prisma);
 serviceRegistry.registerService("<entity>Service", <entity>Service);
 ```
+
+## Key Differences from Local Core
+
+- Import from `@fitzzero/quickdraw-core/server` instead of local `../../core/BaseService`
+- Use `setDelegate(prisma.<entity>)` instead of abstract `getDelegate()` method
+- Store `prisma` as instance property for direct queries
+- Use `this.prisma.<entity>` for queries instead of `this.db.<entity>`
 
 ## Defining Public Methods
 
@@ -107,7 +116,7 @@ await this.delete(id);
 
 // Read operations (no auto-emit)
 await this.findById(id);
-await this.db.<entity>.findMany({ ... });
+await this.prisma.<entity>.findMany({ ... });
 ```
 
 ## Event Naming Convention
@@ -124,5 +133,5 @@ await this.db.<entity>.findMany({ ... });
 - These auto-emit to subscribers and maintain consistency
 
 **AVOID direct Prisma writes:**
-- Never use `this.db.<entity>.create/update/delete` directly for user-facing operations
+- Never use `this.prisma.<entity>.create/update/delete` directly for user-facing operations
 - Exception: Read operations and aggregations are fine

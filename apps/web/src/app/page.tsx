@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Box, Paper, Typography, CircularProgress, Alert } from "@mui/material";
+import { Box, Paper, Typography, CircularProgress } from "@mui/material";
 import { ChatList, ChatWindow } from "../components/chat";
 import { useSocket } from "../providers";
-import { useService } from "../hooks";
 import type { ChatListItem, ServiceResponse } from "@project/shared";
 
 export default function HomePage(): React.ReactElement {

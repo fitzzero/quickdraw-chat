@@ -62,7 +62,7 @@ export function ChatList({
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
+          onClick={() => { setCreateDialogOpen(true); }}
           fullWidth
           size="small"
         >
@@ -88,7 +88,7 @@ export function ChatList({
               <ListItem key={chat.id} disablePadding>
                 <ListItemButton
                   selected={chat.id === selectedChatId}
-                  onClick={() => onSelectChat(chat.id)}
+                  onClick={() => { onSelectChat(chat.id); }}
                 >
                   <ListItemText
                     primary={chat.title}
@@ -101,7 +101,7 @@ export function ChatList({
         </List>
       )}
 
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="xs" fullWidth>
+      <Dialog open={createDialogOpen} onClose={() => { setCreateDialogOpen(false); }} maxWidth="xs" fullWidth>
         <DialogTitle>Create New Chat</DialogTitle>
         <DialogContent>
           <TextField
@@ -111,14 +111,14 @@ export function ChatList({
             fullWidth
             variant="outlined"
             value={newChatTitle}
-            onChange={(e) => setNewChatTitle(e.target.value)}
+            onChange={(e) => { setNewChatTitle(e.target.value); }}
             onKeyDown={(e) => {
               if (e.key === "Enter") handleCreateChat();
             }}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => { setCreateDialogOpen(false); }}>Cancel</Button>
           <Button
             onClick={handleCreateChat}
             variant="contained"
