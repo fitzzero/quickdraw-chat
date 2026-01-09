@@ -1,18 +1,6 @@
----
-description: Guide for creating and testing Server Services (BaseService pattern, public methods, ACLs)
-globs: apps/api/src/services/**/*.ts
-alwaysApply: false
----
+# Service Architecture Patterns
 
-## Service Architecture
-
-Services are the core business logic layer in this application. Each service:
-- Represents a database entity and its operations
-- Extends `BaseService` for consistent patterns
-- Defines public methods that are auto-wired to Socket.io events
-- Implements ACL-based access control
-
-### Creating a New Service
+## Creating a New Service
 
 1. **Create the service file**: `apps/api/src/services/<name>/index.ts`
 
@@ -63,7 +51,7 @@ const <entity>Service = new <Entity>Service();
 serviceRegistry.registerService("<entity>Service", <entity>Service);
 ```
 
-### Defining Public Methods
+## Defining Public Methods
 
 Use `defineMethod` with proper typing:
 
@@ -83,7 +71,7 @@ this.defineMethod(
 );
 ```
 
-### Access Control
+## Access Control
 
 **Service-level ACL**: Stored in `user.serviceAccess` JSON field
 - Applied automatically via `socket.serviceAccess`
@@ -107,7 +95,7 @@ protected override checkAccess(
 }
 ```
 
-### CRUD Operations
+## CRUD Operations
 
 Use BaseService methods for database operations:
 
@@ -122,14 +110,14 @@ await this.findById(id);
 await this.db.<entity>.findMany({ ... });
 ```
 
-### Event Naming Convention
+## Event Naming Convention
 
 - Method invocation: `<serviceName>:<methodName>`
 - Subscription: `<serviceName>:subscribe`
 - Unsubscription: `<serviceName>:unsubscribe`
 - Updates: `<serviceName>:update:<entryId>`
 
-### Write Operations Policy
+## Write Operations Policy
 
 **ALWAYS use BaseService methods for mutations:**
 - `this.create()`, `this.update()`, `this.delete()`
@@ -138,10 +126,3 @@ await this.db.<entity>.findMany({ ... });
 **AVOID direct Prisma writes:**
 - Never use `this.db.<entity>.create/update/delete` directly for user-facing operations
 - Exception: Read operations and aggregations are fine
-
-### Testing
-
-See `testing.mdc` for integration test patterns. Key points:
-- Test ACL scenarios (admin, moderator, regular user, outsider)
-- Test subscription updates
-- Use `createTestServer` helper for socket tests

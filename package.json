@@ -1,5 +1,5 @@
 {
-  "name": "project-name",
+  "name": "quickdraw-chat",
   "private": true,
   "scripts": {
     "dev": "turbo dev",

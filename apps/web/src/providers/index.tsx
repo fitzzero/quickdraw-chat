@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Box, CircularProgress } from "@mui/material";
 import { ThemeProvider } from "./ThemeProvider";
 import { QueryProvider } from "./QueryProvider";
 import { SocketProvider } from "./SocketProvider";
@@ -23,11 +24,23 @@ export function Providers({ children }: ProvidersProps): React.ReactElement {
     setIsReady(true);
   }, []);
 
-  // Don't render socket provider until we've checked for auth token
+  // Show loading state until we've checked for auth token
+  // This prevents useSocket from being called before SocketProvider is mounted
   if (!isReady) {
     return (
       <ThemeProvider>
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          <Box
+            sx={{
+              height: "100vh",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <CircularProgress />
+          </Box>
+        </QueryProvider>
       </ThemeProvider>
     );
   }

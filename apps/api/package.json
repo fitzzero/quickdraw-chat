@@ -17,7 +17,7 @@
   "dependencies": {
     "@project/db": "workspace:*",
     "@project/shared": "workspace:*",
-    "@fitzzero/quickdraw-core": "^0.1.0",
+    "@fitzzero/quickdraw-core": "link:../../../quickdraw",
     "cors": "^2.8.5",
     "dotenv": "^16.4.0",
     "express": "^4.18.0",

@@ -1,8 +1,6 @@
 // Re-export Prisma types for convenience
 // Note: The actual types come from @project/db, but we define service method types here
 
-import type { z } from "zod";
-
 // ============================================================================
 // Access Control Types
 // ============================================================================

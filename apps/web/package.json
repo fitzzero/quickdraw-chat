@@ -20,7 +20,7 @@
     "@mui/icons-material": "^5.15.0",
     "@mui/material": "^5.15.0",
     "@project/shared": "workspace:*",
-    "@fitzzero/quickdraw-core": "^0.1.0",
+    "@fitzzero/quickdraw-core": "link:../../../quickdraw",
     "@tanstack/react-query": "^5.20.0",
     "next": "^14.2.0",
     "react": "^18.3.0",

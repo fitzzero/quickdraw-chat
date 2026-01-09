@@ -1,12 +1,6 @@
----
-description: Testing patterns for services and components
-globs: "**/*.test.{ts,tsx}"
-alwaysApply: false
----
+# Testing Patterns
 
-## Testing Patterns
-
-### Test Organization
+## Test Organization
 
 ```
 apps/api/src/
@@ -21,9 +15,7 @@ apps/api/src/
         └── chat.int.test.ts
 ```
 
-### Integration Tests (Services)
-
-**Test file template:**
+## Integration Tests (Services)
 
 ```typescript
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
@@ -35,7 +27,6 @@ describe("<Service>Service Integration", () => {
   let users: Awaited<ReturnType<typeof seedTestUsers>>;
 
   beforeAll(async () => {
-    // Start test server
     const server = await startTestServer();
     port = server.port;
     stop = server.stop;
@@ -62,14 +53,12 @@ describe("<Service>Service Integration", () => {
   });
 
   it("should deny access to non-members", async () => {
-    // Create chat as admin
     const admin = await connectAsUser(port, users.admin.id);
     const chat = await emitWithAck(admin, "chatService:createChat", {
       title: "Private Chat",
     });
     admin.close();
 
-    // Try to access as regular user (not invited)
     const outsider = await connectAsUser(port, users.regular.id);
     await expect(
       emitWithAck(outsider, "chatService:subscribe", { entryId: chat.id })
@@ -79,7 +68,7 @@ describe("<Service>Service Integration", () => {
 });
 ```
 
-### Socket Test Helpers
+## Socket Test Helpers
 
 ```typescript
 // apps/api/src/__tests__/utils/socket.ts
@@ -121,12 +110,10 @@ export function emitWithAck<TPayload, TResponse>(
 }
 ```
 
-### Test Database
+## Test Database
 
 ```typescript
 // packages/db/src/testing.ts
-import { testPrisma } from "./index";
-
 export async function resetDatabase() {
   await testPrisma.$executeRaw`TRUNCATE TABLE "messages" CASCADE`;
   await testPrisma.$executeRaw`TRUNCATE TABLE "chat_members" CASCADE`;
@@ -150,71 +137,7 @@ export async function seedTestUsers() {
 }
 ```
 
-### Component Tests
-
-```typescript
-// apps/web/src/components/chat/__tests__/ChatList.test.tsx
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
-import { ChatList } from "../ChatList";
-import { TestWrapper } from "../../__tests__/utils";
-
-describe("ChatList", () => {
-  it("should display chats", () => {
-    const chats = [
-      { id: "1", title: "Chat 1", memberCount: 2, lastMessageAt: null },
-    ];
-
-    render(
-      <ChatList
-        chats={chats}
-        isLoading={false}
-        onSelectChat={vi.fn()}
-        onRefresh={vi.fn()}
-      />,
-      { wrapper: TestWrapper }
-    );
-
-    expect(screen.getByText("Chat 1")).toBeInTheDocument();
-  });
-
-  it("should call onSelectChat when clicked", () => {
-    const onSelectChat = vi.fn();
-    const chats = [{ id: "1", title: "Chat 1", memberCount: 1, lastMessageAt: null }];
-
-    render(
-      <ChatList
-        chats={chats}
-        isLoading={false}
-        onSelectChat={onSelectChat}
-        onRefresh={vi.fn()}
-      />,
-      { wrapper: TestWrapper }
-    );
-
-    fireEvent.click(screen.getByText("Chat 1"));
-    expect(onSelectChat).toHaveBeenCalledWith("1");
-  });
-});
-```
-
-### Running Tests
-
-```bash
-# All tests
-pnpm test
-
-# Specific package
-pnpm --filter @project/api test
-
-# Watch mode
-pnpm --filter @project/api test:watch
-
-# Coverage
-pnpm test:coverage
-```
-
-### ACL Test Scenarios
+## ACL Test Scenarios
 
 Always test these scenarios:
 1. **Admin** - Service-level Admin access
@@ -224,11 +147,20 @@ Always test these scenarios:
 5. **Outsider** - No access (should fail)
 6. **Self** - Own data access (if applicable)
 
-### Test Environment
+## Running Tests
 
-Set these in `.env.test`:
+```bash
+pnpm test                      # All tests
+pnpm --filter @project/api test  # API only
+pnpm test:watch                # Watch mode
+pnpm test:coverage             # With coverage
 ```
-DATABASE_URL=postgresql://dev:dev@localhost:5432/project_test
+
+## Test Environment
+
+Set in `.env.test`:
+```
+DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat_test
 ENABLE_DEV_CREDENTIALS=true
 LOG_LEVEL=error
 ```

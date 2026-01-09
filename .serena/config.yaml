@@ -1,9 +1,9 @@
-# Serena configuration for fullstack monorepo
+# Serena configuration for quickdraw-chat
 # https://oraios.github.io/serena
 
 project:
-  name: fullstack-monorepo
-  description: Fullstack monorepo with real-time capabilities
+  name: quickdraw-chat
+  description: Reference implementation and test app for @fitzzero/quickdraw-core - real-time chat with Socket.io
 
 # Language servers
 language_servers:

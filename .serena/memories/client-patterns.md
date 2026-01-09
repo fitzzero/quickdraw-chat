@@ -1,12 +1,6 @@
----
-description: Client-side patterns for React components and hooks
-globs: apps/web/src/**/*.{ts,tsx}
-alwaysApply: false
----
+# Client Patterns
 
-## Client Patterns
-
-### Hooks
+## Hooks
 
 **useService** - For invoking service methods:
 
@@ -50,7 +44,7 @@ function ChatHeader({ chatId }: { chatId: string }) {
 }
 ```
 
-### Socket Context
+## Socket Context
 
 Access socket state via `useSocket`:
 
@@ -65,9 +59,8 @@ function ConnectionStatus() {
 }
 ```
 
-### Component Structure
+## Component Structure
 
-**File organization:**
 ```
 src/
 ├── components/
@@ -86,7 +79,7 @@ src/
 │   └── index.tsx       # Combined providers
 ```
 
-### Styling
+## Styling
 
 **Use MUI's sx prop** for component styling:
 
@@ -111,12 +104,7 @@ sx={{
 }}
 ```
 
-**Avoid:**
-- Inline styles without sx
-- CSS-in-JS with styled-components (use MUI styled if needed)
-- Tailwind classes (not configured)
-
-### Type Safety
+## Type Safety
 
 **Service method types** come from `@project/shared`:
 
@@ -129,23 +117,13 @@ const createChat = useService("chatService", "createChat");
 // createChat.data is: { id: string } | undefined
 ```
 
-**Subscription data types:**
-
-```typescript
-import type { SubscriptionDataMap } from "@project/shared";
-
-const { data } = useSubscription("chatService", chatId);
-// data is: SubscriptionDataMap["chatService"] | null
-```
-
-### Error Handling
+## Error Handling
 
 **Hook-level:**
 
 ```typescript
 const mutation = useService("chatService", "createChat", {
   onError: (error) => {
-    // error is a string message
     toast.error(error);
   },
 });
@@ -159,9 +137,9 @@ if (mutation.isError) {
 }
 ```
 
-### Loading States
+## Loading States
 
-Use MUI components for consistency:
+Use MUI components:
 
 ```typescript
 if (isLoading) {
@@ -173,33 +151,11 @@ if (isLoading) {
 }
 ```
 
-Or with skeletons:
+## Socket Input Components
 
-```typescript
-if (isLoading) {
-  return <Skeleton variant="rectangular" height={200} />;
-}
-```
-
-### Forms
-
-For socket-synced inputs, see the Socket input components in `@quickdraw/core/client`:
+For socket-synced inputs from `@quickdraw/core/client`:
 - `SocketTextField` - Text input with debounce
 - `SocketCheckbox` - Boolean toggle
 - `SocketSelect` - Select dropdown
 - `SocketSlider` - Range input
 - `SocketSwitch` - Toggle switch
-
-Example:
-
-```typescript
-import { SocketTextField } from "@quickdraw/core/client";
-
-<SocketTextField
-  state={chat}
-  update={(patch) => updateChat.mutateAsync({ id: chat.id, ...patch })}
-  property="title"
-  commitMode="debounce"
-  debounceMs={500}
-/>
-```
