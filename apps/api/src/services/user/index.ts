@@ -2,11 +2,13 @@ import type { User, Prisma, PrismaClient } from "@project/db";
 import type { UserServiceMethods, AccessLevel } from "@project/shared";
 import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 
+type ServiceMethodsRecord = Record<string, { payload: unknown; response: unknown }>;
+
 export class UserService extends BaseService<
   User,
   Prisma.UserCreateInput,
   Prisma.UserUpdateInput,
-  UserServiceMethods
+  UserServiceMethods & ServiceMethodsRecord
 > {
   private readonly prisma: PrismaClient;
 

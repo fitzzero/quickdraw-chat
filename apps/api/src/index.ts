@@ -14,6 +14,7 @@ import { prisma } from "@project/db";
 import { UserService } from "./services/user/index.js";
 import { ChatService } from "./services/chat/index.js";
 import { MessageService } from "./services/message/index.js";
+import { DocumentService } from "./services/document/index.js";
 import { authenticateSocket } from "./auth/middleware.js";
 import { registerDiscordRoutes } from "./auth/discord.js";
 
@@ -65,6 +66,10 @@ serviceRegistry.registerService("chatService", chatService);
 
 const messageService = new MessageService(prisma);
 serviceRegistry.registerService("messageService", messageService);
+
+// Document service - demonstrates simpler JSON ACL pattern (no membership table)
+const documentService = new DocumentService(prisma);
+serviceRegistry.registerService("documentService", documentService);
 
 // Apply authentication middleware
 io.use((socket, next) => {

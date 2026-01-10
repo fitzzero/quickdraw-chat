@@ -31,6 +31,7 @@ model User {
   sessions      Session[]
   chatMembers   ChatMember[]
   messages      Message[]
+  documents     Document[]
 
   @@map("users")
 }
@@ -123,4 +124,35 @@ model Message {
 
   @@index([chatId, createdAt])
   @@map("messages")
+}
+
+// ============================================================================
+// Document Models - Example of simple JSON ACL pattern
+// ============================================================================
+
+// Documents use the built-in JSON ACL pattern (no membership table needed).
+// This is simpler than Chat's membership table approach and works well when:
+// - You don't need to query "all documents user X can access" efficiently
+// - Access patterns are straightforward (owner + optional collaborators)
+// - You want minimal schema complexity
+
+model Document {
+  id        String   @id @default(cuid())
+  title     String
+  content   String   @default("")
+  ownerId   String   @map("owner_id")
+  
+  // Entry-level ACL stored as JSON array (same format as Chat.acl)
+  // Format: [{ "userId": "...", "level": "Read" | "Moderate" | "Admin" }]
+  // Unlike Chat, we use this directly instead of a membership table
+  acl       Json?
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@map("documents")
 }

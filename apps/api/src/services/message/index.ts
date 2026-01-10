@@ -2,11 +2,13 @@ import type { Message, Prisma, PrismaClient } from "@project/db";
 import type { MessageServiceMethods, AccessLevel } from "@project/shared";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
 
+type ServiceMethodsRecord = Record<string, { payload: unknown; response: unknown }>;
+
 export class MessageService extends BaseService<
   Message,
   Prisma.MessageCreateInput,
   Prisma.MessageUpdateInput,
-  MessageServiceMethods
+  MessageServiceMethods & ServiceMethodsRecord
 > {
   private readonly prisma: PrismaClient;
 

@@ -2,11 +2,13 @@ import type { Chat, Prisma, PrismaClient } from "@project/db";
 import type { ChatServiceMethods, ACL, AccessLevel } from "@project/shared";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
 
+type ServiceMethodsRecord = Record<string, { payload: unknown; response: unknown }>;
+
 export class ChatService extends BaseService<
   Chat,
   Prisma.ChatCreateInput,
   Prisma.ChatUpdateInput,
-  ChatServiceMethods
+  ChatServiceMethods & ServiceMethodsRecord
 > {
   private readonly prisma: PrismaClient;
 
@@ -94,13 +96,13 @@ export class ChatService extends BaseService<
           select: { acl: true },
         });
         
-        const currentAcl = (chat?.acl as ACL) ?? [];
+        const currentAcl = (chat?.acl as unknown as ACL) ?? [];
         const newAcl = currentAcl.filter((a) => a.userId !== payload.userId);
         newAcl.push({ userId: payload.userId, level: payload.level });
         
         await this.prisma.chat.update({
           where: { id: payload.id },
-          data: { acl: newAcl },
+          data: { acl: newAcl as unknown as Prisma.InputJsonValue },
         });
 
         return { id: payload.id };
@@ -123,12 +125,12 @@ export class ChatService extends BaseService<
           select: { acl: true },
         });
         
-        const currentAcl = (chat?.acl as ACL) ?? [];
+        const currentAcl = (chat?.acl as unknown as ACL) ?? [];
         const newAcl = currentAcl.filter((a) => a.userId !== payload.userId);
         
         await this.prisma.chat.update({
           where: { id: payload.id },
-          data: { acl: newAcl },
+          data: { acl: newAcl as unknown as Prisma.InputJsonValue },
         });
 
         return { id: payload.id };
@@ -153,12 +155,12 @@ export class ChatService extends BaseService<
           select: { acl: true },
         });
         
-        const currentAcl = (chat?.acl as ACL) ?? [];
+        const currentAcl = (chat?.acl as unknown as ACL) ?? [];
         const newAcl = currentAcl.filter((a) => a.userId !== ctx.userId);
         
         await this.prisma.chat.update({
           where: { id: payload.id },
-          data: { acl: newAcl },
+          data: { acl: newAcl as unknown as Prisma.InputJsonValue },
         });
 
         return { id: payload.id };
