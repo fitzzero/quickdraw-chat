@@ -1,5 +1,5 @@
 import type { Message, Prisma, PrismaClient } from "@project/db";
-import type { MessageServiceMethods, MessageDTO, AccessLevel } from "@project/shared";
+import type { MessageServiceMethods, AccessLevel } from "@project/shared";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
 
 export class MessageService extends BaseService<
@@ -54,16 +54,6 @@ export class MessageService extends BaseService<
           },
         },
       });
-
-      const messageDTO: MessageDTO = {
-        id: message.id,
-        chatId: message.chatId,
-        userId: message.userId,
-        content: message.content,
-        role: message.role,
-        createdAt: message.createdAt.toISOString(),
-        user: message.user,
-      };
 
       // Emit to message subscribers and chat subscribers
       this.emitUpdate(message.id, message);

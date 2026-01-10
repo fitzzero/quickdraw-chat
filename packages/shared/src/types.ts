@@ -7,10 +7,10 @@
 
 export type AccessLevel = "Public" | "Read" | "Moderate" | "Admin";
 
-export type ACE = {
+export interface ACE {
   userId: string;
   level: AccessLevel;
-};
+}
 
 export type ACL = ACE[];
 
@@ -26,7 +26,7 @@ export type ServiceResponse<T = unknown> =
 // User Service Methods
 // ============================================================================
 
-export type UserServiceMethods = {
+export interface UserServiceMethods {
   updateUser: {
     payload: {
       id: string;
@@ -52,24 +52,24 @@ export type UserServiceMethods = {
       serviceAccess: Record<string, AccessLevel> | null;
     } | null;
   };
-};
+}
 
 // ============================================================================
 // Chat Service Methods
 // ============================================================================
 
-export type ChatListItem = {
+export interface ChatListItem {
   id: string;
   title: string;
   memberCount: number;
   lastMessageAt: string | null;
-};
+}
 
-export type ChatServiceMethods = {
+export interface ChatServiceMethods {
   createChat: {
     payload: {
       title: string;
-      members?: Array<{ userId: string; level: AccessLevel }>;
+      members?: { userId: string; level: AccessLevel }[];
     };
     response: { id: string };
   };
@@ -101,13 +101,13 @@ export type ChatServiceMethods = {
     payload: { id: string };
     response: { id: string; deleted: true };
   };
-};
+}
 
 // ============================================================================
 // Message Service Methods
 // ============================================================================
 
-export type MessageDTO = {
+export interface MessageDTO {
   id: string;
   chatId: string;
   userId: string;
@@ -119,9 +119,9 @@ export type MessageDTO = {
     name: string | null;
     image: string | null;
   };
-};
+}
 
-export type MessageServiceMethods = {
+export interface MessageServiceMethods {
   postMessage: {
     payload: {
       chatId: string;
@@ -142,23 +142,23 @@ export type MessageServiceMethods = {
     payload: { id: string };
     response: { id: string; deleted: true };
   };
-};
+}
 
 // ============================================================================
 // Combined Service Methods Map (for client typing)
 // ============================================================================
 
-export type ServiceMethodsMap = {
+export interface ServiceMethodsMap {
   userService: UserServiceMethods;
   chatService: ChatServiceMethods;
   messageService: MessageServiceMethods;
-};
+}
 
 // ============================================================================
 // Subscription Data Map (for useSubscription typing)
 // ============================================================================
 
-export type SubscriptionDataMap = {
+export interface SubscriptionDataMap {
   userService: {
     id: string;
     email: string;
@@ -173,4 +173,4 @@ export type SubscriptionDataMap = {
     createdAt: string;
     updatedAt: string;
   };
-};
+}

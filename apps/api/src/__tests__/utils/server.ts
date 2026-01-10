@@ -1,12 +1,12 @@
 import express from "express";
 import { createServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
-import { ServiceRegistry } from "../../core/ServiceRegistry";
-import type { QuickdrawSocket } from "../../core/BaseService";
-import { UserService } from "../../services/user";
-import { ChatService } from "../../services/chat";
-import { MessageService } from "../../services/message";
-import { getAvailablePort } from "./socket";
+import { ServiceRegistry, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
+import { prisma } from "@project/db";
+import { UserService } from "../../services/user/index.js";
+import { ChatService } from "../../services/chat/index.js";
+import { MessageService } from "../../services/message/index.js";
+import { getAvailablePort } from "./socket.js";
 
 interface TestServer {
   port: number;
@@ -29,9 +29,9 @@ export async function startTestServer(): Promise<TestServer> {
   const serviceRegistry = new ServiceRegistry(io);
 
   // Register services
-  serviceRegistry.registerService("userService", new UserService());
-  serviceRegistry.registerService("chatService", new ChatService());
-  serviceRegistry.registerService("messageService", new MessageService());
+  serviceRegistry.registerService("userService", new UserService(prisma));
+  serviceRegistry.registerService("chatService", new ChatService(prisma));
+  serviceRegistry.registerService("messageService", new MessageService(prisma));
 
   // Dev auth middleware
   io.use((socket, next) => {
@@ -70,16 +70,21 @@ export async function startTestServer(): Promise<TestServer> {
 
   // Wait for server to start
   await new Promise<void>((resolve) => {
-    httpServer.listen(port, () => resolve());
+    httpServer.listen(port, () => {
+      resolve();
+    });
   });
 
   return {
     port,
     io,
-    stop: () =>
-      new Promise<void>((resolve) => {
-        io.close();
-        httpServer.close(() => resolve());
-      }),
+    stop: async () => {
+      await io.close();
+      await new Promise<void>((resolve) => {
+        httpServer.close(() => {
+          resolve();
+        });
+      });
+    },
   };
 }

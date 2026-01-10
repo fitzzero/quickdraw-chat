@@ -66,7 +66,7 @@ describe("useService", () => {
     };
 
     mockSocket.emit.mockImplementation(
-      (event: string, payload: unknown, callback?: (response: unknown) => void) => {
+      (_event: string, _payload: unknown, callback?: (response: unknown) => void) => {
         if (callback) {
           callback({ success: true, data: chatResponse });
         }
@@ -103,7 +103,7 @@ describe("useService", () => {
     const errorMessage = "Permission denied";
 
     mockSocket.emit.mockImplementation(
-      (event: string, payload: unknown, callback?: (response: unknown) => void) => {
+      (_event: string, _payload: unknown, callback?: (response: unknown) => void) => {
         if (callback) {
           callback({ success: false, error: errorMessage });
         }
@@ -136,7 +136,7 @@ describe("useService", () => {
     };
 
     mockSocket.emit.mockImplementation(
-      (event: string, payload: unknown, callback?: (response: unknown) => void) => {
+      (_event: string, _payload: unknown, callback?: (response: unknown) => void) => {
         if (callback) {
           callback({ success: true, data: chatResponse });
         }
@@ -160,7 +160,7 @@ describe("useService", () => {
     const errorMessage = "Server error";
 
     mockSocket.emit.mockImplementation(
-      (event: string, payload: unknown, callback?: (response: unknown) => void) => {
+      (_event: string, _payload: unknown, callback?: (response: unknown) => void) => {
         if (callback) {
           callback({ success: false, error: errorMessage });
         }
@@ -188,7 +188,7 @@ describe("useService", () => {
     };
 
     mockSocket.emit.mockImplementation(
-      (event: string, payload: unknown, callback?: (response: unknown) => void) => {
+      (_event: string, _payload: unknown, callback?: (response: unknown) => void) => {
         if (callback) {
           callback({ success: true, data: chatResponse });
         }
@@ -256,7 +256,7 @@ describe("useService type safety", () => {
     });
     vi.clearAllMocks();
     mockSocket.emit.mockImplementation(
-      (event: string, payload: unknown, callback?: (response: unknown) => void) => {
+      (_event: string, _payload: unknown, callback?: (response: unknown) => void) => {
         if (callback) {
           callback({ success: true, data: {} });
         }
@@ -284,7 +284,7 @@ describe("useService type safety", () => {
     expect(messageResult.current.mutate).toBeDefined();
 
     const { result: userResult } = renderHook(
-      () => useService("userService", "updateProfile"),
+      () => useService("userService", "updateUser"),
       { wrapper }
     );
     expect(userResult.current.mutate).toBeDefined();

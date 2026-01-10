@@ -23,9 +23,14 @@ export function useService<
   methodName: TMethod,
   options?: UseServiceOptions<GetResponse<TService, TMethod>>
 ) {
-  return useQuickdrawService<ServiceMethodsMap, TService, TMethod>(
-    serviceName,
-    methodName,
+  // Cast to satisfy quickdraw-core's generic constraint while preserving our strict typing
+  return useQuickdrawService<
+    Record<string, Record<string, { payload: unknown; response: unknown }>>,
+    string,
+    string
+  >(
+    serviceName as string,
+    methodName as string,
     options as Parameters<typeof useQuickdrawService>[2]
   );
 }

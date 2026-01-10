@@ -1,7 +1,7 @@
 import type { Router } from "express";
 import { prisma } from "@project/db";
-import { createJWT } from "./jwt";
-import { logger } from "../utils/logger";
+import { createJWT } from "./jwt.js";
+import { logger } from "../utils/logger.js";
 
 interface DiscordUser {
   id: string;

@@ -55,7 +55,7 @@ describe("useSubscription deduplication", () => {
     
     // Setup mock emit to respond with success
     mockSocket.emit.mockImplementation(
-      (event: string, payload: unknown, callback?: (response: unknown) => void) => {
+      (event: string, _payload: unknown, callback?: (response: unknown) => void) => {
         if (event.includes(":subscribe") && callback) {
           callback({
             success: true,
@@ -199,11 +199,10 @@ describe("useSubscription deduplication", () => {
       image: "https://example.com/avatar.png",
     };
 
-    if (updateHandler) {
-      act(() => {
-        updateHandler(updatedUser);
-      });
-    }
+    expect(updateHandler).toBeDefined();
+    act(() => {
+      updateHandler!(updatedUser);
+    });
 
     // Both hooks should receive the update via TanStack Query cache
     await waitFor(() => {

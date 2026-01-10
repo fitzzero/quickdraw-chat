@@ -1,4 +1,4 @@
-import { io as ioClient, Socket } from "socket.io-client";
+import { io as ioClient, type Socket } from "socket.io-client";
 import type { ServiceResponse } from "@project/shared";
 
 let nextPort = 10000;
@@ -46,7 +46,7 @@ export function emitWithAck<TPayload, TResponse>(
   socket: Socket,
   event: string,
   payload: TPayload,
-  timeoutMs: number = 5000
+  timeoutMs = 5000 as number
 ): Promise<TResponse> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
@@ -71,7 +71,7 @@ export function emitWithAck<TPayload, TResponse>(
 export function waitForEvent<T>(
   socket: Socket,
   event: string,
-  timeoutMs: number = 5000
+  timeoutMs = 5000 as number
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
@@ -79,7 +79,7 @@ export function waitForEvent<T>(
       reject(new Error(`Timeout waiting for event ${event}`));
     }, timeoutMs);
 
-    const handler = (data: T) => {
+    const handler = (data: T): void => {
       clearTimeout(timeout);
       socket.off(event, handler);
       resolve(data);

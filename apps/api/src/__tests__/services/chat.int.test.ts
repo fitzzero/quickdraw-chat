@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
-import { startTestServer } from "../utils/server";
-import { connectAsUser, emitWithAck } from "../utils/socket";
-import type { Socket } from "socket.io-client";
+import { startTestServer } from "../utils/server.js";
+import { connectAsUser, emitWithAck } from "../utils/socket.js";
 
 describe("ChatService Integration", () => {
   let stop: () => Promise<void>;
@@ -77,7 +76,7 @@ describe("ChatService Integration", () => {
     // Regular user should now see the chat
     const myChats = await emitWithAck<
       { page?: number },
-      Array<{ id: string; title: string }>
+      { id: string; title: string }[]
     >(regular, "chatService:listMyChats", {});
 
     expect(myChats.some((c) => c.id === chat.id)).toBe(true);

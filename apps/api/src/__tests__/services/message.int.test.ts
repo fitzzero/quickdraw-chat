@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
-import { startTestServer } from "../utils/server";
-import { connectAsUser, emitWithAck } from "../utils/socket";
+import { startTestServer } from "../utils/server.js";
+import { connectAsUser, emitWithAck } from "../utils/socket.js";
 import type { MessageDTO } from "@project/shared";
 
 describe("MessageService Integration", () => {

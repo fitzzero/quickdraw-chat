@@ -1,2 +1,2 @@
-export { authenticateSocket } from "./middleware";
-export { createJWT, verifyJWT, type JWTPayload } from "./jwt";
+export { authenticateSocket } from "./middleware.js";
+export { createJWT, verifyJWT, type JWTPayload } from "./jwt.js";
