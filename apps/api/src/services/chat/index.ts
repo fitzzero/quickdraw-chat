@@ -2,7 +2,10 @@ import type { Chat, Prisma, PrismaClient } from "@project/db";
 import type { ChatServiceMethods, ACL, AccessLevel } from "@project/shared";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
 
-type ServiceMethodsRecord = Record<string, { payload: unknown; response: unknown }>;
+type ServiceMethodsRecord = Record<
+  string,
+  { payload: unknown; response: unknown }
+>;
 
 export class ChatService extends BaseService<
   Chat,
@@ -85,9 +88,15 @@ export class ChatService extends BaseService<
       async (payload, _ctx) => {
         // Add or update membership
         await this.prisma.chatMember.upsert({
-          where: { chatId_userId: { chatId: payload.id, userId: payload.userId } },
+          where: {
+            chatId_userId: { chatId: payload.id, userId: payload.userId },
+          },
           update: { level: payload.level },
-          create: { chatId: payload.id, userId: payload.userId, level: payload.level },
+          create: {
+            chatId: payload.id,
+            userId: payload.userId,
+            level: payload.level,
+          },
         });
 
         // Update ACL on chat
@@ -95,11 +104,11 @@ export class ChatService extends BaseService<
           where: { id: payload.id },
           select: { acl: true },
         });
-        
+
         const currentAcl = (chat?.acl as unknown as ACL) ?? [];
         const newAcl = currentAcl.filter((a) => a.userId !== payload.userId);
         newAcl.push({ userId: payload.userId, level: payload.level });
-        
+
         await this.prisma.chat.update({
           where: { id: payload.id },
           data: { acl: newAcl as unknown as Prisma.InputJsonValue },
@@ -116,7 +125,9 @@ export class ChatService extends BaseService<
       "Moderate",
       async (payload, _ctx) => {
         await this.prisma.chatMember.delete({
-          where: { chatId_userId: { chatId: payload.id, userId: payload.userId } },
+          where: {
+            chatId_userId: { chatId: payload.id, userId: payload.userId },
+          },
         });
 
         // Update ACL
@@ -124,10 +135,10 @@ export class ChatService extends BaseService<
           where: { id: payload.id },
           select: { acl: true },
         });
-        
+
         const currentAcl = (chat?.acl as unknown as ACL) ?? [];
         const newAcl = currentAcl.filter((a) => a.userId !== payload.userId);
-        
+
         await this.prisma.chat.update({
           where: { id: payload.id },
           data: { acl: newAcl as unknown as Prisma.InputJsonValue },
@@ -154,10 +165,10 @@ export class ChatService extends BaseService<
           where: { id: payload.id },
           select: { acl: true },
         });
-        
+
         const currentAcl = (chat?.acl as unknown as ACL) ?? [];
         const newAcl = currentAcl.filter((a) => a.userId !== ctx.userId);
-        
+
         await this.prisma.chat.update({
           where: { id: payload.id },
           data: { acl: newAcl as unknown as Prisma.InputJsonValue },
@@ -208,7 +219,10 @@ export class ChatService extends BaseService<
       "Admin",
       async (payload, _ctx) => {
         await this.prisma.chat.delete({ where: { id: payload.id } });
-        this.emitUpdate(payload.id, { id: payload.id, deleted: true } as Partial<Chat>);
+        this.emitUpdate(payload.id, {
+          id: payload.id,
+          deleted: true,
+        } as Partial<Chat>);
         return { id: payload.id, deleted: true as const };
       },
       { resolveEntryId: (p) => p.id }
