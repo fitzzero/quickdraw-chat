@@ -1,8 +1,11 @@
 import express from "express";
 import { createServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
-import { ServiceRegistry, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
-import { prisma } from "@project/db";
+import {
+  ServiceRegistry,
+  type QuickdrawSocket,
+} from "@fitzzero/quickdraw-core/server";
+import { testPrisma } from "@project/db/testing";
 import { UserService } from "../../services/user/index.js";
 import { ChatService } from "../../services/chat/index.js";
 import { MessageService } from "../../services/message/index.js";
@@ -28,28 +31,31 @@ export async function startTestServer(): Promise<TestServer> {
 
   const serviceRegistry = new ServiceRegistry(io);
 
-  // Register services
-  serviceRegistry.registerService("userService", new UserService(prisma));
-  serviceRegistry.registerService("chatService", new ChatService(prisma));
-  serviceRegistry.registerService("messageService", new MessageService(prisma));
+  // Register services (use testPrisma to match test database)
+  serviceRegistry.registerService("userService", new UserService(testPrisma));
+  serviceRegistry.registerService("chatService", new ChatService(testPrisma));
+  serviceRegistry.registerService(
+    "messageService",
+    new MessageService(testPrisma)
+  );
 
   // Dev auth middleware
   io.use((socket, next) => {
     const quickdrawSocket = socket as QuickdrawSocket;
     const auth = socket.handshake.auth as Record<string, unknown>;
-    
+
     if (auth.userId) {
       quickdrawSocket.userId = String(auth.userId);
       quickdrawSocket.serviceAccess = {};
     }
-    
+
     next();
   });
 
   // Connection handler
   io.on("connection", (socket) => {
     const quickdrawSocket = socket as QuickdrawSocket;
-    
+
     if (quickdrawSocket.userId) {
       quickdrawSocket.emit("auth:info", {
         userId: quickdrawSocket.userId,
