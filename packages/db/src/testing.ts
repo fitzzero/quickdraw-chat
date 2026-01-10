@@ -29,6 +29,7 @@ export async function resetDatabase(): Promise<void> {
   await testPrisma.$executeRaw`TRUNCATE TABLE "messages" CASCADE`;
   await testPrisma.$executeRaw`TRUNCATE TABLE "chat_members" CASCADE`;
   await testPrisma.$executeRaw`TRUNCATE TABLE "chats" CASCADE`;
+  await testPrisma.$executeRaw`TRUNCATE TABLE "documents" CASCADE`;
   await testPrisma.$executeRaw`TRUNCATE TABLE "sessions" CASCADE`;
   await testPrisma.$executeRaw`TRUNCATE TABLE "accounts" CASCADE`;
   await testPrisma.$executeRaw`TRUNCATE TABLE "users" CASCADE`;
