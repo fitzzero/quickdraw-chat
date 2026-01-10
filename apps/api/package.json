@@ -10,9 +10,9 @@
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test": "DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat_test vitest run",
+    "test:watch": "DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat_test vitest",
+    "test:coverage": "DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat_test vitest run --coverage"
   },
   "dependencies": {
     "@project/db": "workspace:*",
