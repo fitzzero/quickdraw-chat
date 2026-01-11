@@ -8,6 +8,9 @@ dist/
 .turbo/
 out/
 
+# Prisma generated client
+packages/db/prisma/generated/
+
 # Environment files
 .env
 .env.local

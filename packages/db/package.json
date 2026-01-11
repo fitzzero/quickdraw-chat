@@ -27,7 +27,8 @@
     "db:studio": "dotenv -e ../../.env.local -- prisma studio"
   },
   "dependencies": {
-    "@prisma/client": "^5.10.0"
+    "@prisma/client": "^7.0.0",
+    "@prisma/adapter-pg": "^7.0.0"
   },
   "devDependencies": {
     "@project/eslint-config": "workspace:*",
@@ -35,7 +36,7 @@
     "@typescript-eslint/parser": "^7.0.0",
     "dotenv-cli": "^11.0.0",
     "eslint": "^8.56.0",
-    "prisma": "^5.10.0",
+    "prisma": "^7.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.3.0"
   }

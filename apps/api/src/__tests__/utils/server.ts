@@ -5,6 +5,7 @@ import {
   ServiceRegistry,
   type QuickdrawSocket,
 } from "@fitzzero/quickdraw-core/server";
+import type { AccessLevel } from "@project/shared";
 import { testPrisma } from "@project/db/testing";
 import { UserService } from "../../services/user/index.js";
 import { ChatService } from "../../services/chat/index.js";
@@ -54,7 +55,7 @@ export async function startTestServer(): Promise<TestServer> {
       if (user) {
         quickdrawSocket.userId = user.id;
         quickdrawSocket.serviceAccess =
-          (user.serviceAccess as Record<string, string>) ?? {};
+          (user.serviceAccess as Record<string, AccessLevel>) ?? {};
       }
     }
 

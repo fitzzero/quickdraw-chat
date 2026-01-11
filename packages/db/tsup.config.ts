@@ -9,5 +9,7 @@ export default defineConfig({
   dts: true,
   sourcemap: true,
   clean: true,
-  external: ["@prisma/client"],
+  // Bundle the generated Prisma client since it's TypeScript-only in Prisma 7
+  noExternal: [/prisma\/generated/],
+  external: ["@prisma/adapter-pg"],
 });
