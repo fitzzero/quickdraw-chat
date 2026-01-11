@@ -1,6 +1,6 @@
 ---
 description: Guidelines for using Serena MCP tools and memories
-globs: ["**/*"]
+alwaysApply: true
 ---
 
 # Serena MCP Usage

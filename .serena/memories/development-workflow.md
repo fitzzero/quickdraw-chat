@@ -2,71 +2,178 @@
 
 ## Local Development
 
-### Build Commands
+### Prerequisites
+
+- Node.js 20+
+- pnpm 8+
+- PostgreSQL (local or Docker)
+- Redis (for rate limiting, optional)
+
+### Initial Setup
 
 ```bash
-pnpm build      # Build all exports with tsup
-pnpm dev        # Watch mode for development
-pnpm typecheck  # TypeScript type checking
-pnpm lint       # ESLint
-pnpm test       # Run tests with Vitest
+# Install dependencies
+pnpm install
+
+# Copy environment file
+cp env.example .env.local
+
+# Generate Prisma client
+pnpm db:generate
+
+# Push schema to database
+pnpm db:push
+
+# Start development servers
+pnpm dev
 ```
 
-### Testing with quickdraw-chat
+### Environment Variables
 
-This package is linked locally to quickdraw-chat for real-time development:
+Required in `.env.local`:
 
 ```bash
-# In quickdraw-chat/apps/api/package.json:
+DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat
+JWT_SECRET=your-dev-secret-key
+
+# OAuth (optional for local dev - use dev credentials)
+DISCORD_CLIENT_ID=...
+DISCORD_CLIENT_SECRET=...
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+
+# Enable dev auth bypass
+ENABLE_DEV_CREDENTIALS=true
+```
+
+## Build Commands
+
+```bash
+pnpm dev          # Start all apps in watch mode (turbo)
+pnpm build        # Build all packages
+pnpm typecheck    # TypeScript type checking
+pnpm lint         # ESLint across all packages
+pnpm test         # Run all tests
+```
+
+### Package-Specific Commands
+
+```bash
+# API server only
+pnpm --filter @project/api dev
+pnpm --filter @project/api test
+
+# Web client only
+pnpm --filter @project/web dev
+
+# Database package
+pnpm --filter @project/db generate
+pnpm --filter @project/db push
+pnpm --filter @project/db studio
+```
+
+## Database Workflow
+
+### Schema Changes
+
+1. Edit `packages/db/prisma/schema.prisma`
+2. Generate client: `pnpm db:generate`
+3. Push to database: `pnpm db:push` (development)
+4. For production: Use `pnpm db:migrate` to create migrations
+
+### Prisma Studio
+
+```bash
+pnpm db:studio  # Opens browser UI for database inspection
+```
+
+### Reset Database
+
+```bash
+# In development - drops all data
+pnpm db:push --force-reset
+```
+
+## Working with quickdraw-core
+
+This project uses a locally-linked `@fitzzero/quickdraw-core`:
+
+```json
+// apps/api/package.json
 "@fitzzero/quickdraw-core": "link:../../../quickdraw"
 ```
 
-Changes to quickdraw-core are immediately reflected in quickdraw-chat after rebuild.
+### Development Workflow
 
-**Workflow:**
-1. Make changes in quickdraw-core
-2. Run `pnpm build` (or have `pnpm dev` running)
-3. Changes are instantly available in quickdraw-chat
+1. Make changes in `quickdraw-core` (sibling project)
+2. Run `pnpm build` in quickdraw-core (or have `pnpm dev` running)
+3. Changes are immediately available in quickdraw-chat
 
-## Publishing to npm
+### Common Scenarios
+
+**Adding a new BaseService feature:**
+1. Implement in quickdraw-core's `src/server/BaseService.ts`
+2. Build quickdraw-core
+3. Use immediately in quickdraw-chat services
+
+**Adding a new client hook:**
+1. Implement in quickdraw-core's `src/client/`
+2. Export from `src/client/index.ts`
+3. Build quickdraw-core
+4. Import in quickdraw-chat's web app
+
+## Code Verification
+
+Before committing, run the full check (see `check-code` memory):
 
 ```bash
-# 1. Update version in package.json
-# 2. Build
-pnpm build
-
-# 3. Publish (requires npm login)
-npm publish --access public
+pnpm lint && pnpm typecheck && pnpm test
 ```
-
-Package is published as `@fitzzero/quickdraw-core` on npm.
 
 ## Adding New Features
 
-### Server-side
+### New Service
 
-1. Add types to `src/server/types.ts`
-2. Implement in appropriate file under `src/server/`
-3. Export from `src/server/index.ts`
-4. Add tests
+1. Create service file: `apps/api/src/services/<name>/index.ts`
+2. Define types in `packages/shared/src/types.ts`
+3. Register in `apps/api/src/index.ts`
+4. Add integration tests in `apps/api/src/__tests__/services/`
 
-### Client-side
+See `service-patterns` memory for implementation details.
 
-1. Add types to `src/client/types.ts`
-2. Implement component/hook under `src/client/`
-3. Export from `src/client/index.ts`
-4. Add tests
+### New Page
 
-### Shared Types
+1. Create page: `apps/web/src/app/<route>/page.tsx`
+2. Add to navigation config: `apps/web/src/lib/navigation.ts`
+3. Follow patterns in `client-patterns` memory
 
-1. Add to `src/shared/types.ts`
-2. Auto-exported from root package
+### New Component
 
-## Testing
+1. Create in appropriate directory under `apps/web/src/components/`
+2. Export from the directory's `index.ts`
+3. Follow MUI and styling conventions in `client-patterns` memory
 
-Tests use Vitest. Run with:
+## Debugging
+
+### Server Logs
+
+The API server uses structured logging. Set log level via environment:
+
 ```bash
-pnpm test           # Single run
-pnpm test:watch     # Watch mode
-pnpm test:coverage  # With coverage
+LOG_LEVEL=debug pnpm --filter @project/api dev
+```
+
+### Socket.io Debugging
+
+```bash
+DEBUG=socket.io* pnpm --filter @project/api dev
+```
+
+### Database Queries
+
+Enable Prisma query logging:
+
+```typescript
+// Temporarily in code
+const prisma = new PrismaClient({ log: ['query', 'info', 'warn', 'error'] });
 ```
