@@ -3,6 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { Box, CircularProgress, Typography } from "@mui/material";
+import { useTranslations } from "next-intl";
 import { useSocket } from "../../providers";
 import { routeRequiresAuth } from "../../lib/navigation";
 import { LoginRequired } from "../feedback";
@@ -16,6 +17,7 @@ interface AuthGateProps {
  * and the user is not authenticated.
  */
 export function AuthGate({ children }: AuthGateProps): React.ReactElement {
+  const t = useTranslations("Common");
   const pathname = usePathname();
   const { isConnected, userId } = useSocket();
 
@@ -35,7 +37,7 @@ export function AuthGate({ children }: AuthGateProps): React.ReactElement {
         }}
       >
         <CircularProgress />
-        <Typography color="text.secondary">Connecting...</Typography>
+        <Typography color="text.secondary">{t("connecting")}</Typography>
       </Box>
     );
   }

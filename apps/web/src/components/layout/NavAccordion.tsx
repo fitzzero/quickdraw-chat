@@ -15,6 +15,7 @@ import {
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import type { NavItem } from "../../lib/navigation";
 import { useRecentChats } from "../../hooks";
 
@@ -23,15 +24,27 @@ interface NavAccordionProps {
   onNavigate?: () => void;
 }
 
+// Navigation item IDs that have translations
+const TRANSLATABLE_NAV_IDS = ["home", "chats", "profile", "account"];
+
 export function NavAccordion({
   item,
   onNavigate,
 }: NavAccordionProps): React.ReactElement {
+  const t = useTranslations("Nav");
   const pathname = usePathname();
   const [expanded, setExpanded] = React.useState(item.defaultExpanded ?? false);
 
   // Load dynamic children (recent chats)
   const { chats, isLoading: isLoadingChats } = useRecentChats(3);
+
+  // Get translated label for nav items, fall back to original label
+  const getLabel = (navItem: NavItem): string => {
+    if (TRANSLATABLE_NAV_IDS.includes(navItem.id)) {
+      return t(navItem.id as "home" | "chats" | "profile" | "account");
+    }
+    return navItem.label;
+  };
 
   // Build children array - either static children or dynamic from recent chats
   const children: NavItem[] = React.useMemo(() => {
@@ -69,7 +82,7 @@ export function NavAccordion({
               <Icon fontSize="small" />
             </ListItemIcon>
           )}
-          <ListItemText primary={item.label} />
+          <ListItemText primary={getLabel(item)} />
         </ListItemButton>
       </ListItem>
     );
@@ -126,7 +139,7 @@ export function NavAccordion({
               <Icon fontSize="small" />
             </ListItemIcon>
           )}
-          <ListItemText primary={item.label} />
+          <ListItemText primary={getLabel(item)} />
         </ListItemButton>
       </AccordionSummary>
       <AccordionDetails>
@@ -151,7 +164,7 @@ export function NavAccordion({
                   sx={{ borderRadius: 1, pl: 2 }}
                 >
                   <ListItemText
-                    primary={child.label}
+                    primary={getLabel(child)}
                     primaryTypographyProps={{
                       variant: "body2",
                       noWrap: true,

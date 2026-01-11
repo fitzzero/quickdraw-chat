@@ -1,0 +1,119 @@
+{
+  "Common": {
+    "loading": "Loading...",
+    "connecting": "Connecting...",
+    "cancel": "Cancel",
+    "create": "Create",
+    "save": "Save",
+    "delete": "Delete",
+    "manage": "Manage",
+    "or": "or",
+    "goHome": "Go Home",
+    "comingSoon": "Coming soon...",
+    "user": "User",
+    "unknownUser": "Unknown User",
+    "notSet": "Not set"
+  },
+  "Nav": {
+    "home": "Home",
+    "chats": "Chats",
+    "profile": "Profile",
+    "account": "Account"
+  },
+  "Auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out"
+  },
+  "ChatList": {
+    "title": "Chats",
+    "newChat": "New Chat",
+    "noChats": "No chats yet. Create one to get started!",
+    "memberCount": "{count, plural, one {# member} other {# members}}"
+  },
+  "ChatWindow": {
+    "createDialogTitle": "Create New Chat",
+    "chatTitleLabel": "Chat Title",
+    "selectChat": "Select a chat to start messaging",
+    "chatSettings": "Chat Settings"
+  },
+  "MessageInput": {
+    "placeholder": "Type a message..."
+  },
+  "MessageList": {
+    "noMessages": "No messages yet. Start the conversation!"
+  },
+  "UserMenu": {
+    "profile": "Profile",
+    "account": "Account"
+  },
+  "LoginRequired": {
+    "title": "Sign In Required",
+    "defaultMessage": "Please sign in to view this page"
+  },
+  "NoPermission": {
+    "title": "Access Denied",
+    "defaultMessage": "You don't have permission to access this resource"
+  },
+  "NotFound": {
+    "title": "Not Found",
+    "defaultMessage": "The page you're looking for doesn't exist"
+  },
+  "HomePage": {
+    "title": "Welcome to Quickdraw Chat",
+    "subtitle": "Real-time chat application built with the Quickdraw framework",
+    "goToChats": "Go to Chats",
+    "signInToStart": "Sign In to Get Started",
+    "featuresTitle": "Features",
+    "feature1Title": "Real-time Messaging",
+    "feature1Desc": "Send and receive messages instantly with Socket.IO-powered real-time communication.",
+    "feature2Title": "Multi-user Chats",
+    "feature2Desc": "Create chat rooms and invite multiple users to collaborate in real-time.",
+    "feature3Title": "Access Control",
+    "feature3Desc": "Fine-grained permissions with Read, Moderate, and Admin access levels."
+  },
+  "ChatsPage": {
+    "title": "Your Chats",
+    "noChats": "You don't have any chats yet.",
+    "createFirst": "Create Your First Chat",
+    "lastMessage": "Last message {date}"
+  },
+  "ProfilePage": {
+    "title": "Profile",
+    "publicProfileTitle": "Public Profile",
+    "publicProfileDesc": "This is how others see your profile. Your email is not visible to other users.",
+    "customizationComingSoon": "Profile customization coming soon..."
+  },
+  "AccountPage": {
+    "title": "Account Settings",
+    "accountInfoTitle": "Account Information",
+    "accountInfoDesc": "Manage your account details and connected services.",
+    "email": "Email",
+    "displayName": "Display Name",
+    "preferencesTitle": "Preferences",
+    "preferencesDesc": "Customize your experience.",
+    "notifications": "Notifications",
+    "notificationsDesc": "Receive notifications for new messages",
+    "darkMode": "Dark Mode",
+    "darkModeDesc": "Currently always enabled",
+    "securityTitle": "Security",
+    "securityDesc": "Manage your security settings.",
+    "connectedAccounts": "Connected Accounts",
+    "connectedAccountsDesc": "Manage OAuth connections",
+    "dangerZoneTitle": "Danger Zone",
+    "dangerZoneDesc": "Irreversible actions. Please be careful.",
+    "deleteAccount": "Delete Account",
+    "deleteAccountDesc": "Permanently delete your account and all data"
+  },
+  "LoginPage": {
+    "title": "Welcome",
+    "subtitle": "Sign in to access the chat application",
+    "continueWithDiscord": "Continue with Discord",
+    "moreOptionsComingSoon": "More login options coming soon",
+    "errorCancelled": "Authentication was cancelled",
+    "errorFailed": "Authentication failed. Please try again.",
+    "errorGeneric": "An error occurred during login"
+  },
+  "Sidebar": {
+    "appName": "quickdraw-chat"
+  }
+}

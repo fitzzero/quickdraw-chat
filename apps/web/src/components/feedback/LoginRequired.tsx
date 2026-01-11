@@ -4,14 +4,18 @@ import * as React from "react";
 import { Box, Typography, Button, Paper } from "@mui/material";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 interface LoginRequiredProps {
   message?: string;
 }
 
 export function LoginRequired({
-  message = "Please sign in to view this page",
+  message,
 }: LoginRequiredProps): React.ReactElement {
+  const t = useTranslations("LoginRequired");
+  const tAuth = useTranslations("Auth");
+
   return (
     <Box
       sx={{
@@ -37,10 +41,10 @@ export function LoginRequired({
           }}
         />
         <Typography variant="h5" gutterBottom>
-          Sign In Required
+          {t("title")}
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 3 }}>
-          {message}
+          {message ?? t("defaultMessage")}
         </Typography>
         <Button
           component={Link}
@@ -48,7 +52,7 @@ export function LoginRequired({
           variant="contained"
           size="large"
         >
-          Sign In
+          {tAuth("signIn")}
         </Button>
       </Paper>
     </Box>

@@ -4,14 +4,18 @@ import * as React from "react";
 import { Box, Typography, Button, Paper } from "@mui/material";
 import BlockIcon from "@mui/icons-material/Block";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 interface NoPermissionProps {
   message?: string;
 }
 
 export function NoPermission({
-  message = "You don't have permission to access this resource",
+  message,
 }: NoPermissionProps): React.ReactElement {
+  const t = useTranslations("NoPermission");
+  const tCommon = useTranslations("Common");
+
   return (
     <Box
       sx={{
@@ -37,13 +41,13 @@ export function NoPermission({
           }}
         />
         <Typography variant="h5" gutterBottom>
-          Access Denied
+          {t("title")}
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 3 }}>
-          {message}
+          {message ?? t("defaultMessage")}
         </Typography>
         <Button component={Link} href="/" variant="outlined">
-          Go Home
+          {tCommon("goHome")}
         </Button>
       </Paper>
     </Box>

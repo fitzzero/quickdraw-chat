@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Box, Typography, Paper, IconButton, Tooltip } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
+import { useTranslations } from "next-intl";
 import { useSubscription } from "../../hooks";
 import { useSocket } from "../../providers";
 import { MessageList } from "./MessageList";
@@ -14,6 +15,8 @@ interface ChatWindowProps {
 }
 
 export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
+  const t = useTranslations("ChatWindow");
+  const tCommon = useTranslations("Common");
   const { socket, isConnected, userId } = useSocket();
   const [messages, setMessages] = React.useState<MessageDTO[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(true);
@@ -54,7 +57,7 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
 
     // Subscribe to chat-scoped message events
     socket.on("chat:message", handleNewMessage);
-    
+
     // TODO: Add listener for message deletions/edits when implemented
     // This would be something like: socket.on("chat:messageUpdate", handleMessageUpdate)
 
@@ -71,8 +74,15 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
 
   if (!chatId) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
-        <Typography color="text.secondary">Select a chat to start messaging</Typography>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100%",
+        }}
+      >
+        <Typography color="text.secondary">{t("selectChat")}</Typography>
       </Box>
     );
   }
@@ -91,8 +101,10 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
           alignItems: "center",
         }}
       >
-        <Typography variant="h6">{chat?.title ?? "Loading..."}</Typography>
-        <Tooltip title="Chat Settings">
+        <Typography variant="h6">
+          {chat?.title ?? tCommon("loading")}
+        </Typography>
+        <Tooltip title={t("chatSettings")}>
           <IconButton size="small">
             <SettingsIcon />
           </IconButton>
@@ -100,10 +112,18 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
       </Paper>
 
       {/* Messages */}
-      <MessageList messages={messages} isLoading={isLoadingMessages} currentUserId={userId} />
+      <MessageList
+        messages={messages}
+        isLoading={isLoadingMessages}
+        currentUserId={userId}
+      />
 
       {/* Input */}
-      <MessageInput chatId={chatId} onMessageSent={handleMessageSent} disabled={!isConnected} />
+      <MessageInput
+        chatId={chatId}
+        onMessageSent={handleMessageSent}
+        disabled={!isConnected}
+      />
     </Box>
   );
 }

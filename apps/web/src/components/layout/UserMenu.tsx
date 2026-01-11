@@ -17,11 +17,15 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
 import LoginIcon from "@mui/icons-material/Login";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useSocket } from "../../providers";
 import { useSubscription } from "../../hooks";
 import { clearAuthToken } from "../../lib/auth";
 
 export function UserMenu(): React.ReactElement {
+  const t = useTranslations("UserMenu");
+  const tCommon = useTranslations("Common");
+  const tAuth = useTranslations("Auth");
   const { userId, isConnected } = useSocket();
   const { data: user } = useSubscription("userService", userId ?? "");
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
@@ -46,7 +50,7 @@ export function UserMenu(): React.ReactElement {
     return (
       <Box sx={{ p: 2, opacity: 0.5 }}>
         <Typography variant="body2" color="text.secondary">
-          Connecting...
+          {tCommon("connecting")}
         </Typography>
       </Box>
     );
@@ -71,7 +75,7 @@ export function UserMenu(): React.ReactElement {
           <Avatar sx={{ width: 36, height: 36, bgcolor: "primary.main" }}>
             <LoginIcon fontSize="small" />
           </Avatar>
-          <Typography variant="body2">Sign In</Typography>
+          <Typography variant="body2">{tAuth("signIn")}</Typography>
         </ButtonBase>
       </Box>
     );
@@ -98,7 +102,7 @@ export function UserMenu(): React.ReactElement {
         </Avatar>
         <Box sx={{ textAlign: "left", minWidth: 0, flex: 1 }}>
           <Typography variant="body2" noWrap>
-            {user?.name ?? "User"}
+            {user?.name ?? tCommon("user")}
           </Typography>
           <Typography variant="caption" color="text.secondary" noWrap>
             {user?.email}
@@ -122,20 +126,20 @@ export function UserMenu(): React.ReactElement {
           <ListItemIcon>
             <PersonIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Profile</ListItemText>
+          <ListItemText>{t("profile")}</ListItemText>
         </MenuItem>
         <MenuItem component={Link} href="/account" onClick={handleClose}>
           <ListItemIcon>
             <SettingsIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Account</ListItemText>
+          <ListItemText>{t("account")}</ListItemText>
         </MenuItem>
         <Divider />
         <MenuItem onClick={handleLogout}>
           <ListItemIcon>
             <LogoutIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Sign Out</ListItemText>
+          <ListItemText>{tAuth("signOut")}</ListItemText>
         </MenuItem>
       </Menu>
     </Box>

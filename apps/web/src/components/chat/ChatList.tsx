@@ -17,6 +17,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import { useTranslations } from "next-intl";
 import { useService } from "../../hooks";
 import type { ChatListItem } from "@project/shared";
 
@@ -35,6 +36,9 @@ export function ChatList({
   onSelectChat,
   onRefresh,
 }: ChatListProps): React.ReactElement {
+  const t = useTranslations("ChatList");
+  const tCommon = useTranslations("Common");
+  const tChatWindow = useTranslations("ChatWindow");
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [newChatTitle, setNewChatTitle] = React.useState("");
 
@@ -57,16 +61,18 @@ export function ChatList({
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
         <Typography variant="h6" sx={{ mb: 1 }}>
-          Chats
+          {t("title")}
         </Typography>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={() => { setCreateDialogOpen(true); }}
+          onClick={() => {
+            setCreateDialogOpen(true);
+          }}
           fullWidth
           size="small"
         >
-          New Chat
+          {t("newChat")}
         </Button>
       </Box>
 
@@ -79,7 +85,7 @@ export function ChatList({
           {chats.length === 0 ? (
             <ListItem>
               <ListItemText
-                secondary="No chats yet. Create one to get started!"
+                secondary={t("noChats")}
                 sx={{ textAlign: "center" }}
               />
             </ListItem>
@@ -88,11 +94,13 @@ export function ChatList({
               <ListItem key={chat.id} disablePadding>
                 <ListItemButton
                   selected={chat.id === selectedChatId}
-                  onClick={() => { onSelectChat(chat.id); }}
+                  onClick={() => {
+                    onSelectChat(chat.id);
+                  }}
                 >
                   <ListItemText
                     primary={chat.title}
-                    secondary={`${chat.memberCount} member${chat.memberCount !== 1 ? "s" : ""}`}
+                    secondary={t("memberCount", { count: chat.memberCount })}
                   />
                 </ListItemButton>
               </ListItem>
@@ -101,30 +109,49 @@ export function ChatList({
         </List>
       )}
 
-      <Dialog open={createDialogOpen} onClose={() => { setCreateDialogOpen(false); }} maxWidth="xs" fullWidth>
-        <DialogTitle>Create New Chat</DialogTitle>
+      <Dialog
+        open={createDialogOpen}
+        onClose={() => {
+          setCreateDialogOpen(false);
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>{tChatWindow("createDialogTitle")}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
-            label="Chat Title"
+            label={tChatWindow("chatTitleLabel")}
             fullWidth
             variant="outlined"
             value={newChatTitle}
-            onChange={(e) => { setNewChatTitle(e.target.value); }}
+            onChange={(e) => {
+              setNewChatTitle(e.target.value);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") handleCreateChat();
             }}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setCreateDialogOpen(false); }}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setCreateDialogOpen(false);
+            }}
+          >
+            {tCommon("cancel")}
+          </Button>
           <Button
             onClick={handleCreateChat}
             variant="contained"
             disabled={!newChatTitle.trim() || createChat.isPending}
           >
-            {createChat.isPending ? <CircularProgress size={20} /> : "Create"}
+            {createChat.isPending ? (
+              <CircularProgress size={20} />
+            ) : (
+              tCommon("create")
+            )}
           </Button>
         </DialogActions>
       </Dialog>

@@ -12,15 +12,29 @@ import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { buildBreadcrumbs, type BreadcrumbItem } from "../../lib/navigation";
 import { useLayout } from "../../providers";
+
+// Navigation labels that have translations (matches Nav namespace keys)
+const TRANSLATABLE_LABELS: Record<string, string> = {
+  Home: "home",
+  Chats: "chats",
+  Profile: "profile",
+  Account: "account",
+};
 
 interface BreadcrumbLinkProps {
   item: BreadcrumbItem;
   isLast: boolean;
+  translateLabel: (label: string) => string;
 }
 
-function BreadcrumbLink({ item, isLast }: BreadcrumbLinkProps): React.ReactElement {
+function BreadcrumbLink({
+  item,
+  isLast,
+  translateLabel,
+}: BreadcrumbLinkProps): React.ReactElement {
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
   const hasSiblings = item.siblings && item.siblings.length > 1;
 
@@ -34,11 +48,13 @@ function BreadcrumbLink({ item, isLast }: BreadcrumbLinkProps): React.ReactEleme
     setAnchorEl(null);
   };
 
+  const translatedLabel = translateLabel(item.label);
+
   // Last item without siblings - just text
   if (isLast && !hasSiblings) {
     return (
       <Typography color="text.primary" variant="body2">
-        {item.label}
+        {translatedLabel}
       </Typography>
     );
   }
@@ -68,7 +84,7 @@ function BreadcrumbLink({ item, isLast }: BreadcrumbLinkProps): React.ReactEleme
             "&:hover": { textDecoration: hasSiblings ? "none" : "underline" },
           }}
         >
-          {item.label}
+          {translatedLabel}
         </Typography>
         {hasSiblings && (
           <ExpandMoreIcon
@@ -93,7 +109,7 @@ function BreadcrumbLink({ item, isLast }: BreadcrumbLinkProps): React.ReactEleme
               onClick={handleClose}
               selected={sibling.href === item.href}
             >
-              {sibling.label}
+              {translateLabel(sibling.label)}
             </MenuItem>
           ))}
         </Menu>
@@ -103,8 +119,21 @@ function BreadcrumbLink({ item, isLast }: BreadcrumbLinkProps): React.ReactEleme
 }
 
 export function Breadcrumbs(): React.ReactElement {
+  const t = useTranslations("Nav");
   const pathname = usePathname();
   const { pageTitle } = useLayout();
+
+  // Translate label if it's a known navigation label
+  const translateLabel = React.useCallback(
+    (label: string): string => {
+      const key = TRANSLATABLE_LABELS[label];
+      if (key) {
+        return t(key as "home" | "chats" | "profile" | "account");
+      }
+      return label;
+    },
+    [t]
+  );
 
   const items = React.useMemo(() => {
     const breadcrumbs = buildBreadcrumbs(pathname);
@@ -131,6 +160,7 @@ export function Breadcrumbs(): React.ReactElement {
           key={item.href}
           item={item}
           isLast={index === items.length - 1}
+          translateLabel={translateLabel}
         />
       ))}
     </MuiBreadcrumbs>

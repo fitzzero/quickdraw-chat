@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { Box, Paper, Typography, Button, Alert, Stack, Divider } from "@mui/material";
+import { useTranslations } from "next-intl";
 import { getOAuthUrl } from "../../../lib/auth";
 
 // Discord icon SVG
@@ -15,11 +16,24 @@ function DiscordIcon(): React.ReactElement {
 }
 
 export default function LoginPage(): React.ReactElement {
+  const t = useTranslations("LoginPage");
+  const tCommon = useTranslations("Common");
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
 
   const handleDiscordLogin = () => {
     window.location.href = getOAuthUrl("discord");
+  };
+
+  const getErrorMessage = (errorCode: string): string => {
+    switch (errorCode) {
+      case "no_code":
+        return t("errorCancelled");
+      case "oauth_failed":
+        return t("errorFailed");
+      default:
+        return t("errorGeneric");
+    }
   };
 
   return (
@@ -42,19 +56,15 @@ export default function LoginPage(): React.ReactElement {
         }}
       >
         <Typography variant="h4" component="h1" gutterBottom>
-          Welcome
+          {t("title")}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Sign in to access the chat application
+          {t("subtitle")}
         </Typography>
 
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
-            {error === "no_code"
-              ? "Authentication was cancelled"
-              : error === "oauth_failed"
-                ? "Authentication failed. Please try again."
-                : "An error occurred during login"}
+            {getErrorMessage(error)}
           </Alert>
         )}
 
@@ -69,17 +79,17 @@ export default function LoginPage(): React.ReactElement {
               "&:hover": { bgcolor: "#4752C4" },
             }}
           >
-            Continue with Discord
+            {t("continueWithDiscord")}
           </Button>
 
           <Divider sx={{ my: 2 }}>
             <Typography variant="caption" color="text.secondary">
-              or
+              {tCommon("or")}
             </Typography>
           </Divider>
 
           <Typography variant="body2" color="text.secondary">
-            More login options coming soon
+            {t("moreOptionsComingSoon")}
           </Typography>
         </Stack>
       </Paper>

@@ -1,7 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Box, Typography, Avatar, Paper, CircularProgress } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Avatar,
+  Paper,
+  CircularProgress,
+} from "@mui/material";
+import { useTranslations } from "next-intl";
 import type { MessageDTO } from "@project/shared";
 
 interface MessageListProps {
@@ -10,7 +17,13 @@ interface MessageListProps {
   currentUserId?: string | null;
 }
 
-export function MessageList({ messages, isLoading, currentUserId }: MessageListProps): React.ReactElement {
+export function MessageList({
+  messages,
+  isLoading,
+  currentUserId,
+}: MessageListProps): React.ReactElement {
+  const t = useTranslations("MessageList");
+  const tCommon = useTranslations("Common");
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -19,7 +32,14 @@ export function MessageList({ messages, isLoading, currentUserId }: MessageListP
 
   if (isLoading) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100%",
+        }}
+      >
         <CircularProgress />
       </Box>
     );
@@ -27,8 +47,15 @@ export function MessageList({ messages, isLoading, currentUserId }: MessageListP
 
   if (messages.length === 0) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
-        <Typography color="text.secondary">No messages yet. Start the conversation!</Typography>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100%",
+        }}
+      >
+        <Typography color="text.secondary">{t("noMessages")}</Typography>
       </Box>
     );
   }
@@ -74,11 +101,19 @@ export function MessageList({ messages, isLoading, currentUserId }: MessageListP
                   borderRadius: 2,
                 }}
               >
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
-                  {message.user?.name ?? "Unknown User"}
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: "block", mb: 0.5 }}
+                >
+                  {message.user?.name ?? tCommon("unknownUser")}
                 </Typography>
                 <Typography variant="body2">{message.content}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: "block", mt: 0.5 }}
+                >
                   {new Date(message.createdAt).toLocaleTimeString()}
                 </Typography>
               </Paper>

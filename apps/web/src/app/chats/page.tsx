@@ -21,11 +21,16 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useSocket } from "../../providers";
 import { useService } from "../../hooks";
 import type { ChatListItem, ServiceResponse } from "@project/shared";
 
 export default function ChatsPage(): React.ReactElement {
+  const t = useTranslations("ChatsPage");
+  const tCommon = useTranslations("Common");
+  const tChatList = useTranslations("ChatList");
+  const tChatWindow = useTranslations("ChatWindow");
   const router = useRouter();
   const { socket, isConnected } = useSocket();
   const [chats, setChats] = React.useState<ChatListItem[]>([]);
@@ -81,7 +86,7 @@ export default function ChatsPage(): React.ReactElement {
         }}
       >
         <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
-          Your Chats
+          {t("title")}
         </Typography>
         <Button
           variant="contained"
@@ -90,7 +95,7 @@ export default function ChatsPage(): React.ReactElement {
             setCreateDialogOpen(true);
           }}
         >
-          New Chat
+          {tChatList("newChat")}
         </Button>
       </Box>
 
@@ -110,7 +115,7 @@ export default function ChatsPage(): React.ReactElement {
         ) : chats.length === 0 ? (
           <Box sx={{ p: 4, textAlign: "center" }}>
             <Typography color="text.secondary" sx={{ mb: 2 }}>
-              You don&apos;t have any chats yet.
+              {t("noChats")}
             </Typography>
             <Button
               variant="outlined"
@@ -119,7 +124,7 @@ export default function ChatsPage(): React.ReactElement {
                 setCreateDialogOpen(true);
               }}
             >
-              Create Your First Chat
+              {t("createFirst")}
             </Button>
           </Box>
         ) : (
@@ -133,11 +138,14 @@ export default function ChatsPage(): React.ReactElement {
                 <ListItemButton component={Link} href={`/chats/${chat.id}`}>
                   <ListItemText
                     primary={chat.title}
-                    secondary={`${chat.memberCount} member${chat.memberCount !== 1 ? "s" : ""}${
-                      chat.lastMessageAt
-                        ? ` · Last message ${new Date(chat.lastMessageAt).toLocaleDateString()}`
-                        : ""
-                    }`}
+                    secondary={
+                      <>
+                        {tChatList("memberCount", { count: chat.memberCount })}
+                        {chat.lastMessageAt && (
+                          <> · {t("lastMessage", { date: new Date(chat.lastMessageAt).toLocaleDateString() })}</>
+                        )}
+                      </>
+                    }
                   />
                 </ListItemButton>
               </ListItem>
@@ -155,12 +163,12 @@ export default function ChatsPage(): React.ReactElement {
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle>Create New Chat</DialogTitle>
+        <DialogTitle>{tChatWindow("createDialogTitle")}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
-            label="Chat Title"
+            label={tChatWindow("chatTitleLabel")}
             fullWidth
             variant="outlined"
             value={newChatTitle}
@@ -178,14 +186,14 @@ export default function ChatsPage(): React.ReactElement {
               setCreateDialogOpen(false);
             }}
           >
-            Cancel
+            {tCommon("cancel")}
           </Button>
           <Button
             onClick={handleCreateChat}
             variant="contained"
             disabled={!newChatTitle.trim() || createChat.isPending}
           >
-            {createChat.isPending ? <CircularProgress size={20} /> : "Create"}
+            {createChat.isPending ? <CircularProgress size={20} /> : tCommon("create")}
           </Button>
         </DialogActions>
       </Dialog>

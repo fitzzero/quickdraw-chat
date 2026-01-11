@@ -2,17 +2,20 @@
 
 import * as React from "react";
 import { Box, Typography, Paper, Avatar, Skeleton, Divider } from "@mui/material";
+import { useTranslations } from "next-intl";
 import { useSocket } from "../../providers";
 import { useSubscription } from "../../hooks";
 
 export default function ProfilePage(): React.ReactElement {
+  const t = useTranslations("ProfilePage");
+  const tCommon = useTranslations("Common");
   const { userId } = useSocket();
   const { data: user, isLoading } = useSubscription("userService", userId ?? "");
 
   return (
     <Box sx={{ maxWidth: 600, mx: "auto" }}>
       <Typography variant="h4" component="h1" sx={{ fontWeight: 600, mb: 3 }}>
-        Profile
+        {t("title")}
       </Typography>
 
       <Paper sx={{ p: 4 }}>
@@ -37,7 +40,7 @@ export default function ProfilePage(): React.ReactElement {
             ) : (
               <>
                 <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                  {user?.name ?? "Unknown User"}
+                  {user?.name ?? tCommon("unknownUser")}
                 </Typography>
                 <Typography color="text.secondary">{user?.email}</Typography>
               </>
@@ -49,10 +52,10 @@ export default function ProfilePage(): React.ReactElement {
 
         {/* Profile Info */}
         <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-          Public Profile
+          {t("publicProfileTitle")}
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 3 }}>
-          This is how others see your profile. Your email is not visible to other users.
+          {t("publicProfileDesc")}
         </Typography>
 
         <Box
@@ -64,7 +67,7 @@ export default function ProfilePage(): React.ReactElement {
           }}
         >
           <Typography color="text.secondary">
-            Profile customization coming soon...
+            {t("customizationComingSoon")}
           </Typography>
         </Box>
       </Paper>

@@ -4,9 +4,11 @@ import * as React from "react";
 import { Box, Typography, Paper, Button, Stack } from "@mui/material";
 import ChatIcon from "@mui/icons-material/Chat";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useSocket } from "../providers";
 
 export default function HomePage(): React.ReactElement {
+  const t = useTranslations("HomePage");
   const { userId } = useSocket();
 
   return (
@@ -21,10 +23,10 @@ export default function HomePage(): React.ReactElement {
         }}
       >
         <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
-          Welcome to Quickdraw Chat
+          {t("title")}
         </Typography>
         <Typography variant="h6" color="text.secondary" sx={{ mb: 3 }}>
-          Real-time chat application built with the Quickdraw framework
+          {t("subtitle")}
         </Typography>
         {userId ? (
           <Button
@@ -34,7 +36,7 @@ export default function HomePage(): React.ReactElement {
             size="large"
             startIcon={<ChatIcon />}
           >
-            Go to Chats
+            {t("goToChats")}
           </Button>
         ) : (
           <Button
@@ -43,41 +45,38 @@ export default function HomePage(): React.ReactElement {
             variant="contained"
             size="large"
           >
-            Sign In to Get Started
+            {t("signInToStart")}
           </Button>
         )}
       </Paper>
 
       {/* Features Section */}
       <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
-        Features
+        {t("featuresTitle")}
       </Typography>
       <Stack spacing={2}>
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>
-            Real-time Messaging
+            {t("feature1Title")}
           </Typography>
           <Typography color="text.secondary">
-            Send and receive messages instantly with Socket.IO-powered real-time
-            communication.
+            {t("feature1Desc")}
           </Typography>
         </Paper>
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>
-            Multi-user Chats
+            {t("feature2Title")}
           </Typography>
           <Typography color="text.secondary">
-            Create chat rooms and invite multiple users to collaborate in
-            real-time.
+            {t("feature2Desc")}
           </Typography>
         </Paper>
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>
-            Access Control
+            {t("feature3Title")}
           </Typography>
           <Typography color="text.secondary">
-            Fine-grained permissions with Read, Moderate, and Admin access
-            levels.
+            {t("feature3Desc")}
           </Typography>
         </Paper>
       </Stack>

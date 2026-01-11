@@ -17,41 +17,44 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import SecurityIcon from "@mui/icons-material/Security";
 import DeleteIcon from "@mui/icons-material/Delete";
+import { useTranslations } from "next-intl";
 import { useSocket } from "../../providers";
 import { useSubscription } from "../../hooks";
 
 export default function AccountPage(): React.ReactElement {
+  const t = useTranslations("AccountPage");
+  const tCommon = useTranslations("Common");
   const { userId } = useSocket();
   const { data: user } = useSubscription("userService", userId ?? "");
 
   return (
     <Box sx={{ maxWidth: 600, mx: "auto" }}>
       <Typography variant="h4" component="h1" sx={{ fontWeight: 600, mb: 3 }}>
-        Account Settings
+        {t("title")}
       </Typography>
 
       {/* Account Info */}
       <Paper sx={{ mb: 3 }}>
         <Box sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>
-            Account Information
+            {t("accountInfoTitle")}
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
-            Manage your account details and connected services.
+            {t("accountInfoDesc")}
           </Typography>
         </Box>
         <Divider />
         <List disablePadding>
           <ListItem>
             <ListItemText
-              primary="Email"
-              secondary={user?.email ?? "Loading..."}
+              primary={t("email")}
+              secondary={user?.email ?? tCommon("loading")}
             />
           </ListItem>
           <ListItem>
             <ListItemText
-              primary="Display Name"
-              secondary={user?.name ?? "Not set"}
+              primary={t("displayName")}
+              secondary={user?.name ?? tCommon("notSet")}
             />
           </ListItem>
         </List>
@@ -61,10 +64,10 @@ export default function AccountPage(): React.ReactElement {
       <Paper sx={{ mb: 3 }}>
         <Box sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>
-            Preferences
+            {t("preferencesTitle")}
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
-            Customize your experience.
+            {t("preferencesDesc")}
           </Typography>
         </Box>
         <Divider />
@@ -74,8 +77,8 @@ export default function AccountPage(): React.ReactElement {
               <NotificationsIcon />
             </ListItemIcon>
             <ListItemText
-              primary="Notifications"
-              secondary="Receive notifications for new messages"
+              primary={t("notifications")}
+              secondary={t("notificationsDesc")}
             />
             <Switch disabled />
           </ListItem>
@@ -84,8 +87,8 @@ export default function AccountPage(): React.ReactElement {
               <DarkModeIcon />
             </ListItemIcon>
             <ListItemText
-              primary="Dark Mode"
-              secondary="Currently always enabled"
+              primary={t("darkMode")}
+              secondary={t("darkModeDesc")}
             />
             <Switch checked disabled />
           </ListItem>
@@ -96,10 +99,10 @@ export default function AccountPage(): React.ReactElement {
       <Paper sx={{ mb: 3 }}>
         <Box sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>
-            Security
+            {t("securityTitle")}
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
-            Manage your security settings.
+            {t("securityDesc")}
           </Typography>
         </Box>
         <Divider />
@@ -109,11 +112,11 @@ export default function AccountPage(): React.ReactElement {
               <SecurityIcon />
             </ListItemIcon>
             <ListItemText
-              primary="Connected Accounts"
-              secondary="Manage OAuth connections"
+              primary={t("connectedAccounts")}
+              secondary={t("connectedAccountsDesc")}
             />
             <Button variant="outlined" size="small" disabled>
-              Manage
+              {tCommon("manage")}
             </Button>
           </ListItem>
         </List>
@@ -123,10 +126,10 @@ export default function AccountPage(): React.ReactElement {
       <Paper sx={{ border: 1, borderColor: "error.main" }}>
         <Box sx={{ p: 3 }}>
           <Typography variant="h6" color="error" gutterBottom>
-            Danger Zone
+            {t("dangerZoneTitle")}
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
-            Irreversible actions. Please be careful.
+            {t("dangerZoneDesc")}
           </Typography>
         </Box>
         <Divider />
@@ -136,11 +139,11 @@ export default function AccountPage(): React.ReactElement {
               <DeleteIcon color="error" />
             </ListItemIcon>
             <ListItemText
-              primary="Delete Account"
-              secondary="Permanently delete your account and all data"
+              primary={t("deleteAccount")}
+              secondary={t("deleteAccountDesc")}
             />
             <Button variant="outlined" color="error" size="small" disabled>
-              Delete
+              {tCommon("delete")}
             </Button>
           </ListItem>
         </List>

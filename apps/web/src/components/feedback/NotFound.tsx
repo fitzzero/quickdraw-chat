@@ -4,6 +4,7 @@ import * as React from "react";
 import { Box, Typography, Button, Paper } from "@mui/material";
 import SearchOffIcon from "@mui/icons-material/SearchOff";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 interface NotFoundProps {
   message?: string;
@@ -12,10 +13,13 @@ interface NotFoundProps {
 }
 
 export function NotFound({
-  message = "The page you're looking for doesn't exist",
+  message,
   backHref = "/",
-  backLabel = "Go Home",
+  backLabel,
 }: NotFoundProps): React.ReactElement {
+  const t = useTranslations("NotFound");
+  const tCommon = useTranslations("Common");
+
   return (
     <Box
       sx={{
@@ -41,13 +45,13 @@ export function NotFound({
           }}
         />
         <Typography variant="h5" gutterBottom>
-          Not Found
+          {t("title")}
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 3 }}>
-          {message}
+          {message ?? t("defaultMessage")}
         </Typography>
         <Button component={Link} href={backHref} variant="outlined">
-          {backLabel}
+          {backLabel ?? tCommon("goHome")}
         </Button>
       </Paper>
     </Box>

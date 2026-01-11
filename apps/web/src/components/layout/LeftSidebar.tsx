@@ -9,6 +9,7 @@ import {
   Typography,
   Divider,
 } from "@mui/material";
+import { useTranslations } from "next-intl";
 import { useIsMobile } from "../../hooks";
 import { useLayout } from "../../providers";
 import { siteNavigation } from "../../lib/navigation";
@@ -25,6 +26,7 @@ interface LeftSidebarProps {
 export function LeftSidebar({
   appBarHeight = 64,
 }: LeftSidebarProps): React.ReactElement {
+  const t = useTranslations("Sidebar");
   const isMobile = useIsMobile();
   const { leftDrawerOpen, setLeftDrawerOpen } = useLayout();
 
@@ -69,7 +71,7 @@ export function LeftSidebar({
           </Typography>
         </Box>
         <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          quickdraw-chat
+          {t("appName")}
         </Typography>
       </Box>
 
