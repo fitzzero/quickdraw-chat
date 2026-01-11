@@ -11,18 +11,18 @@ quickdraw-chat/
 ├── apps/
 │   ├── api/              # Express + Socket.io server
 │   │   └── src/
-│   │       ├── services/ # Business logic (Chat, Message, User)
+│   │       ├── services/ # Business logic (User, Chat, Message, Document)
 │   │       ├── auth/     # Discord OAuth, JWT
 │   │       └── __tests__/ # Integration tests
 │   └── web/              # Next.js frontend
 │       └── src/
 │           ├── app/      # Next.js app router pages
 │           ├── components/
-│           ├── hooks/    # useService, useSubscription
+│           ├── hooks/    # Typed wrappers for quickdraw-core hooks
 │           └── providers/
 ├── packages/
 │   ├── db/               # Prisma schema and client
-│   ├── shared/           # Shared TypeScript types
+│   ├── shared/           # Shared TypeScript types (ServiceMethodsMap)
 │   └── eslint-config/    # Shared ESLint rules
 └── .env.local            # Environment variables
 ```
@@ -43,37 +43,37 @@ quickdraw-chat/
 
 ## quickdraw-core Integration
 
+Both server and client import directly from `@fitzzero/quickdraw-core`:
+
+```json
+// package.json
+"@fitzzero/quickdraw-core": "link:../../../quickdraw"
+```
+
 ### Server (apps/api)
 
-Currently uses local BaseService/ServiceRegistry in `src/core/`. These mirror quickdraw-core but import from local packages:
-
 ```typescript
-// Current (local)
-import { BaseService } from "./core/BaseService";
-
-// Target (quickdraw-core) - migrate when stable
+import { ServiceRegistry, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
 ```
 
 ### Client (apps/web)
 
-Uses local hooks that could migrate to quickdraw-core:
-
 ```typescript
-// Current (local)
-import { useService, useSubscription } from "../hooks";
-
-// Target (quickdraw-core)
+import { QuickdrawProvider, useQuickdrawSocket } from "@fitzzero/quickdraw-core/client";
 import { useService, useSubscription } from "@fitzzero/quickdraw-core/client";
 ```
 
+The `apps/web/src/hooks/` directory contains thin typed wrappers around quickdraw-core hooks, providing project-specific type inference via `ServiceMethodsMap`.
+
 ## Key Services
 
-| Service | Purpose |
-|---------|---------|
-| UserService | User profile management, self-access |
-| ChatService | Chat rooms with ACL-based membership |
-| MessageService | Real-time messaging within chats |
+| Service | Purpose | ACL Pattern |
+|---------|---------|-------------|
+| UserService | User profile management | Self-access (`checkAccess` override) |
+| ChatService | Chat rooms with membership | Membership table (`checkEntryACL` override) |
+| MessageService | Real-time messaging within chats | Inherits from parent chat |
+| DocumentService | Document collaboration example | JSON ACL (default `checkEntryACL`) |
 
 ## Development Commands
 

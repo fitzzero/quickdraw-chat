@@ -37,36 +37,37 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
       }
     );
 
-    // Listen for new messages
+    // Listen for new messages via the chat-scoped event
+    // This event is emitted to the chatService room when any message is posted
     const handleNewMessage = (message: MessageDTO) => {
+      // Only add if it's for this chat (should always be true due to room routing)
       if (message.chatId === chatId) {
-        setMessages((prev) => [...prev, message]);
+        setMessages((prev) => {
+          // Avoid duplicates (in case of reconnection or race conditions)
+          if (prev.some((m) => m.id === message.id)) {
+            return prev;
+          }
+          return [...prev, message];
+        });
       }
     };
 
-    // Subscribe to message updates for this chat
-    const messageUpdateEvent = `messageService:update:*`;
-    socket.on(messageUpdateEvent, handleNewMessage);
+    // Subscribe to chat-scoped message events
+    socket.on("chat:message", handleNewMessage);
+    
+    // TODO: Add listener for message deletions/edits when implemented
+    // This would be something like: socket.on("chat:messageUpdate", handleMessageUpdate)
 
     return () => {
-      socket.off(messageUpdateEvent, handleNewMessage);
+      socket.off("chat:message", handleNewMessage);
     };
   }, [socket, isConnected, chatId]);
 
+  // No need to refresh after sending - real-time updates handle it
   const handleMessageSent = React.useCallback(() => {
-    // Refresh messages after sending
-    if (socket && isConnected) {
-      socket.emit(
-        "messageService:listMessages",
-        { chatId, limit: 50 },
-        (response: ServiceResponse<MessageDTO[]>) => {
-          if (response.success) {
-            setMessages(response.data);
-          }
-        }
-      );
-    }
-  }, [socket, isConnected, chatId]);
+    // The message will appear via the chat:message event
+    // No manual refresh needed
+  }, []);
 
   if (!chatId) {
     return (

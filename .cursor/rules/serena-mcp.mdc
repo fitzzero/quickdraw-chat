@@ -11,14 +11,14 @@ When working in projects with Serena configured (`.serena/` directory present), 
 
 **Read relevant memories before making changes:**
 
-| Working on... | Read memory |
-|---------------|-------------|
-| Services | `service-patterns` |
-| Tests | `testing-patterns` |
-| API endpoints | `api-conventions` |
-| Architecture decisions | `architecture` |
-| Client code | `client-patterns` |
-| Before committing | `check-code` |
+| Working on...          | Read memory        |
+| ---------------------- | ------------------ |
+| Services               | `service-patterns` |
+| Tests                  | `testing-patterns` |
+| API endpoints          | `api-conventions`  |
+| Architecture decisions | `architecture`     |
+| Client code            | `client-patterns`  |
+| Before committing      | `check-code`       |
 
 Use: `read_memory` with `memory_file_name` parameter
 
@@ -30,14 +30,14 @@ Example: Read "service-patterns" memory before creating a new service
 
 **Prefer these for code navigation and targeted edits:**
 
-| Tool | Use for |
-|------|---------|
-| `get_symbols_overview` | See classes/methods in a file without reading entire file |
-| `find_symbol` | Locate specific methods/classes with `include_body: true/false` |
-| `replace_symbol_body` | Replace an entire method/function body |
-| `insert_after_symbol` | Add code after a specific method |
-| `insert_before_symbol` | Add code before a specific method |
-| `find_referencing_symbols` | Find all references to a symbol |
+| Tool                       | Use for                                                         |
+| -------------------------- | --------------------------------------------------------------- |
+| `get_symbols_overview`     | See classes/methods in a file without reading entire file       |
+| `find_symbol`              | Locate specific methods/classes with `include_body: true/false` |
+| `replace_symbol_body`      | Replace an entire method/function body                          |
+| `insert_after_symbol`      | Add code after a specific method                                |
+| `insert_before_symbol`     | Add code before a specific method                               |
+| `find_referencing_symbols` | Find all references to a symbol                                 |
 
 **When to use Serena vs standard tools:**
 
@@ -51,7 +51,7 @@ Example: Read "service-patterns" memory before creating a new service
 { memory_file_name: "service-patterns" }
 
 // find_symbol
-{ 
+{
   name_path_pattern: "ClassName/methodName",
   relative_path: "path/to/file.ts",
   include_body: true,
@@ -67,7 +67,7 @@ Example: Read "service-patterns" memory before creating a new service
 
 // insert_after_symbol
 {
-  relative_path: "path/to/file.ts", 
+  relative_path: "path/to/file.ts",
   name_path: "ClassName/methodName",
   body: "code to insert"
 }
@@ -84,16 +84,17 @@ Example: Read "service-patterns" memory before creating a new service
 
 **Shell is for running commands, NOT file operations:**
 
-| Task | Use This | NOT Shell |
-|------|----------|-----------|
-| Read file | `Read` tool | `cat`, `head`, `tail` |
-| Search content | `Grep` tool | `grep`, `rg` |
-| List files | `LS` tool | `ls` |
-| Find files | `Glob` tool | `find` |
-| Edit file | `StrReplace`, `Write`, or Serena | `sed`, `awk` |
-| Create file | `Write` tool | `cat`, `echo >`, heredoc |
+| Task           | Use This                         | NOT Shell                |
+| -------------- | -------------------------------- | ------------------------ |
+| Read file      | `Read` tool                      | `cat`, `head`, `tail`    |
+| Search content | `Grep` tool                      | `grep`, `rg`             |
+| List files     | `LS` tool                        | `ls`                     |
+| Find files     | `Glob` tool                      | `find`                   |
+| Edit file      | `StrReplace`, `Write`, or Serena | `sed`, `awk`             |
+| Create file    | `Write` tool                     | `cat`, `echo >`, heredoc |
 
 **Shell IS appropriate for:**
+
 - Running build/test/lint commands (`pnpm test`, `pnpm build`)
 - Git operations
 - Package management (`pnpm add`)
@@ -103,8 +104,8 @@ Example: Read "service-patterns" memory before creating a new service
 
 ```typescript
 // GOOD
-Shell({ command: "pnpm test", working_directory: "apps/api" })
+Shell({ command: "pnpm test", working_directory: "apps/api" });
 
 // BAD
-Shell({ command: "cd /full/path && pnpm test" })
+Shell({ command: "cd /full/path && pnpm test" });
 ```

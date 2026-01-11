@@ -57,8 +57,27 @@ export class MessageService extends BaseService<
         },
       });
 
-      // Emit to message subscribers and chat subscribers
+      // Create DTO for the message
+      const messageDTO = {
+        id: message.id,
+        chatId: message.chatId,
+        userId: message.userId,
+        content: message.content,
+        role: message.role,
+        createdAt: message.createdAt.toISOString(),
+        user: message.user,
+      };
+
+      // Emit to message subscribers (for individual message updates)
       this.emitUpdate(message.id, message);
+
+      // Broadcast to all chat subscribers via Socket.io room
+      // This uses the room that chatService subscribers automatically join
+      this.emitToRoom(
+        `chatService:${payload.chatId}`,
+        "chat:message",
+        messageDTO
+      );
 
       return { id: message.id };
     });

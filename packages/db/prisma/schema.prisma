@@ -75,18 +75,20 @@ model Session {
 // Chat Models
 // ============================================================================
 
+// Chat uses a membership table (ChatMember) for access control.
+// This is better than JSON ACL when you need to efficiently query:
+// - "All chats user X can access"
+// - "All members of chat Y"
+// - Membership counts, etc.
+
 model Chat {
   id        String   @id @default(cuid())
   title     String
   
-  // Entry-level ACL stored as JSON array
-  // Format: [{ "userId": "...", "level": "Read" | "Moderate" | "Admin" }]
-  acl       Json?
-  
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   
-  // Relations
+  // Relations - access control is managed via ChatMember table
   members   ChatMember[]
   messages  Message[]
 

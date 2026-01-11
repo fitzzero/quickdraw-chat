@@ -5,6 +5,7 @@ Reference implementation and test application for [@fitzzero/quickdraw-core](htt
 ## Purpose
 
 This project serves as:
+
 1. **Test bed** for developing @fitzzero/quickdraw-core features
 2. **Reference implementation** showing best practices for quickdraw-based apps
 3. **Template validation** ensuring patterns work end-to-end before becoming templates
@@ -14,7 +15,7 @@ This project serves as:
 - **Real-time chat**: Socket.io for live updates and subscriptions
 - **Type-safe**: End-to-end TypeScript with shared types
 - **Service-based**: BaseService pattern with auto-wired Socket.io methods
-- **ACL**: Service-level and entry-level access control
+- **Dual ACL patterns**: Membership table (Chat) and JSON ACL (Document) examples
 - **Modern React**: TanStack Query for server state management
 - **Beautiful UI**: Material-UI with dark theme
 - **Testing**: Vitest with integration test utilities
@@ -45,41 +46,61 @@ pnpm dev
 ```
 .
 ├── apps/
-│   ├── api/          # Express + Socket.io server
+│   ├── api/              # Express + Socket.io server
 │   │   └── src/
-│   │       ├── services/   # Business logic (Chat, Message, User)
-│   │       ├── core/       # BaseService, ServiceRegistry (local copies)
-│   │       └── auth/       # JWT and OAuth utilities
-│   └── web/          # Next.js frontend
+│   │       ├── services/     # Business logic (User, Chat, Message, Document)
+│   │       ├── auth/         # JWT and OAuth utilities
+│   │       └── __tests__/    # Integration tests
+│   └── web/              # Next.js frontend
 │       └── src/
-│           ├── components/ # React components
-│           ├── hooks/      # useService, useSubscription
-│           └── providers/  # Socket, Theme, Query providers
+│           ├── app/          # Next.js app router
+│           ├── components/   # React components
+│           ├── hooks/        # Typed wrappers for quickdraw-core hooks
+│           └── providers/    # QuickdrawProvider, ThemeProvider
 ├── packages/
-│   ├── db/           # Prisma schema and client
-│   ├── shared/       # Shared types
-│   └── eslint-config/# Shared ESLint configuration
-└── .serena/          # Serena MCP configuration and memories
+│   ├── db/               # Prisma schema and client
+│   ├── shared/           # Shared types (ServiceMethodsMap)
+│   └── eslint-config/    # Shared ESLint configuration
+└── .serena/              # Serena MCP configuration and memories
 ```
 
 ## quickdraw-core Integration
 
-This project is linked to quickdraw-core for local development:
+This project imports directly from `@fitzzero/quickdraw-core`:
 
 ```json
-// apps/api/package.json
+// package.json (both api and web)
 "@fitzzero/quickdraw-core": "link:../../../quickdraw"
 ```
 
-**Current state**: Using local copies of `BaseService` and `ServiceRegistry` in `apps/api/src/core/`. These mirror quickdraw-core patterns and can be migrated to direct imports once stable:
+### Server
 
 ```typescript
-// Current (local)
-import { BaseService } from "./core/BaseService";
-
-// Future (from package)
+import {
+  ServiceRegistry,
+  type QuickdrawSocket,
+} from "@fitzzero/quickdraw-core/server";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
 ```
+
+### Client
+
+```typescript
+import {
+  QuickdrawProvider,
+  useQuickdrawSocket,
+} from "@fitzzero/quickdraw-core/client";
+import { useService, useSubscription } from "@fitzzero/quickdraw-core/client";
+```
+
+## Services
+
+| Service         | Purpose                    | ACL Pattern                                 |
+| --------------- | -------------------------- | ------------------------------------------- |
+| UserService     | User profile management    | Self-access (override `checkAccess`)        |
+| ChatService     | Chat rooms with membership | Membership table (`checkEntryACL` override) |
+| MessageService  | Real-time messaging        | Inherits from parent chat                   |
+| DocumentService | Document collaboration     | JSON ACL (default `checkEntryACL`)          |
 
 ## Development
 
@@ -121,6 +142,7 @@ See Serena memory `service-patterns.md` for detailed patterns.
 ## Authentication
 
 The app supports:
+
 - **Dev mode**: Set `ENABLE_DEV_CREDENTIALS=true` to auth with just userId
 - **JWT**: Create and verify tokens with `createJWT` / `verifyJWT`
 - **Discord OAuth**: Configure Discord credentials in `.env.local`
@@ -150,20 +172,37 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 
 ## Testing
 
-Integration tests use a real database and socket connections:
+Integration tests use a real database and socket connections via quickdraw-core testing utilities:
 
 ```typescript
+import {
+  createTestServer,
+  emitWithAck,
+} from "@fitzzero/quickdraw-core/server/testing";
+
 describe("ChatService", () => {
-  beforeEach(async () => {
-    await resetDatabase();
+  let server: Awaited<ReturnType<typeof createTestServer>>;
+
+  beforeAll(async () => {
+    server = await createTestServer({ port: 4100 });
+    // Register services...
+  });
+
+  afterAll(async () => {
+    await server.close();
   });
 
   it("creates chat", async () => {
-    const client = await connectAsUser(port, userId);
-    const result = await emitWithAck(client, "chatService:createChat", {
-      title: "Test",
-    });
+    const client = await server.connectAs("user-1", { userId: "user-1" });
+    const result = await emitWithAck<{ id: string }>(
+      client,
+      "chatService:createChat",
+      {
+        title: "Test Chat",
+      }
+    );
     expect(result.id).toBeDefined();
+    client.close();
   });
 });
 ```

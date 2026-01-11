@@ -208,28 +208,31 @@ export class DocumentService extends BaseService<
       }));
     });
 
-    // Share document with another user (add to ACL)
+    // Share document with another user (add to ACL) - wrapped in transaction for atomicity
     this.defineMethod(
       "shareDocument",
       "Admin",
       async (payload, _ctx) => {
         const { id, userId, level } = payload as { id: string; userId: string; level: AccessLevel };
-        const document = await this.prisma.document.findUnique({
-          where: { id },
-          select: { acl: true },
-        });
+        
+        await this.prisma.$transaction(async (tx) => {
+          const document = await tx.document.findUnique({
+            where: { id },
+            select: { acl: true },
+          });
 
-        if (!document) throw new Error("Document not found");
+          if (!document) throw new Error("Document not found");
 
-        const currentAcl = (document.acl as unknown as ACL) ?? [];
-        // Remove existing entry for this user if present
-        const newAcl = currentAcl.filter((a) => a.userId !== userId);
-        // Add new entry
-        newAcl.push({ userId, level });
+          const currentAcl = (document.acl as unknown as ACL) ?? [];
+          // Remove existing entry for this user if present
+          const newAcl = currentAcl.filter((a) => a.userId !== userId);
+          // Add new entry
+          newAcl.push({ userId, level });
 
-        await this.prisma.document.update({
-          where: { id },
-          data: { acl: newAcl as unknown as Prisma.InputJsonValue },
+          await tx.document.update({
+            where: { id },
+            data: { acl: newAcl as unknown as Prisma.InputJsonValue },
+          });
         });
 
         return { id };
@@ -237,25 +240,28 @@ export class DocumentService extends BaseService<
       { resolveEntryId: (p: { id: string }) => p.id }
     );
 
-    // Unshare document (remove from ACL)
+    // Unshare document (remove from ACL) - wrapped in transaction for atomicity
     this.defineMethod(
       "unshareDocument",
       "Admin",
       async (payload, _ctx) => {
         const { id, userId } = payload as { id: string; userId: string };
-        const document = await this.prisma.document.findUnique({
-          where: { id },
-          select: { acl: true },
-        });
+        
+        await this.prisma.$transaction(async (tx) => {
+          const document = await tx.document.findUnique({
+            where: { id },
+            select: { acl: true },
+          });
 
-        if (!document) throw new Error("Document not found");
+          if (!document) throw new Error("Document not found");
 
-        const currentAcl = (document.acl as unknown as ACL) ?? [];
-        const newAcl = currentAcl.filter((a) => a.userId !== userId);
+          const currentAcl = (document.acl as unknown as ACL) ?? [];
+          const newAcl = currentAcl.filter((a) => a.userId !== userId);
 
-        await this.prisma.document.update({
-          where: { id },
-          data: { acl: newAcl as unknown as Prisma.InputJsonValue },
+          await tx.document.update({
+            where: { id },
+            data: { acl: newAcl as unknown as Prisma.InputJsonValue },
+          });
         });
 
         return { id };

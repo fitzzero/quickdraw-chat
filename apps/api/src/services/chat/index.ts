@@ -1,5 +1,5 @@
 import type { Chat, Prisma, PrismaClient } from "@project/db";
-import type { ChatServiceMethods, ACL, AccessLevel } from "@project/shared";
+import type { ChatServiceMethods, AccessLevel } from "@project/shared";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
 
 type ServiceMethodsRecord = Record<
@@ -16,6 +16,8 @@ export class ChatService extends BaseService<
   private readonly prisma: PrismaClient;
 
   constructor(prisma: PrismaClient) {
+    // hasEntryACL is true - we override checkEntryACL to use ChatMember table
+    // instead of the default JSON acl field pattern (which Document uses)
     super({ serviceName: "chatService", hasEntryACL: true });
     this.prisma = prisma;
     this.setDelegate(prisma.chat);
@@ -23,12 +25,23 @@ export class ChatService extends BaseService<
   }
 
   // Check if user is a member of the chat with sufficient access
+  // This overrides the base checkAccess since we use membership table
+  protected override checkAccess(
+    _userId: string,
+    _chatId: string,
+    _requiredLevel: AccessLevel,
+    _socket: unknown
+  ): boolean {
+    // We need async check, so return false here and do it in checkEntryACL
+    return false;
+  }
+
+  // Check access via ChatMember table (called after checkAccess returns false)
   protected override async checkEntryACL(
     userId: string,
     chatId: string,
     requiredLevel: AccessLevel
   ): Promise<boolean> {
-    // Check chat membership
     const member = await this.prisma.chatMember.findUnique({
       where: { chatId_userId: { chatId, userId } },
       select: { level: true },
@@ -43,11 +56,10 @@ export class ChatService extends BaseService<
     this.defineMethod("createChat", "Read", async (payload, ctx) => {
       if (!ctx.userId) throw new Error("Authentication required");
 
-      // Create chat and add creator as Admin
+      // Create chat and add creator as Admin (nested write is atomic)
       const chat = await this.prisma.chat.create({
         data: {
           title: payload.title,
-          acl: [{ userId: ctx.userId, level: "Admin" }],
           members: {
             create: [
               { userId: ctx.userId, level: "Admin" },
@@ -86,7 +98,7 @@ export class ChatService extends BaseService<
       "inviteUser",
       "Moderate",
       async (payload, _ctx) => {
-        // Add or update membership
+        // Add or update membership (single atomic operation)
         await this.prisma.chatMember.upsert({
           where: {
             chatId_userId: { chatId: payload.id, userId: payload.userId },
@@ -97,21 +109,6 @@ export class ChatService extends BaseService<
             userId: payload.userId,
             level: payload.level,
           },
-        });
-
-        // Update ACL on chat
-        const chat = await this.prisma.chat.findUnique({
-          where: { id: payload.id },
-          select: { acl: true },
-        });
-
-        const currentAcl = (chat?.acl as unknown as ACL) ?? [];
-        const newAcl = currentAcl.filter((a) => a.userId !== payload.userId);
-        newAcl.push({ userId: payload.userId, level: payload.level });
-
-        await this.prisma.chat.update({
-          where: { id: payload.id },
-          data: { acl: newAcl as unknown as Prisma.InputJsonValue },
         });
 
         return { id: payload.id };
@@ -130,20 +127,6 @@ export class ChatService extends BaseService<
           },
         });
 
-        // Update ACL
-        const chat = await this.prisma.chat.findUnique({
-          where: { id: payload.id },
-          select: { acl: true },
-        });
-
-        const currentAcl = (chat?.acl as unknown as ACL) ?? [];
-        const newAcl = currentAcl.filter((a) => a.userId !== payload.userId);
-
-        await this.prisma.chat.update({
-          where: { id: payload.id },
-          data: { acl: newAcl as unknown as Prisma.InputJsonValue },
-        });
-
         return { id: payload.id };
       },
       { resolveEntryId: (p) => p.id }
@@ -158,20 +141,6 @@ export class ChatService extends BaseService<
 
         await this.prisma.chatMember.delete({
           where: { chatId_userId: { chatId: payload.id, userId: ctx.userId } },
-        });
-
-        // Update ACL
-        const chat = await this.prisma.chat.findUnique({
-          where: { id: payload.id },
-          select: { acl: true },
-        });
-
-        const currentAcl = (chat?.acl as unknown as ACL) ?? [];
-        const newAcl = currentAcl.filter((a) => a.userId !== ctx.userId);
-
-        await this.prisma.chat.update({
-          where: { id: payload.id },
-          data: { acl: newAcl as unknown as Prisma.InputJsonValue },
         });
 
         return { id: payload.id };

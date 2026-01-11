@@ -215,7 +215,6 @@ export interface SubscriptionDataMap {
   chatService: {
     id: string;
     title: string;
-    acl: ACL | null;
     createdAt: string;
     updatedAt: string;
   };
