@@ -2,7 +2,10 @@ import type { Message, Prisma, PrismaClient } from "@project/db";
 import type { MessageServiceMethods, AccessLevel } from "@project/shared";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
 
-type ServiceMethodsRecord = Record<string, { payload: unknown; response: unknown }>;
+type ServiceMethodsRecord = Record<
+  string,
+  { payload: unknown; response: unknown }
+>;
 
 export class MessageService extends BaseService<
   Message,
@@ -13,13 +16,14 @@ export class MessageService extends BaseService<
   private readonly prisma: PrismaClient;
 
   constructor(prisma: PrismaClient) {
-    super({ serviceName: "messageService", hasEntryACL: false });
+    // Enable entry ACL - message creator gets Admin in their message's ACL
+    super({ serviceName: "messageService", hasEntryACL: true });
     this.prisma = prisma;
     this.setDelegate(prisma.message);
     this.initMethods();
   }
 
-  // Messages inherit access from their parent chat
+  // Check chat membership for posting/listing messages
   private async checkChatAccess(
     userId: string,
     chatId: string,
@@ -40,7 +44,11 @@ export class MessageService extends BaseService<
       if (!ctx.userId) throw new Error("Authentication required");
 
       // Check chat access
-      const hasAccess = await this.checkChatAccess(ctx.userId, payload.chatId, "Read");
+      const hasAccess = await this.checkChatAccess(
+        ctx.userId,
+        payload.chatId,
+        "Read"
+      );
       if (!hasAccess) throw new Error("Access denied to chat");
 
       const message = await this.prisma.message.create({
@@ -49,6 +57,8 @@ export class MessageService extends BaseService<
           userId: ctx.userId,
           content: payload.content,
           role: payload.role ?? "user",
+          // Creator gets Admin access in ACL for delete permissions
+          acl: [{ userId: ctx.userId, level: "Admin" }],
         },
         include: {
           user: {
@@ -87,7 +97,11 @@ export class MessageService extends BaseService<
       if (!ctx.userId) throw new Error("Authentication required");
 
       // Check chat access
-      const hasAccess = await this.checkChatAccess(ctx.userId, payload.chatId, "Read");
+      const hasAccess = await this.checkChatAccess(
+        ctx.userId,
+        payload.chatId,
+        "Read"
+      );
       if (!hasAccess) throw new Error("Access denied to chat");
 
       const limit = Math.min(payload.limit ?? 50, 100);
@@ -125,32 +139,17 @@ export class MessageService extends BaseService<
       }));
     });
 
-    // Delete a message
+    // Delete a message - requires Admin in message ACL (owner) or service-level access
+    // Framework handles ACL check automatically via hasEntryACL: true
     this.defineMethod(
       "deleteMessage",
-      "Moderate",
-      async (payload, ctx) => {
-        // Get the message to check chat access
-        const message = await this.prisma.message.findUnique({
-          where: { id: payload.id },
-          select: { chatId: true, userId: true },
-        });
-
-        if (!message) throw new Error("Message not found");
-
-        // Check if user owns the message or has chat moderation access
-        const isOwner = message.userId === ctx.userId;
-        const hasModAccess = ctx.userId
-          ? await this.checkChatAccess(ctx.userId, message.chatId, "Moderate")
-          : false;
-
-        if (!isOwner && !hasModAccess) {
-          throw new Error("Cannot delete this message");
-        }
-
+      "Admin",
+      async (payload, _ctx) => {
         await this.prisma.message.delete({ where: { id: payload.id } });
-        this.emitUpdate(payload.id, { id: payload.id, deleted: true } as unknown as Partial<Message>);
-
+        this.emitUpdate(payload.id, {
+          id: payload.id,
+          deleted: true,
+        } as unknown as Partial<Message>);
         return { id: payload.id, deleted: true as const };
       },
       { resolveEntryId: (p) => p.id }

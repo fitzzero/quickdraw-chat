@@ -39,14 +39,23 @@ export async function startTestServer(): Promise<TestServer> {
     new MessageService(testPrisma)
   );
 
-  // Dev auth middleware
-  io.use((socket, next) => {
+  // Dev auth middleware - load serviceAccess from database
+  io.use(async (socket, next) => {
     const quickdrawSocket = socket as QuickdrawSocket;
     const auth = socket.handshake.auth as Record<string, unknown>;
 
     if (auth.userId) {
-      quickdrawSocket.userId = String(auth.userId);
-      quickdrawSocket.serviceAccess = {};
+      const userId = String(auth.userId);
+      const user = await testPrisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, serviceAccess: true },
+      });
+
+      if (user) {
+        quickdrawSocket.userId = user.id;
+        quickdrawSocket.serviceAccess =
+          (user.serviceAccess as Record<string, string>) ?? {};
+      }
     }
 
     next();

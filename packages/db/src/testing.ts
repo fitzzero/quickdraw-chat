@@ -51,6 +51,7 @@ export async function seedTestUsers(): Promise<{
         serviceAccess: {
           chatService: "Admin",
           userService: "Admin",
+          messageService: "Admin",
         },
       },
       select: { id: true, email: true },

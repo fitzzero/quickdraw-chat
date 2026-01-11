@@ -82,27 +82,97 @@ this.defineMethod(
 
 ## Access Control
 
-**Service-level ACL**: Stored in `user.serviceAccess` JSON field
-- Applied automatically via `socket.serviceAccess`
-- Checked before entry-level ACL
+BaseService supports three ACL patterns. Choose based on your entity's needs:
 
-**Entry-level ACL**: Stored in entity's `acl` JSON field
-- Only checked if `hasEntryACL: true`
-- Format: `[{ userId: string, level: AccessLevel }]`
+### 1. Service-Level ACL (Always Active)
 
-**Override `checkAccess`** for custom logic:
-
+Stored in `user.serviceAccess` JSON field, checked first for all methods:
 ```typescript
+// User has serviceAccess: { "chatService": "Admin", "messageService": "Admin" }
+// This grants Admin access to ALL chats and messages regardless of entry ACL
+```
+
+### 2. Built-in JSON ACL (Document/Message Pattern)
+
+**Best for:** Simple ownership models, entities where creator owns the record.
+
+**Setup:**
+```typescript
+// In constructor
+super({ serviceName: "messageService", hasEntryACL: true });
+
+// When creating, add creator to ACL
+const message = await this.prisma.message.create({
+  data: {
+    ...payload,
+    acl: [{ userId: ctx.userId, level: "Admin" }], // Creator is Admin
+  },
+});
+
+// Method requires Admin - framework checks ACL automatically
+this.defineMethod("deleteMessage", "Admin", async (payload, _ctx) => {
+  await this.prisma.message.delete({ where: { id: payload.id } });
+  return { id: payload.id, deleted: true as const };
+}, { resolveEntryId: (p) => p.id });
+```
+
+**See:** `DocumentService`, `MessageService`
+
+### 3. Membership Table Pattern (Chat Pattern)
+
+**Best for:** Complex membership with queryable relationships ("all chats user X can access").
+
+**Setup:**
+```typescript
+// In constructor - still set hasEntryACL: true
+super({ serviceName: "chatService", hasEntryACL: true });
+
+// Override checkEntryACL to use membership table
+protected override async checkEntryACL(
+  userId: string,
+  chatId: string,
+  requiredLevel: AccessLevel
+): Promise<boolean> {
+  const member = await this.prisma.chatMember.findUnique({
+    where: { chatId_userId: { chatId, userId } },
+    select: { level: true },
+  });
+  if (!member) return false;
+  return this.isLevelSufficient(member.level as AccessLevel, requiredLevel);
+}
+```
+
+**See:** `ChatService`
+
+### 4. Self-Access Override (User Pattern)
+
+**Best for:** Users accessing their own data.
+
+**Setup:**
+```typescript
+// In constructor - no entry ACL needed
+super({ serviceName: "userService", hasEntryACL: false });
+
+// Override synchronous checkAccess for self-access
 protected override checkAccess(
   userId: string,
   entryId: string,
   requiredLevel: AccessLevel,
-  socket: QuickdrawSocket
+  _socket: QuickdrawSocket
 ): boolean {
-  // Self-access example
-  return userId === entryId;
+  if (requiredLevel === "Read") return true; // Anyone can read profiles
+  return userId === entryId; // Only self can write
 }
 ```
+
+**See:** `UserService`
+
+### Access Check Order
+
+1. Service-level access (`socket.serviceAccess[serviceName]`) - if sufficient, grants access
+2. `checkAccess()` override (synchronous) - for simple patterns like self-access
+3. `checkEntryACL()` override (async) - for entry-level ACL (JSON field or membership table)
+4. If all fail, throws "Insufficient permissions"
 
 ## CRUD Operations
 

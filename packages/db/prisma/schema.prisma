@@ -118,6 +118,10 @@ model Message {
   content   String
   role      String   @default("user") // "user", "assistant", "system"
   
+  // Entry-level ACL - creator gets Admin access for delete permissions
+  // Format: [{ "userId": "...", "level": "Admin" }]
+  acl       Json?
+  
   createdAt DateTime @default(now()) @map("created_at")
   
   // Relations

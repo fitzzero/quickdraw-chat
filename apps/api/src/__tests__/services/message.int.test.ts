@@ -155,31 +155,18 @@ describe("MessageService Integration", () => {
     client.close();
   });
 
-  it("should allow chat moderator to delete any message", async () => {
-    const admin = await connectAsUser(port, users.admin.id);
+  it("should allow service-level admin to delete any message", async () => {
     const regular = await connectAsUser(port, users.regular.id);
-    const moderator = await connectAsUser(port, users.moderator.id);
+    // Admin has serviceAccess.messageService = "Admin"
+    const serviceAdmin = await connectAsUser(port, users.admin.id);
 
-    // Admin creates chat
+    // Regular user creates chat and posts message
     const chat = await emitWithAck<{ title: string }, { id: string }>(
-      admin,
+      regular,
       "chatService:createChat",
-      { title: "Moderation Test" }
+      { title: "Service Admin Test" }
     );
 
-    // Invite regular and moderator
-    await emitWithAck(admin, "chatService:inviteUser", {
-      id: chat.id,
-      userId: users.regular.id,
-      level: "Read",
-    });
-    await emitWithAck(admin, "chatService:inviteUser", {
-      id: chat.id,
-      userId: users.moderator.id,
-      level: "Moderate",
-    });
-
-    // Regular user posts message
     const message = await emitWithAck<
       { chatId: string; content: string },
       { id: string }
@@ -188,16 +175,21 @@ describe("MessageService Integration", () => {
       content: "Regular user message",
     });
 
-    // Moderator deletes it
+    // Service-level admin can delete any message (regardless of chat membership)
     const deleteResult = await emitWithAck<
       { id: string },
       { id: string; deleted: true }
-    >(moderator, "messageService:deleteMessage", { id: message.id });
+    >(serviceAdmin, "messageService:deleteMessage", { id: message.id });
 
     expect(deleteResult.deleted).toBe(true);
 
-    admin.close();
+    // Verify deleted
+    const dbMessage = await testPrisma.message.findUnique({
+      where: { id: message.id },
+    });
+    expect(dbMessage).toBeNull();
+
     regular.close();
-    moderator.close();
+    serviceAdmin.close();
   });
 });
