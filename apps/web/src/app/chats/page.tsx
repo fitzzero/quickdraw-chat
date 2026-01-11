@@ -125,7 +125,11 @@ export default function ChatsPage(): React.ReactElement {
         ) : (
           <List disablePadding>
             {chats.map((chat, index) => (
-              <ListItem key={chat.id} disablePadding divider={index < chats.length - 1}>
+              <ListItem
+                key={chat.id}
+                disablePadding
+                divider={index < chats.length - 1}
+              >
                 <ListItemButton component={Link} href={`/chats/${chat.id}`}>
                   <ListItemText
                     primary={chat.title}

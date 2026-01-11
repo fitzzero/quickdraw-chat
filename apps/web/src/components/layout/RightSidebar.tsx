@@ -13,7 +13,9 @@ interface RightSidebarProps {
   appBarHeight?: number;
 }
 
-export function RightSidebar({ appBarHeight = 64 }: RightSidebarProps): React.ReactElement | null {
+export function RightSidebar({
+  appBarHeight = 64,
+}: RightSidebarProps): React.ReactElement | null {
   const isMobile = useIsMobile();
   const { rightSidebar, rightDrawerOpen, setRightDrawerOpen } = useLayout();
 

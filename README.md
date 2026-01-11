@@ -152,6 +152,7 @@ The app supports:
 ```bash
 # Database
 DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat
+TEST_DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat_test
 
 # Server
 BACKEND_PORT=4000
@@ -165,6 +166,11 @@ ENABLE_DEV_CREDENTIALS=true  # For local development
 DISCORD_CLIENT_ID=
 DISCORD_CLIENT_SECRET=
 DISCORD_REDIRECT_URI=http://localhost:3000/auth/callback/discord
+
+# Google OAuth (optional)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:3000/auth/callback/google
 
 # Client
 NEXT_PUBLIC_API_URL=http://localhost:4000

@@ -23,7 +23,10 @@ interface NavAccordionProps {
   onNavigate?: () => void;
 }
 
-export function NavAccordion({ item, onNavigate }: NavAccordionProps): React.ReactElement {
+export function NavAccordion({
+  item,
+  onNavigate,
+}: NavAccordionProps): React.ReactElement {
   const pathname = usePathname();
   const [expanded, setExpanded] = React.useState(item.defaultExpanded ?? false);
 
@@ -43,7 +46,8 @@ export function NavAccordion({ item, onNavigate }: NavAccordionProps): React.Rea
     return [];
   }, [item.children, item.dynamicChildren, item.id, chats]);
 
-  const hasChildren = children.length > 0 || (item.dynamicChildren && isLoadingChats);
+  const hasChildren =
+    children.length > 0 || (item.dynamicChildren && isLoadingChats);
   const isSelected = pathname === item.href;
   const isChildSelected = children.some((child) => pathname === child.href);
 
@@ -101,7 +105,8 @@ export function NavAccordion({ item, onNavigate }: NavAccordionProps): React.Rea
       <AccordionSummary
         expandIcon={<ExpandMoreIcon />}
         sx={{
-          bgcolor: isSelected || isChildSelected ? "action.selected" : "transparent",
+          bgcolor:
+            isSelected || isChildSelected ? "action.selected" : "transparent",
         }}
       >
         <ListItemButton

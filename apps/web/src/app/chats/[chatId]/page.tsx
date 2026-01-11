@@ -2,7 +2,15 @@
 
 import * as React from "react";
 import { useParams } from "next/navigation";
-import { Box, Typography, List, ListItem, ListItemText, Skeleton, Avatar } from "@mui/material";
+import {
+  Box,
+  Typography,
+  List,
+  ListItem,
+  ListItemText,
+  Skeleton,
+  Avatar,
+} from "@mui/material";
 import { ChatWindow } from "../../../components/chat";
 import { usePageTitle, useRightSidebar, useSocket } from "../../../providers";
 import { useSubscription } from "../../../hooks";
@@ -42,7 +50,12 @@ function ChatMembersList({ chatId }: { chatId: string }): React.ReactElement {
         <List dense>
           {[1, 2, 3].map((i) => (
             <ListItem key={i}>
-              <Skeleton variant="circular" width={32} height={32} sx={{ mr: 2 }} />
+              <Skeleton
+                variant="circular"
+                width={32}
+                height={32}
+                sx={{ mr: 2 }}
+              />
               <ListItemText primary={<Skeleton variant="text" width="60%" />} />
             </ListItem>
           ))}
@@ -94,15 +107,31 @@ export default function ChatPage(): React.ReactElement {
   // Handle error states
   if (error) {
     // Check if it's a permission error
-    if (error.includes("403") || error.toLowerCase().includes("permission") || error.toLowerCase().includes("access")) {
+    if (
+      error.includes("403") ||
+      error.toLowerCase().includes("permission") ||
+      error.toLowerCase().includes("access")
+    ) {
       return <NoPermission message="You don't have access to this chat" />;
     }
-    return <NotFound message="Chat not found" backHref="/chats" backLabel="Back to Chats" />;
+    return (
+      <NotFound
+        message="Chat not found"
+        backHref="/chats"
+        backLabel="Back to Chats"
+      />
+    );
   }
 
   // Loading state handled by ChatWindow
   return (
-    <Box sx={{ height: "calc(100vh - 128px)", display: "flex", flexDirection: "column" }}>
+    <Box
+      sx={{
+        height: "calc(100vh - 128px)",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
       <ChatWindow chatId={chatId} />
     </Box>
   );
