@@ -23,9 +23,14 @@ export class UserService extends BaseService<
   protected override checkAccess(
     userId: string,
     entryId: string,
-    _requiredLevel: AccessLevel,
+    requiredLevel: AccessLevel,
     _socket: QuickdrawSocket
   ): boolean {
+    // Any authenticated user can read any profile (for profile viewing)
+    if (requiredLevel === "Read") {
+      return true;
+    }
+    // For write operations, only self-access
     return userId === entryId;
   }
 
