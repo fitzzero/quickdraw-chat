@@ -1,0 +1,101 @@
+---
+description: Guidelines for using Serena MCP tools and memories
+globs: ["**/*"]
+---
+
+# Serena MCP Usage
+
+When working in projects with Serena configured (`.serena/` directory present), prefer using Serena's tools for code intelligence and editing.
+
+## Serena Memories
+
+**Read relevant memories before making changes:**
+
+| Working on... | Read memory |
+|---------------|-------------|
+| Services | `service-patterns` |
+| Tests | `testing-patterns` |
+| API endpoints | `api-conventions` |
+| Architecture decisions | `architecture` |
+| Client code | `client-patterns` |
+| Before committing | `check-code` |
+
+Use: `read_memory` with `memory_file_name` parameter
+
+```
+Example: Read "service-patterns" memory before creating a new service
+```
+
+## Serena Symbolic Tools
+
+**Prefer these for code navigation and targeted edits:**
+
+| Tool | Use for |
+|------|---------|
+| `get_symbols_overview` | See classes/methods in a file without reading entire file |
+| `find_symbol` | Locate specific methods/classes with `include_body: true/false` |
+| `replace_symbol_body` | Replace an entire method/function body |
+| `insert_after_symbol` | Add code after a specific method |
+| `insert_before_symbol` | Add code before a specific method |
+| `find_referencing_symbols` | Find all references to a symbol |
+
+**When to use Serena vs standard tools:**
+
+- **Serena**: Editing existing methods, refactoring, finding references, understanding code structure
+- **Standard Write/Shell**: Creating new files, non-code content, bulk operations
+
+## Tool Parameter Reference
+
+```typescript
+// read_memory
+{ memory_file_name: "service-patterns" }
+
+// find_symbol
+{ 
+  name_path_pattern: "ClassName/methodName",
+  relative_path: "path/to/file.ts",
+  include_body: true,
+  depth: 1  // for children
+}
+
+// replace_symbol_body
+{
+  relative_path: "path/to/file.ts",
+  name_path: "ClassName/methodName",
+  body: "new method body here"
+}
+
+// insert_after_symbol
+{
+  relative_path: "path/to/file.ts", 
+  name_path: "ClassName/methodName",
+  body: "code to insert"
+}
+```
+
+## Workflow
+
+1. **Before editing**: Read relevant memory for project patterns
+2. **Explore**: Use `get_symbols_overview` or `find_symbol` to understand structure
+3. **Edit**: Use `replace_symbol_body` or `insert_after_symbol` for targeted changes
+4. **New files**: Use Shell heredoc or standard Write tool (Serena doesn't create files)
+
+## Shell Commands
+
+**Use `working_directory` parameter instead of `cd` commands:**
+
+```typescript
+// GOOD - use working_directory parameter
+Shell({
+  command: "pnpm test",
+  working_directory: "/path/to/project"
+})
+
+// BAD - don't hardcode cd paths
+Shell({ command: "cd /full/hardcoded/path && pnpm test" })
+```
+
+**Use relative paths when possible:**
+- Serena tools use `relative_path` from workspace root
+- Shell `working_directory` can use workspace-relative paths
+- Avoid absolute paths in memories and documentation

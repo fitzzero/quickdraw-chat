@@ -4,9 +4,9 @@ When asked to "check code" or verify work, run these verification steps in order
 
 ## quickdraw-chat Checks
 
-```bash
-cd /home/logan/telariel/workspaces/logan/projects/quickdraw-chat
+Run from `quickdraw-chat` workspace root:
 
+```bash
 # 1. Lint - catches style issues, unused imports, void expressions
 pnpm lint
 
@@ -22,9 +22,9 @@ pnpm build
 
 ## quickdraw-core Checks (if edited)
 
-```bash
-cd /home/logan/telariel/workspaces/logan/projects/quickdraw
+Run from `quickdraw` workspace root:
 
+```bash
 pnpm lint && pnpm typecheck && pnpm build
 ```
 
