@@ -78,24 +78,33 @@ Example: Read "service-patterns" memory before creating a new service
 1. **Before editing**: Read relevant memory for project patterns
 2. **Explore**: Use `get_symbols_overview` or `find_symbol` to understand structure
 3. **Edit**: Use `replace_symbol_body` or `insert_after_symbol` for targeted changes
-4. **New files**: Use Shell heredoc or standard Write tool (Serena doesn't create files)
+4. **New files**: Use `Write` tool (Serena doesn't create files)
 
 ## Shell Commands
 
-**Use `working_directory` parameter instead of `cd` commands:**
+**Shell is for running commands, NOT file operations:**
+
+| Task | Use This | NOT Shell |
+|------|----------|-----------|
+| Read file | `Read` tool | `cat`, `head`, `tail` |
+| Search content | `Grep` tool | `grep`, `rg` |
+| List files | `LS` tool | `ls` |
+| Find files | `Glob` tool | `find` |
+| Edit file | `StrReplace`, `Write`, or Serena | `sed`, `awk` |
+| Create file | `Write` tool | `cat`, `echo >`, heredoc |
+
+**Shell IS appropriate for:**
+- Running build/test/lint commands (`pnpm test`, `pnpm build`)
+- Git operations
+- Package management (`pnpm add`)
+- Dev servers
+
+**Use `working_directory` parameter:**
 
 ```typescript
-// GOOD - use working_directory parameter
-Shell({
-  command: "pnpm test",
-  working_directory: "/path/to/project"
-})
+// GOOD
+Shell({ command: "pnpm test", working_directory: "apps/api" })
 
-// BAD - don't hardcode cd paths
-Shell({ command: "cd /full/hardcoded/path && pnpm test" })
+// BAD
+Shell({ command: "cd /full/path && pnpm test" })
 ```
-
-**Use relative paths when possible:**
-- Serena tools use `relative_path` from workspace root
-- Shell `working_directory` can use workspace-relative paths
-- Avoid absolute paths in memories and documentation
