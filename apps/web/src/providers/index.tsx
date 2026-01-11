@@ -3,8 +3,10 @@
 import * as React from "react";
 import { Box, CircularProgress } from "@mui/material";
 import { ThemeProvider } from "./ThemeProvider";
+import { LayoutProvider } from "./LayoutProvider";
 import { QuickdrawProvider, useQuickdrawSocket } from "@fitzzero/quickdraw-core/client";
 import { getAuthToken } from "../lib/auth";
+import { ClientShell } from "../components/layout";
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -45,7 +47,9 @@ export function Providers({ children }: ProvidersProps): React.ReactElement {
   return (
     <ThemeProvider>
       <QuickdrawProvider serverUrl={SERVER_URL} authToken={authToken} autoConnect>
-        {children}
+        <LayoutProvider>
+          <ClientShell>{children}</ClientShell>
+        </LayoutProvider>
       </QuickdrawProvider>
     </ThemeProvider>
   );
@@ -53,3 +57,6 @@ export function Providers({ children }: ProvidersProps): React.ReactElement {
 
 // Re-export useQuickdrawSocket as useSocket for backward compatibility
 export { useQuickdrawSocket as useSocket };
+
+// Re-export layout hooks
+export { useLayout, useRightSidebar, usePageTitle } from "./LayoutProvider";

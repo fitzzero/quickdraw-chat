@@ -135,3 +135,40 @@ await this.prisma.<entity>.findMany({ ... });
 **AVOID direct Prisma writes:**
 - Never use `this.prisma.<entity>.create/update/delete` directly for user-facing operations
 - Exception: Read operations and aggregations are fine
+
+## Cross-Service Room Broadcasting
+
+When Service A needs to notify subscribers of Service B (e.g., MessageService notifying ChatService subscribers):
+
+```typescript
+// Emit to all subscribers of another service's entity
+this.emitToRoom(
+  `chatService:${chatId}`,  // Room name: {serviceName}:{entityId}
+  "chat:message",           // Custom event name
+  messageDTO                 // Data payload
+);
+```
+
+**How it works:**
+- When clients subscribe to an entity, they auto-join the Socket.io room `{serviceName}:{entityId}`
+- Any service can emit to that room using `emitToRoom()`
+- Uses `io.to(room).emit()` which sends to ALL sockets in the room
+
+**Common use cases:**
+- New messages in a chat: `chat:message`
+- Message deletions: `chat:messageDelete`
+- Typing indicators: `chat:typing`
+- Any "broadcast to entity subscribers" scenario
+
+**Client-side pattern:**
+
+```typescript
+useEffect(() => {
+  socket.on("chat:message", handleNewMessage);
+  socket.on("chat:messageDelete", handleDelete);
+  return () => {
+    socket.off("chat:message", handleNewMessage);
+    socket.off("chat:messageDelete", handleDelete);
+  };
+}, [socket, chatId]);
+```

@@ -10,7 +10,7 @@ import { useService } from "../hooks";
 function CreateChatButton() {
   const createChat = useService("chatService", "createChat", {
     onSuccess: (data) => {
-      router.push(`/chat/${data.id}`);
+      router.push(`/chats/${data.id}`);
     },
     onError: (error) => {
       toast.error(error);
@@ -53,7 +53,7 @@ import { useSocket } from "../providers";
 
 function ConnectionStatus() {
   const { isConnected, userId, serviceAccess } = useSocket();
-  
+
   // Check permissions
   const isAdmin = serviceAccess.chatService === "Admin";
 }
@@ -65,19 +65,28 @@ function ConnectionStatus() {
 src/
 ├── components/
 │   ├── chat/           # Feature-specific components
-│   │   ├── ChatList.tsx
-│   │   ├── ChatWindow.tsx
-│   │   └── index.ts    # Re-exports
-│   └── ui/             # Shared UI components
+│   ├── layout/         # App layout components
+│   ├── feedback/       # LoginRequired, NoPermission, NotFound
+│   └── user/           # User-related components
 ├── hooks/
 │   ├── useService.ts
 │   ├── useSubscription.ts
+│   ├── useIsMobile.ts
 │   └── index.ts
+├── lib/
+│   └── navigation.ts   # Typed route config
 ├── providers/
-│   ├── SocketProvider.tsx
+│   ├── LayoutProvider.tsx
 │   ├── ThemeProvider.tsx
-│   └── index.tsx       # Combined providers
+│   └── index.tsx
 ```
+
+## Layout & Containers
+
+- Pages render inside `AppLayout` which provides left sidebar, appbar, and optional right sidebar
+- Prefer `Stack` for row/column layouts over hardcoding `Box` flex props
+- Reserve `Grid` for multi-row/column responsive layouts
+- Avoid nested `Container` components
 
 ## Styling
 
@@ -94,7 +103,7 @@ src/
 >
 ```
 
-**Use theme variables** for consistency:
+**Use theme variables** - no hardcoded hex colors:
 
 ```typescript
 sx={{
@@ -102,6 +111,63 @@ sx={{
   bgcolor: "background.default",
   borderColor: "divider",
 }}
+```
+
+**Use theme.spacing** - avoid hardcoded pixel values:
+
+```typescript
+sx={{ p: 2, mt: 1, gap: 2 }}  // Good - uses theme spacing
+sx={{ padding: "16px" }}       // Avoid
+```
+
+## Responsiveness
+
+- Use `useIsMobile()` hook for responsive behavior (breakpoint: md = 900px)
+- Desktop: permanent sidebars
+- Mobile: SwipeableDrawer for navigation
+- Prefer `sx` responsive values over inline media queries:
+
+```typescript
+sx={{
+  width: { xs: "100%", md: 280 },
+  display: { xs: "none", md: "block" },
+}}
+```
+
+## Navigation
+
+- Drive nav from typed route config in `lib/navigation.ts`
+- Use `next/link` via `ListItemButton component={Link}`
+- Indicate selected state via `usePathname()`
+- Routes can specify `requireAuth: true` for protected pages
+
+## Component Guidelines
+
+- Keep components under 500 lines; extract subcomponents
+- Avoid bespoke CSS; rely on MUI props and centralized theme overrides
+- Use `rem` units for font sizes in theme
+
+## Socket Input Components
+
+For socket-synced inputs from `@quickdraw/core/client`:
+
+- `SocketTextField` - Text input with debounce
+- `SocketCheckbox` - Boolean toggle
+- `SocketSelect` - Select dropdown
+- `SocketSlider` - Range input
+- `SocketSwitch` - Toggle switch
+
+Usage:
+
+```typescript
+<SocketTextField
+  state={entityData}
+  update={updateEntity}
+  property="title"
+  label="Title"
+  commitMode="blur"  // Prefer blur for text to reduce chatter
+  fullWidth
+/>
 ```
 
 ## Type Safety
@@ -137,6 +203,14 @@ if (mutation.isError) {
 }
 ```
 
+**403 errors** - Handle at page level:
+
+```typescript
+if (error?.code === 403) {
+  return <NoPermission message="You don't have access to this chat" />;
+}
+```
+
 ## Loading States
 
 Use MUI components:
@@ -150,12 +224,3 @@ if (isLoading) {
   );
 }
 ```
-
-## Socket Input Components
-
-For socket-synced inputs from `@quickdraw/core/client`:
-- `SocketTextField` - Text input with debounce
-- `SocketCheckbox` - Boolean toggle
-- `SocketSelect` - Select dropdown
-- `SocketSlider` - Range input
-- `SocketSwitch` - Toggle switch

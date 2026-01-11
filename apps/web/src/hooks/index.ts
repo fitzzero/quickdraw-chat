@@ -3,3 +3,5 @@
 
 export { useService } from "./useService";
 export { useSubscription } from "./useSubscription";
+export { useIsMobile } from "./useIsMobile";
+export { useRecentChats } from "./useRecentChats";

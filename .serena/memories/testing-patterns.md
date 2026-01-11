@@ -44,11 +44,11 @@ describe("<Service>Service Integration", () => {
 
   it("should create entity with proper ACL", async () => {
     const client = await connectAsUser(port, users.regular.id);
-    
+
     const result = await emitWithAck(client, "chatService:createChat", {
       title: "Test Chat",
     });
-    
+
     expect(result.id).toBeDefined();
     client.close();
   });
@@ -80,7 +80,9 @@ import { connectAsUser, emitWithAck, waitForEvent } from "../utils/socket.js";
 const client = await connectAsUser(port, userId);
 
 // Emit and wait for response
-const result = await emitWithAck(client, "chatService:createChat", { title: "Test" });
+const result = await emitWithAck(client, "chatService:createChat", {
+  title: "Test",
+});
 
 // Wait for a real-time event
 const update = await waitForEvent(client, `chatService:update:${chatId}`);
@@ -121,6 +123,7 @@ export async function seedTestUsers() {
 ## ACL Test Scenarios
 
 Always test these scenarios:
+
 1. **Admin** - Service-level Admin access
 2. **Moderator** - Service-level Moderate access
 3. **Entry Admin** - Entry-level Admin via ACL
@@ -140,11 +143,13 @@ pnpm test:coverage             # With coverage
 ## Test Environment
 
 Tests load environment variables from `.env.local` via `dotenv-cli` in the package.json test scripts:
+
 ```json
 "test": "dotenv -e ../../.env.local -- vitest run"
 ```
 
 **Required in `.env.local`:**
+
 ```bash
 DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat
 # Optional: Use separate test database
@@ -152,6 +157,7 @@ TEST_DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat_test
 ```
 
 **Automatically set by test setup:**
+
 ```
 NODE_ENV=test
 ENABLE_DEV_CREDENTIALS=true

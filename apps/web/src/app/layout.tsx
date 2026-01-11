@@ -3,8 +3,8 @@ import { Providers } from "../providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Chat App",
-  description: "Real-time chat application built with quickdraw patterns",
+  title: "Quickdraw Chat",
+  description: "Real-time chat application built with the Quickdraw framework",
 };
 
 export default function RootLayout({

@@ -1,128 +1,86 @@
 "use client";
 
 import * as React from "react";
-import { Box, Paper, Typography, CircularProgress } from "@mui/material";
-import { ChatList, ChatWindow } from "../components/chat";
+import { Box, Typography, Paper, Button, Stack } from "@mui/material";
+import ChatIcon from "@mui/icons-material/Chat";
+import Link from "next/link";
 import { useSocket } from "../providers";
-import type { ChatListItem, ServiceResponse } from "@project/shared";
 
 export default function HomePage(): React.ReactElement {
-  const { socket, isConnected, userId } = useSocket();
-  const [selectedChatId, setSelectedChatId] = React.useState<string | null>(null);
-  const [chats, setChats] = React.useState<ChatListItem[]>([]);
-  const [isLoadingChats, setIsLoadingChats] = React.useState(true);
-
-  // Load chats
-  const loadChats = React.useCallback(() => {
-    if (!socket || !isConnected) return;
-
-    setIsLoadingChats(true);
-    socket.emit("chatService:listMyChats", {}, (response: ServiceResponse<ChatListItem[]>) => {
-      if (response.success) {
-        setChats(response.data);
-      }
-      setIsLoadingChats(false);
-    });
-  }, [socket, isConnected]);
-
-  React.useEffect(() => {
-    loadChats();
-  }, [loadChats]);
-
-  if (!isConnected) {
-    return (
-      <Box
-        sx={{
-          height: "100vh",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          flexDirection: "column",
-          gap: 2,
-        }}
-      >
-        <CircularProgress />
-        <Typography color="text.secondary">Connecting to server...</Typography>
-      </Box>
-    );
-  }
-
-  if (!userId) {
-    return (
-      <Box
-        sx={{
-          height: "100vh",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          flexDirection: "column",
-          gap: 3,
-          p: 4,
-        }}
-      >
-        <Typography variant="h4" component="h1">
-          Welcome to Chat App
-        </Typography>
-        <Typography color="text.secondary" sx={{ maxWidth: 400, textAlign: "center" }}>
-          Sign in to start chatting with others in real-time.
-        </Typography>
-        <Box
-          component="a"
-          href="/auth/login"
-          sx={{
-            bgcolor: "primary.main",
-            color: "white",
-            px: 4,
-            py: 1.5,
-            borderRadius: 2,
-            textDecoration: "none",
-            "&:hover": { bgcolor: "primary.dark" },
-          }}
-        >
-          Sign In
-        </Box>
-      </Box>
-    );
-  }
+  const { userId } = useSocket();
 
   return (
-    <Box sx={{ height: "100vh", display: "flex" }}>
-      {/* Sidebar */}
+    <Box sx={{ maxWidth: 800, mx: "auto" }}>
+      {/* Hero Section */}
       <Paper
-        elevation={0}
         sx={{
-          width: 280,
-          borderRight: 1,
-          borderColor: "divider",
-          height: "100%",
+          p: 4,
+          textAlign: "center",
+          mb: 4,
+          background: "linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%)",
         }}
       >
-        <ChatList
-          chats={chats}
-          isLoading={isLoadingChats}
-          selectedChatId={selectedChatId ?? undefined}
-          onSelectChat={setSelectedChatId}
-          onRefresh={loadChats}
-        />
+        <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
+          Welcome to Quickdraw Chat
+        </Typography>
+        <Typography variant="h6" color="text.secondary" sx={{ mb: 3 }}>
+          Real-time chat application built with the Quickdraw framework
+        </Typography>
+        {userId ? (
+          <Button
+            component={Link}
+            href="/chats"
+            variant="contained"
+            size="large"
+            startIcon={<ChatIcon />}
+          >
+            Go to Chats
+          </Button>
+        ) : (
+          <Button
+            component={Link}
+            href="/auth/login"
+            variant="contained"
+            size="large"
+          >
+            Sign In to Get Started
+          </Button>
+        )}
       </Paper>
 
-      {/* Main Content */}
-      <Box sx={{ flex: 1, height: "100%" }}>
-        {selectedChatId ? (
-          <ChatWindow chatId={selectedChatId} />
-        ) : (
-          <Box
-            sx={{
-              height: "100%",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <Typography color="text.secondary">Select a chat or create a new one</Typography>
-          </Box>
-        )}
-      </Box>
+      {/* Features Section */}
+      <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
+        Features
+      </Typography>
+      <Stack spacing={2}>
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Real-time Messaging
+          </Typography>
+          <Typography color="text.secondary">
+            Send and receive messages instantly with Socket.IO-powered real-time
+            communication.
+          </Typography>
+        </Paper>
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Multi-user Chats
+          </Typography>
+          <Typography color="text.secondary">
+            Create chat rooms and invite multiple users to collaborate in
+            real-time.
+          </Typography>
+        </Paper>
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Access Control
+          </Typography>
+          <Typography color="text.secondary">
+            Fine-grained permissions with Read, Moderate, and Admin access
+            levels.
+          </Typography>
+        </Paper>
+      </Stack>
     </Box>
   );
 }
