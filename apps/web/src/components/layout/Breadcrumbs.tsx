@@ -101,7 +101,7 @@ function BreadcrumbLink({
           onClose={handleClose}
           anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         >
-          {item.siblings!.map((sibling) => (
+          {item.siblings?.map((sibling) => (
             <MenuItem
               key={sibling.href}
               component={Link}
