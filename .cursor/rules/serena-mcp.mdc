@@ -103,16 +103,14 @@ Example: Read "service-patterns" memory before creating a new service
 **Git operations - always request permissions upfront:**
 
 ```typescript
-// For ANY git command, request git_write to avoid sandbox failures
+// For ANY git command, use "all" to disable sandbox entirely
 Shell({
   command: "git status",
-  required_permissions: ["git_write"],
+  required_permissions: ["all"],
 });
-
-// This prevents the double-call pattern where sandbox blocks the first attempt
 ```
 
-Rule: When running git commands (`git status`, `git diff`, `git log`, `git add`, `git commit`, etc.), ALWAYS include `required_permissions: ["git_write"]` in the first call. Do not run git commands without this permission.
+Rule: When running git commands (`git status`, `git diff`, `git log`, `git add`, `git commit`, etc.), ALWAYS include `required_permissions: ["all"]` in the first call. The `git_write` permission alone is insufficient.
 
 **Use `working_directory` parameter:**
 
