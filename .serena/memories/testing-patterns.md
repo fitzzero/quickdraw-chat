@@ -10,7 +10,8 @@ apps/api/src/
 └── __tests__/
     ├── setup.ts            # Global test setup
     ├── utils/
-    │   └── socket.ts       # Socket test helpers
+    │   ├── server.ts       # Test server setup
+    │   └── socket.ts       # Socket test helpers (connectAsUser, emitWithAck, etc.)
     └── services/
         └── chat.int.test.ts
 ```
@@ -70,45 +71,25 @@ describe("<Service>Service Integration", () => {
 
 ## Socket Test Helpers
 
+Socket test utilities are in `apps/api/src/__tests__/utils/socket.ts`:
+
 ```typescript
-// apps/api/src/__tests__/utils/socket.ts
-import { io as ioClient, Socket } from "socket.io-client";
-import type { ServiceResponse } from "@project/shared";
+import { connectAsUser, emitWithAck, waitForEvent } from "../utils/socket.js";
 
-export async function connectAsUser(port: number, userId: string) {
-  const socket = ioClient(`http://localhost:${port}`, {
-    auth: { userId },
-    transports: ["websocket"],
-  });
+// Connect as a user (returns raw Socket)
+const client = await connectAsUser(port, userId);
 
-  await new Promise<void>((resolve, reject) => {
-    socket.on("connect", resolve);
-    socket.on("connect_error", reject);
-    setTimeout(() => reject(new Error("Connection timeout")), 5000);
-  });
+// Emit and wait for response
+const result = await emitWithAck(client, "chatService:createChat", { title: "Test" });
 
-  return socket;
-}
+// Wait for a real-time event
+const update = await waitForEvent(client, `chatService:update:${chatId}`);
 
-export function emitWithAck<TPayload, TResponse>(
-  socket: Socket,
-  event: string,
-  payload: TPayload
-): Promise<TResponse> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("Timeout")), 5000);
-    
-    socket.emit(event, payload, (response: ServiceResponse<TResponse>) => {
-      clearTimeout(timeout);
-      if (response.success) {
-        resolve(response.data);
-      } else {
-        reject(new Error(response.error));
-      }
-    });
-  });
-}
+// Clean up
+client.close();
 ```
+
+Note: These return raw `Socket` instances. For the `TestClient` wrapper with built-in `emit()` helper, use `@fitzzero/quickdraw-core/server/testing` directly.
 
 ## Test Database
 
@@ -158,9 +139,22 @@ pnpm test:coverage             # With coverage
 
 ## Test Environment
 
-Set in `.env.test`:
+Tests load environment variables from `.env.local` via `dotenv-cli` in the package.json test scripts:
+```json
+"test": "dotenv -e ../../.env.local -- vitest run"
 ```
-DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat_test
+
+**Required in `.env.local`:**
+```bash
+DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat
+# Optional: Use separate test database
+TEST_DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat_test
+```
+
+**Automatically set by test setup:**
+```
+NODE_ENV=test
 ENABLE_DEV_CREDENTIALS=true
-LOG_LEVEL=error
 ```
+
+**Important:** Always run tests via `pnpm test`, not `npx vitest run` directly.

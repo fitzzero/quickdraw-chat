@@ -1,4 +1,5 @@
 // Test setup for API integration tests
+// Note: Environment variables are loaded by dotenv-cli in package.json test script
 import { beforeAll, afterAll, beforeEach } from "vitest";
 import { testPrisma, resetDatabase } from "@project/db/testing";
 

@@ -1,6 +1,16 @@
 import type { Chat, Prisma, PrismaClient } from "@project/db";
 import type { ChatServiceMethods, AccessLevel } from "@project/shared";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
+import { z } from "zod";
+
+// Zod schema for createChat validation
+const createChatSchema = z.object({
+  title: z.string().min(1, "Title is required").max(100, "Title must be 100 characters or less"),
+  members: z.array(z.object({
+    userId: z.string().cuid("Invalid user ID"),
+    level: z.enum(["Read", "Moderate", "Admin"]),
+  })).optional(),
+});
 
 type ServiceMethodsRecord = Record<
   string,
@@ -52,29 +62,34 @@ export class ChatService extends BaseService<
   }
 
   private initMethods(): void {
-    // Create a new chat
-    this.defineMethod("createChat", "Read", async (payload, ctx) => {
-      if (!ctx.userId) throw new Error("Authentication required");
+    // Create a new chat - demonstrates Zod validation
+    this.defineMethod(
+      "createChat",
+      "Read",
+      async (payload, ctx) => {
+        if (!ctx.userId) throw new Error("Authentication required");
 
-      // Create chat and add creator as Admin (nested write is atomic)
-      const chat = await this.prisma.chat.create({
-        data: {
-          title: payload.title,
-          members: {
-            create: [
-              { userId: ctx.userId, level: "Admin" },
-              ...(payload.members?.map((m) => ({
-                userId: m.userId,
-                level: m.level,
-              })) ?? []),
-            ],
+        // Create chat and add creator as Admin (nested write is atomic)
+        const chat = await this.prisma.chat.create({
+          data: {
+            title: payload.title,
+            members: {
+              create: [
+                { userId: ctx.userId, level: "Admin" },
+                ...(payload.members?.map((m) => ({
+                  userId: m.userId,
+                  level: m.level,
+                })) ?? []),
+              ],
+            },
           },
-        },
-        select: { id: true },
-      });
+          select: { id: true },
+        });
 
-      return { id: chat.id };
-    });
+        return { id: chat.id };
+      },
+      { schema: createChatSchema }
+    );
 
     // Update chat title
     this.defineMethod(

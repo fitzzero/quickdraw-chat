@@ -9,7 +9,12 @@ config({ path: "../../.env.local" });
 config();
 
 import { logger } from "./utils/logger.js";
-import { ServiceRegistry, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
+import {
+  ServiceRegistry,
+  createRateLimiter,
+  applyRateLimitMiddleware,
+  type QuickdrawSocket,
+} from "@fitzzero/quickdraw-core/server";
 import { prisma } from "@project/db";
 import { UserService } from "./services/user/index.js";
 import { ChatService } from "./services/chat/index.js";
@@ -17,6 +22,7 @@ import { MessageService } from "./services/message/index.js";
 import { DocumentService } from "./services/document/index.js";
 import { authenticateSocket } from "./auth/middleware.js";
 import { registerDiscordRoutes } from "./auth/discord.js";
+import { registerGoogleRoutes } from "./auth/google.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -44,6 +50,7 @@ app.get("/api", (_req, res) => {
 
 // Auth routes
 registerDiscordRoutes(app);
+registerGoogleRoutes(app);
 
 // Socket.io server
 const io = new SocketIOServer(httpServer, {
@@ -51,6 +58,22 @@ const io = new SocketIOServer(httpServer, {
     origin: CLIENT_URL,
     methods: ["GET", "POST"],
     credentials: true,
+  },
+});
+
+// Rate limiting - prevents abuse and ensures fair resource usage
+const rateLimiter = createRateLimiter({
+  windowMs: 60000, // 1 minute window
+  maxRequests: 100, // 100 requests per minute per socket
+  excludeEvents: ["subscribe", "unsubscribe"], // Don't rate limit subscriptions
+});
+
+applyRateLimitMiddleware(io, rateLimiter, {
+  logger,
+  // Use userId if authenticated, otherwise socket.id
+  keyGenerator: (socket) => {
+    const quickdrawSocket = socket as QuickdrawSocket;
+    return quickdrawSocket.userId ?? socket.id;
   },
 });
 

@@ -24,7 +24,7 @@
     "jose": "^5.2.0",
     "socket.io": "^4.7.4",
     "winston": "^3.11.0",
-    "zod": "^3.22.0"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@project/eslint-config": "workspace:*",

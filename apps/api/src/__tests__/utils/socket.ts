@@ -1,17 +1,17 @@
+/**
+ * Socket test utilities for integration tests.
+ * 
+ * These are thin wrappers that return raw Socket instances to match the test patterns.
+ * For the full TestClient interface with emit() helper, use @fitzzero/quickdraw-core/server/testing.
+ */
 import { io as ioClient, type Socket } from "socket.io-client";
 import type { ServiceResponse } from "@project/shared";
 
-let nextPort = 10000;
+export { getAvailablePort } from "@fitzzero/quickdraw-core/server/testing";
 
 /**
- * Get an available port for testing
- */
-export function getAvailablePort(): number {
-  return nextPort++;
-}
-
-/**
- * Connect to a test server as a specific user
+ * Connect to a test server as a specific user.
+ * Returns a raw Socket (unlike core's TestClient wrapper).
  */
 export async function connectAsUser(port: number, userId: string): Promise<Socket> {
   const socket = ioClient(`http://localhost:${port}`, {
@@ -40,7 +40,7 @@ export async function connectAsUser(port: number, userId: string): Promise<Socke
 }
 
 /**
- * Emit an event and wait for acknowledgment
+ * Emit an event and wait for acknowledgment.
  */
 export function emitWithAck<TPayload, TResponse>(
   socket: Socket,
@@ -66,7 +66,7 @@ export function emitWithAck<TPayload, TResponse>(
 }
 
 /**
- * Wait for a specific socket event
+ * Wait for a specific socket event.
  */
 export function waitForEvent<T>(
   socket: Socket,
