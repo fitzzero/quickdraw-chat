@@ -61,6 +61,41 @@ export class ChatService extends BaseService<
     return this.isLevelSufficient(member.level as AccessLevel, requiredLevel);
   }
 
+  // Helper to fetch members with user details
+  private async fetchChatMembers(chatId: string): Promise<{
+    id: string;
+    userId: string;
+    level: AccessLevel;
+    user: { id: string; name: string | null; image: string | null };
+  }[]> {
+    const members = await this.prisma.chatMember.findMany({
+      where: { chatId },
+      include: {
+        user: {
+          select: { id: true, name: true, image: true },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    return members.map((m) => ({
+      id: m.id,
+      userId: m.userId,
+      level: m.level as AccessLevel,
+      user: {
+        id: m.user.id,
+        name: m.user.name,
+        image: m.user.image,
+      },
+    }));
+  }
+
+  // Helper to emit member updates to all chat subscribers
+  private async emitMemberUpdate(chatId: string): Promise<void> {
+    const members = await this.fetchChatMembers(chatId);
+    this.emitToRoom(`chatService:${chatId}`, "chat:memberUpdate", { members });
+  }
+
   private initMethods(): void {
     // Create a new chat - demonstrates Zod validation
     this.defineMethod(
@@ -108,7 +143,17 @@ export class ChatService extends BaseService<
       { resolveEntryId: (p) => p.id }
     );
 
-    // Invite user to chat
+    // Get chat members with user details
+    this.defineMethod(
+      "getChatMembers",
+      "Read",
+      async (payload, _ctx) => {
+        return this.fetchChatMembers(payload.chatId);
+      },
+      { resolveEntryId: (p) => p.chatId }
+    );
+
+    // Invite user to chat by userId
     this.defineMethod(
       "inviteUser",
       "Moderate",
@@ -126,9 +171,48 @@ export class ChatService extends BaseService<
           },
         });
 
+        // Emit member update to all subscribers
+        await this.emitMemberUpdate(payload.id);
+
         return { id: payload.id };
       },
       { resolveEntryId: (p) => p.id }
+    );
+
+    // Invite user to chat by username
+    this.defineMethod(
+      "inviteByName",
+      "Moderate",
+      async (payload, _ctx) => {
+        // Look up user by name
+        const user = await this.prisma.user.findUnique({
+          where: { name: payload.userName },
+          select: { id: true },
+        });
+
+        if (!user) {
+          return { error: "user_not_found" as const };
+        }
+
+        // Add or update membership
+        await this.prisma.chatMember.upsert({
+          where: {
+            chatId_userId: { chatId: payload.chatId, userId: user.id },
+          },
+          update: { level: payload.level },
+          create: {
+            chatId: payload.chatId,
+            userId: user.id,
+            level: payload.level,
+          },
+        });
+
+        // Emit member update to all subscribers
+        await this.emitMemberUpdate(payload.chatId);
+
+        return { id: payload.chatId };
+      },
+      { resolveEntryId: (p) => p.chatId }
     );
 
     // Remove user from chat
@@ -141,6 +225,9 @@ export class ChatService extends BaseService<
             chatId_userId: { chatId: payload.id, userId: payload.userId },
           },
         });
+
+        // Emit member update to all subscribers
+        await this.emitMemberUpdate(payload.id);
 
         return { id: payload.id };
       },
@@ -157,6 +244,9 @@ export class ChatService extends BaseService<
         await this.prisma.chatMember.delete({
           where: { chatId_userId: { chatId: payload.id, userId: ctx.userId } },
         });
+
+        // Emit member update to all subscribers
+        await this.emitMemberUpdate(payload.id);
 
         return { id: payload.id };
       },

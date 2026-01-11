@@ -3,6 +3,7 @@
     "loading": "Loading...",
     "connecting": "Connecting...",
     "cancel": "Cancel",
+    "confirm": "Confirm",
     "create": "Create",
     "save": "Save",
     "delete": "Delete",
@@ -115,5 +116,22 @@
   },
   "Sidebar": {
     "appName": "quickdraw-chat"
+  },
+  "ChatSidebar": {
+    "membersTitle": "Members",
+    "inviteTitle": "Invite User",
+    "invitePlaceholder": "Enter username",
+    "inviteButton": "Invite",
+    "inviteUserNotFound": "User not found",
+    "deleteChatTitle": "Delete Chat",
+    "deleteChatButton": "Delete Chat",
+    "deleteChatConfirmTitle": "Delete this chat?",
+    "deleteChatConfirmMessage": "This action cannot be undone. All messages will be permanently deleted.",
+    "removeMemberTitle": "Remove Member",
+    "removeMemberConfirmTitle": "Remove this member?",
+    "removeMemberConfirmMessage": "Are you sure you want to remove {name} from this chat?",
+    "roleAdmin": "Admin",
+    "roleModerate": "Moderator",
+    "roleRead": "Member"
   }
 }

@@ -65,6 +65,17 @@ export interface ChatListItem {
   lastMessageAt: string | null;
 }
 
+export interface ChatMemberDTO {
+  id: string;
+  userId: string;
+  level: AccessLevel;
+  user: {
+    id: string;
+    name: string | null;
+    image: string | null;
+  };
+}
+
 export interface ChatServiceMethods {
   createChat: {
     payload: {
@@ -77,6 +88,10 @@ export interface ChatServiceMethods {
     payload: { id: string; title: string };
     response: { id: string; title: string } | null;
   };
+  getChatMembers: {
+    payload: { chatId: string };
+    response: ChatMemberDTO[];
+  };
   inviteUser: {
     payload: {
       id: string;
@@ -84,6 +99,14 @@ export interface ChatServiceMethods {
       level: AccessLevel;
     };
     response: { id: string };
+  };
+  inviteByName: {
+    payload: {
+      chatId: string;
+      userName: string;
+      level: AccessLevel;
+    };
+    response: { id: string } | { error: "user_not_found" };
   };
   removeUser: {
     payload: { id: string; userId: string };
