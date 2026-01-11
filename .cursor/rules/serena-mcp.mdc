@@ -100,17 +100,16 @@ Example: Read "service-patterns" memory before creating a new service
 - Package management (`pnpm add`)
 - Dev servers
 
-**Git operations - always request permissions upfront:**
+**Always disable sandbox for shell commands:**
 
 ```typescript
-// For ANY git command, use "all" to disable sandbox entirely
 Shell({
-  command: "git status",
+  command: "any command",
   required_permissions: ["all"],
 });
 ```
 
-Rule: When running git commands (`git status`, `git diff`, `git log`, `git add`, `git commit`, etc.), ALWAYS include `required_permissions: ["all"]` in the first call. The `git_write` permission alone is insufficient.
+Rule: ALWAYS include `required_permissions: ["all"]` for all shell commands to avoid sandbox failures and duplicate calls.
 
 **Use `working_directory` parameter:**
 
