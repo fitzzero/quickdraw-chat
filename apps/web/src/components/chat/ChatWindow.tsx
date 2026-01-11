@@ -1,10 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Box, Typography, Paper, IconButton, Tooltip } from "@mui/material";
-import SettingsIcon from "@mui/icons-material/Settings";
+import { Box, Typography } from "@mui/material";
 import { useTranslations } from "next-intl";
-import { useSubscription } from "../../hooks";
 import { useSocket } from "../../providers";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
@@ -16,13 +14,9 @@ interface ChatWindowProps {
 
 export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
   const t = useTranslations("ChatWindow");
-  const tCommon = useTranslations("Common");
   const { socket, isConnected, userId } = useSocket();
   const [messages, setMessages] = React.useState<MessageDTO[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(true);
-
-  // Subscribe to chat updates
-  const { data: chat } = useSubscription("chatService", chatId);
 
   // Load messages on mount and when chatId changes
   React.useEffect(() => {
@@ -89,28 +83,6 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
 
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      {/* Chat Header */}
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2,
-          borderBottom: 1,
-          borderColor: "divider",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <Typography variant="h6">
-          {chat?.title ?? tCommon("loading")}
-        </Typography>
-        <Tooltip title={t("chatSettings")}>
-          <IconButton size="small">
-            <SettingsIcon />
-          </IconButton>
-        </Tooltip>
-      </Paper>
-
       {/* Messages */}
       <MessageList
         messages={messages}
