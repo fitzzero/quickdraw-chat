@@ -29,6 +29,11 @@ export class UserService extends BaseService<
     return userId === entryId;
   }
 
+  // Protected fields that non-elevated subscribers won't receive
+  protected override getProtectedFields(): (keyof User)[] {
+    return ["email", "serviceAccess"];
+  }
+
   private initMethods(): void {
     // Get current user
     this.defineMethod("getMe", "Read", async (_payload, ctx) => {
