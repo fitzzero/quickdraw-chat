@@ -25,11 +25,18 @@ export default function AuthCallbackPage(): React.ReactElement {
       return;
     }
 
-    // Store token
+    // Store token - this triggers the auth-token-changed event
     setAuthToken(token);
 
-    // Redirect to home
-    router.push("/");
+    // Small delay to allow the provider to process the token change and reconnect
+    // Then navigate - the provider will handle the socket reconnection
+    const timer = setTimeout(() => {
+      router.replace("/");
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+    };
   }, [searchParams, router]);
 
   if (error) {
