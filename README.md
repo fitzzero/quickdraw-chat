@@ -2,8 +2,6 @@
 
 Reference implementation and test application for [@fitzzero/quickdraw-core](https://github.com/fitzzero/quickdraw). A real-time chat application demonstrating the full quickdraw stack.
 
-> **🎉 Production Ready!** This template is now ready to clone for new projects. See [TEMPLATE-READY.md](TEMPLATE-READY.md) for details.
-
 ## Purpose
 
 This project serves as:
