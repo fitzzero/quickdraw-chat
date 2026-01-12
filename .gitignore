@@ -31,6 +31,8 @@ Thumbs.db
 *.log
 npm-debug.log*
 pnpm-debug.log*
+logs/
+.pm2/
 
 # Testing
 coverage/
@@ -39,5 +41,8 @@ coverage/
 *.tsbuildinfo
 .yalc/
 yalc.lock
+
+# Generated documentation (regenerate with pnpm docs:generate)
+docs/api/
 
 

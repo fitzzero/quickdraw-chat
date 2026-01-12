@@ -2,13 +2,15 @@
 
 Reference implementation and test application for [@fitzzero/quickdraw-core](https://github.com/fitzzero/quickdraw). A real-time chat application demonstrating the full quickdraw stack.
 
+> **🎉 Production Ready!** This template is now ready to clone for new projects. See [TEMPLATE-READY.md](TEMPLATE-READY.md) for details.
+
 ## Purpose
 
 This project serves as:
 
 1. **Test bed** for developing @fitzzero/quickdraw-core features
 2. **Reference implementation** showing best practices for quickdraw-based apps
-3. **Template validation** ensuring patterns work end-to-end before becoming templates
+3. **Production-ready template** for starting new quickdraw projects
 
 ## Features
 
@@ -221,6 +223,48 @@ This project uses Serena for AI-assisted development. Memories are stored in `.s
 - `service-patterns.md` - How to create and structure services
 - `client-patterns.md` - React component and hook patterns
 - `testing-patterns.md` - Integration and unit test patterns
+
+## Using as Template
+
+To start a new project from this template:
+
+```bash
+# 1. Clone
+git clone <this-repo> my-new-project
+cd my-new-project
+
+# 2. Customize package names
+# - Update all package.json files (@project/* -> @yourproject/*)
+# - Update env.example with your database name
+# - Update metadata in apps/web/src/app/layout.tsx
+
+# 3. Initialize
+cp env.example .env.local
+pnpm install
+pnpm db:generate
+pnpm db:push
+
+# 4. Start developing
+pnpm dev
+pnpm docs:generate  # Generate API documentation
+```
+
+**What's Already Configured:**
+- ✅ Dockerfiles for deployment (Vercel, Cloud Run, PM2)
+- ✅ Input validation (Zod schemas on all mutations)
+- ✅ Security hardening (JWT validation, rate limiting)
+- ✅ Error boundaries and graceful shutdown
+- ✅ Auto-generated documentation
+- ✅ Testing utilities
+
+## Production Deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for comprehensive deployment guides covering:
+- Vercel (web) + GCP Cloud Run (API)
+- Docker Compose
+- PM2 on VPS
+- Database setup and migrations
+- Health checks and monitoring
 
 ## License
 

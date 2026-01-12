@@ -12,7 +12,18 @@ function createPrismaClient(): PrismaClient {
     throw new Error("DATABASE_URL environment variable is not set");
   }
 
-  const adapter = new PrismaPg({ connectionString });
+  // Configure connection pool for production
+  // Default pool size is suitable for serverless (Cloud Run, Lambda)
+  // Adjust based on your deployment environment
+  const adapter = new PrismaPg({ 
+    connectionString,
+    pool: {
+      max: parseInt(process.env.DB_POOL_MAX ?? "20", 10), // Maximum connections
+      min: parseInt(process.env.DB_POOL_MIN ?? "5", 10),  // Minimum connections
+      idleTimeoutMillis: 30000, // Close idle connections after 30s
+      connectionTimeoutMillis: 10000, // Timeout for acquiring connection
+    },
+  });
 
   return new PrismaClient({
     adapter,

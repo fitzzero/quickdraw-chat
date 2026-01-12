@@ -1,6 +1,16 @@
 import type { User, Prisma, PrismaClient } from "@project/db";
 import type { UserServiceMethods, AccessLevel } from "@project/shared";
 import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
+import { z } from "zod";
+
+// Zod schemas for validation
+const updateUserSchema = z.object({
+  id: z.string().cuid("Invalid user ID"),
+  data: z.object({
+    name: z.string().min(1).max(50).optional(),
+    image: z.string().url("Invalid image URL").optional(),
+  }),
+});
 
 type ServiceMethodsRecord = Record<string, { payload: unknown; response: unknown }>;
 
@@ -95,7 +105,10 @@ export class UserService extends BaseService<
 
         return updated;
       },
-      { resolveEntryId: (p) => p.id }
+      { 
+        schema: updateUserSchema,
+        resolveEntryId: (p) => p.id 
+      }
     );
   }
 }

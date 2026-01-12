@@ -7,7 +7,13 @@ export interface JWTPayload {
   iat?: number;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "development-secret-change-in-production";
+// Validate JWT_SECRET is set in production
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("JWT_SECRET environment variable is required in production");
+}
+// Use a development secret only in non-production environments
+const SECRET = JWT_SECRET ?? "development-secret-DO-NOT-USE-IN-PRODUCTION";
 const DEFAULT_EXPIRATION = "7d";
 
 /**
@@ -17,7 +23,7 @@ export async function createJWT(
   payload: Omit<JWTPayload, "exp" | "iat">,
   expiresIn: string = DEFAULT_EXPIRATION
 ): Promise<string> {
-  const secretKey = new TextEncoder().encode(JWT_SECRET);
+  const secretKey = new TextEncoder().encode(SECRET);
 
   const jwt = await new jose.SignJWT(payload as jose.JWTPayload)
     .setProtectedHeader({ alg: "HS256" })
@@ -33,7 +39,7 @@ export async function createJWT(
  */
 export async function verifyJWT(token: string): Promise<JWTPayload | null> {
   try {
-    const secretKey = new TextEncoder().encode(JWT_SECRET);
+    const secretKey = new TextEncoder().encode(SECRET);
     const { payload } = await jose.jwtVerify(token, secretKey);
 
     return {

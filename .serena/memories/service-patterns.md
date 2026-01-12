@@ -62,9 +62,18 @@ serviceRegistry.registerService("<entity>Service", <entity>Service);
 
 ## Defining Public Methods
 
-Use `defineMethod` with proper typing:
+Use `defineMethod` with proper typing and Zod validation:
 
 ```typescript
+import { z } from "zod";
+
+// Define Zod schema for validation
+const myMethodSchema = z.object({
+  id: z.string().cuid("Invalid ID"),
+  title: z.string().min(1).max(100),
+  content: z.string().max(10000).optional(),
+});
+
 this.defineMethod(
   "methodName",        // Method name (matches ServiceMethods key)
   "Read",              // Access level: "Public" | "Read" | "Moderate" | "Admin"
@@ -76,9 +85,18 @@ this.defineMethod(
     // Implement business logic
     return { /* response matching type */ };
   },
-  { resolveEntryId: (p) => p.id } // Optional: for entry-level ACL checks
+  { 
+    schema: myMethodSchema,           // Zod validation (recommended)
+    resolveEntryId: (p) => p.id       // Optional: for entry-level ACL checks
+  }
 );
 ```
+
+**Best Practices:**
+- ✅ Always add Zod schemas for user-facing mutations
+- ✅ Set reasonable length limits (titles: 100 chars, content: 10KB)
+- ✅ Validate IDs with `.cuid()` or `.uuid()`
+- ✅ Use `.enum()` for restricted values
 
 ## Access Control
 

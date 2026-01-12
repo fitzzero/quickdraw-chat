@@ -52,8 +52,10 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
     // Subscribe to chat-scoped message events
     socket.on("chat:message", handleNewMessage);
 
-    // TODO: Add listener for message deletions/edits when implemented
-    // This would be something like: socket.on("chat:messageUpdate", handleMessageUpdate)
+    // Note: Message deletions/edits are handled via the subscription system
+    // When a message is deleted, the messageService emits an update with { deleted: true }
+    // which is received by subscribers. For future edit support, add:
+    // socket.on("chat:messageUpdate", handleMessageUpdate)
 
     return () => {
       socket.off("chat:message", handleNewMessage);

@@ -3,13 +3,52 @@ import type { ChatServiceMethods, AccessLevel } from "@project/shared";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
 import { z } from "zod";
 
-// Zod schema for createChat validation
+// Zod schemas for validation
 const createChatSchema = z.object({
   title: z.string().min(1, "Title is required").max(100, "Title must be 100 characters or less"),
   members: z.array(z.object({
     userId: z.string().cuid("Invalid user ID"),
     level: z.enum(["Read", "Moderate", "Admin"]),
   })).optional(),
+});
+
+const updateTitleSchema = z.object({
+  id: z.string().cuid("Invalid chat ID"),
+  title: z.string().min(1, "Title is required").max(100, "Title must be 100 characters or less"),
+});
+
+const getChatMembersSchema = z.object({
+  chatId: z.string().cuid("Invalid chat ID"),
+});
+
+const inviteUserSchema = z.object({
+  id: z.string().cuid("Invalid chat ID"),
+  userId: z.string().cuid("Invalid user ID"),
+  level: z.enum(["Read", "Moderate", "Admin"]),
+});
+
+const leaveSchema = z.object({
+  id: z.string().cuid("Invalid chat ID"),
+});
+
+const deleteChatSchema = z.object({
+  id: z.string().cuid("Invalid chat ID"),
+});
+
+const removeUserSchema = z.object({
+  id: z.string().cuid("Invalid chat ID"),
+  userId: z.string().cuid("Invalid user ID"),
+});
+
+const inviteByNameSchema = z.object({
+  chatId: z.string().cuid("Invalid chat ID"),
+  userName: z.string().min(1, "Username is required"),
+  level: z.enum(["Read", "Moderate", "Admin"]),
+});
+
+const listMyChatsSchema = z.object({
+  page: z.number().int().min(1).optional(),
+  pageSize: z.number().int().min(1).max(100).optional(),
 });
 
 type ServiceMethodsRecord = Record<
@@ -140,7 +179,10 @@ export class ChatService extends BaseService<
         this.emitUpdate(payload.id, updated);
         return updated;
       },
-      { resolveEntryId: (p) => p.id }
+      { 
+        schema: updateTitleSchema,
+        resolveEntryId: (p) => p.id 
+      }
     );
 
     // Get chat members with user details
@@ -150,7 +192,10 @@ export class ChatService extends BaseService<
       async (payload, _ctx) => {
         return this.fetchChatMembers(payload.chatId);
       },
-      { resolveEntryId: (p) => p.chatId }
+      { 
+        schema: getChatMembersSchema,
+        resolveEntryId: (p) => p.chatId 
+      }
     );
 
     // Invite user to chat by userId
@@ -176,7 +221,10 @@ export class ChatService extends BaseService<
 
         return { id: payload.id };
       },
-      { resolveEntryId: (p) => p.id }
+      { 
+        schema: inviteUserSchema,
+        resolveEntryId: (p) => p.id 
+      }
     );
 
     // Invite user to chat by username
@@ -212,7 +260,10 @@ export class ChatService extends BaseService<
 
         return { id: payload.chatId };
       },
-      { resolveEntryId: (p) => p.chatId }
+      { 
+        schema: inviteByNameSchema,
+        resolveEntryId: (p) => p.chatId 
+      }
     );
 
     // Remove user from chat
@@ -231,7 +282,10 @@ export class ChatService extends BaseService<
 
         return { id: payload.id };
       },
-      { resolveEntryId: (p) => p.id }
+      { 
+        schema: removeUserSchema,
+        resolveEntryId: (p) => p.id 
+      }
     );
 
     // Leave chat
@@ -250,7 +304,10 @@ export class ChatService extends BaseService<
 
         return { id: payload.id };
       },
-      { resolveEntryId: (p) => p.id }
+      { 
+        schema: leaveSchema,
+        resolveEntryId: (p) => p.id 
+      }
     );
 
     // List user's chats
@@ -285,7 +342,7 @@ export class ChatService extends BaseService<
         memberCount: m.chat._count.members,
         lastMessageAt: m.chat.messages[0]?.createdAt.toISOString() ?? null,
       }));
-    });
+    }, { schema: listMyChatsSchema });
 
     // Delete chat
     this.defineMethod(
@@ -299,7 +356,10 @@ export class ChatService extends BaseService<
         } as Partial<Chat>);
         return { id: payload.id, deleted: true as const };
       },
-      { resolveEntryId: (p) => p.id }
+      { 
+        schema: deleteChatSchema,
+        resolveEntryId: (p) => p.id 
+      }
     );
   }
 }

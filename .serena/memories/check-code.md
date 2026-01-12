@@ -18,6 +18,9 @@ pnpm test
 
 # 4. Build (optional) - catches ESM/CJS issues, missing exports
 pnpm build
+
+# 5. Generate docs (optional) - updates API documentation
+pnpm docs:generate
 ```
 
 ## quickdraw-core Checks (if edited)

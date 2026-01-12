@@ -132,7 +132,7 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
     };
 
     void fetchMembers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchMembers is stable, only re-run when chatId changes
   }, [chatId]);
 
   // Listen for member updates

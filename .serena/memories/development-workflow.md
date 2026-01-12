@@ -54,6 +54,7 @@ pnpm build        # Build all packages
 pnpm typecheck    # TypeScript type checking
 pnpm lint         # ESLint across all packages
 pnpm test         # Run all tests
+pnpm docs:generate # Generate API documentation from services
 ```
 
 ### Package-Specific Commands

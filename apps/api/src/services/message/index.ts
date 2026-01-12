@@ -1,6 +1,24 @@
 import type { Message, Prisma, PrismaClient } from "@project/db";
 import type { MessageServiceMethods, AccessLevel } from "@project/shared";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
+import { z } from "zod";
+
+// Zod schemas for validation
+const postMessageSchema = z.object({
+  chatId: z.string().cuid("Invalid chat ID"),
+  content: z.string().min(1, "Content is required").max(10000, "Content must be 10000 characters or less"),
+  role: z.enum(["user", "assistant", "system"]).optional(),
+});
+
+const listMessagesSchema = z.object({
+  chatId: z.string().cuid("Invalid chat ID"),
+  limit: z.number().int().min(1).max(100).optional(),
+  before: z.string().cuid().optional(),
+});
+
+const deleteMessageSchema = z.object({
+  id: z.string().cuid("Invalid message ID"),
+});
 
 type ServiceMethodsRecord = Record<
   string,
@@ -90,7 +108,7 @@ export class MessageService extends BaseService<
       );
 
       return { id: message.id };
-    });
+    }, { schema: postMessageSchema });
 
     // List messages for a chat
     this.defineMethod("listMessages", "Read", async (payload, ctx) => {
@@ -137,7 +155,7 @@ export class MessageService extends BaseService<
         createdAt: m.createdAt.toISOString(),
         user: m.user,
       }));
-    });
+    }, { schema: listMessagesSchema });
 
     // Delete a message - requires Admin in message ACL (owner) or service-level access
     // Framework handles ACL check automatically via hasEntryACL: true
@@ -152,7 +170,10 @@ export class MessageService extends BaseService<
         } as unknown as Partial<Message>);
         return { id: payload.id, deleted: true as const };
       },
-      { resolveEntryId: (p) => p.id }
+      { 
+        schema: deleteMessageSchema,
+        resolveEntryId: (p) => p.id 
+      }
     );
   }
 }

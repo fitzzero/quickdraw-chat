@@ -13,6 +13,7 @@ import {
   ServiceRegistry,
   createRateLimiter,
   applyRateLimitMiddleware,
+  validateEnv,
   type QuickdrawSocket,
 } from "@fitzzero/quickdraw-core/server";
 import { prisma } from "@project/db";
@@ -23,6 +24,14 @@ import { DocumentService } from "./services/document/index.js";
 import { authenticateSocket } from "./auth/middleware.js";
 import { registerDiscordRoutes } from "./auth/discord.js";
 import { registerGoogleRoutes } from "./auth/google.js";
+
+// Validate required environment variables in production
+if (process.env.NODE_ENV === "production") {
+  validateEnv({
+    required: ["DATABASE_URL", "JWT_SECRET", "CLIENT_URL"],
+    productionOnly: true,
+  });
+}
 
 const app = express();
 const httpServer = createServer(app);
