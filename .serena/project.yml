@@ -82,3 +82,6 @@ initial_prompt: ""
 
 project_name: "quickdraw-chat"
 included_optional_tools: []
+
+# Context mode for IDE integration (Cursor)
+context: ide
