@@ -16,14 +16,36 @@ interface ProvidersProps {
 const SERVER_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export function Providers({ children }: ProvidersProps): React.ReactElement {
-  const [authToken, setAuthToken] = React.useState<string | undefined>(undefined);
+  const [authToken, setAuthTokenState] = React.useState<string | undefined>(undefined);
   const [isReady, setIsReady] = React.useState(false);
 
-  // Load auth token on client side
+  // Load auth token on client side and listen for changes
   React.useEffect(() => {
+    // Initial load
     const token = getAuthToken();
-    setAuthToken(token ?? undefined);
+    setAuthTokenState(token ?? undefined);
     setIsReady(true);
+
+    // Listen for storage events (cross-tab changes)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "auth_token") {
+        setAuthTokenState(e.newValue ?? undefined);
+      }
+    };
+
+    // Listen for custom event (same-tab changes from auth callback)
+    const handleAuthChange = () => {
+      const newToken = getAuthToken();
+      setAuthTokenState(newToken ?? undefined);
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("auth-token-changed", handleAuthChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("auth-token-changed", handleAuthChange);
+    };
   }, []);
 
   // Show loading state until we've checked for auth token

@@ -14,6 +14,8 @@ export function getAuthToken(): string | null {
 export function setAuthToken(token: string): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(AUTH_TOKEN_KEY, token);
+  // Dispatch custom event for same-tab listeners (storage event only fires cross-tab)
+  window.dispatchEvent(new Event("auth-token-changed"));
 }
 
 /**
@@ -22,6 +24,8 @@ export function setAuthToken(token: string): void {
 export function clearAuthToken(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(AUTH_TOKEN_KEY);
+  // Dispatch custom event for same-tab listeners (storage event only fires cross-tab)
+  window.dispatchEvent(new Event("auth-token-changed"));
 }
 
 interface JWTPayload {
