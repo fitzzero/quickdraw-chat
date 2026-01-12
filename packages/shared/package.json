@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fitzzero/quickdraw-core": "link:../../../quickdraw",
     "zod": "^3.22.0"
   },
   "devDependencies": {

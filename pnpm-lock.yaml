@@ -261,6 +261,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@fitzzero/quickdraw-core':
+        specifier: link:../../../quickdraw
+        version: link:../../../quickdraw
       zod:
         specifier: ^3.22.0
         version: 3.25.76

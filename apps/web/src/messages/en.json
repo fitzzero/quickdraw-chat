@@ -7,13 +7,20 @@
     "create": "Create",
     "save": "Save",
     "delete": "Delete",
+    "edit": "Edit",
     "manage": "Manage",
     "or": "or",
     "goHome": "Go Home",
+    "backToApp": "Back to App",
     "comingSoon": "Coming soon...",
     "user": "User",
     "unknownUser": "Unknown User",
-    "notSet": "Not set"
+    "notSet": "Not set",
+    "yes": "Yes",
+    "no": "No",
+    "true": "True",
+    "false": "False",
+    "noData": "No data"
   },
   "Nav": {
     "home": "Home",
@@ -45,7 +52,8 @@
   },
   "UserMenu": {
     "profile": "Profile",
-    "account": "Account"
+    "account": "Account",
+    "admin": "Admin"
   },
   "LoginRequired": {
     "title": "Sign In Required",
@@ -133,5 +141,31 @@
     "roleAdmin": "Admin",
     "roleModerate": "Moderator",
     "roleRead": "Member"
+  },
+  "Admin": {
+    "title": "Admin",
+    "dashboard": "Admin Dashboard",
+    "dashboardDescription": "Manage your application services and data.",
+    "manageService": "Manage entries",
+    "totalEntries": "{count, plural, one {# entry} other {# entries}}",
+    "addNew": "Add New",
+    "serviceNotFound": "Service not found or not configured for admin access.",
+    "noEntries": "No entries found.",
+    "deleteTitle": "Delete Entry",
+    "deleteConfirmTitle": "Delete this entry?",
+    "deleteConfirmMessage": "This action cannot be undone. The entry will be permanently deleted.",
+    "createTitle": "Create New Entry",
+    "editMode": "Edit Mode",
+    "viewMode": "View Mode",
+    "entityDetails": "Details",
+    "rowsPerPage": "Rows per page",
+    "page": "Page {page} of {total}",
+    "selectToView": "Select a row to view details",
+    "serviceAccess": "Service Access",
+    "grantAllAdmin": "Grant All",
+    "revokeAllAdmin": "Revoke All",
+    "adminAccessFor": "Admin: {service}",
+    "saveAccess": "Save Access",
+    "cancelChanges": "Cancel"
   }
 }

@@ -20,6 +20,14 @@ const deleteMessageSchema = z.object({
   id: z.string().cuid("Invalid message ID"),
 });
 
+// Admin schema - defines fields available for admin CRUD
+const adminMessageSchema = z.object({
+  chatId: z.string(),
+  userId: z.string(),
+  content: z.string(),
+  role: z.enum(["user", "assistant", "system"]),
+});
+
 type ServiceMethodsRecord = Record<
   string,
   { payload: unknown; response: unknown }
@@ -39,6 +47,31 @@ export class MessageService extends BaseService<
     this.prisma = prisma;
     this.setDelegate(prisma.message);
     this.initMethods();
+
+    // Install admin CRUD methods
+    this.installAdminMethods({
+      expose: {
+        list: true,
+        get: true,
+        create: true,
+        update: true,
+        delete: true,
+      },
+      access: {
+        list: "Admin",
+        get: "Admin",
+        create: "Admin",
+        update: "Admin",
+        delete: "Admin",
+        setEntryACL: "Admin",
+        getSubscribers: "Admin",
+        reemit: "Admin",
+        unsubscribeAll: "Admin",
+      },
+      schema: adminMessageSchema,
+      displayName: "Messages",
+      tableColumns: ["id", "chatId", "userId", "role", "createdAt"],
+    });
   }
 
   // Check chat membership for posting/listing messages

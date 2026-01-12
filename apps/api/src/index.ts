@@ -104,8 +104,11 @@ const documentService = new DocumentService(prisma);
 serviceRegistry.registerService("documentService", documentService);
 
 // Apply authentication middleware
+// Pass getServiceNames for bootstrap admin functionality
 io.use((socket, next) => {
-  void authenticateSocket(socket as QuickdrawSocket, next);
+  void authenticateSocket(socket as QuickdrawSocket, next, {
+    getServiceNames: () => serviceRegistry.getServices(),
+  });
 });
 
 // Socket.io connection handler

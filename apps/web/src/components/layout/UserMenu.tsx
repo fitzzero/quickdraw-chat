@@ -16,10 +16,11 @@ import PersonIcon from "@mui/icons-material/Person";
 import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
 import LoginIcon from "@mui/icons-material/Login";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useSocket } from "../../providers";
-import { useSubscription } from "../../hooks";
+import { useSubscription, useAdminServices } from "../../hooks";
 import { clearAuthToken } from "../../lib/auth";
 
 export function UserMenu(): React.ReactElement {
@@ -28,6 +29,7 @@ export function UserMenu(): React.ReactElement {
   const tAuth = useTranslations("Auth");
   const { userId, isConnected } = useSocket();
   const { data: user } = useSubscription("userService", userId ?? "");
+  const { hasAdminAccess } = useAdminServices();
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
 
   const handleOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -122,6 +124,17 @@ export function UserMenu(): React.ReactElement {
           },
         }}
       >
+        {hasAdminAccess && (
+          <>
+            <MenuItem component={Link} href="/admin" onClick={handleClose}>
+              <ListItemIcon>
+                <AdminPanelSettingsIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>{t("admin")}</ListItemText>
+            </MenuItem>
+            <Divider />
+          </>
+        )}
         <MenuItem component={Link} href="/profile" onClick={handleClose}>
           <ListItemIcon>
             <PersonIcon fontSize="small" />

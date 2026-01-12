@@ -12,6 +12,14 @@ const updateUserSchema = z.object({
   }),
 });
 
+// Admin schema - defines fields available for admin CRUD
+const adminUserSchema = z.object({
+  email: z.string().email(),
+  name: z.string().optional(),
+  image: z.string().url().optional(),
+  serviceAccess: z.record(z.string(), z.enum(["Public", "Read", "Moderate", "Admin"])).optional(),
+});
+
 type ServiceMethodsRecord = Record<string, { payload: unknown; response: unknown }>;
 
 export class UserService extends BaseService<
@@ -27,6 +35,39 @@ export class UserService extends BaseService<
     this.prisma = prisma;
     this.setDelegate(prisma.user);
     this.initMethods();
+
+    // Install admin CRUD methods
+    this.installAdminMethods({
+      expose: {
+        list: true,
+        get: true,
+        create: true,
+        update: true,
+        delete: true,
+      },
+      access: {
+        list: "Admin",
+        get: "Admin",
+        create: "Admin",
+        update: "Admin",
+        delete: "Admin",
+        setEntryACL: "Admin",
+        getSubscribers: "Admin",
+        reemit: "Admin",
+        unsubscribeAll: "Admin",
+      },
+      schema: adminUserSchema,
+      displayName: "Users",
+      tableColumns: ["id", "email", "name", "createdAt"],
+      // serviceAccess is exposed but handled by custom UI in admin sidebar
+      fieldOverrides: {
+        serviceAccess: {
+          editable: true, // Can be edited via custom component
+          showInTable: false, // Don't show raw JSON in table
+          label: "Service Access",
+        },
+      },
+    });
   }
 
   // Users can access their own data

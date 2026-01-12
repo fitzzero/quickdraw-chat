@@ -51,6 +51,11 @@ const listMyChatsSchema = z.object({
   pageSize: z.number().int().min(1).max(100).optional(),
 });
 
+// Admin schema - defines fields available for admin CRUD
+const adminChatSchema = z.object({
+  title: z.string(),
+});
+
 type ServiceMethodsRecord = Record<
   string,
   { payload: unknown; response: unknown }
@@ -71,6 +76,31 @@ export class ChatService extends BaseService<
     this.prisma = prisma;
     this.setDelegate(prisma.chat);
     this.initMethods();
+
+    // Install admin CRUD methods
+    this.installAdminMethods({
+      expose: {
+        list: true,
+        get: true,
+        create: true,
+        update: true,
+        delete: true,
+      },
+      access: {
+        list: "Admin",
+        get: "Admin",
+        create: "Admin",
+        update: "Admin",
+        delete: "Admin",
+        setEntryACL: "Admin",
+        getSubscribers: "Admin",
+        reemit: "Admin",
+        unsubscribeAll: "Admin",
+      },
+      schema: adminChatSchema,
+      displayName: "Chats",
+      tableColumns: ["id", "title", "createdAt", "updatedAt"],
+    });
   }
 
   // Check if user is a member of the chat with sufficient access

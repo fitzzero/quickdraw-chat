@@ -1,8 +1,16 @@
 import type { Document, Prisma, PrismaClient } from "@project/db";
 import type { DocumentServiceMethods, ACL, AccessLevel } from "@project/shared";
 import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
+import { z } from "zod";
 
 type ServiceMethodsRecord = Record<string, { payload: unknown; response: unknown }>;
+
+// Admin schema - defines fields available for admin CRUD
+const adminDocumentSchema = z.object({
+  title: z.string(),
+  content: z.string(),
+  ownerId: z.string(),
+});
 
 /**
  * DocumentService demonstrates the simpler JSON ACL pattern.
@@ -33,6 +41,31 @@ export class DocumentService extends BaseService<
     this.prisma = prisma;
     this.setDelegate(prisma.document);
     this.initMethods();
+
+    // Install admin CRUD methods
+    this.installAdminMethods({
+      expose: {
+        list: true,
+        get: true,
+        create: true,
+        update: true,
+        delete: true,
+      },
+      access: {
+        list: "Admin",
+        get: "Admin",
+        create: "Admin",
+        update: "Admin",
+        delete: "Admin",
+        setEntryACL: "Admin",
+        getSubscribers: "Admin",
+        reemit: "Admin",
+        unsubscribeAll: "Admin",
+      },
+      schema: adminDocumentSchema,
+      displayName: "Documents",
+      tableColumns: ["id", "title", "ownerId", "createdAt", "updatedAt"],
+    });
   }
 
   /**
