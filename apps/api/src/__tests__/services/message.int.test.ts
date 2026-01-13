@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import { startTestServer } from "../utils/server.js";
-import { connectAsUser, emitWithAck } from "../utils/socket.js";
+import { connectAsUser, emitWithAck, waitForEvent } from "../utils/socket.js";
 import type { MessageDTO } from "@project/shared";
 
 describe("MessageService Integration", () => {
@@ -191,5 +191,137 @@ describe("MessageService Integration", () => {
 
     regular.close();
     serviceAdmin.close();
+  });
+});
+
+describe("MessageService Integration - Socket Room Updates", () => {
+  let stop: () => Promise<void>;
+  let port: number;
+  let users: Awaited<ReturnType<typeof seedTestUsers>>;
+
+  beforeAll(async () => {
+    const server = await startTestServer();
+    port = server.port;
+    stop = server.stop;
+  });
+
+  afterAll(async () => {
+    await stop();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase();
+    users = await seedTestUsers();
+  });
+
+  it("should broadcast new message to all chat subscribers", async () => {
+    const owner = await connectAsUser(port, users.admin.id);
+    const member = await connectAsUser(port, users.regular.id);
+
+    // Owner creates chat and invites member
+    const chat = await emitWithAck<{ title: string }, { id: string }>(
+      owner,
+      "chatService:createChat",
+      { title: "Broadcast Test Chat" }
+    );
+    await emitWithAck(owner, "chatService:inviteUser", {
+      id: chat.id,
+      userId: users.regular.id,
+      level: "Read",
+    });
+
+    // Both users subscribe to the chat (so they join the room)
+    await emitWithAck(owner, "chatService:subscribe", { entryId: chat.id });
+    await emitWithAck(member, "chatService:subscribe", { entryId: chat.id });
+
+    // Set up listener for chat:message event BEFORE posting
+    const messagePromise = waitForEvent<MessageDTO>(
+      member,
+      "chat:message",
+      3000
+    );
+
+    // Owner posts a message
+    await emitWithAck(owner, "messageService:postMessage", {
+      chatId: chat.id,
+      content: "Hello from owner!",
+    });
+
+    // Member should receive the message broadcast
+    const receivedMessage = await messagePromise;
+    expect(receivedMessage.content).toBe("Hello from owner!");
+    expect(receivedMessage.userId).toBe(users.admin.id);
+    expect(receivedMessage.chatId).toBe(chat.id);
+    expect(receivedMessage.user).toBeDefined();
+    expect(receivedMessage.user?.name).toBe("Admin User");
+
+    owner.close();
+    member.close();
+  });
+});
+
+describe("MessageService Integration - Permission Cascade", () => {
+  let stop: () => Promise<void>;
+  let port: number;
+  let users: Awaited<ReturnType<typeof seedTestUsers>>;
+
+  beforeAll(async () => {
+    const server = await startTestServer();
+    port = server.port;
+    stop = server.stop;
+  });
+
+  afterAll(async () => {
+    await stop();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase();
+    users = await seedTestUsers();
+  });
+
+  it("should deny non-owner without service access from deleting message", async () => {
+    const messageOwner = await connectAsUser(port, users.regular.id);
+    const otherMember = await connectAsUser(port, users.moderator.id);
+
+    // Message owner creates chat
+    const chat = await emitWithAck<{ title: string }, { id: string }>(
+      messageOwner,
+      "chatService:createChat",
+      { title: "Permission Test Chat" }
+    );
+
+    // Invite other member (who has no service-level messageService access)
+    await emitWithAck(messageOwner, "chatService:inviteUser", {
+      id: chat.id,
+      userId: users.moderator.id,
+      level: "Read",
+    });
+
+    // Message owner posts a message
+    const message = await emitWithAck<
+      { chatId: string; content: string },
+      { id: string }
+    >(messageOwner, "messageService:postMessage", {
+      chatId: chat.id,
+      content: "Only I can delete this",
+    });
+
+    // Other member (not message owner, no service-level access) tries to delete
+    await expect(
+      emitWithAck(otherMember, "messageService:deleteMessage", {
+        id: message.id,
+      })
+    ).rejects.toThrow();
+
+    // Verify message was NOT deleted
+    const dbMessage = await testPrisma.message.findUnique({
+      where: { id: message.id },
+    });
+    expect(dbMessage).not.toBeNull();
+    expect(dbMessage?.content).toBe("Only I can delete this");
+
+    messageOwner.close();
+    otherMember.close();
   });
 });

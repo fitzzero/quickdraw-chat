@@ -339,3 +339,342 @@ describe("ChatService Integration", () => {
     member.close();
   });
 });
+
+describe("ChatService Integration - Socket Room Updates", () => {
+  let stop: () => Promise<void>;
+  let port: number;
+  let users: Awaited<ReturnType<typeof seedTestUsers>>;
+
+  beforeAll(async () => {
+    const server = await startTestServer();
+    port = server.port;
+    stop = server.stop;
+  });
+
+  afterAll(async () => {
+    await stop();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase();
+    users = await seedTestUsers();
+  });
+
+  it("should emit member update when user is invited", async () => {
+    const owner = await connectAsUser(port, users.admin.id);
+    const existingMember = await connectAsUser(port, users.moderator.id);
+
+    // Owner creates chat
+    const chat = await emitWithAck<{ title: string }, { id: string }>(
+      owner,
+      "chatService:createChat",
+      { title: "Test Chat" }
+    );
+
+    // Add existing member first
+    await emitWithAck(owner, "chatService:inviteUser", {
+      id: chat.id,
+      userId: users.moderator.id,
+      level: "Read",
+    });
+
+    // Existing member subscribes to the chat
+    await emitWithAck(existingMember, "chatService:subscribe", {
+      entryId: chat.id,
+    });
+
+    // Set up listener for member update BEFORE inviting new user
+    const memberUpdatePromise = waitForEvent<{
+      members: { id: string; userId: string; level: string }[];
+    }>(existingMember, "chat:memberUpdate", 3000);
+
+    // Owner invites another user
+    await emitWithAck(owner, "chatService:inviteUser", {
+      id: chat.id,
+      userId: users.regular.id,
+      level: "Read",
+    });
+
+    // Existing member should receive the member update
+    const memberUpdate = await memberUpdatePromise;
+    expect(memberUpdate.members).toBeDefined();
+    expect(memberUpdate.members.length).toBe(3); // owner, moderator, regular
+    expect(
+      memberUpdate.members.some((m) => m.userId === users.regular.id)
+    ).toBe(true);
+
+    owner.close();
+    existingMember.close();
+  });
+
+  it("should emit member update when user is removed", async () => {
+    const owner = await connectAsUser(port, users.admin.id);
+    const remainingMember = await connectAsUser(port, users.moderator.id);
+
+    // Owner creates chat and invites two members
+    const chat = await emitWithAck<{ title: string }, { id: string }>(
+      owner,
+      "chatService:createChat",
+      { title: "Test Chat" }
+    );
+    await emitWithAck(owner, "chatService:inviteUser", {
+      id: chat.id,
+      userId: users.moderator.id,
+      level: "Read",
+    });
+    await emitWithAck(owner, "chatService:inviteUser", {
+      id: chat.id,
+      userId: users.regular.id,
+      level: "Read",
+    });
+
+    // Remaining member subscribes
+    await emitWithAck(remainingMember, "chatService:subscribe", {
+      entryId: chat.id,
+    });
+
+    // Set up listener for member update BEFORE removing user
+    const memberUpdatePromise = waitForEvent<{
+      members: { id: string; userId: string; level: string }[];
+    }>(remainingMember, "chat:memberUpdate", 3000);
+
+    // Owner removes regular user
+    await emitWithAck(owner, "chatService:removeUser", {
+      id: chat.id,
+      userId: users.regular.id,
+    });
+
+    // Remaining member should receive the member update
+    const memberUpdate = await memberUpdatePromise;
+    expect(memberUpdate.members).toBeDefined();
+    expect(memberUpdate.members.length).toBe(2); // owner, moderator (regular removed)
+    expect(
+      memberUpdate.members.some((m) => m.userId === users.regular.id)
+    ).toBe(false);
+
+    owner.close();
+    remainingMember.close();
+  });
+
+  it("should emit member update when user leaves", async () => {
+    const owner = await connectAsUser(port, users.admin.id);
+    const leavingMember = await connectAsUser(port, users.regular.id);
+    const remainingMember = await connectAsUser(port, users.moderator.id);
+
+    // Owner creates chat and invites two members
+    const chat = await emitWithAck<{ title: string }, { id: string }>(
+      owner,
+      "chatService:createChat",
+      { title: "Test Chat" }
+    );
+    await emitWithAck(owner, "chatService:inviteUser", {
+      id: chat.id,
+      userId: users.moderator.id,
+      level: "Read",
+    });
+    await emitWithAck(owner, "chatService:inviteUser", {
+      id: chat.id,
+      userId: users.regular.id,
+      level: "Read",
+    });
+
+    // Remaining member subscribes
+    await emitWithAck(remainingMember, "chatService:subscribe", {
+      entryId: chat.id,
+    });
+
+    // Set up listener for member update BEFORE user leaves
+    const memberUpdatePromise = waitForEvent<{
+      members: { id: string; userId: string; level: string }[];
+    }>(remainingMember, "chat:memberUpdate", 3000);
+
+    // Regular user leaves
+    await emitWithAck(leavingMember, "chatService:leaveChat", {
+      id: chat.id,
+    });
+
+    // Remaining member should receive the member update
+    const memberUpdate = await memberUpdatePromise;
+    expect(memberUpdate.members).toBeDefined();
+    expect(memberUpdate.members.length).toBe(2); // owner, moderator (regular left)
+    expect(
+      memberUpdate.members.some((m) => m.userId === users.regular.id)
+    ).toBe(false);
+
+    owner.close();
+    leavingMember.close();
+    remainingMember.close();
+  });
+});
+
+describe("ChatService Integration - Permission Cascade", () => {
+  let stop: () => Promise<void>;
+  let port: number;
+  let users: Awaited<ReturnType<typeof seedTestUsers>>;
+
+  beforeAll(async () => {
+    const server = await startTestServer();
+    port = server.port;
+    stop = server.stop;
+  });
+
+  afterAll(async () => {
+    await stop();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase();
+    users = await seedTestUsers();
+  });
+
+  // Test method: updateTitle requires "Moderate" access level
+  // Permission cascade: Service-level > Entry-level > Deny
+
+  it("should allow service-level Moderate access to updateTitle (not a member)", async () => {
+    // users.moderator has serviceAccess.chatService = "Moderate"
+    const chatOwner = await connectAsUser(port, users.admin.id);
+    const serviceModerator = await connectAsUser(port, users.moderator.id);
+
+    // Chat owner creates chat (moderator is NOT invited)
+    const chat = await emitWithAck<{ title: string }, { id: string }>(
+      chatOwner,
+      "chatService:createChat",
+      { title: "Original Title" }
+    );
+
+    // Service-level Moderate can update title even without being a member
+    const updated = await emitWithAck<
+      { id: string; title: string },
+      { id: string; title: string } | null
+    >(serviceModerator, "chatService:updateTitle", {
+      id: chat.id,
+      title: "Updated by Service Moderate",
+    });
+
+    expect(updated?.title).toBe("Updated by Service Moderate");
+
+    chatOwner.close();
+    serviceModerator.close();
+  });
+
+  it("should allow entry-level Moderate access to updateTitle", async () => {
+    const chatOwner = await connectAsUser(port, users.admin.id);
+    const entryModerator = await connectAsUser(port, users.regular.id);
+
+    // Chat owner creates chat and invites regular user with Moderate access
+    const chat = await emitWithAck<{ title: string }, { id: string }>(
+      chatOwner,
+      "chatService:createChat",
+      { title: "Original Title" }
+    );
+    await emitWithAck(chatOwner, "chatService:inviteUser", {
+      id: chat.id,
+      userId: users.regular.id,
+      level: "Moderate",
+    });
+
+    // Entry-level Moderate can update title
+    const updated = await emitWithAck<
+      { id: string; title: string },
+      { id: string; title: string } | null
+    >(entryModerator, "chatService:updateTitle", {
+      id: chat.id,
+      title: "Updated by Entry Moderate",
+    });
+
+    expect(updated?.title).toBe("Updated by Entry Moderate");
+
+    chatOwner.close();
+    entryModerator.close();
+  });
+
+  it("should allow service-level Admin to updateTitle (higher level sufficient)", async () => {
+    // users.admin has serviceAccess.chatService = "Admin" which is higher than Moderate
+    const chatOwner = await connectAsUser(port, users.regular.id);
+    const serviceAdmin = await connectAsUser(port, users.admin.id);
+
+    // Regular user creates chat (admin is NOT invited)
+    const chat = await emitWithAck<{ title: string }, { id: string }>(
+      chatOwner,
+      "chatService:createChat",
+      { title: "Original Title" }
+    );
+
+    // Service-level Admin can update title (Admin > Moderate)
+    const updated = await emitWithAck<
+      { id: string; title: string },
+      { id: string; title: string } | null
+    >(serviceAdmin, "chatService:updateTitle", {
+      id: chat.id,
+      title: "Updated by Service Admin",
+    });
+
+    expect(updated?.title).toBe("Updated by Service Admin");
+
+    chatOwner.close();
+    serviceAdmin.close();
+  });
+
+  it("should deny entry-level Read access from updateTitle", async () => {
+    const chatOwner = await connectAsUser(port, users.admin.id);
+    const readOnlyMember = await connectAsUser(port, users.regular.id);
+
+    // Chat owner creates chat and invites regular user with Read-only access
+    const chat = await emitWithAck<{ title: string }, { id: string }>(
+      chatOwner,
+      "chatService:createChat",
+      { title: "Original Title" }
+    );
+    await emitWithAck(chatOwner, "chatService:inviteUser", {
+      id: chat.id,
+      userId: users.regular.id,
+      level: "Read",
+    });
+
+    // Read-only member cannot update title (Read < Moderate)
+    await expect(
+      emitWithAck(readOnlyMember, "chatService:updateTitle", {
+        id: chat.id,
+        title: "Unauthorized Update",
+      })
+    ).rejects.toThrow();
+
+    // Verify title was not changed
+    const dbChat = await testPrisma.chat.findUnique({
+      where: { id: chat.id },
+    });
+    expect(dbChat?.title).toBe("Original Title");
+
+    chatOwner.close();
+    readOnlyMember.close();
+  });
+
+  it("should deny non-member from updateTitle", async () => {
+    const chatOwner = await connectAsUser(port, users.admin.id);
+    const nonMember = await connectAsUser(port, users.regular.id);
+
+    // Chat owner creates chat (regular user is NOT invited)
+    const chat = await emitWithAck<{ title: string }, { id: string }>(
+      chatOwner,
+      "chatService:createChat",
+      { title: "Original Title" }
+    );
+
+    // Non-member cannot update title
+    await expect(
+      emitWithAck(nonMember, "chatService:updateTitle", {
+        id: chat.id,
+        title: "Unauthorized Update",
+      })
+    ).rejects.toThrow();
+
+    // Verify title was not changed
+    const dbChat = await testPrisma.chat.findUnique({
+      where: { id: chat.id },
+    });
+    expect(dbChat?.title).toBe("Original Title");
+
+    chatOwner.close();
+    nonMember.close();
+  });
+});
