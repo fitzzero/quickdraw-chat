@@ -66,11 +66,11 @@ pnpm dev
 
 ## quickdraw-core Integration
 
-This project imports directly from `@fitzzero/quickdraw-core`:
+This project uses the published `@fitzzero/quickdraw-core` package:
 
 ```json
 // package.json (both api and web)
-"@fitzzero/quickdraw-core": "link:../../../quickdraw"
+"@fitzzero/quickdraw-core": "^1.0.0"
 ```
 
 ### Server

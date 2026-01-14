@@ -47,7 +47,7 @@ Both server and client import directly from `@fitzzero/quickdraw-core`:
 
 ```json
 // package.json
-"@fitzzero/quickdraw-core": "link:../../../quickdraw"
+"@fitzzero/quickdraw-core": "^1.0.0"
 ```
 
 ### Server (apps/api)

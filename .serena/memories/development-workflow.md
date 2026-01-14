@@ -101,7 +101,7 @@ This project uses a locally-linked `@fitzzero/quickdraw-core`:
 
 ```json
 // apps/api/package.json
-"@fitzzero/quickdraw-core": "link:../../../quickdraw"
+"@fitzzero/quickdraw-core": "^1.0.0"
 ```
 
 ### Development Workflow
