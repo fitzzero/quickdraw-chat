@@ -8,8 +8,8 @@ interface ClientShellProps {
   children: React.ReactNode;
 }
 
-/** Routes that should NOT have the AppLayout (auth pages) */
-const EXCLUDED_ROUTES = ["/auth"];
+/** Routes that should NOT have the AppLayout (auth pages, admin pages with their own layout) */
+const EXCLUDED_ROUTES = ["/auth", "/admin"];
 
 /**
  * Client component that conditionally wraps children in AppLayout.
