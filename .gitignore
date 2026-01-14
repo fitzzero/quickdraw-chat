@@ -42,7 +42,4 @@ coverage/
 .yalc/
 yalc.lock
 
-# Generated documentation (regenerate with pnpm docs:generate)
-docs/api/
-
 
