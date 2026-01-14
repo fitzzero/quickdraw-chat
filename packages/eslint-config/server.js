@@ -21,7 +21,13 @@ module.exports = {
     ],
 
     // Server code often needs to handle unknown data from external sources
+    // Prisma's dynamic types cause many false positives with these rules
     "@typescript-eslint/no-unsafe-assignment": "warn",
     "@typescript-eslint/no-unsafe-member-access": "warn",
+    "@typescript-eslint/no-unsafe-call": "warn",
+    "@typescript-eslint/no-unsafe-return": "warn",
+    "@typescript-eslint/no-unsafe-argument": "warn",
+    "@typescript-eslint/no-redundant-type-constituents": "off",
+    "@typescript-eslint/no-unnecessary-type-assertion": "off",
   },
 };
