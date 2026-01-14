@@ -32,5 +32,15 @@ module.exports = {
 
     // Allow inline styles for MUI sx prop
     "react/no-unknown-property": "off",
+
+    // Client code often handles dynamic data from socket responses
+    // These rules cause false positives with quickdraw-core's typed hooks
+    "@typescript-eslint/no-unsafe-assignment": "warn",
+    "@typescript-eslint/no-unsafe-member-access": "warn",
+    "@typescript-eslint/no-unsafe-call": "warn",
+    "@typescript-eslint/no-unsafe-return": "warn",
+    "@typescript-eslint/no-unsafe-argument": "warn",
+    "@typescript-eslint/no-redundant-type-constituents": "off",
+    "@typescript-eslint/no-unnecessary-type-arguments": "off",
   },
 };
