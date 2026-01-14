@@ -1,7 +1,11 @@
 import type { Router } from "express";
+import crypto from "crypto";
 import { prisma } from "@project/db";
 import { createJWT } from "./jwt.js";
 import { logger } from "../utils/logger.js";
+
+const OAUTH_STATE_COOKIE = "discord_oauth_state";
+const SESSION_EXPIRY_DAYS = 7;
 
 interface DiscordUser {
   id: string;
@@ -33,11 +37,23 @@ export function registerDiscordRoutes(router: Router): void {
       return;
     }
 
+    // Generate cryptographically secure state parameter for CSRF protection
+    const state = crypto.randomBytes(32).toString("hex");
+
+    // Store state in httpOnly cookie (expires in 10 minutes)
+    res.cookie(OAUTH_STATE_COOKIE, state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 10 * 60 * 1000, // 10 minutes
+    });
+
     const params = new URLSearchParams({
       client_id: DISCORD_CLIENT_ID,
       redirect_uri: DISCORD_REDIRECT_URI,
       response_type: "code",
       scope: "identify email",
+      state,
     });
 
     res.redirect(`https://discord.com/api/oauth2/authorize?${params.toString()}`);
@@ -51,6 +67,18 @@ export function registerDiscordRoutes(router: Router): void {
     const CLIENT_URL = process.env.CLIENT_URL ?? "http://localhost:3000";
 
     const code = req.query.code as string | undefined;
+    const state = req.query.state as string | undefined;
+    const storedState = req.cookies?.[OAUTH_STATE_COOKIE] as string | undefined;
+
+    // Clear the state cookie regardless of outcome
+    res.clearCookie(OAUTH_STATE_COOKIE);
+
+    // Validate state parameter (CSRF protection)
+    if (!state || !storedState || state !== storedState) {
+      logger.warn("Discord OAuth state mismatch", { state: !!state, storedState: !!storedState });
+      res.redirect(`${CLIENT_URL}/auth/login?error=invalid_state`);
+      return;
+    }
 
     if (!code) {
       res.redirect(`${CLIENT_URL}/auth/login?error=no_code`);
@@ -152,6 +180,17 @@ export function registerDiscordRoutes(router: Router): void {
         userId: user.id,
         email: user.email,
       });
+
+      // Create session record for token revocation support
+      await prisma.session.create({
+        data: {
+          userId: user.id,
+          token: jwt,
+          expiresAt: new Date(Date.now() + SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      logger.info(`Created session for user: ${user.id}`);
 
       // Redirect to client with token
       res.redirect(`${CLIENT_URL}/auth/callback?token=${jwt}`);

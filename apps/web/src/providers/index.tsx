@@ -70,7 +70,7 @@ export function Providers({ children }: ProvidersProps): React.ReactElement {
   return (
     <ThemeProvider>
       <IntlProvider>
-        <QuickdrawProvider serverUrl={SERVER_URL} authToken={authToken} autoConnect>
+        <QuickdrawProvider serverUrl={SERVER_URL} authToken={authToken}>
           <LayoutProvider>
             <ClientShell>{children}</ClientShell>
           </LayoutProvider>

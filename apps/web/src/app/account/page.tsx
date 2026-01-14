@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   Box,
   Typography,
@@ -16,16 +17,34 @@ import {
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import SecurityIcon from "@mui/icons-material/Security";
+import LogoutIcon from "@mui/icons-material/Logout";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useTranslations } from "next-intl";
 import { useSocket } from "../../providers";
 import { useSubscription } from "../../hooks";
+import { ConfirmDialog } from "../../components/feedback";
+import { logoutAllDevices } from "../../lib/auth";
 
 export default function AccountPage(): React.ReactElement {
   const t = useTranslations("AccountPage");
   const tCommon = useTranslations("Common");
+  const router = useRouter();
   const { userId } = useSocket();
   const { data: user } = useSubscription("userService", userId ?? "");
+  
+  const [showSignOutAllDialog, setShowSignOutAllDialog] = React.useState(false);
+  const [isSigningOut, setIsSigningOut] = React.useState(false);
+
+  const handleSignOutAllDevices = async (): Promise<void> => {
+    setIsSigningOut(true);
+    try {
+      await logoutAllDevices();
+      router.push("/auth/login");
+    } finally {
+      setIsSigningOut(false);
+      setShowSignOutAllDialog(false);
+    }
+  };
 
   return (
     <Box sx={{ maxWidth: 600, mx: "auto" }}>
@@ -119,8 +138,36 @@ export default function AccountPage(): React.ReactElement {
               {tCommon("manage")}
             </Button>
           </ListItem>
+          <ListItem>
+            <ListItemIcon>
+              <LogoutIcon />
+            </ListItemIcon>
+            <ListItemText
+              primary={t("signOutAllDevices")}
+              secondary={t("signOutAllDevicesDesc")}
+            />
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => { setShowSignOutAllDialog(true); }}
+            >
+              {t("signOutAllDevices")}
+            </Button>
+          </ListItem>
         </List>
       </Paper>
+
+      {/* Sign Out All Devices Confirmation Dialog */}
+      <ConfirmDialog
+        open={showSignOutAllDialog}
+        onClose={() => { setShowSignOutAllDialog(false); }}
+        onConfirm={handleSignOutAllDevices}
+        title={t("signOutAllDevicesConfirmTitle")}
+        message={t("signOutAllDevicesConfirmMessage")}
+        confirmLabel={t("signOutAllDevices")}
+        destructive
+        isLoading={isSigningOut}
+      />
 
       {/* Danger Zone */}
       <Paper sx={{ border: 1, borderColor: "error.main" }}>

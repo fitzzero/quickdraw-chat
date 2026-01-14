@@ -129,6 +129,20 @@ export async function authenticateSocket(
       const payload = await verifyJWT(token);
 
       if (payload?.userId) {
+        // Verify session exists and is not expired (enables token revocation)
+        const session = await prisma.session.findUnique({
+          where: { token },
+        });
+
+        if (!session || session.expiresAt < new Date()) {
+          // Token is valid JWT but session was revoked or expired
+          logger.debug("Session not found or expired", { userId: payload.userId });
+          socket.userId = undefined;
+          socket.serviceAccess = {};
+          next();
+          return;
+        }
+
         const user = await prisma.user.findUnique({
           where: { id: payload.userId },
           select: { id: true, email: true, serviceAccess: true },

@@ -1,7 +1,11 @@
 import type { Router } from "express";
+import crypto from "crypto";
 import { prisma } from "@project/db";
 import { createJWT } from "./jwt.js";
 import { logger } from "../utils/logger.js";
+
+const OAUTH_STATE_COOKIE = "google_oauth_state";
+const SESSION_EXPIRY_DAYS = 7;
 
 interface GoogleUser {
   id: string;
@@ -34,6 +38,17 @@ export function registerGoogleRoutes(router: Router): void {
       return;
     }
 
+    // Generate cryptographically secure state parameter for CSRF protection
+    const state = crypto.randomBytes(32).toString("hex");
+
+    // Store state in httpOnly cookie (expires in 10 minutes)
+    res.cookie(OAUTH_STATE_COOKIE, state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 10 * 60 * 1000, // 10 minutes
+    });
+
     const params = new URLSearchParams({
       client_id: GOOGLE_CLIENT_ID,
       redirect_uri: GOOGLE_REDIRECT_URI,
@@ -41,6 +56,7 @@ export function registerGoogleRoutes(router: Router): void {
       scope: "openid email profile",
       access_type: "offline",
       prompt: "consent",
+      state,
     });
 
     res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
@@ -54,6 +70,18 @@ export function registerGoogleRoutes(router: Router): void {
     const CLIENT_URL = process.env.CLIENT_URL ?? "http://localhost:3000";
 
     const code = req.query.code as string | undefined;
+    const state = req.query.state as string | undefined;
+    const storedState = req.cookies?.[OAUTH_STATE_COOKIE] as string | undefined;
+
+    // Clear the state cookie regardless of outcome
+    res.clearCookie(OAUTH_STATE_COOKIE);
+
+    // Validate state parameter (CSRF protection)
+    if (!state || !storedState || state !== storedState) {
+      logger.warn("Google OAuth state mismatch", { state: !!state, storedState: !!storedState });
+      res.redirect(`${CLIENT_URL}/auth/login?error=invalid_state`);
+      return;
+    }
 
     if (!code) {
       res.redirect(`${CLIENT_URL}/auth/login?error=no_code`);
@@ -153,6 +181,17 @@ export function registerGoogleRoutes(router: Router): void {
         userId: user.id,
         email: user.email,
       });
+
+      // Create session record for token revocation support
+      await prisma.session.create({
+        data: {
+          userId: user.id,
+          token: jwt,
+          expiresAt: new Date(Date.now() + SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      logger.info(`Created session for user: ${user.id}`);
 
       // Redirect to client with token
       res.redirect(`${CLIENT_URL}/auth/callback?token=${jwt}`);

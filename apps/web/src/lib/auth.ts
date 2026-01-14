@@ -69,3 +69,60 @@ export function getOAuthUrl(provider: "discord" | "google"): string {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
   return `${apiUrl}/auth/${provider}`;
 }
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+/**
+ * Logout from current session (invalidate token on server and clear localStorage)
+ */
+export async function logout(): Promise<void> {
+  const token = getAuthToken();
+  
+  if (token) {
+    try {
+      await fetch(`${API_URL}/auth/logout`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    } catch {
+      // Ignore network errors - we'll clear local token anyway
+    }
+  }
+  
+  clearAuthToken();
+}
+
+/**
+ * Logout from all devices (invalidate all sessions on server and clear localStorage)
+ * Returns the number of sessions that were invalidated
+ */
+export async function logoutAllDevices(): Promise<number> {
+  const token = getAuthToken();
+  
+  if (!token) {
+    clearAuthToken();
+    return 0;
+  }
+  
+  try {
+    const response = await fetch(`${API_URL}/auth/sessions`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    
+    if (response.ok) {
+      const data = await response.json() as { sessionsDeleted?: number };
+      clearAuthToken();
+      return data.sessionsDeleted ?? 0;
+    }
+  } catch {
+    // Ignore network errors - we'll clear local token anyway
+  }
+  
+  clearAuthToken();
+  return 0;
+}

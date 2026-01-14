@@ -21,7 +21,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useSocket } from "../../providers";
 import { useSubscription, useAdminServices } from "../../hooks";
-import { clearAuthToken } from "../../lib/auth";
+import { logout } from "../../lib/auth";
 
 export function UserMenu(): React.ReactElement {
   const t = useTranslations("UserMenu");
@@ -40,9 +40,9 @@ export function UserMenu(): React.ReactElement {
     setAnchorEl(null);
   };
 
-  const handleLogout = () => {
-    clearAuthToken();
+  const handleLogout = async () => {
     handleClose();
+    await logout();
     // Force full page reload to clear socket connection
     window.location.href = "/";
   };
@@ -148,7 +148,7 @@ export function UserMenu(): React.ReactElement {
           <ListItemText>{t("account")}</ListItemText>
         </MenuItem>
         <Divider />
-        <MenuItem onClick={handleLogout}>
+        <MenuItem onClick={() => { void handleLogout(); }}>
           <ListItemIcon>
             <LogoutIcon fontSize="small" />
           </ListItemIcon>

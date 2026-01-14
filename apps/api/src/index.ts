@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { createServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
 import { config } from "dotenv";
@@ -24,6 +25,7 @@ import { DocumentService } from "./services/document/index.js";
 import { authenticateSocket } from "./auth/middleware.js";
 import { registerDiscordRoutes } from "./auth/discord.js";
 import { registerGoogleRoutes } from "./auth/google.js";
+import { createAuthRouter } from "./auth/routes.js";
 
 // Validate required environment variables in production
 if (process.env.NODE_ENV === "production") {
@@ -42,6 +44,7 @@ const CLIENT_URL = process.env.CLIENT_URL ?? `http://${SERVER_IP}:3000`;
 
 // Middleware
 app.use(cors({ origin: CLIENT_URL, credentials: true }));
+app.use(cookieParser());
 app.use(express.json());
 
 // Health check
@@ -60,6 +63,7 @@ app.get("/api", (_req, res) => {
 // Auth routes
 registerDiscordRoutes(app);
 registerGoogleRoutes(app);
+app.use(createAuthRouter());
 
 // Socket.io server
 const io = new SocketIOServer(httpServer, {
