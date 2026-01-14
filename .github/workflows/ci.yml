@@ -24,6 +24,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm db:generate
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
 
       - run: pnpm lint
 
@@ -61,6 +63,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm db:generate
+        env:
+          DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
 
       - run: pnpm db:push
         env:
@@ -89,5 +93,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm db:generate
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
 
       - run: pnpm build
