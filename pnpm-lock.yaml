@@ -39,8 +39,8 @@ importers:
   apps/api:
     dependencies:
       '@fitzzero/quickdraw-core':
-        specifier: link:../../../quickdraw
-        version: link:../../../quickdraw
+        specifier: ^1.0.0
+        version: 1.1.0(@prisma/client@7.2.0(prisma@7.2.0(@types/react@18.3.27)(magicast@0.3.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.16(react@18.3.1))(react@18.3.1)(socket.io-client@4.8.3)(socket.io@4.8.3)
       '@project/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -130,8 +130,8 @@ importers:
         specifier: ^11.11.0
         version: 11.14.1(@emotion/react@11.14.0(@types/react@18.3.27)(react@18.3.1))(@types/react@18.3.27)(react@18.3.1)
       '@fitzzero/quickdraw-core':
-        specifier: link:../../../quickdraw
-        version: link:../../../quickdraw
+        specifier: ^1.0.0
+        version: 1.1.0(@prisma/client@7.2.0(prisma@7.2.0(@types/react@18.3.27)(magicast@0.3.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.16(react@18.3.1))(react@18.3.1)(socket.io-client@4.8.3)(socket.io@4.8.3)
       '@mui/icons-material':
         specifier: ^5.15.0
         version: 5.18.0(@mui/material@5.18.0(@emotion/react@11.14.0(@types/react@18.3.27)(react@18.3.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@18.3.27)(react@18.3.1))(@types/react@18.3.27)(react@18.3.1))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.27)(react@18.3.1)
@@ -268,8 +268,8 @@ importers:
   packages/shared:
     dependencies:
       '@fitzzero/quickdraw-core':
-        specifier: link:../../../quickdraw
-        version: link:../../../quickdraw
+        specifier: ^1.0.0
+        version: 1.1.0(@prisma/client@7.2.0(prisma@7.2.0(@types/react@18.3.27)(magicast@0.3.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.16(react@18.3.1))(react@18.3.1)(socket.io-client@4.8.3)(socket.io@4.8.3)
       zod:
         specifier: ^3.22.0
         version: 3.25.76
@@ -830,6 +830,27 @@ packages:
   '@eslint/js@8.57.1':
     resolution: {integrity: sha512-d9zaMRSTIKDLhctzH12MtXvJKSSUhaHcjV+2Z+GK+EEY7XKpP5yR4x+N3TAcHTcu963nIr+TMcCb4DBCYX1z6Q==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+
+  '@fitzzero/quickdraw-core@1.1.0':
+    resolution: {integrity: sha512-58UJPmeI8V1HpzKKYblkpbp70+pLjMpqvPu1ynn0NN0UUB1punUTAyHwr0EcYRwm1gf3Jwd8EX/eUnytS/dKhw==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@prisma/client': '>=5.0.0'
+      '@tanstack/react-query': '>=5.0.0'
+      react: '>=18.0.0'
+      socket.io: '>=4.0.0'
+      socket.io-client: '>=4.0.0'
+    peerDependenciesMeta:
+      '@prisma/client':
+        optional: true
+      '@tanstack/react-query':
+        optional: true
+      react:
+        optional: true
+      socket.io:
+        optional: true
+      socket.io-client:
+        optional: true
 
   '@formatjs/ecma402-abstract@2.3.6':
     resolution: {integrity: sha512-HJnTFeRM2kVFVr5gr5kH1XP6K0JcJtE7Lzvtr3FS/so5f1kpsqqqxy5JF+FRaO6H2qmcMfAUIox7AJteieRtVw==}
@@ -4850,6 +4871,17 @@ snapshots:
       - supports-color
 
   '@eslint/js@8.57.1': {}
+
+  '@fitzzero/quickdraw-core@1.1.0(@prisma/client@7.2.0(prisma@7.2.0(@types/react@18.3.27)(magicast@0.3.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.16(react@18.3.1))(react@18.3.1)(socket.io-client@4.8.3)(socket.io@4.8.3)':
+    dependencies:
+      jose: 5.10.0
+      zod: 3.25.76
+    optionalDependencies:
+      '@prisma/client': 7.2.0(prisma@7.2.0(@types/react@18.3.27)(magicast@0.3.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3)
+      '@tanstack/react-query': 5.90.16(react@18.3.1)
+      react: 18.3.1
+      socket.io: 4.8.3
+      socket.io-client: 4.8.3
 
   '@formatjs/ecma402-abstract@2.3.6':
     dependencies:
