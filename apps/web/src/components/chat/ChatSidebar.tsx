@@ -25,7 +25,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { SocketTextField } from "@fitzzero/quickdraw-core/client";
 import { useSocket } from "../../providers";
-import { useService, useSubscription } from "../../hooks";
+import { useService, useServiceQuery, useSubscription } from "../../hooks";
 import { UserAvatar } from "../user";
 import { ConfirmDialog } from "../feedback";
 import type { ChatMemberDTO, AccessLevel } from "@project/shared";
@@ -64,9 +64,23 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
   // Chat subscription for title
   const { data: chat } = useSubscription("chatService", chatId);
 
-  // Members state
+  // Fetch members with useServiceQuery
+  const { data: queryMembers, isLoading: membersLoading } = useServiceQuery(
+    "chatService",
+    "getChatMembers",
+    { chatId },
+    { enabled: !!chatId }
+  );
+
+  // Local members state (synced from query and socket updates)
   const [members, setMembers] = React.useState<ChatMemberDTO[]>([]);
-  const [membersLoading, setMembersLoading] = React.useState(true);
+
+  // Sync query data to local state
+  React.useEffect(() => {
+    if (queryMembers) {
+      setMembers(queryMembers);
+    }
+  }, [queryMembers]);
 
   // UI state
   const [isEditingTitle, setIsEditingTitle] = React.useState(false);
@@ -76,8 +90,7 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
   const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = React.useState(false);
   const [memberToRemove, setMemberToRemove] = React.useState<ChatMemberDTO | null>(null);
 
-  // Service methods
-  const getMembers = useService("chatService", "getChatMembers");
+  // Service methods (mutations only)
   const updateTitle = useService("chatService", "updateTitle");
   const inviteByName = useService("chatService", "inviteByName", {
     onSuccess: (result) => {
@@ -114,26 +127,6 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
 
   const canModerate = isLevelSufficient(effectiveLevel, "Moderate");
   const canAdmin = isLevelSufficient(effectiveLevel, "Admin");
-
-  // Fetch members on mount
-  React.useEffect(() => {
-    if (!chatId) return;
-
-    const fetchMembers = async (): Promise<void> => {
-      setMembersLoading(true);
-      try {
-        const data = await getMembers.mutateAsync({ chatId });
-        setMembers(data);
-      } catch {
-        // Error handled by hook
-      } finally {
-        setMembersLoading(false);
-      }
-    };
-
-    void fetchMembers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchMembers is stable, only re-run when chatId changes
-  }, [chatId]);
 
   // Listen for member updates
   React.useEffect(() => {

@@ -2,7 +2,53 @@
 
 ## Hooks
 
-**useService** - For invoking service methods:
+### useServiceQuery - For READ operations
+
+Use `useServiceQuery` for read operations (get, list, search, find). Provides automatic caching, request deduplication, and stale time management.
+
+```typescript
+import { useServiceQuery } from "../hooks";
+
+function ChatMembersList({ chatId }: { chatId: string }) {
+  const { data: members, isLoading, refetch } = useServiceQuery(
+    "chatService",
+    "getChatMembers",
+    { chatId },
+    { enabled: !!chatId }
+  );
+
+  if (isLoading) return <Skeleton />;
+  return <MemberList members={members ?? []} />;
+}
+```
+
+**Options:**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `enabled` | `true` | Auto-fetch on mount |
+| `staleTime` | 5 min | How long data stays fresh |
+| `gcTime` | 10 min | Cache retention for unused data |
+| `skipCache` | `false` | Force fresh fetch, bypass cache |
+| `onSuccess` | - | Success callback |
+| `onError` | - | Error callback |
+
+**Returns:**
+
+| Property | Description |
+|----------|-------------|
+| `data` | The cached/fetched data |
+| `isLoading` | Initial load in progress |
+| `isFetching` | Any fetch in progress (including background) |
+| `isStale` | Data is past staleTime |
+| `isSuccess` | Query has succeeded |
+| `isError` | Query has errored |
+| `error` | Error message if failed |
+| `refetch()` | Manual refetch function |
+
+### useService - For WRITE operations (mutations)
+
+Use `useService` for create, update, delete operations. The hook is stable and memoized.
 
 ```typescript
 import { useService } from "../hooks";
@@ -27,6 +73,13 @@ function CreateChatButton() {
   );
 }
 ```
+
+### When to use which hook
+
+| Operation | Hook | Examples |
+|-----------|------|----------|
+| Read | `useServiceQuery` | `getUser`, `listChats`, `search`, `getChatMembers` |
+| Write | `useService` | `createChat`, `updateTitle`, `deleteChat`, `inviteByName` |
 
 **useSubscription** - For real-time entity data:
 

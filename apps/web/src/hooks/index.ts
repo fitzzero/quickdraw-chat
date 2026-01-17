@@ -2,6 +2,7 @@
 // These wrap the generic hooks with project-specific types
 
 export { useService } from "./useService";
+export { useServiceQuery } from "./useServiceQuery";
 export { useSubscription } from "./useSubscription";
 export { useIsMobile } from "./useIsMobile";
 export { useRecentChats } from "./useRecentChats";
