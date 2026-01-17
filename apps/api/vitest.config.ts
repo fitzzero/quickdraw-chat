@@ -14,10 +14,6 @@ export default defineConfig({
     },
     // Run tests sequentially for integration tests with DB state
     pool: "forks",
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    maxWorkers: 1,
   },
 });
