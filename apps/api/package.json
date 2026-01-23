@@ -15,7 +15,7 @@
     "test:coverage": "dotenv -e ../../.env.local -- vitest run --coverage"
   },
   "dependencies": {
-    "@fitzzero/quickdraw-core": "^1.2.0",
+    "@fitzzero/quickdraw-core": "^1.2.1",
     "@project/db": "workspace:*",
     "@project/shared": "workspace:*",
     "cookie-parser": "^1.4.7",
