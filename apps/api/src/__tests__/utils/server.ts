@@ -10,6 +10,7 @@ import { testPrisma } from "@project/db/testing";
 import { UserService } from "../../services/user/index.js";
 import { ChatService } from "../../services/chat/index.js";
 import { MessageService } from "../../services/message/index.js";
+import { DocumentService } from "../../services/document/index.js";
 import { getAvailablePort } from "./socket.js";
 
 interface TestServer {
@@ -39,8 +40,35 @@ export async function startTestServer(): Promise<TestServer> {
     "messageService",
     new MessageService(testPrisma)
   );
+  serviceRegistry.registerService(
+    "documentService",
+    new DocumentService(testPrisma)
+  );
 
-  // Dev auth middleware - load serviceAccess from database
+  // Parse SERVICE_DEFAULT_ACCESS env var (same as production middleware)
+  const getDefaultServiceAccess = (): Record<string, AccessLevel> => {
+    const config = process.env.SERVICE_DEFAULT_ACCESS;
+    if (!config) return {};
+    const defaults: Record<string, AccessLevel> = {};
+    for (const entry of config.split(",")) {
+      const [service, level] = entry.trim().split(":");
+      if (service && level && ["Public", "Read", "Moderate", "Admin"].includes(level)) {
+        defaults[service] = level as AccessLevel;
+      }
+    }
+    return defaults;
+  };
+
+  // Merge user's explicit access with defaults
+  const mergeWithDefaults = (
+    userAccess: Record<string, AccessLevel> | null
+  ): Record<string, AccessLevel> => {
+    const defaults = getDefaultServiceAccess();
+    const explicit = userAccess ?? {};
+    return { ...defaults, ...explicit };
+  };
+
+  // Dev auth middleware - load serviceAccess from database and merge with defaults
   io.use(async (socket, next) => {
     const quickdrawSocket = socket as QuickdrawSocket;
     const auth = socket.handshake.auth as Record<string, unknown>;
@@ -54,8 +82,9 @@ export async function startTestServer(): Promise<TestServer> {
 
       if (user) {
         quickdrawSocket.userId = user.id;
-        quickdrawSocket.serviceAccess =
-          (user.serviceAccess as Record<string, AccessLevel>) ?? {};
+        quickdrawSocket.serviceAccess = mergeWithDefaults(
+          user.serviceAccess as Record<string, AccessLevel> | null
+        );
       }
     }
 

@@ -6,6 +6,7 @@ export { useServiceQuery } from "./useServiceQuery";
 export { useSubscription } from "./useSubscription";
 export { useIsMobile } from "./useIsMobile";
 export { useRecentChats } from "./useRecentChats";
+export { useFilteredNavigation } from "./useFilteredNavigation";
 
 // Admin hooks
 export { useAdminServices, type AdminServiceInfo } from "./useAdminServices";

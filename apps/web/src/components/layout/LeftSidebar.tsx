@@ -10,9 +10,8 @@ import {
   Divider,
 } from "@mui/material";
 import { useTranslations } from "next-intl";
-import { useIsMobile } from "../../hooks";
+import { useIsMobile, useFilteredNavigation } from "../../hooks";
 import { useLayout } from "../../providers";
-import { siteNavigation } from "../../lib/navigation";
 import { NavAccordion } from "./NavAccordion";
 import { UserMenu } from "./UserMenu";
 
@@ -29,6 +28,7 @@ export function LeftSidebar({
   const t = useTranslations("Sidebar");
   const isMobile = useIsMobile();
   const { leftDrawerOpen, setLeftDrawerOpen } = useLayout();
+  const { navigation } = useFilteredNavigation();
 
   const handleClose = (): void => {
     setLeftDrawerOpen(false);
@@ -80,7 +80,7 @@ export function LeftSidebar({
       {/* Navigation */}
       <Box sx={{ flex: 1, overflow: "auto", py: 1 }}>
         <List disablePadding>
-          {siteNavigation.map((item) => (
+          {navigation.map((item) => (
             <NavAccordion
               key={item.id}
               item={item}

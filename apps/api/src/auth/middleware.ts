@@ -31,8 +31,41 @@ function getBootstrapAdminEmails(): Set<string> {
 }
 
 /**
+ * Parse SERVICE_DEFAULT_ACCESS environment variable into default service permissions.
+ * Format: "serviceName:Level,serviceName:Level" (e.g., "userService:Read,chatService:Read")
+ */
+function getDefaultServiceAccess(): Record<string, AccessLevel> {
+  const config = process.env.SERVICE_DEFAULT_ACCESS;
+  if (!config) return {};
+
+  const defaults: Record<string, AccessLevel> = {};
+  for (const entry of config.split(",")) {
+    const [service, level] = entry.trim().split(":");
+    if (service && level && ["Public", "Read", "Moderate", "Admin"].includes(level)) {
+      defaults[service] = level as AccessLevel;
+    }
+  }
+  return defaults;
+}
+
+/**
+ * Merge user's explicit serviceAccess with default service permissions.
+ * Explicit user access takes precedence over defaults.
+ */
+function mergeWithDefaults(
+  userAccess: Record<string, AccessLevel> | null
+): Record<string, AccessLevel> {
+  const defaults = getDefaultServiceAccess();
+  const explicit = userAccess ?? {};
+
+  // Explicit user access takes precedence over defaults
+  return { ...defaults, ...explicit };
+}
+
+/**
  * Check if a user should be auto-promoted to admin and update their serviceAccess.
- * Returns the updated serviceAccess.
+ * For non-bootstrap admins, merges user's explicit access with SERVICE_DEFAULT_ACCESS.
+ * Returns the final serviceAccess to use.
  */
 async function checkAndApplyBootstrapAdmin(
   userId: string,
@@ -42,9 +75,9 @@ async function checkAndApplyBootstrapAdmin(
 ): Promise<Record<string, AccessLevel>> {
   const bootstrapEmails = getBootstrapAdminEmails();
 
-  // If no bootstrap emails configured or user doesn't match, return current access
+  // If no bootstrap emails configured or user doesn't match, return merged access
   if (bootstrapEmails.size === 0 || !email || !bootstrapEmails.has(email.toLowerCase())) {
-    return currentServiceAccess ?? {};
+    return mergeWithDefaults(currentServiceAccess);
   }
 
   // User is in bootstrap admin list - grant admin to all services

@@ -7,6 +7,10 @@ import { testPrisma, resetDatabase } from "@project/db/testing";
 process.env.NODE_ENV = "test";
 process.env.ENABLE_DEV_CREDENTIALS = "true";
 
+// Set default service access for tests (matches production behavior)
+// userService:Read allows any authenticated user to view profiles
+process.env.SERVICE_DEFAULT_ACCESS = "userService:Read";
+
 beforeAll(async () => {
   // Ensure database is available
   await testPrisma.$connect();

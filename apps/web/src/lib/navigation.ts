@@ -18,6 +18,8 @@ export interface NavItem {
   requireAuth?: boolean;
   /** If true, children are loaded dynamically (e.g., recent chats) */
   dynamicChildren?: boolean;
+  /** Service name for access control (e.g., "chatService"). If set, user needs Read+ access. */
+  serviceName?: string;
 }
 
 export interface BreadcrumbItem {
@@ -46,6 +48,7 @@ export const siteNavigation: NavItem[] = [
     icon: ChatIcon,
     defaultExpanded: true,
     requireAuth: true,
+    serviceName: "chatService",
     dynamicChildren: true, // Children loaded via useRecentChats
   },
 ];
