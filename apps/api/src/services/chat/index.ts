@@ -56,16 +56,11 @@ const adminChatSchema = z.object({
   title: z.string(),
 });
 
-type ServiceMethodsRecord = Record<
-  string,
-  { payload: unknown; response: unknown }
->;
-
 export class ChatService extends BaseService<
   Chat,
   Prisma.ChatCreateInput,
   Prisma.ChatUpdateInput,
-  ChatServiceMethods & ServiceMethodsRecord
+  ChatServiceMethods
 > {
   private readonly prisma: PrismaClient;
 

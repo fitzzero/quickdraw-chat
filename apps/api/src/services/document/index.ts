@@ -3,8 +3,6 @@ import type { DocumentServiceMethods, ACL, AccessLevel } from "@project/shared";
 import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 import { z } from "zod";
 
-type ServiceMethodsRecord = Record<string, { payload: unknown; response: unknown }>;
-
 // Admin schema - defines fields available for admin CRUD
 const adminDocumentSchema = z.object({
   title: z.string(),
@@ -32,7 +30,7 @@ export class DocumentService extends BaseService<
   Document,
   Prisma.DocumentCreateInput,
   Prisma.DocumentUpdateInput,
-  DocumentServiceMethods & ServiceMethodsRecord
+  DocumentServiceMethods
 > {
   private readonly prisma: PrismaClient;
 

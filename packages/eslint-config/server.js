@@ -5,7 +5,13 @@ module.exports = {
     node: true,
     es2022: true,
   },
+  plugins: ["quickdraw"],
   rules: {
+    // Quickdraw architectural boundary rules
+    "quickdraw/no-direct-prisma-mutations": "warn",
+    "quickdraw/require-zod-schema": "warn",
+    "quickdraw/no-service-method-record": "error",
+    "quickdraw/no-unsafe-payload-cast": "warn",
     // Server-specific rules
     // Allow console for server logging (we use Winston but console is okay for quick debugging)
     "no-console": "warn",

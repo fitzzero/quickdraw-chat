@@ -28,16 +28,11 @@ const adminMessageSchema = z.object({
   role: z.enum(["user", "assistant", "system"]),
 });
 
-type ServiceMethodsRecord = Record<
-  string,
-  { payload: unknown; response: unknown }
->;
-
 export class MessageService extends BaseService<
   Message,
   Prisma.MessageCreateInput,
   Prisma.MessageUpdateInput,
-  MessageServiceMethods & ServiceMethodsRecord
+  MessageServiceMethods
 > {
   private readonly prisma: PrismaClient;
 

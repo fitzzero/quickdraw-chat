@@ -17,7 +17,7 @@
     "@emotion/cache": "^11.11.0",
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
-    "@fitzzero/quickdraw-core": "^1.2.1",
+    "@fitzzero/quickdraw-core": "^2.1.2",
     "@mui/icons-material": "^5.15.0",
     "@mui/material": "^5.15.0",
     "@project/shared": "workspace:*",

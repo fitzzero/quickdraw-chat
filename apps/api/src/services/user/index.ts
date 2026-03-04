@@ -20,13 +20,11 @@ const adminUserSchema = z.object({
   serviceAccess: z.record(z.string(), z.enum(["Public", "Read", "Moderate", "Admin"])).optional(),
 });
 
-type ServiceMethodsRecord = Record<string, { payload: unknown; response: unknown }>;
-
 export class UserService extends BaseService<
   User,
   Prisma.UserCreateInput,
   Prisma.UserUpdateInput,
-  UserServiceMethods & ServiceMethodsRecord
+  UserServiceMethods
 > {
   private readonly prisma: PrismaClient;
 

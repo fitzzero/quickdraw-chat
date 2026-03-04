@@ -7,6 +7,13 @@
         "-c",
         "export NVM_DIR=\"$HOME/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && source \"$NVM_DIR/nvm.sh\" && uvx --from git+https://github.com/oraios/serena serena start-mcp-server --context ide --project \"${workspaceFolder}\""
       ]
+    },
+    "quickdraw-chat-api": {
+      "command": "node",
+      "args": ["apps/api/dist/mcp-bootstrap.js"],
+      "env": {
+        "MCP_USER_ID": ""
+      }
     }
   }
 }

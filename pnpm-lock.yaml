@@ -39,8 +39,8 @@ importers:
   apps/api:
     dependencies:
       '@fitzzero/quickdraw-core':
-        specifier: ^1.2.1
-        version: 1.2.1(@prisma/client@7.2.0(prisma@7.2.0(@types/react@19.2.8)(magicast@0.5.1)(react-dom@19.2.3(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.18(react@18.3.1))(react@18.3.1)(socket.io-client@4.8.3)(socket.io@4.8.3)
+        specifier: ^2.1.2
+        version: 2.1.2(@prisma/client@7.2.0(prisma@7.2.0(@types/react@19.2.8)(magicast@0.5.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.18(react@19.2.3))(react@19.2.3)(socket.io-client@4.8.3)(socket.io@4.8.3)
       '@project/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -130,8 +130,8 @@ importers:
         specifier: ^11.11.0
         version: 11.14.1(@emotion/react@11.14.0(@types/react@18.3.27)(react@18.3.1))(@types/react@18.3.27)(react@18.3.1)
       '@fitzzero/quickdraw-core':
-        specifier: ^1.2.1
-        version: 1.2.1(@prisma/client@7.2.0(prisma@7.2.0(@types/react@18.3.27)(magicast@0.5.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.16(react@18.3.1))(react@18.3.1)(socket.io-client@4.8.3)(socket.io@4.8.3)
+        specifier: ^2.1.2
+        version: 2.1.2(@prisma/client@7.2.0(prisma@7.2.0(@types/react@18.3.27)(magicast@0.5.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.16(react@18.3.1))(react@18.3.1)(socket.io-client@4.8.3)(socket.io@4.8.3)
       '@mui/icons-material':
         specifier: ^5.15.0
         version: 5.18.0(@mui/material@5.18.0(@emotion/react@11.14.0(@types/react@18.3.27)(react@18.3.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@18.3.27)(react@18.3.1))(@types/react@18.3.27)(react@18.3.1))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.27)(react@18.3.1)
@@ -251,6 +251,9 @@ importers:
       eslint-config-next:
         specifier: ^14.1.0
         version: 14.2.35(eslint@8.57.1)(typescript@5.9.3)
+      eslint-plugin-quickdraw:
+        specifier: workspace:*
+        version: link:../eslint-plugin-quickdraw
       eslint-plugin-react:
         specifier: ^7.33.0
         version: 7.37.5(eslint@8.57.1)
@@ -265,11 +268,13 @@ importers:
         specifier: ^5.3.0
         version: 5.9.3
 
+  packages/eslint-plugin-quickdraw: {}
+
   packages/shared:
     dependencies:
       '@fitzzero/quickdraw-core':
-        specifier: ^1.2.1
-        version: 1.2.1(@prisma/client@7.2.0(prisma@7.2.0(@types/react@19.2.8)(magicast@0.5.1)(react-dom@19.2.3(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.18(react@18.3.1))(react@18.3.1)(socket.io-client@4.8.3)(socket.io@4.8.3)
+        specifier: ^2.1.2
+        version: 2.1.2(@prisma/client@7.2.0(prisma@7.2.0(@types/react@19.2.8)(magicast@0.5.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.18(react@19.2.3))(react@19.2.3)(socket.io-client@4.8.3)(socket.io@4.8.3)
       zod:
         specifier: ^3.22.0
         version: 3.25.76
@@ -857,8 +862,8 @@ packages:
     resolution: {integrity: sha512-d9zaMRSTIKDLhctzH12MtXvJKSSUhaHcjV+2Z+GK+EEY7XKpP5yR4x+N3TAcHTcu963nIr+TMcCb4DBCYX1z6Q==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
 
-  '@fitzzero/quickdraw-core@1.2.1':
-    resolution: {integrity: sha512-4PAcZQNZP356j9WlPhRHiOGsjfOlDRqKkD/I+kL0kxfxU9H3EjcShke2dpWfS6RtfDr6RPl8xjL8kK+BoME2Pg==}
+  '@fitzzero/quickdraw-core@2.1.2':
+    resolution: {integrity: sha512-3kWYdFfQ6vZRTK7Hh2ZOn0zfSe1KdficfVx4K7/e8zq3TwqIOMGvodJ0r1uP1p3WbOpJpPRF1rIByZQ2T7ecBw==}
     engines: {node: '>=20'}
     peerDependencies:
       '@prisma/client': '>=5.0.0'
@@ -5096,7 +5101,7 @@ snapshots:
 
   '@eslint/js@8.57.1': {}
 
-  '@fitzzero/quickdraw-core@1.2.1(@prisma/client@7.2.0(prisma@7.2.0(@types/react@18.3.27)(magicast@0.5.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.16(react@18.3.1))(react@18.3.1)(socket.io-client@4.8.3)(socket.io@4.8.3)':
+  '@fitzzero/quickdraw-core@2.1.2(@prisma/client@7.2.0(prisma@7.2.0(@types/react@18.3.27)(magicast@0.5.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.16(react@18.3.1))(react@18.3.1)(socket.io-client@4.8.3)(socket.io@4.8.3)':
     dependencies:
       jose: 5.10.0
       zod: 3.25.76
@@ -5107,14 +5112,14 @@ snapshots:
       socket.io: 4.8.3
       socket.io-client: 4.8.3
 
-  '@fitzzero/quickdraw-core@1.2.1(@prisma/client@7.2.0(prisma@7.2.0(@types/react@19.2.8)(magicast@0.5.1)(react-dom@19.2.3(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.18(react@18.3.1))(react@18.3.1)(socket.io-client@4.8.3)(socket.io@4.8.3)':
+  '@fitzzero/quickdraw-core@2.1.2(@prisma/client@7.2.0(prisma@7.2.0(@types/react@19.2.8)(magicast@0.5.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(@tanstack/react-query@5.90.18(react@19.2.3))(react@19.2.3)(socket.io-client@4.8.3)(socket.io@4.8.3)':
     dependencies:
       jose: 5.10.0
       zod: 3.25.76
     optionalDependencies:
-      '@prisma/client': 7.2.0(prisma@7.2.0(@types/react@19.2.8)(magicast@0.5.1)(react-dom@19.2.3(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3)
-      '@tanstack/react-query': 5.90.18(react@18.3.1)
-      react: 18.3.1
+      '@prisma/client': 7.2.0(prisma@7.2.0(@types/react@19.2.8)(magicast@0.5.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3)
+      '@tanstack/react-query': 5.90.18(react@19.2.3)
+      react: 19.2.3
       socket.io: 4.8.3
       socket.io-client: 4.8.3
 
@@ -5422,14 +5427,6 @@ snapshots:
       typescript: 5.9.3
     optional: true
 
-  '@prisma/client@7.2.0(prisma@7.2.0(@types/react@19.2.8)(magicast@0.5.1)(react-dom@19.2.3(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3)':
-    dependencies:
-      '@prisma/client-runtime-utils': 7.2.0
-    optionalDependencies:
-      prisma: 7.2.0(@types/react@19.2.8)(magicast@0.5.1)(react-dom@19.2.3(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
-      typescript: 5.9.3
-    optional: true
-
   '@prisma/client@7.2.0(prisma@7.2.0(@types/react@19.2.8)(magicast@0.5.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3)':
     dependencies:
       '@prisma/client-runtime-utils': 7.2.0
@@ -5506,13 +5503,6 @@ snapshots:
       '@types/react': 18.3.27
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
-    optional: true
-
-  '@prisma/studio-core@0.9.0(@types/react@19.2.8)(react-dom@19.2.3(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      '@types/react': 19.2.8
-      react: 18.3.1
-      react-dom: 19.2.3(react@18.3.1)
     optional: true
 
   '@prisma/studio-core@0.9.0(@types/react@19.2.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
@@ -5688,10 +5678,10 @@ snapshots:
       '@tanstack/query-core': 5.90.16
       react: 18.3.1
 
-  '@tanstack/react-query@5.90.18(react@18.3.1)':
+  '@tanstack/react-query@5.90.18(react@19.2.3)':
     dependencies:
       '@tanstack/query-core': 5.90.18
-      react: 18.3.1
+      react: 19.2.3
     optional: true
 
   '@testing-library/dom@9.3.4':
@@ -8192,23 +8182,6 @@ snapshots:
       - react-dom
     optional: true
 
-  prisma@7.2.0(@types/react@19.2.8)(magicast@0.5.1)(react-dom@19.2.3(react@18.3.1))(react@18.3.1)(typescript@5.9.3):
-    dependencies:
-      '@prisma/config': 7.2.0(magicast@0.5.1)
-      '@prisma/dev': 0.17.0(typescript@5.9.3)
-      '@prisma/engines': 7.2.0
-      '@prisma/studio-core': 0.9.0(@types/react@19.2.8)(react-dom@19.2.3(react@18.3.1))(react@18.3.1)
-      mysql2: 3.15.3
-      postgres: 3.4.7
-    optionalDependencies:
-      typescript: 5.9.3
-    transitivePeerDependencies:
-      - '@types/react'
-      - magicast
-      - react
-      - react-dom
-    optional: true
-
   prisma@7.2.0(@types/react@19.2.8)(magicast@0.5.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3):
     dependencies:
       '@prisma/config': 7.2.0(magicast@0.5.1)
@@ -8277,12 +8250,6 @@ snapshots:
       loose-envify: 1.4.0
       react: 18.3.1
       scheduler: 0.23.2
-
-  react-dom@19.2.3(react@18.3.1):
-    dependencies:
-      react: 18.3.1
-      scheduler: 0.27.0
-    optional: true
 
   react-dom@19.2.3(react@19.2.3):
     dependencies:

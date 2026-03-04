@@ -17,6 +17,8 @@
     "db:push": "turbo db:push",
     "db:migrate": "turbo db:migrate",
     "docs:generate": "tsx scripts/generate-docs.ts",
+    "build:prod": "NODE_ENV=production turbo build",
+    "db:migrate:deploy": "cd packages/db && dotenv -e ../../.env.local -- npx prisma migrate deploy",
     "precommit": "turbo lint typecheck test",
     "prepare": "husky"
   },

@@ -150,6 +150,7 @@ export async function authenticateSocket(
           user.serviceAccess as Record<string, AccessLevel> | null,
           options?.getServiceNames
         );
+        void socket.join(`user:${user.id}`);
         logger.debug(`Dev auth: user ${userId} connected`);
         next();
         return;
@@ -189,6 +190,7 @@ export async function authenticateSocket(
             user.serviceAccess as Record<string, AccessLevel> | null,
             options?.getServiceNames
           );
+          void socket.join(`user:${user.id}`);
           next();
           return;
         }
