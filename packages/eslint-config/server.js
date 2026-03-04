@@ -36,4 +36,14 @@ module.exports = {
     "@typescript-eslint/no-redundant-type-constituents": "off",
     "@typescript-eslint/no-unnecessary-type-assertion": "off",
   },
+  overrides: [
+    {
+      // Service files intentionally use direct Prisma for select/include clauses
+      // and cross-model operations that BaseService CRUD doesn't support.
+      files: ["**/services/**/index.ts"],
+      rules: {
+        "quickdraw/no-direct-prisma-mutations": "off",
+      },
+    },
+  ],
 };

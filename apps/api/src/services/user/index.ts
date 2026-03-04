@@ -113,7 +113,7 @@ export class UserService extends BaseService<
         image: user.image,
         serviceAccess: user.serviceAccess as Record<string, AccessLevel> | null,
       };
-    });
+    }, { schema: z.object({}) });
 
     // Update user profile
     this.defineMethod(

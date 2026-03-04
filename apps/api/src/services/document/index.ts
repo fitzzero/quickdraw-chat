@@ -10,6 +10,41 @@ const adminDocumentSchema = z.object({
   ownerId: z.string(),
 });
 
+const createDocumentSchema = z.object({
+  title: z.string().min(1).max(200),
+  content: z.string().max(100000).optional(),
+});
+
+const getDocumentSchema = z.object({
+  id: z.string().cuid("Invalid document ID"),
+});
+
+const updateDocumentSchema = z.object({
+  id: z.string().cuid("Invalid document ID"),
+  title: z.string().min(1).max(200).optional(),
+  content: z.string().max(100000).optional(),
+});
+
+const deleteDocumentSchema = z.object({
+  id: z.string().cuid("Invalid document ID"),
+});
+
+const listMyDocumentsSchema = z.object({
+  page: z.number().int().positive().optional(),
+  pageSize: z.number().int().positive().max(100).optional(),
+});
+
+const shareDocumentSchema = z.object({
+  id: z.string().cuid("Invalid document ID"),
+  userId: z.string().cuid("Invalid user ID"),
+  level: z.enum(["Public", "Read", "Moderate", "Admin"]),
+});
+
+const unshareDocumentSchema = z.object({
+  id: z.string().cuid("Invalid document ID"),
+  userId: z.string().cuid("Invalid user ID"),
+});
+
 /**
  * DocumentService demonstrates the simpler JSON ACL pattern.
  *
@@ -130,7 +165,7 @@ export class DocumentService extends BaseService<
       });
 
       return { id: document.id };
-    });
+    }, { schema: createDocumentSchema });
 
     // Get a document by ID
     this.defineMethod(
@@ -153,7 +188,7 @@ export class DocumentService extends BaseService<
           updatedAt: document.updatedAt.toISOString(),
         };
       },
-      { resolveEntryId: (p: { id: string }) => p.id }
+      { schema: getDocumentSchema, resolveEntryId: (p: { id: string }) => p.id }
     );
 
     // Update document title or content
@@ -184,7 +219,7 @@ export class DocumentService extends BaseService<
         this.emitUpdate(id, document);
         return dto;
       },
-      { resolveEntryId: (p: { id: string }) => p.id }
+      { schema: updateDocumentSchema, resolveEntryId: (p: { id: string }) => p.id }
     );
 
     // Delete a document
@@ -197,7 +232,7 @@ export class DocumentService extends BaseService<
         this.emitUpdate(id, { id, deleted: true } as Partial<Document>);
         return { id, deleted: true as const };
       },
-      { resolveEntryId: (p: { id: string }) => p.id }
+      { schema: deleteDocumentSchema, resolveEntryId: (p: { id: string }) => p.id }
     );
 
     // List user's documents (owned or shared with them)
@@ -237,7 +272,7 @@ export class DocumentService extends BaseService<
         createdAt: doc.createdAt.toISOString(),
         updatedAt: doc.updatedAt.toISOString(),
       }));
-    });
+    }, { schema: listMyDocumentsSchema });
 
     // Share document with another user (add to ACL) - wrapped in transaction for atomicity
     this.defineMethod(
@@ -268,7 +303,7 @@ export class DocumentService extends BaseService<
 
         return { id };
       },
-      { resolveEntryId: (p: { id: string }) => p.id }
+      { schema: shareDocumentSchema, resolveEntryId: (p: { id: string }) => p.id }
     );
 
     // Unshare document (remove from ACL) - wrapped in transaction for atomicity
@@ -297,7 +332,7 @@ export class DocumentService extends BaseService<
 
         return { id };
       },
-      { resolveEntryId: (p: { id: string }) => p.id }
+      { schema: unshareDocumentSchema, resolveEntryId: (p: { id: string }) => p.id }
     );
   }
 }
