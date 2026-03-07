@@ -68,7 +68,7 @@ export function registerDiscordRoutes(router: Router): void {
 
     const code = req.query.code as string | undefined;
     const state = req.query.state as string | undefined;
-    const storedState = req.cookies?.[OAUTH_STATE_COOKIE] as string | undefined;
+    const storedState = (req.cookies as Record<string, string> | undefined)?.[OAUTH_STATE_COOKIE];
 
     // Clear the state cookie regardless of outcome
     res.clearCookie(OAUTH_STATE_COOKIE);

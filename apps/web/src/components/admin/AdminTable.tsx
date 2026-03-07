@@ -19,6 +19,17 @@ import CloseIcon from "@mui/icons-material/Close";
 import { useTranslations } from "next-intl";
 import type { AdminFieldConfig } from "@project/shared";
 
+/** Safely convert unknown to string for display - avoids no-base-to-string for objects */
+function toDisplayString(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  if (typeof val === "object") return JSON.stringify(val);
+  if (typeof val === "string") return val;
+  if (typeof val === "number" || typeof val === "boolean") return String(val);
+  if (typeof val === "symbol") return val.toString();
+  if (typeof val === "bigint") return String(val);
+  return "";
+}
+
 interface AdminTableProps {
   data: Record<string, unknown>[];
   columns: AdminFieldConfig[];
@@ -59,7 +70,7 @@ function formatCellValue(
         const date = new Date(value as string);
         return date.toLocaleString();
       } catch {
-        return String(value);
+        return toDisplayString(value);
       }
 
     case "json":
@@ -73,13 +84,13 @@ function formatCellValue(
             whiteSpace: "nowrap",
           }}
         >
-          {JSON.stringify(value)}
+          {toDisplayString(value)}
         </Typography>
       );
 
     case "string": {
       // Truncate long strings
-      const strValue = String(value);
+      const strValue = toDisplayString(value);
       if (strValue.length > 50) {
         return (
           <Typography
@@ -100,7 +111,7 @@ function formatCellValue(
     }
 
     default:
-      return String(value);
+      return toDisplayString(value);
   }
 }
 

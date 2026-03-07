@@ -73,8 +73,8 @@ export async function startTestServer(): Promise<TestServer> {
     const quickdrawSocket = socket as QuickdrawSocket;
     const auth = socket.handshake.auth as Record<string, unknown>;
 
-    if (auth.userId) {
-      const userId = String(auth.userId);
+    if (typeof auth.userId === "string") {
+      const userId = auth.userId;
       const user = await testPrisma.user.findUnique({
         where: { id: userId },
         select: { id: true, serviceAccess: true },

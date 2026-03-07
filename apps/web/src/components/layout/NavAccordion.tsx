@@ -165,9 +165,11 @@ export function NavAccordion({
                 >
                   <ListItemText
                     primary={getLabel(child)}
-                    primaryTypographyProps={{
-                      variant: "body2",
-                      noWrap: true,
+                    slotProps={{
+                      primary: {
+                        variant: "body2",
+                        noWrap: true,
+                      },
                     }}
                   />
                 </ListItemButton>

@@ -1,7 +1,7 @@
 "use client";
 
 import { NextIntlClientProvider } from "next-intl";
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, createContext, useContext } from "react";
 import enMessages from "../messages/en.json";
 
 const messages = { en: enMessages };
@@ -20,12 +20,11 @@ export function useLocale() {
 }
 
 export function IntlProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("en");
-
-  useEffect(() => {
+  const [locale, setLocaleState] = useState<Locale>(() => {
+    if (typeof window === "undefined") return "en";
     const stored = localStorage.getItem("locale") as Locale | null;
-    if (stored && messages[stored]) setLocaleState(stored);
-  }, []);
+    return stored && messages[stored] ? stored : "en";
+  });
 
   const setLocale = (newLocale: Locale) => {
     setLocaleState(newLocale);

@@ -14,8 +14,8 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -24,9 +24,7 @@
   },
   "devDependencies": {
     "@project/eslint-config": "workspace:*",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
-    "eslint": "^8.56.0",
+    "eslint": "^9.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.3.0"
   }

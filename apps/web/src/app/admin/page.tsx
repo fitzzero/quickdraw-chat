@@ -54,7 +54,7 @@ export default function AdminPage(): React.ReactElement {
       {/* Service Grid */}
       <Grid container spacing={3}>
         {adminServices.map((service) => (
-          <Grid item xs={12} sm={6} md={4} key={service.serviceName}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={service.serviceName}>
             <Paper
               component={Link}
               href={`/admin/${service.serviceName}`}

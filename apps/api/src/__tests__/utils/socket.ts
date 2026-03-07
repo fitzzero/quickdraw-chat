@@ -42,6 +42,7 @@ export async function connectAsUser(port: number, userId: string): Promise<Socke
 /**
  * Emit an event and wait for acknowledgment.
  */
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- TPayload documents the expected payload shape for callers
 export function emitWithAck<TPayload, TResponse>(
   socket: Socket,
   event: string,

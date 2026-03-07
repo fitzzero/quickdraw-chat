@@ -263,8 +263,9 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
             }}
             error={!!inviteError}
             helperText={inviteError}
-            InputProps={{
-              endAdornment: (
+            slotProps={{
+              input: {
+                endAdornment: (
                 <InputAdornment position="end">
                   <IconButton
                     onClick={handleInvite}
@@ -280,6 +281,7 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
                   </IconButton>
                 </InputAdornment>
               ),
+              },
             }}
           />
         </Box>

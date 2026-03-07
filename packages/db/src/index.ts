@@ -37,9 +37,7 @@ function createPrismaClient(): PrismaClient {
 // Lazy getter - only creates the client when first accessed
 export const prisma = new Proxy({} as PrismaClient, {
   get(_target, prop): unknown {
-    if (!globalForPrisma.prisma) {
-      globalForPrisma.prisma = createPrismaClient();
-    }
+    globalForPrisma.prisma ??= createPrismaClient();
     return Reflect.get(globalForPrisma.prisma, prop) as unknown;
   },
 });

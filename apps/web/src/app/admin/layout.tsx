@@ -140,7 +140,7 @@ export default function AdminLayout({
         >
           <ListItemText
             primary={tCommon("backToApp")}
-            primaryTypographyProps={{ variant: "body2" }}
+            slotProps={{ primary: { variant: "body2" } }}
           />
         </ListItemButton>
       </Box>

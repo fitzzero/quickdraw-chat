@@ -135,8 +135,8 @@ export async function authenticateSocket(
     const auth = socket.handshake.auth as Record<string, unknown>;
 
     // Dev mode: accept userId directly
-    if (process.env.ENABLE_DEV_CREDENTIALS === "true" && auth.userId) {
-      const userId = String(auth.userId);
+    if (process.env.ENABLE_DEV_CREDENTIALS === "true" && typeof auth.userId === "string") {
+      const userId = auth.userId;
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { id: true, email: true, serviceAccess: true },
@@ -158,8 +158,8 @@ export async function authenticateSocket(
     }
 
     // Production: verify JWT token
-    if (auth.token) {
-      const token = String(auth.token);
+    if (typeof auth.token === "string") {
+      const token = auth.token;
       const payload = await verifyJWT(token);
 
       if (payload?.userId) {

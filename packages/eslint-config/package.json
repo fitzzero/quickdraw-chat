@@ -1,25 +1,23 @@
 {
   "name": "@project/eslint-config",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
-  "main": "index.js",
-  "files": [
-    "*.js"
-  ],
+  "type": "module",
+  "exports": {
+    "./base": "./base.mjs",
+    "./server": "./server.mjs",
+    "./client": "./client.mjs",
+    "./shared": "./shared.mjs"
+  },
   "dependencies": {
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
-    "eslint-config-next": "^14.1.0",
-    "eslint-plugin-quickdraw": "workspace:*",
-    "eslint-plugin-react": "^7.33.0",
-    "eslint-plugin-react-hooks": "^4.6.0"
+    "@fitzzero/quickdraw-core": "^2.3.0",
+    "eslint-config-next": "^16.1.0"
   },
   "peerDependencies": {
-    "eslint": ">=8.0.0",
+    "eslint": "^9.0.0",
+    "@eslint/js": "^9.0.0",
+    "typescript-eslint": "^8.0.0",
+    "globals": "^16.0.0",
     "typescript": ">=5.0.0"
-  },
-  "devDependencies": {
-    "eslint": "^8.56.0",
-    "typescript": "^5.3.0"
   }
 }

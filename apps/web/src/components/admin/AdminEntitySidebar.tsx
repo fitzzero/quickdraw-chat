@@ -28,6 +28,18 @@ import { ConfirmDialog } from "../feedback";
 import { UserServiceAccessEditor } from "./UserServiceAccessEditor";
 import type { AdminServiceMeta, AdminFieldConfig, ServiceResponse, AccessLevel } from "@project/shared";
 
+/** Safely convert unknown to string for display - avoids no-base-to-string for objects */
+function toDisplayString(val: unknown, pretty = false): string {
+  if (val === null || val === undefined) return "";
+  if (typeof val === "object")
+    return pretty ? JSON.stringify(val, null, 2) : JSON.stringify(val);
+  if (typeof val === "string") return val;
+  if (typeof val === "number" || typeof val === "boolean") return String(val);
+  if (typeof val === "symbol") return val.toString();
+  if (typeof val === "bigint") return String(val);
+  return "";
+}
+
 interface AdminEntitySidebarProps {
   serviceName: string;
   entryId: string;
@@ -161,7 +173,7 @@ export function AdminEntitySidebar({
         try {
           return new Date(value as string).toLocaleString();
         } catch {
-          return String(value);
+          return toDisplayString(value);
         }
       case "json":
         return (
@@ -177,13 +189,13 @@ export function AdminEntitySidebar({
               fontSize: "0.75rem",
             }}
           >
-            {JSON.stringify(value, null, 2)}
+            {toDisplayString(value, true)}
           </Typography>
         );
       case "enum":
-        return String(value);
+        return toDisplayString(value);
       default:
-        return String(value);
+        return toDisplayString(value);
     }
   };
 
