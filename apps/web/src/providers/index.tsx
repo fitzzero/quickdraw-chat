@@ -72,7 +72,7 @@ export function Providers({ children }: ProvidersProps): React.ReactElement {
     <ThemeProvider>
       <ToastProvider>
         <IntlProvider>
-          <QuickdrawProvider serverUrl={SERVER_URL} authToken={authToken}>
+          <QuickdrawProvider serverUrl={SERVER_URL} authToken={authToken} autoConnect>
             <LayoutProvider>
               <ClientShell>{children}</ClientShell>
             </LayoutProvider>
