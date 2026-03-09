@@ -124,17 +124,15 @@ export function UserMenu(): React.ReactElement {
           },
         }}
       >
-        {hasAdminAccess && (
-          <>
-            <MenuItem component={Link} href="/admin" onClick={handleClose}>
-              <ListItemIcon>
-                <AdminPanelSettingsIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText>{t("admin")}</ListItemText>
-            </MenuItem>
-            <Divider />
-          </>
-        )}
+        {hasAdminAccess && [
+          <MenuItem key="admin" component={Link} href="/admin" onClick={handleClose}>
+            <ListItemIcon>
+              <AdminPanelSettingsIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>{t("admin")}</ListItemText>
+          </MenuItem>,
+          <Divider key="admin-divider" />,
+        ]}
         <MenuItem component={Link} href="/profile" onClick={handleClose}>
           <ListItemIcon>
             <PersonIcon fontSize="small" />
