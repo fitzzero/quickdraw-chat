@@ -25,20 +25,20 @@ This project serves as:
 
 ```bash
 # Install dependencies
-pnpm install
+bun install
 
 # Set up environment
 cp env.example .env.local
 # Edit .env.local with your database credentials
 
 # Generate Prisma client
-pnpm db:generate
+bun run db:generate
 
 # Push schema to database
-pnpm db:push
+bun run db:push
 
 # Start development
-pnpm dev
+bun dev
 ```
 
 ## Project Structure
@@ -59,8 +59,7 @@ pnpm dev
 │           └── providers/    # QuickdrawProvider, ThemeProvider
 ├── packages/
 │   ├── db/               # Prisma schema and client
-│   ├── shared/           # Shared types (ServiceMethodsMap)
-│   └── eslint-config/    # Shared ESLint configuration
+│   └── shared/           # Shared types (ServiceMethodsMap)
 └── .serena/              # Serena MCP configuration and memories
 ```
 
@@ -69,8 +68,7 @@ pnpm dev
 This project uses the published `@fitzzero/quickdraw-core` package:
 
 ```json
-// package.json (both api and web)
-"@fitzzero/quickdraw-core": "^1.0.0"
+"@fitzzero/quickdraw-core": "^3.0.0"
 ```
 
 ### Server
@@ -102,27 +100,39 @@ import { useService, useSubscription } from "@fitzzero/quickdraw-core/client";
 
 ```bash
 # Development
-pnpm dev           # Start all apps in dev mode
+bun dev           # Start all apps in dev mode
 
 # Building
-pnpm build         # Build all packages
-pnpm typecheck     # Type check all packages
+bun run build     # Build all packages
+bun run typecheck # tsgo type check all packages
 
-# Linting
-pnpm lint          # Lint all packages
-pnpm lint:fix      # Fix lint issues
+# Linting and formatting
+bun run lint      # oxlint across all packages
+bun run lint:fix  # Fix lint issues
+bun run format    # oxfmt auto-format
+bun run format:check  # Check formatting
 
 # Testing
-pnpm test          # Run all tests
-pnpm test:watch    # Watch mode
-pnpm test:coverage # With coverage
+bun run test          # Run all tests
+bun run test:watch    # Watch mode
+bun run test:coverage # With coverage
 
 # Database
-pnpm db:generate   # Generate Prisma client
-pnpm db:push       # Push schema changes
-pnpm db:migrate    # Run migrations
-pnpm db:studio     # Open Prisma Studio
+bun run db:generate   # Generate Prisma client
+bun run db:push       # Push schema changes
+bun run db:migrate    # Run migrations
 ```
+
+### Tooling
+
+| Tool   | Purpose                           |
+| ------ | --------------------------------- |
+| Bun    | Package manager and script runner |
+| oxlint | Linting (replaces ESLint)         |
+| oxfmt  | Formatting (replaces Prettier)    |
+| tsgo   | Type checking (replaces tsc)      |
+| Turbo  | Monorepo build orchestration      |
+| Vitest | Testing                           |
 
 ### Adding a New Service
 
@@ -225,23 +235,23 @@ cd my-new-project
 
 # 3. Initialize
 cp env.example .env.local
-pnpm install
-pnpm db:generate
-pnpm db:push
+bun install
+bun run db:generate
+bun run db:push
 
 # 4. Start developing
-pnpm dev
-pnpm docs:generate  # Generate API documentation
+bun dev
+bun run docs:generate  # Generate API documentation
 ```
 
 **What's Already Configured:**
 
-- ✅ Dockerfiles for deployment (Vercel, Cloud Run, PM2)
-- ✅ Input validation (Zod schemas on all mutations)
-- ✅ Security hardening (JWT validation, rate limiting)
-- ✅ Error boundaries and graceful shutdown
-- ✅ Auto-generated documentation
-- ✅ Testing utilities
+- Dockerfiles for deployment (Vercel, Cloud Run, PM2)
+- Input validation (Zod schemas on all mutations)
+- Security hardening (JWT validation, rate limiting)
+- Error boundaries and graceful shutdown
+- Auto-generated documentation
+- Testing utilities
 
 ## Production Deployment
 
