@@ -1,10 +1,7 @@
 import express from "express";
 import { createServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
-import {
-  ServiceRegistry,
-  type QuickdrawSocket,
-} from "@fitzzero/quickdraw-core/server";
+import { ServiceRegistry, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 import type { AccessLevel } from "@project/shared";
 import { testPrisma } from "@project/db/testing";
 import { UserService } from "../../services/user/index.js";
@@ -36,14 +33,8 @@ export async function startTestServer(): Promise<TestServer> {
   // Register services (use testPrisma to match test database)
   serviceRegistry.registerService("userService", new UserService(testPrisma));
   serviceRegistry.registerService("chatService", new ChatService(testPrisma));
-  serviceRegistry.registerService(
-    "messageService",
-    new MessageService(testPrisma)
-  );
-  serviceRegistry.registerService(
-    "documentService",
-    new DocumentService(testPrisma)
-  );
+  serviceRegistry.registerService("messageService", new MessageService(testPrisma));
+  serviceRegistry.registerService("documentService", new DocumentService(testPrisma));
 
   // Parse SERVICE_DEFAULT_ACCESS env var (same as production middleware)
   const getDefaultServiceAccess = (): Record<string, AccessLevel> => {
@@ -61,7 +52,7 @@ export async function startTestServer(): Promise<TestServer> {
 
   // Merge user's explicit access with defaults
   const mergeWithDefaults = (
-    userAccess: Record<string, AccessLevel> | null
+    userAccess: Record<string, AccessLevel> | null,
   ): Record<string, AccessLevel> => {
     const defaults = getDefaultServiceAccess();
     const explicit = userAccess ?? {};
@@ -83,7 +74,7 @@ export async function startTestServer(): Promise<TestServer> {
       if (user) {
         quickdrawSocket.userId = user.id;
         quickdrawSocket.serviceAccess = mergeWithDefaults(
-          user.serviceAccess as Record<string, AccessLevel> | null
+          user.serviceAccess as Record<string, AccessLevel> | null,
         );
       }
     }

@@ -1,6 +1,6 @@
 /**
  * Socket test utilities for integration tests.
- * 
+ *
  * These are thin wrappers that return raw Socket instances to match the test patterns.
  * For the full TestClient interface with emit() helper, use @fitzzero/quickdraw-core/server/testing.
  */
@@ -47,7 +47,7 @@ export function emitWithAck<TPayload, TResponse>(
   socket: Socket,
   event: string,
   payload: TPayload,
-  timeoutMs = 5000 as number
+  timeoutMs = 5000 as number,
 ): Promise<TResponse> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
@@ -72,7 +72,7 @@ export function emitWithAck<TPayload, TResponse>(
 export function waitForEvent<T>(
   socket: Socket,
   event: string,
-  timeoutMs = 5000 as number
+  timeoutMs = 5000 as number,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {

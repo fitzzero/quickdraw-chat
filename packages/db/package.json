@@ -18,9 +18,9 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
-    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src",
+    "lint:fix": "oxlint --fix src",
+    "typecheck": "tsgo --noEmit",
     "db:generate": "prisma generate",
     "db:push": "dotenv -e ../../.env.local -- prisma db push",
     "db:migrate": "dotenv -e ../../.env.local -- prisma migrate dev",
@@ -31,10 +31,8 @@
     "@prisma/client": "^7.0.0"
   },
   "devDependencies": {
-    "@project/eslint-config": "workspace:*",
     "dotenv": "^16.4.0",
     "dotenv-cli": "^11.0.0",
-    "eslint": "^9.0.0",
     "prisma": "^7.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.3.0"

@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+export PATH="$HOME/.bun/bin:$PATH"
+
+echo "Running quality gate..."
+bun install --frozen-lockfile --ignore-scripts && bun run typecheck && bun run lint && bun run test

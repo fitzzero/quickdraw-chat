@@ -31,7 +31,8 @@ export function registerGoogleRoutes(router: Router): void {
   // Redirect to Google OAuth
   router.get("/auth/google", (_req, res) => {
     const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
-    const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI ?? "http://localhost:4000/auth/google/callback";
+    const GOOGLE_REDIRECT_URI =
+      process.env.GOOGLE_REDIRECT_URI ?? "http://localhost:4000/auth/google/callback";
 
     if (!GOOGLE_CLIENT_ID) {
       res.status(500).json({ error: "Google OAuth not configured" });
@@ -66,7 +67,8 @@ export function registerGoogleRoutes(router: Router): void {
   router.get("/auth/google/callback", async (req, res) => {
     const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
     const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
-    const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI ?? "http://localhost:4000/auth/google/callback";
+    const GOOGLE_REDIRECT_URI =
+      process.env.GOOGLE_REDIRECT_URI ?? "http://localhost:4000/auth/google/callback";
     const CLIENT_URL = process.env.CLIENT_URL ?? "http://localhost:3000";
 
     const code = req.query.code as string | undefined;

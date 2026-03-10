@@ -41,9 +41,7 @@ function ThemeRegistry({ children }: { children: React.ReactNode }) {
   return <CacheProvider value={cache}>{children}</CacheProvider>;
 }
 
-export function ThemeProvider({
-  children,
-}: ThemeProviderProps): React.ReactElement {
+export function ThemeProvider({ children }: ThemeProviderProps): React.ReactElement {
   return (
     <ThemeRegistry>
       <MuiThemeProvider theme={theme}>

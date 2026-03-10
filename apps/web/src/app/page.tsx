@@ -19,7 +19,8 @@ export default function HomePage(): React.ReactElement {
           p: 4,
           textAlign: "center",
           mb: 4,
-          background: "linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%)",
+          background:
+            "linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%)",
         }}
       >
         <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
@@ -39,12 +40,7 @@ export default function HomePage(): React.ReactElement {
             {t("goToChats")}
           </Button>
         ) : (
-          <Button
-            component={Link}
-            href="/auth/login"
-            variant="contained"
-            size="large"
-          >
+          <Button component={Link} href="/auth/login" variant="contained" size="large">
             {t("signInToStart")}
           </Button>
         )}
@@ -59,25 +55,19 @@ export default function HomePage(): React.ReactElement {
           <Typography variant="h6" gutterBottom>
             {t("feature1Title")}
           </Typography>
-          <Typography color="text.secondary">
-            {t("feature1Desc")}
-          </Typography>
+          <Typography color="text.secondary">{t("feature1Desc")}</Typography>
         </Paper>
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>
             {t("feature2Title")}
           </Typography>
-          <Typography color="text.secondary">
-            {t("feature2Desc")}
-          </Typography>
+          <Typography color="text.secondary">{t("feature2Desc")}</Typography>
         </Paper>
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>
             {t("feature3Title")}
           </Typography>
-          <Typography color="text.secondary">
-            {t("feature3Desc")}
-          </Typography>
+          <Typography color="text.secondary">{t("feature3Desc")}</Typography>
         </Paper>
       </Stack>
     </Box>

@@ -12,24 +12,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 9
+      - uses: oven-sh/setup-bun@v2
 
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
-          cache: "pnpm"
 
-      - run: pnpm install --frozen-lockfile
+      - run: bun install --frozen-lockfile
 
-      - run: pnpm db:generate
+      - run: bun run db:generate
         env:
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
 
-      - run: pnpm lint
+      - run: bun run lint
 
-      - run: pnpm typecheck
+      - run: bun run typecheck
 
   test:
     runs-on: ubuntu-latest
@@ -51,26 +48,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 9
+      - uses: oven-sh/setup-bun@v2
 
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
-          cache: "pnpm"
 
-      - run: pnpm install --frozen-lockfile
+      - run: bun install --frozen-lockfile
 
-      - run: pnpm db:generate
+      - run: bun run db:generate
         env:
           DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
 
-      - run: pnpm db:push
+      - run: bun run db:push
         env:
           DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
 
-      - run: pnpm test
+      - run: bun run test
         env:
           DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
           TEST_DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
@@ -81,19 +75,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 9
+      - uses: oven-sh/setup-bun@v2
 
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
-          cache: "pnpm"
 
-      - run: pnpm install --frozen-lockfile
+      - run: bun install --frozen-lockfile
 
-      - run: pnpm db:generate
+      - run: bun run db:generate
         env:
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
 
-      - run: pnpm build
+      - run: bun run build

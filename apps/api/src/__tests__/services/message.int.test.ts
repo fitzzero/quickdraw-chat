@@ -31,17 +31,18 @@ describe("MessageService Integration", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       client,
       "chatService:createChat",
-      { title: "Message Test Chat" }
+      { title: "Message Test Chat" },
     );
 
     // Post message
-    const result = await emitWithAck<
-      { chatId: string; content: string },
-      { id: string }
-    >(client, "messageService:postMessage", {
-      chatId: chat.id,
-      content: "Hello, world!",
-    });
+    const result = await emitWithAck<{ chatId: string; content: string }, { id: string }>(
+      client,
+      "messageService:postMessage",
+      {
+        chatId: chat.id,
+        content: "Hello, world!",
+      },
+    );
 
     expect(result.id).toBeDefined();
 
@@ -64,7 +65,7 @@ describe("MessageService Integration", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       client,
       "chatService:createChat",
-      { title: "List Test Chat" }
+      { title: "List Test Chat" },
     );
 
     // Post multiple messages
@@ -82,13 +83,14 @@ describe("MessageService Integration", () => {
     });
 
     // List messages
-    const messages = await emitWithAck<
-      { chatId: string; limit?: number },
-      MessageDTO[]
-    >(client, "messageService:listMessages", {
-      chatId: chat.id,
-      limit: 10,
-    });
+    const messages = await emitWithAck<{ chatId: string; limit?: number }, MessageDTO[]>(
+      client,
+      "messageService:listMessages",
+      {
+        chatId: chat.id,
+        limit: 10,
+      },
+    );
 
     expect(messages).toHaveLength(3);
     expect(messages[0]?.content).toBe("First message");
@@ -105,7 +107,7 @@ describe("MessageService Integration", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       admin,
       "chatService:createChat",
-      { title: "Private Chat" }
+      { title: "Private Chat" },
     );
     admin.close();
 
@@ -114,7 +116,7 @@ describe("MessageService Integration", () => {
       emitWithAck(regular, "messageService:postMessage", {
         chatId: chat.id,
         content: "Unauthorized message",
-      })
+      }),
     ).rejects.toThrow();
 
     regular.close();
@@ -127,22 +129,24 @@ describe("MessageService Integration", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       client,
       "chatService:createChat",
-      { title: "Delete Test Chat" }
+      { title: "Delete Test Chat" },
     );
 
-    const message = await emitWithAck<
-      { chatId: string; content: string },
-      { id: string }
-    >(client, "messageService:postMessage", {
-      chatId: chat.id,
-      content: "To be deleted",
-    });
+    const message = await emitWithAck<{ chatId: string; content: string }, { id: string }>(
+      client,
+      "messageService:postMessage",
+      {
+        chatId: chat.id,
+        content: "To be deleted",
+      },
+    );
 
     // Delete the message
-    const deleteResult = await emitWithAck<
-      { id: string },
-      { id: string; deleted: true }
-    >(client, "messageService:deleteMessage", { id: message.id });
+    const deleteResult = await emitWithAck<{ id: string }, { id: string; deleted: true }>(
+      client,
+      "messageService:deleteMessage",
+      { id: message.id },
+    );
 
     expect(deleteResult.deleted).toBe(true);
 
@@ -164,22 +168,24 @@ describe("MessageService Integration", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       regular,
       "chatService:createChat",
-      { title: "Service Admin Test" }
+      { title: "Service Admin Test" },
     );
 
-    const message = await emitWithAck<
-      { chatId: string; content: string },
-      { id: string }
-    >(regular, "messageService:postMessage", {
-      chatId: chat.id,
-      content: "Regular user message",
-    });
+    const message = await emitWithAck<{ chatId: string; content: string }, { id: string }>(
+      regular,
+      "messageService:postMessage",
+      {
+        chatId: chat.id,
+        content: "Regular user message",
+      },
+    );
 
     // Service-level admin can delete any message (regardless of chat membership)
-    const deleteResult = await emitWithAck<
-      { id: string },
-      { id: string; deleted: true }
-    >(serviceAdmin, "messageService:deleteMessage", { id: message.id });
+    const deleteResult = await emitWithAck<{ id: string }, { id: string; deleted: true }>(
+      serviceAdmin,
+      "messageService:deleteMessage",
+      { id: message.id },
+    );
 
     expect(deleteResult.deleted).toBe(true);
 
@@ -222,7 +228,7 @@ describe("MessageService Integration - Socket Room Updates", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       owner,
       "chatService:createChat",
-      { title: "Broadcast Test Chat" }
+      { title: "Broadcast Test Chat" },
     );
     await emitWithAck(owner, "chatService:inviteUser", {
       id: chat.id,
@@ -235,11 +241,7 @@ describe("MessageService Integration - Socket Room Updates", () => {
     await emitWithAck(member, "chatService:subscribe", { entryId: chat.id });
 
     // Set up listener for chat:message event BEFORE posting
-    const messagePromise = waitForEvent<MessageDTO>(
-      member,
-      "chat:message",
-      3000
-    );
+    const messagePromise = waitForEvent<MessageDTO>(member, "chat:message", 3000);
 
     // Owner posts a message
     await emitWithAck(owner, "messageService:postMessage", {
@@ -288,7 +290,7 @@ describe("MessageService Integration - Permission Cascade", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       messageOwner,
       "chatService:createChat",
-      { title: "Permission Test Chat" }
+      { title: "Permission Test Chat" },
     );
 
     // Invite other member (who has no service-level messageService access)
@@ -299,19 +301,20 @@ describe("MessageService Integration - Permission Cascade", () => {
     });
 
     // Message owner posts a message
-    const message = await emitWithAck<
-      { chatId: string; content: string },
-      { id: string }
-    >(messageOwner, "messageService:postMessage", {
-      chatId: chat.id,
-      content: "Only I can delete this",
-    });
+    const message = await emitWithAck<{ chatId: string; content: string }, { id: string }>(
+      messageOwner,
+      "messageService:postMessage",
+      {
+        chatId: chat.id,
+        content: "Only I can delete this",
+      },
+    );
 
     // Other member (not message owner, no service-level access) tries to delete
     await expect(
       emitWithAck(otherMember, "messageService:deleteMessage", {
         id: message.id,
-      })
+      }),
     ).rejects.toThrow();
 
     // Verify message was NOT deleted

@@ -7,12 +7,9 @@ const globalForTestPrisma = globalThis as unknown as {
 };
 
 function createTestPrismaClient(): PrismaClient {
-  const connectionString =
-    process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+  const connectionString = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!connectionString) {
-    throw new Error(
-      "TEST_DATABASE_URL or DATABASE_URL environment variable is not set"
-    );
+    throw new Error("TEST_DATABASE_URL or DATABASE_URL environment variable is not set");
   }
 
   const adapter = new PrismaPg({ connectionString });
@@ -23,8 +20,7 @@ function createTestPrismaClient(): PrismaClient {
   });
 }
 
-export const testPrisma =
-  globalForTestPrisma.testPrisma ?? createTestPrismaClient();
+export const testPrisma = globalForTestPrisma.testPrisma ?? createTestPrismaClient();
 
 if (process.env.NODE_ENV === "test") {
   globalForTestPrisma.testPrisma = testPrisma;

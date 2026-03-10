@@ -37,7 +37,7 @@ export function UserServiceAccessEditor({
   const { adminServices, isLoading: servicesLoading } = useAdminServices();
 
   const [localAccess, setLocalAccess] = React.useState<Record<string, AccessLevel>>(
-    currentAccess ?? {}
+    currentAccess ?? {},
   );
   const [isSaving, setIsSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -97,7 +97,7 @@ export function UserServiceAccessEditor({
           setError(response.error);
         }
         setIsSaving(false);
-      }
+      },
     );
   }, [socket, isConnected, userId, localAccess, onAccessUpdated]);
 
@@ -177,12 +177,7 @@ export function UserServiceAccessEditor({
 
       {/* Bulk actions */}
       <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
-        <Button
-          variant="outlined"
-          size="small"
-          onClick={handleGrantAll}
-          disabled={isSaving}
-        >
+        <Button variant="outlined" size="small" onClick={handleGrantAll} disabled={isSaving}>
           {t("grantAllAdmin")}
         </Button>
         <Button
@@ -199,20 +194,10 @@ export function UserServiceAccessEditor({
       {/* Save/Cancel */}
       {hasChanges && (
         <Box sx={{ display: "flex", gap: 1 }}>
-          <Button
-            variant="contained"
-            size="small"
-            onClick={handleSave}
-            disabled={isSaving}
-          >
+          <Button variant="contained" size="small" onClick={handleSave} disabled={isSaving}>
             {isSaving ? <CircularProgress size={16} /> : t("saveAccess")}
           </Button>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={handleCancel}
-            disabled={isSaving}
-          >
+          <Button variant="outlined" size="small" onClick={handleCancel} disabled={isSaving}>
             {t("cancelChanges")}
           </Button>
         </Box>

@@ -21,7 +21,7 @@ indexing:
     - "apps/**/*.tsx"
     - "packages/**/*.ts"
     - "packages/**/*.tsx"
-  
+
   # Exclude patterns
   exclude_patterns:
     - "**/node_modules/**"

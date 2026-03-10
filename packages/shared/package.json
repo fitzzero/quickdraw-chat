@@ -14,17 +14,15 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
-    "typecheck": "tsc --noEmit"
+    "lint": "oxlint src",
+    "lint:fix": "oxlint --fix src",
+    "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
-    "@fitzzero/quickdraw-core": "^2.1.2",
+    "@fitzzero/quickdraw-core": "^3.0.0",
     "zod": "^3.22.0"
   },
   "devDependencies": {
-    "@project/eslint-config": "workspace:*",
-    "eslint": "^9.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.3.0"
   }

@@ -72,20 +72,16 @@ export function useAdminServices(): {
     const newMeta = new Map<string, AdminServiceMeta>();
 
     adminServiceNames.forEach((serviceName) => {
-      socket.emit(
-        `${serviceName}:adminMeta`,
-        {},
-        (response: ServiceResponse<AdminServiceMeta>) => {
-          if (response.success) {
-            newMeta.set(serviceName, response.data);
-          }
-          completed++;
-          if (completed === adminServiceNames.length) {
-            setServicesMeta(newMeta);
-            setIsLoadingMeta(false);
-          }
+      socket.emit(`${serviceName}:adminMeta`, {}, (response: ServiceResponse<AdminServiceMeta>) => {
+        if (response.success) {
+          newMeta.set(serviceName, response.data);
         }
-      );
+        completed++;
+        if (completed === adminServiceNames.length) {
+          setServicesMeta(newMeta);
+          setIsLoadingMeta(false);
+        }
+      });
     });
   }, [socket, isConnected, adminServiceNames]);
 

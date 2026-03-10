@@ -24,27 +24,27 @@ function ChatMembersList({ chatId }: { chatId: string }) {
 
 **Options:**
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `enabled` | `true` | Auto-fetch on mount |
-| `staleTime` | 5 min | How long data stays fresh |
-| `gcTime` | 10 min | Cache retention for unused data |
+| Option      | Default | Description                     |
+| ----------- | ------- | ------------------------------- |
+| `enabled`   | `true`  | Auto-fetch on mount             |
+| `staleTime` | 5 min   | How long data stays fresh       |
+| `gcTime`    | 10 min  | Cache retention for unused data |
 | `skipCache` | `false` | Force fresh fetch, bypass cache |
-| `onSuccess` | - | Success callback |
-| `onError` | - | Error callback |
+| `onSuccess` | -       | Success callback                |
+| `onError`   | -       | Error callback                  |
 
 **Returns:**
 
-| Property | Description |
-|----------|-------------|
-| `data` | The cached/fetched data |
-| `isLoading` | Initial load in progress |
+| Property     | Description                                  |
+| ------------ | -------------------------------------------- |
+| `data`       | The cached/fetched data                      |
+| `isLoading`  | Initial load in progress                     |
 | `isFetching` | Any fetch in progress (including background) |
-| `isStale` | Data is past staleTime |
-| `isSuccess` | Query has succeeded |
-| `isError` | Query has errored |
-| `error` | Error message if failed |
-| `refetch()` | Manual refetch function |
+| `isStale`    | Data is past staleTime                       |
+| `isSuccess`  | Query has succeeded                          |
+| `isError`    | Query has errored                            |
+| `error`      | Error message if failed                      |
+| `refetch()`  | Manual refetch function                      |
 
 ### useService - For WRITE operations (mutations)
 
@@ -76,10 +76,10 @@ function CreateChatButton() {
 
 ### When to use which hook
 
-| Operation | Hook | Examples |
-|-----------|------|----------|
-| Read | `useServiceQuery` | `getUser`, `listChats`, `search`, `getChatMembers` |
-| Write | `useService` | `createChat`, `updateTitle`, `deleteChat`, `inviteByName` |
+| Operation | Hook              | Examples                                                  |
+| --------- | ----------------- | --------------------------------------------------------- |
+| Read      | `useServiceQuery` | `getUser`, `listChats`, `search`, `getChatMembers`        |
+| Write     | `useService`      | `createChat`, `updateTitle`, `deleteChat`, `inviteByName` |
 
 **useSubscription** - For real-time entity data:
 

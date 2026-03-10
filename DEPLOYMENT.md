@@ -107,6 +107,7 @@ gcloud run deploy quickdraw-api \
 ```
 
 **Important:** Cloud Run requires WebSocket support. Ensure your service is configured with:
+
 - HTTP/2 enabled (default)
 - Minimum 1 instance to avoid cold starts for Socket.io connections
 
@@ -152,7 +153,7 @@ Create `vercel.json` in project root:
 Create `docker-compose.prod.yml`:
 
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
@@ -312,12 +313,12 @@ server {
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
-        
+
         # WebSocket support
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
+
         # Increase timeouts for long-lived connections
         proxy_read_timeout 300s;
         proxy_send_timeout 300s;
@@ -359,6 +360,7 @@ sudo certbot --nginx -d your-domain.com -d api.your-domain.com
 ### Managed PostgreSQL (Recommended)
 
 **Providers:**
+
 - **Neon** (serverless, free tier): https://neon.tech
 - **Supabase** (includes auth): https://supabase.com
 - **Railway** (simple setup): https://railway.app
@@ -415,6 +417,7 @@ curl https://api.your-domain.com/health
 **GCP Cloud Run:** Health checks are automatic via `/health` endpoint
 
 **AWS ALB:**
+
 ```
 Health check path: /health
 Healthy threshold: 2
@@ -450,6 +453,7 @@ Interval: 30 seconds
 **GCP Cloud Run:** Logs are automatically sent to Cloud Logging
 
 **PM2:**
+
 ```bash
 # Install PM2 log rotation
 pm2 install pm2-logrotate
@@ -460,6 +464,7 @@ pm2 set pm2-logrotate:retain 7
 ```
 
 **Docker:**
+
 ```yaml
 # Add to docker-compose.yml
 logging:
@@ -492,6 +497,7 @@ logging:
 **Problem:** WebSocket connections fail
 
 **Solution:**
+
 - Ensure your reverse proxy supports WebSocket upgrades
 - Check firewall rules allow WebSocket traffic
 - Verify `CLIENT_URL` matches your frontend domain exactly
@@ -502,6 +508,7 @@ logging:
 **Problem:** "Too many connections" error
 
 **Solution:**
+
 ```bash
 # Reduce pool size in .env
 DB_POOL_MAX=10
@@ -515,6 +522,7 @@ DB_POOL_MIN=2
 **Problem:** Docker build fails or runs out of memory
 
 **Solution:**
+
 ```bash
 # Increase Docker memory limit
 docker build --memory=4g -t quickdraw-api .
@@ -527,6 +535,7 @@ docker build --memory=4g -t quickdraw-api .
 ## Rollback Procedure
 
 ### Vercel
+
 ```bash
 # List deployments
 vercel ls
@@ -536,6 +545,7 @@ vercel rollback [deployment-url]
 ```
 
 ### GCP Cloud Run
+
 ```bash
 # List revisions
 gcloud run revisions list --service quickdraw-api
@@ -546,6 +556,7 @@ gcloud run services update-traffic quickdraw-api \
 ```
 
 ### PM2
+
 ```bash
 # Stop current version
 pm2 stop all
@@ -565,5 +576,6 @@ pm2 restart all
 ## Support
 
 For issues or questions:
+
 - GitHub Issues: https://github.com/your-org/quickdraw-chat/issues
 - Documentation: https://github.com/fitzzero/quickdraw

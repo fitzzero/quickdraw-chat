@@ -40,7 +40,7 @@ export function useRecentChats(limit = 3): UseRecentChatsResult {
           setError(response.error);
         }
         setIsLoading(false);
-      }
+      },
     );
   }, [socket, isConnected, userId, limit]);
 

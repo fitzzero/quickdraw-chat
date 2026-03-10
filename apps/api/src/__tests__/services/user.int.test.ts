@@ -31,7 +31,7 @@ describe("UserService Integration - Protected Fields", () => {
     const result = await emitWithAck<{ entryId: string }, Partial<User>>(
       client,
       "userService:subscribe",
-      { entryId: users.regular.id }
+      { entryId: users.regular.id },
     );
 
     expect(result.id).toBe(users.regular.id);
@@ -47,7 +47,7 @@ describe("UserService Integration - Protected Fields", () => {
     const result = await emitWithAck<{ entryId: string }, Partial<User>>(
       client,
       "userService:subscribe",
-      { entryId: users.admin.id }
+      { entryId: users.admin.id },
     );
 
     expect(result.id).toBe(users.admin.id);
@@ -105,7 +105,7 @@ describe("UserService Integration - Admin Methods", () => {
     const result = await emitWithAck<{ id: string }, Partial<User>>(
       client,
       "userService:adminGet",
-      { id: users.regular.id }
+      { id: users.regular.id },
     );
 
     expect(result.id).toBe(users.regular.id);
@@ -118,12 +118,13 @@ describe("UserService Integration - Admin Methods", () => {
   it("should allow admin to create user via adminCreate", async () => {
     const client = await connectAsUser(port, users.admin.id);
 
-    const result = await emitWithAck<
-      { data: { email: string; name: string } },
-      Partial<User>
-    >(client, "userService:adminCreate", {
-      data: { email: "newuser@test.com", name: "New User" },
-    });
+    const result = await emitWithAck<{ data: { email: string; name: string } }, Partial<User>>(
+      client,
+      "userService:adminCreate",
+      {
+        data: { email: "newuser@test.com", name: "New User" },
+      },
+    );
 
     expect(result.id).toBeDefined();
     expect(result.email).toBe("newuser@test.com");
@@ -142,13 +143,14 @@ describe("UserService Integration - Admin Methods", () => {
   it("should allow admin to update user via adminUpdate", async () => {
     const client = await connectAsUser(port, users.admin.id);
 
-    const result = await emitWithAck<
-      { id: string; data: { name: string } },
-      Partial<User>
-    >(client, "userService:adminUpdate", {
-      id: users.regular.id,
-      data: { name: "Updated Name" },
-    });
+    const result = await emitWithAck<{ id: string; data: { name: string } }, Partial<User>>(
+      client,
+      "userService:adminUpdate",
+      {
+        id: users.regular.id,
+        data: { name: "Updated Name" },
+      },
+    );
 
     expect(result.id).toBe(users.regular.id);
     expect(result.name).toBe("Updated Name");
@@ -165,10 +167,11 @@ describe("UserService Integration - Admin Methods", () => {
   it("should allow admin to delete user via adminDelete", async () => {
     const client = await connectAsUser(port, users.admin.id);
 
-    const result = await emitWithAck<
-      { id: string },
-      { id: string; success: boolean }
-    >(client, "userService:adminDelete", { id: users.regular.id });
+    const result = await emitWithAck<{ id: string }, { id: string; success: boolean }>(
+      client,
+      "userService:adminDelete",
+      { id: users.regular.id },
+    );
 
     expect(result.id).toBe(users.regular.id);
     expect(result.success).toBe(true);
@@ -188,7 +191,7 @@ describe("UserService Integration - Admin Methods", () => {
     const result = await emitWithAck<Record<string, never>, AdminServiceMeta>(
       client,
       "userService:adminMeta",
-      {}
+      {},
     );
 
     expect(result.serviceName).toBe("userService");
@@ -212,7 +215,7 @@ describe("UserService Integration - Admin Methods", () => {
     const client = await connectAsUser(port, users.regular.id);
 
     await expect(
-      emitWithAck(client, "userService:adminList", { page: 1, pageSize: 20 })
+      emitWithAck(client, "userService:adminList", { page: 1, pageSize: 20 }),
     ).rejects.toThrow();
 
     client.close();
@@ -224,7 +227,7 @@ describe("UserService Integration - Admin Methods", () => {
     await expect(
       emitWithAck(client, "userService:adminCreate", {
         data: { email: "hacker@test.com", name: "Hacker" },
-      })
+      }),
     ).rejects.toThrow();
 
     // Verify user was not created
@@ -240,7 +243,7 @@ describe("UserService Integration - Admin Methods", () => {
     const client = await connectAsUser(port, users.regular.id);
 
     await expect(
-      emitWithAck(client, "userService:adminDelete", { id: users.moderator.id })
+      emitWithAck(client, "userService:adminDelete", { id: users.moderator.id }),
     ).rejects.toThrow();
 
     // Verify user was not deleted

@@ -40,7 +40,7 @@ export function ToastProvider({ children }: ToastProviderProps): React.ReactElem
 
       setToasts((prev) => [...prev, newToast]);
     },
-    []
+    [],
   );
 
   // Process toast queue
@@ -59,7 +59,7 @@ export function ToastProvider({ children }: ToastProviderProps): React.ReactElem
       }
       setCurrentToast(null);
     },
-    []
+    [],
   );
 
   const contextValue = React.useMemo(() => ({ showToast }), [showToast]);

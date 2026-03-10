@@ -21,7 +21,7 @@ const DEFAULT_EXPIRATION = "7d";
  */
 export async function createJWT(
   payload: Omit<JWTPayload, "exp" | "iat">,
-  expiresIn: string = DEFAULT_EXPIRATION
+  expiresIn: string = DEFAULT_EXPIRATION,
 ): Promise<string> {
   const secretKey = new TextEncoder().encode(SECRET);
 

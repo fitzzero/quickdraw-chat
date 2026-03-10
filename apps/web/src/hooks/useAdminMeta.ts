@@ -37,20 +37,16 @@ export function useAdminMeta(serviceName: string): {
     setIsLoading(true);
     setError(null);
 
-    socket.emit(
-      `${serviceName}:adminMeta`,
-      {},
-      (response: ServiceResponse<AdminServiceMeta>) => {
-        if (response.success) {
-          setMeta(response.data);
-          setError(null);
-        } else {
-          setMeta(null);
-          setError(response.error);
-        }
-        setIsLoading(false);
+    socket.emit(`${serviceName}:adminMeta`, {}, (response: ServiceResponse<AdminServiceMeta>) => {
+      if (response.success) {
+        setMeta(response.data);
+        setError(null);
+      } else {
+        setMeta(null);
+        setError(response.error);
       }
-    );
+      setIsLoading(false);
+    });
   }, [socket, isConnected, serviceName]);
 
   return {

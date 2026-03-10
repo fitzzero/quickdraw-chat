@@ -76,20 +76,14 @@ This project uses the published `@fitzzero/quickdraw-core` package:
 ### Server
 
 ```typescript
-import {
-  ServiceRegistry,
-  type QuickdrawSocket,
-} from "@fitzzero/quickdraw-core/server";
+import { ServiceRegistry, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
 ```
 
 ### Client
 
 ```typescript
-import {
-  QuickdrawProvider,
-  useQuickdrawSocket,
-} from "@fitzzero/quickdraw-core/client";
+import { QuickdrawProvider, useQuickdrawSocket } from "@fitzzero/quickdraw-core/client";
 import { useService, useSubscription } from "@fitzzero/quickdraw-core/client";
 ```
 
@@ -181,10 +175,7 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 Integration tests use a real database and socket connections via quickdraw-core testing utilities:
 
 ```typescript
-import {
-  createTestServer,
-  emitWithAck,
-} from "@fitzzero/quickdraw-core/server/testing";
+import { createTestServer, emitWithAck } from "@fitzzero/quickdraw-core/server/testing";
 
 describe("ChatService", () => {
   let server: Awaited<ReturnType<typeof createTestServer>>;
@@ -200,13 +191,9 @@ describe("ChatService", () => {
 
   it("creates chat", async () => {
     const client = await server.connectAs("user-1", { userId: "user-1" });
-    const result = await emitWithAck<{ id: string }>(
-      client,
-      "chatService:createChat",
-      {
-        title: "Test Chat",
-      }
-    );
+    const result = await emitWithAck<{ id: string }>(client, "chatService:createChat", {
+      title: "Test Chat",
+    });
     expect(result.id).toBeDefined();
     client.close();
   });
@@ -248,6 +235,7 @@ pnpm docs:generate  # Generate API documentation
 ```
 
 **What's Already Configured:**
+
 - ✅ Dockerfiles for deployment (Vercel, Cloud Run, PM2)
 - ✅ Input validation (Zod schemas on all mutations)
 - ✅ Security hardening (JWT validation, rate limiting)
@@ -258,6 +246,7 @@ pnpm docs:generate  # Generate API documentation
 ## Production Deployment
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for comprehensive deployment guides covering:
+
 - Vercel (web) + GCP Cloud Run (API)
 - Docker Compose
 - PM2 on VPS

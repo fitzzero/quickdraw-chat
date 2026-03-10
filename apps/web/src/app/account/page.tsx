@@ -31,7 +31,7 @@ export default function AccountPage(): React.ReactElement {
   const router = useRouter();
   const { userId } = useSocket();
   const { data: user } = useSubscription("userService", userId ?? "");
-  
+
   const [showSignOutAllDialog, setShowSignOutAllDialog] = React.useState(false);
   const [isSigningOut, setIsSigningOut] = React.useState(false);
 
@@ -65,16 +65,10 @@ export default function AccountPage(): React.ReactElement {
         <Divider />
         <List disablePadding>
           <ListItem>
-            <ListItemText
-              primary={t("email")}
-              secondary={user?.email ?? tCommon("loading")}
-            />
+            <ListItemText primary={t("email")} secondary={user?.email ?? tCommon("loading")} />
           </ListItem>
           <ListItem>
-            <ListItemText
-              primary={t("displayName")}
-              secondary={user?.name ?? tCommon("notSet")}
-            />
+            <ListItemText primary={t("displayName")} secondary={user?.name ?? tCommon("notSet")} />
           </ListItem>
         </List>
       </Paper>
@@ -95,20 +89,14 @@ export default function AccountPage(): React.ReactElement {
             <ListItemIcon>
               <NotificationsIcon />
             </ListItemIcon>
-            <ListItemText
-              primary={t("notifications")}
-              secondary={t("notificationsDesc")}
-            />
+            <ListItemText primary={t("notifications")} secondary={t("notificationsDesc")} />
             <Switch disabled />
           </ListItem>
           <ListItem>
             <ListItemIcon>
               <DarkModeIcon />
             </ListItemIcon>
-            <ListItemText
-              primary={t("darkMode")}
-              secondary={t("darkModeDesc")}
-            />
+            <ListItemText primary={t("darkMode")} secondary={t("darkModeDesc")} />
             <Switch checked disabled />
           </ListItem>
         </List>
@@ -130,10 +118,7 @@ export default function AccountPage(): React.ReactElement {
             <ListItemIcon>
               <SecurityIcon />
             </ListItemIcon>
-            <ListItemText
-              primary={t("connectedAccounts")}
-              secondary={t("connectedAccountsDesc")}
-            />
+            <ListItemText primary={t("connectedAccounts")} secondary={t("connectedAccountsDesc")} />
             <Button variant="outlined" size="small" disabled>
               {tCommon("manage")}
             </Button>
@@ -142,14 +127,13 @@ export default function AccountPage(): React.ReactElement {
             <ListItemIcon>
               <LogoutIcon />
             </ListItemIcon>
-            <ListItemText
-              primary={t("signOutAllDevices")}
-              secondary={t("signOutAllDevicesDesc")}
-            />
+            <ListItemText primary={t("signOutAllDevices")} secondary={t("signOutAllDevicesDesc")} />
             <Button
               variant="outlined"
               size="small"
-              onClick={() => { setShowSignOutAllDialog(true); }}
+              onClick={() => {
+                setShowSignOutAllDialog(true);
+              }}
             >
               {t("signOutAllDevices")}
             </Button>
@@ -160,7 +144,9 @@ export default function AccountPage(): React.ReactElement {
       {/* Sign Out All Devices Confirmation Dialog */}
       <ConfirmDialog
         open={showSignOutAllDialog}
-        onClose={() => { setShowSignOutAllDialog(false); }}
+        onClose={() => {
+          setShowSignOutAllDialog(false);
+        }}
         onConfirm={handleSignOutAllDevices}
         title={t("signOutAllDevicesConfirmTitle")}
         message={t("signOutAllDevicesConfirmMessage")}
@@ -185,10 +171,7 @@ export default function AccountPage(): React.ReactElement {
             <ListItemIcon>
               <DeleteIcon color="error" />
             </ListItemIcon>
-            <ListItemText
-              primary={t("deleteAccount")}
-              secondary={t("deleteAccountDesc")}
-            />
+            <ListItemText primary={t("deleteAccount")} secondary={t("deleteAccountDesc")} />
             <Button variant="outlined" color="error" size="small" disabled>
               {tCommon("delete")}
             </Button>

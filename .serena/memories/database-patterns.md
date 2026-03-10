@@ -21,7 +21,7 @@ model ChatMember {
   id        String   @id @default(cuid())
   chatId    String   @map("chat_id")
   userId    String   @map("user_id")
-  
+
   @@map("chat_members")
 }
 ```
@@ -81,7 +81,7 @@ model ChatMember {
   chatId String @map("chat_id")
   userId String @map("user_id")
   level  String @default("Read")  // "Read", "Moderate", "Admin"
-  
+
   @@unique([chatId, userId])
 }
 ```
@@ -118,7 +118,7 @@ model User {
 model ChatMember {
   chat   Chat   @relation(fields: [chatId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@unique([chatId, userId])
 }
 ```
@@ -131,7 +131,7 @@ Add indexes for frequently queried fields:
 model Message {
   chatId    String   @map("chat_id")
   createdAt DateTime @default(now()) @map("created_at")
-  
+
   // Index for fetching messages by chat, ordered by time
   @@index([chatId, createdAt])
 }
@@ -176,7 +176,7 @@ export class ChatService extends BaseService<...> {
     this.prisma = prisma;
     this.setDelegate(prisma.chat);  // For BaseService CRUD
   }
-  
+
   // Use this.prisma for direct queries
   async getChatsForUser(userId: string) {
     return this.prisma.chat.findMany({

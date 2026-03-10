@@ -1,13 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  AppBar as MuiAppBar,
-  Toolbar,
-  IconButton,
-  Box,
-  Typography,
-} from "@mui/material";
+import { AppBar as MuiAppBar, Toolbar, IconButton, Box, Typography } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import { useIsMobile } from "../../hooks";
@@ -45,11 +39,7 @@ export function AppBar(): React.ReactElement {
       <Toolbar sx={{ minHeight: APP_BAR_HEIGHT, gap: 1 }}>
         {/* Mobile: Hamburger menu */}
         {isMobile && (
-          <IconButton
-            edge="start"
-            onClick={handleOpenLeftDrawer}
-            sx={{ mr: 1 }}
-          >
+          <IconButton edge="start" onClick={handleOpenLeftDrawer} sx={{ mr: 1 }}>
             <MenuIcon />
           </IconButton>
         )}
@@ -68,9 +58,7 @@ export function AppBar(): React.ReactElement {
               mr: 1,
             }}
           >
-            <Typography sx={{ color: "white", fontWeight: 700, fontSize: 14 }}>
-              Q
-            </Typography>
+            <Typography sx={{ color: "white", fontWeight: 700, fontSize: 14 }}>Q</Typography>
           </Box>
         )}
 

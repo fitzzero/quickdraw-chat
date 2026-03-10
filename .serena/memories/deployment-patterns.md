@@ -7,6 +7,7 @@ See `DEPLOYMENT.md` for comprehensive deployment guides.
 ## Deployment Options
 
 ### Option 1: Vercel (Web) + GCP Cloud Run (API)
+
 **Best for:** Serverless, automatic scaling, minimal ops
 
 ```bash
@@ -19,6 +20,7 @@ vercel --prod
 ```
 
 ### Option 2: Docker Compose
+
 **Best for:** Self-hosted, full control, single-server deployments
 
 ```bash
@@ -26,6 +28,7 @@ docker-compose -f docker-compose.prod.yml up -d
 ```
 
 ### Option 3: PM2 on VPS
+
 **Best for:** Traditional VPS (DigitalOcean, Linode, AWS EC2)
 
 ```bash
@@ -39,6 +42,7 @@ pm2 save
 ### Required Environment Variables
 
 Production requires these variables to be set:
+
 - `DATABASE_URL` - PostgreSQL connection string
 - `JWT_SECRET` - Strong random secret (32+ chars)
 - `CLIENT_URL` - Frontend domain for CORS
@@ -77,11 +81,13 @@ Configure load balancers to use `/health` endpoint.
 ## Database Migrations
 
 **Development:**
+
 ```bash
 pnpm db:push  # Direct schema sync
 ```
 
 **Production:**
+
 ```bash
 pnpm db:migrate  # Creates migration files for safety
 ```
@@ -89,17 +95,20 @@ pnpm db:migrate  # Creates migration files for safety
 ## Monitoring Integration Points
 
 ### Server-Side
+
 - **Automatic logging** - All service methods logged via ServiceRegistry middleware
 - **Winston logger** - Structured JSON logs in production
 - **Error tracking** - Add Sentry SDK to `apps/api/src/index.ts`
 
 ### Client-Side
+
 - **Error boundary** - Already configured in `apps/web/src/app/layout.tsx`
 - **Integration point** - Add Sentry/LogRocket in ErrorBoundary.componentDidCatch()
 
 ## Graceful Shutdown
 
 Handled automatically by `createQuickdrawServer()`:
+
 - Listens for SIGTERM/SIGINT
 - Closes HTTP server
 - Disconnects all Socket.io clients
@@ -108,6 +117,7 @@ Handled automatically by `createQuickdrawServer()`:
 ## Connection Pooling
 
 Configured in `packages/db/src/index.ts`:
+
 - Default: max=20, min=5 (suitable for Cloud Run/Lambda)
 - Configurable via `DB_POOL_MAX` and `DB_POOL_MIN` env vars
 - Adjust for VPS: max=50, min=10
@@ -115,11 +125,13 @@ Configured in `packages/db/src/index.ts`:
 ## Common Issues
 
 ### Socket.io Connection Failures
+
 - Ensure WebSocket support in reverse proxy (Nginx, ALB)
 - Cloud Run: Set minimum 1 instance to avoid cold starts
 - Verify CORS configuration matches frontend domain
 
 ### Database Connection Pool Exhausted
+
 - Reduce pool size: `DB_POOL_MAX=10`
 - Use connection pooler (PgBouncer)
 - Check for connection leaks in custom queries

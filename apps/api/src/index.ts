@@ -118,7 +118,7 @@ io.use((socket, next) => {
 // Socket.io connection handler
 io.on("connection", (socket) => {
   const quickdrawSocket = socket as QuickdrawSocket;
-  
+
   logger.info("Socket connected", {
     socketId: quickdrawSocket.id,
     userId: quickdrawSocket.userId,

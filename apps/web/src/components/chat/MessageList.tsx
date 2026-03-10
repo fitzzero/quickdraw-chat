@@ -1,13 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  Box,
-  Typography,
-  Avatar,
-  Paper,
-  CircularProgress,
-} from "@mui/material";
+import { Box, Typography, Avatar, Paper, CircularProgress } from "@mui/material";
 import { useTranslations } from "next-intl";
 import type { MessageDTO } from "@project/shared";
 

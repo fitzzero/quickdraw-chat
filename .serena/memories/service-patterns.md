@@ -75,24 +75,27 @@ const myMethodSchema = z.object({
 });
 
 this.defineMethod(
-  "methodName",        // Method name (matches ServiceMethods key)
-  "Read",              // Access level: "Public" | "Read" | "Moderate" | "Admin"
+  "methodName", // Method name (matches ServiceMethods key)
+  "Read", // Access level: "Public" | "Read" | "Moderate" | "Admin"
   async (payload, ctx) => {
     // ctx.userId - authenticated user ID
     // ctx.socketId - socket connection ID
     // ctx.serviceAccess - user's service-level permissions
-    
+
     // Implement business logic
-    return { /* response matching type */ };
+    return {
+      /* response matching type */
+    };
   },
-  { 
-    schema: myMethodSchema,           // Zod validation (recommended)
-    resolveEntryId: (p) => p.id       // Optional: for entry-level ACL checks
-  }
+  {
+    schema: myMethodSchema, // Zod validation (recommended)
+    resolveEntryId: (p) => p.id, // Optional: for entry-level ACL checks
+  },
 );
 ```
 
 **Best Practices:**
+
 - ✅ Always add Zod schemas for user-facing mutations
 - ✅ Set reasonable length limits (titles: 100 chars, content: 10KB)
 - ✅ Validate IDs with `.cuid()` or `.uuid()`
@@ -105,6 +108,7 @@ BaseService supports three ACL patterns. Choose based on your entity's needs:
 ### 1. Service-Level ACL (Always Active)
 
 Stored in `user.serviceAccess` JSON field, checked first for all methods:
+
 ```typescript
 // User has serviceAccess: { "chatService": "Admin", "messageService": "Admin" }
 // This grants Admin access to ALL chats and messages regardless of entry ACL
@@ -115,6 +119,7 @@ Stored in `user.serviceAccess` JSON field, checked first for all methods:
 **Best for:** Simple ownership models, entities where creator owns the record.
 
 **Setup:**
+
 ```typescript
 // In constructor
 super({ serviceName: "messageService", hasEntryACL: true });
@@ -128,10 +133,15 @@ const message = await this.prisma.message.create({
 });
 
 // Method requires Admin - framework checks ACL automatically
-this.defineMethod("deleteMessage", "Admin", async (payload, _ctx) => {
-  await this.prisma.message.delete({ where: { id: payload.id } });
-  return { id: payload.id, deleted: true as const };
-}, { resolveEntryId: (p) => p.id });
+this.defineMethod(
+  "deleteMessage",
+  "Admin",
+  async (payload, _ctx) => {
+    await this.prisma.message.delete({ where: { id: payload.id } });
+    return { id: payload.id, deleted: true as const };
+  },
+  { resolveEntryId: (p) => p.id },
+);
 ```
 
 **See:** `DocumentService`, `MessageService`
@@ -141,6 +151,7 @@ this.defineMethod("deleteMessage", "Admin", async (payload, _ctx) => {
 **Best for:** Complex membership with queryable relationships ("all chats user X can access").
 
 **Setup:**
+
 ```typescript
 // In constructor - still set hasEntryACL: true
 super({ serviceName: "chatService", hasEntryACL: true });
@@ -167,6 +178,7 @@ protected override async checkEntryACL(
 **Best for:** Users accessing their own data.
 
 **Setup:**
+
 ```typescript
 // In constructor - no entry ACL needed
 super({ serviceName: "userService", hasEntryACL: false });
@@ -217,10 +229,12 @@ await this.prisma.<entity>.findMany({ ... });
 ## Write Operations Policy
 
 **ALWAYS use BaseService methods for mutations:**
+
 - `this.create()`, `this.update()`, `this.delete()`
 - These auto-emit to subscribers and maintain consistency
 
 **AVOID direct Prisma writes:**
+
 - Never use `this.prisma.<entity>.create/update/delete` directly for user-facing operations
 - Exception: Read operations and aggregations are fine
 
@@ -231,18 +245,20 @@ When Service A needs to notify subscribers of Service B (e.g., MessageService no
 ```typescript
 // Emit to all subscribers of another service's entity
 this.emitToRoom(
-  `chatService:${chatId}`,  // Room name: {serviceName}:{entityId}
-  "chat:message",           // Custom event name
-  messageDTO                 // Data payload
+  `chatService:${chatId}`, // Room name: {serviceName}:{entityId}
+  "chat:message", // Custom event name
+  messageDTO, // Data payload
 );
 ```
 
 **How it works:**
+
 - When clients subscribe to an entity, they auto-join the Socket.io room `{serviceName}:{entityId}`
 - Any service can emit to that room using `emitToRoom()`
 - Uses `io.to(room).emit()` which sends to ALL sockets in the room
 
 **Common use cases:**
+
 - New messages in a chat: `chat:message`
 - Message deletions: `chat:messageDelete`
 - Typing indicators: `chat:typing`

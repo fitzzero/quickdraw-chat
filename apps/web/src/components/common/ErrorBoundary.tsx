@@ -15,12 +15,12 @@ interface ErrorBoundaryState {
 
 /**
  * Error boundary component that catches React errors and displays a fallback UI.
- * 
+ *
  * Integration points for error logging:
  * - Add Sentry.captureException(error) in componentDidCatch
  * - Add LogRocket.captureException(error) in componentDidCatch
  * - Add custom analytics tracking
- * 
+ *
  * @example
  * ```tsx
  * <ErrorBoundary>
@@ -28,10 +28,7 @@ interface ErrorBoundaryState {
  * </ErrorBoundary>
  * ```
  */
-export class ErrorBoundary extends React.Component<
-  ErrorBoundaryProps,
-  ErrorBoundaryState
-> {
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };

@@ -30,11 +30,7 @@ interface BreadcrumbLinkProps {
   translateLabel: (label: string) => string;
 }
 
-function BreadcrumbLink({
-  item,
-  isLast,
-  translateLabel,
-}: BreadcrumbLinkProps): React.ReactElement {
+function BreadcrumbLink({ item, isLast, translateLabel }: BreadcrumbLinkProps): React.ReactElement {
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
   const hasSiblings = item.siblings && item.siblings.length > 1;
 
@@ -87,10 +83,7 @@ function BreadcrumbLink({
           {translatedLabel}
         </Typography>
         {hasSiblings && (
-          <ExpandMoreIcon
-            fontSize="small"
-            sx={{ color: "text.secondary", fontSize: 18 }}
-          />
+          <ExpandMoreIcon fontSize="small" sx={{ color: "text.secondary", fontSize: 18 }} />
         )}
       </ButtonBase>
 
@@ -132,7 +125,7 @@ export function Breadcrumbs(): React.ReactElement {
       }
       return label;
     },
-    [t]
+    [t],
   );
 
   const items = React.useMemo(() => {

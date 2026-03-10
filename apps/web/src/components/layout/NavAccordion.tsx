@@ -27,10 +27,7 @@ interface NavAccordionProps {
 // Navigation item IDs that have translations
 const TRANSLATABLE_NAV_IDS = ["home", "chats", "profile", "account"];
 
-export function NavAccordion({
-  item,
-  onNavigate,
-}: NavAccordionProps): React.ReactElement {
+export function NavAccordion({ item, onNavigate }: NavAccordionProps): React.ReactElement {
   const t = useTranslations("Nav");
   const pathname = usePathname();
   const [expanded, setExpanded] = React.useState(item.defaultExpanded ?? false);
@@ -59,8 +56,7 @@ export function NavAccordion({
     return [];
   }, [item.children, item.dynamicChildren, item.id, chats]);
 
-  const hasChildren =
-    children.length > 0 || (item.dynamicChildren && isLoadingChats);
+  const hasChildren = children.length > 0 || (item.dynamicChildren && isLoadingChats);
   const isSelected = pathname === item.href;
   const isChildSelected = children.some((child) => pathname === child.href);
 
@@ -118,8 +114,7 @@ export function NavAccordion({
       <AccordionSummary
         expandIcon={<ExpandMoreIcon />}
         sx={{
-          bgcolor:
-            isSelected || isChildSelected ? "action.selected" : "transparent",
+          bgcolor: isSelected || isChildSelected ? "action.selected" : "transparent",
         }}
       >
         <ListItemButton

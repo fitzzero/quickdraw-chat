@@ -125,7 +125,7 @@ export function AdminCreateModal({
           setError(response.error);
         }
         setIsSubmitting(false);
-      }
+      },
     );
   }, [socket, serviceName, values, meta.fields, onSuccess]);
 
@@ -223,7 +223,7 @@ export function AdminCreateModal({
 
   // Get editable fields (excluding id, createdAt, updatedAt)
   const editableFields = meta.fields.filter(
-    (f) => f.editable && f.name !== "id" && f.name !== "createdAt" && f.name !== "updatedAt"
+    (f) => f.editable && f.name !== "id" && f.name !== "createdAt" && f.name !== "updatedAt",
   );
 
   return (
@@ -246,11 +246,7 @@ export function AdminCreateModal({
         <Button onClick={onClose} disabled={isSubmitting}>
           {t("cancel")}
         </Button>
-        <Button
-          onClick={handleSubmit}
-          variant="contained"
-          disabled={isSubmitting}
-        >
+        <Button onClick={handleSubmit} variant="contained" disabled={isSubmitting}>
           {isSubmitting ? <CircularProgress size={20} /> : t("create")}
         </Button>
       </DialogActions>

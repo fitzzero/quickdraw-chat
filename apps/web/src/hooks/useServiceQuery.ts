@@ -17,7 +17,7 @@ interface UseServiceQueryOptions<TResponse> {
  */
 type GetPayload<
   TService extends keyof ServiceMethodsMap,
-  TMethod extends keyof ServiceMethodsMap[TService]
+  TMethod extends keyof ServiceMethodsMap[TService],
 > = ServiceMethodsMap[TService][TMethod] extends { payload: infer P } ? P : never;
 
 /**
@@ -25,7 +25,7 @@ type GetPayload<
  */
 type GetResponse<
   TService extends keyof ServiceMethodsMap,
-  TMethod extends keyof ServiceMethodsMap[TService]
+  TMethod extends keyof ServiceMethodsMap[TService],
 > = ServiceMethodsMap[TService][TMethod] extends { response: infer R } ? R : never;
 
 /**
@@ -59,15 +59,12 @@ export function useServiceQuery<
   serviceName: TService,
   methodName: TMethod,
   payload: GetPayload<TService, TMethod>,
-  options?: UseServiceQueryOptions<GetResponse<TService, TMethod>>
+  options?: UseServiceQueryOptions<GetResponse<TService, TMethod>>,
 ) {
-  return useQuickdrawServiceQuery<
-    GetPayload<TService, TMethod>,
-    GetResponse<TService, TMethod>
-  >(
+  return useQuickdrawServiceQuery<GetPayload<TService, TMethod>, GetResponse<TService, TMethod>>(
     serviceName as string,
     methodName,
     payload,
-    options
+    options,
   );
 }

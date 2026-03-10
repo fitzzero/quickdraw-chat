@@ -6,10 +6,14 @@ import { z } from "zod";
 // Zod schemas for validation
 const createChatSchema = z.object({
   title: z.string().min(1, "Title is required").max(100, "Title must be 100 characters or less"),
-  members: z.array(z.object({
-    userId: z.string().cuid("Invalid user ID"),
-    level: z.enum(["Read", "Moderate", "Admin"]),
-  })).optional(),
+  members: z
+    .array(
+      z.object({
+        userId: z.string().cuid("Invalid user ID"),
+        level: z.enum(["Read", "Moderate", "Admin"]),
+      }),
+    )
+    .optional(),
 });
 
 const updateTitleSchema = z.object({
@@ -104,7 +108,7 @@ export class ChatService extends BaseService<
     _userId: string,
     _chatId: string,
     _requiredLevel: AccessLevel,
-    _socket: unknown
+    _socket: unknown,
   ): boolean {
     // We need async check, so return false here and do it in checkEntryACL
     return false;
@@ -114,7 +118,7 @@ export class ChatService extends BaseService<
   protected override async checkEntryACL(
     userId: string,
     chatId: string,
-    requiredLevel: AccessLevel
+    requiredLevel: AccessLevel,
   ): Promise<boolean> {
     const member = await this.prisma.chatMember.findUnique({
       where: { chatId_userId: { chatId, userId } },
@@ -126,12 +130,14 @@ export class ChatService extends BaseService<
   }
 
   // Helper to fetch members with user details
-  private async fetchChatMembers(chatId: string): Promise<{
-    id: string;
-    userId: string;
-    level: AccessLevel;
-    user: { id: string; name: string | null; image: string | null };
-  }[]> {
+  private async fetchChatMembers(chatId: string): Promise<
+    {
+      id: string;
+      userId: string;
+      level: AccessLevel;
+      user: { id: string; name: string | null; image: string | null };
+    }[]
+  > {
     const members = await this.prisma.chatMember.findMany({
       where: { chatId },
       include: {
@@ -187,7 +193,7 @@ export class ChatService extends BaseService<
 
         return { id: chat.id };
       },
-      { schema: createChatSchema }
+      { schema: createChatSchema },
     );
 
     // Update chat title
@@ -204,10 +210,10 @@ export class ChatService extends BaseService<
         this.emitUpdate(payload.id, updated);
         return updated;
       },
-      { 
+      {
         schema: updateTitleSchema,
-        resolveEntryId: (p) => p.id 
-      }
+        resolveEntryId: (p) => p.id,
+      },
     );
 
     // Get chat members with user details
@@ -217,10 +223,10 @@ export class ChatService extends BaseService<
       async (payload, _ctx) => {
         return this.fetchChatMembers(payload.chatId);
       },
-      { 
+      {
         schema: getChatMembersSchema,
-        resolveEntryId: (p) => p.chatId 
-      }
+        resolveEntryId: (p) => p.chatId,
+      },
     );
 
     // Invite user to chat by userId
@@ -246,10 +252,10 @@ export class ChatService extends BaseService<
 
         return { id: payload.id };
       },
-      { 
+      {
         schema: inviteUserSchema,
-        resolveEntryId: (p) => p.id 
-      }
+        resolveEntryId: (p) => p.id,
+      },
     );
 
     // Invite user to chat by username
@@ -285,10 +291,10 @@ export class ChatService extends BaseService<
 
         return { id: payload.chatId };
       },
-      { 
+      {
         schema: inviteByNameSchema,
-        resolveEntryId: (p) => p.chatId 
-      }
+        resolveEntryId: (p) => p.chatId,
+      },
     );
 
     // Remove user from chat
@@ -307,10 +313,10 @@ export class ChatService extends BaseService<
 
         return { id: payload.id };
       },
-      { 
+      {
         schema: removeUserSchema,
-        resolveEntryId: (p) => p.id 
-      }
+        resolveEntryId: (p) => p.id,
+      },
     );
 
     // Leave chat
@@ -329,45 +335,50 @@ export class ChatService extends BaseService<
 
         return { id: payload.id };
       },
-      { 
+      {
         schema: leaveSchema,
-        resolveEntryId: (p) => p.id 
-      }
+        resolveEntryId: (p) => p.id,
+      },
     );
 
     // List user's chats
-    this.defineMethod("listMyChats", "Read", async (payload, ctx) => {
-      if (!ctx.userId) throw new Error("Authentication required");
+    this.defineMethod(
+      "listMyChats",
+      "Read",
+      async (payload, ctx) => {
+        if (!ctx.userId) throw new Error("Authentication required");
 
-      const page = payload.page ?? 1;
-      const pageSize = Math.min(payload.pageSize ?? 20, 100);
+        const page = payload.page ?? 1;
+        const pageSize = Math.min(payload.pageSize ?? 20, 100);
 
-      const memberships = await this.prisma.chatMember.findMany({
-        where: { userId: ctx.userId },
-        include: {
-          chat: {
-            include: {
-              _count: { select: { members: true } },
-              messages: {
-                orderBy: { createdAt: "desc" },
-                take: 1,
-                select: { createdAt: true },
+        const memberships = await this.prisma.chatMember.findMany({
+          where: { userId: ctx.userId },
+          include: {
+            chat: {
+              include: {
+                _count: { select: { members: true } },
+                messages: {
+                  orderBy: { createdAt: "desc" },
+                  take: 1,
+                  select: { createdAt: true },
+                },
               },
             },
           },
-        },
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      });
+          orderBy: { createdAt: "desc" },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        });
 
-      return memberships.map((m) => ({
-        id: m.chat.id,
-        title: m.chat.title,
-        memberCount: m.chat._count.members,
-        lastMessageAt: m.chat.messages[0]?.createdAt.toISOString() ?? null,
-      }));
-    }, { schema: listMyChatsSchema });
+        return memberships.map((m) => ({
+          id: m.chat.id,
+          title: m.chat.title,
+          memberCount: m.chat._count.members,
+          lastMessageAt: m.chat.messages[0]?.createdAt.toISOString() ?? null,
+        }));
+      },
+      { schema: listMyChatsSchema },
+    );
 
     // Delete chat
     this.defineMethod(
@@ -381,10 +392,10 @@ export class ChatService extends BaseService<
         } as Partial<Chat>);
         return { id: payload.id, deleted: true as const };
       },
-      { 
+      {
         schema: deleteChatSchema,
-        resolveEntryId: (p) => p.id 
-      }
+        resolveEntryId: (p) => p.id,
+      },
     );
   }
 }

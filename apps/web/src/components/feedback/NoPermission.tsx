@@ -10,9 +10,7 @@ interface NoPermissionProps {
   message?: string;
 }
 
-export function NoPermission({
-  message,
-}: NoPermissionProps): React.ReactElement {
+export function NoPermission({ message }: NoPermissionProps): React.ReactElement {
   const t = useTranslations("NoPermission");
   const tCommon = useTranslations("Common");
 

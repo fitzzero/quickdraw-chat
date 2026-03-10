@@ -31,13 +31,14 @@ describe("DocumentService Integration", () => {
   it("should create a document", async () => {
     const client = await connectAsUser(port, users.regular.id);
 
-    const result = await emitWithAck<
-      { title: string; content?: string },
-      { id: string }
-    >(client, "documentService:createDocument", {
-      title: "My Document",
-      content: "Document content here",
-    });
+    const result = await emitWithAck<{ title: string; content?: string }, { id: string }>(
+      client,
+      "documentService:createDocument",
+      {
+        title: "My Document",
+        content: "Document content here",
+      },
+    );
 
     expect(result.id).toBeDefined();
 
@@ -62,10 +63,11 @@ describe("DocumentService Integration", () => {
       title: "Doc 2",
     });
 
-    const result = await emitWithAck<
-      { page?: number; pageSize?: number },
-      DocumentDTO[]
-    >(client, "documentService:listMyDocuments", {});
+    const result = await emitWithAck<{ page?: number; pageSize?: number }, DocumentDTO[]>(
+      client,
+      "documentService:listMyDocuments",
+      {},
+    );
 
     expect(result).toHaveLength(2);
 
@@ -75,18 +77,19 @@ describe("DocumentService Integration", () => {
   it("should get a document by ID", async () => {
     const client = await connectAsUser(port, users.regular.id);
 
-    const created = await emitWithAck<
-      { title: string; content?: string },
-      { id: string }
-    >(client, "documentService:createDocument", {
-      title: "Test Doc",
-      content: "Test content",
-    });
+    const created = await emitWithAck<{ title: string; content?: string }, { id: string }>(
+      client,
+      "documentService:createDocument",
+      {
+        title: "Test Doc",
+        content: "Test content",
+      },
+    );
 
     const result = await emitWithAck<{ id: string }, DocumentDTO | null>(
       client,
       "documentService:getDocument",
-      { id: created.id }
+      { id: created.id },
     );
 
     expect(result).not.toBeNull();
@@ -102,7 +105,7 @@ describe("DocumentService Integration", () => {
     const created = await emitWithAck<{ title: string }, { id: string }>(
       client,
       "documentService:createDocument",
-      { title: "Original" }
+      { title: "Original" },
     );
 
     const result = await emitWithAck<
@@ -126,13 +129,14 @@ describe("DocumentService Integration", () => {
     const created = await emitWithAck<{ title: string }, { id: string }>(
       client,
       "documentService:createDocument",
-      { title: "To Delete" }
+      { title: "To Delete" },
     );
 
-    const result = await emitWithAck<
-      { id: string },
-      { id: string; deleted: true }
-    >(client, "documentService:deleteDocument", { id: created.id });
+    const result = await emitWithAck<{ id: string }, { id: string; deleted: true }>(
+      client,
+      "documentService:deleteDocument",
+      { id: created.id },
+    );
 
     expect(result.deleted).toBe(true);
 
@@ -153,17 +157,15 @@ describe("DocumentService Integration", () => {
     const created = await emitWithAck<{ title: string }, { id: string }>(
       owner,
       "documentService:createDocument",
-      { title: "Private Doc" }
+      { title: "Private Doc" },
     );
     owner.close();
 
     const other = await connectAsUser(port, users.moderator.id);
     await expect(
-      emitWithAck<{ id: string }, DocumentDTO | null>(
-        other,
-        "documentService:getDocument",
-        { id: created.id }
-      )
+      emitWithAck<{ id: string }, DocumentDTO | null>(other, "documentService:getDocument", {
+        id: created.id,
+      }),
     ).rejects.toThrow("Insufficient permissions");
 
     other.close();
@@ -174,7 +176,7 @@ describe("DocumentService Integration", () => {
     const created = await emitWithAck<{ title: string }, { id: string }>(
       owner,
       "documentService:createDocument",
-      { title: "Shared Doc" }
+      { title: "Shared Doc" },
     );
 
     // Share with moderator
@@ -190,7 +192,7 @@ describe("DocumentService Integration", () => {
     const result = await emitWithAck<{ id: string }, DocumentDTO | null>(
       shared,
       "documentService:getDocument",
-      { id: created.id }
+      { id: created.id },
     );
 
     expect(result).not.toBeNull();
@@ -204,7 +206,7 @@ describe("DocumentService Integration", () => {
     const created = await emitWithAck<{ title: string }, { id: string }>(
       owner,
       "documentService:createDocument",
-      { title: "Shared Doc" }
+      { title: "Shared Doc" },
     );
 
     // Share then unshare
@@ -222,11 +224,9 @@ describe("DocumentService Integration", () => {
     // Moderator should no longer have access
     const shared = await connectAsUser(port, users.moderator.id);
     await expect(
-      emitWithAck<{ id: string }, DocumentDTO | null>(
-        shared,
-        "documentService:getDocument",
-        { id: created.id }
-      )
+      emitWithAck<{ id: string }, DocumentDTO | null>(shared, "documentService:getDocument", {
+        id: created.id,
+      }),
     ).rejects.toThrow("Insufficient permissions");
 
     shared.close();
@@ -237,7 +237,7 @@ describe("DocumentService Integration", () => {
     const created = await emitWithAck<{ title: string }, { id: string }>(
       owner,
       "documentService:createDocument",
-      { title: "Shared Doc" }
+      { title: "Shared Doc" },
     );
 
     // Share with Read access
@@ -250,12 +250,12 @@ describe("DocumentService Integration", () => {
 
     // Moderator can read but not update (requires Moderate)
     const shared = await connectAsUser(port, users.moderator.id);
-    
+
     // Should be able to read
     const readResult = await emitWithAck<{ id: string }, DocumentDTO | null>(
       shared,
       "documentService:getDocument",
-      { id: created.id }
+      { id: created.id },
     );
     expect(readResult).not.toBeNull();
 
@@ -264,7 +264,7 @@ describe("DocumentService Integration", () => {
       emitWithAck(shared, "documentService:updateDocument", {
         id: created.id,
         title: "Hacked",
-      })
+      }),
     ).rejects.toThrow();
 
     shared.close();

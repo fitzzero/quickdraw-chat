@@ -109,7 +109,7 @@ export class DocumentService extends BaseService<
     _userId: string,
     _entryId: string,
     _requiredLevel: AccessLevel,
-    _socket: QuickdrawSocket
+    _socket: QuickdrawSocket,
   ): boolean {
     // We need to check ownership, but we don't have the document loaded yet.
     // Return false here and handle owner check in checkEntryACL.
@@ -124,7 +124,7 @@ export class DocumentService extends BaseService<
   protected override async checkEntryACL(
     userId: string,
     entryId: string,
-    requiredLevel: AccessLevel
+    requiredLevel: AccessLevel,
   ): Promise<boolean> {
     const document = await this.prisma.document.findUnique({
       where: { id: entryId },
@@ -150,22 +150,27 @@ export class DocumentService extends BaseService<
 
   private initMethods(): void {
     // Create a new document
-    this.defineMethod("createDocument", "Read", async (payload, ctx) => {
-      if (!ctx.userId) throw new Error("Authentication required");
+    this.defineMethod(
+      "createDocument",
+      "Read",
+      async (payload, ctx) => {
+        if (!ctx.userId) throw new Error("Authentication required");
 
-      const document = await this.prisma.document.create({
-        data: {
-          title: payload.title,
-          content: payload.content ?? "",
-          ownerId: ctx.userId,
-          // Owner is implicitly Admin via checkEntryACL, but we can also add them to ACL
-          acl: [{ userId: ctx.userId, level: "Admin" }],
-        },
-        select: { id: true },
-      });
+        const document = await this.prisma.document.create({
+          data: {
+            title: payload.title,
+            content: payload.content ?? "",
+            ownerId: ctx.userId,
+            // Owner is implicitly Admin via checkEntryACL, but we can also add them to ACL
+            acl: [{ userId: ctx.userId, level: "Admin" }],
+          },
+          select: { id: true },
+        });
 
-      return { id: document.id };
-    }, { schema: createDocumentSchema });
+        return { id: document.id };
+      },
+      { schema: createDocumentSchema },
+    );
 
     // Get a document by ID
     this.defineMethod(
@@ -188,7 +193,7 @@ export class DocumentService extends BaseService<
           updatedAt: document.updatedAt.toISOString(),
         };
       },
-      { schema: getDocumentSchema, resolveEntryId: (p: { id: string }) => p.id }
+      { schema: getDocumentSchema, resolveEntryId: (p: { id: string }) => p.id },
     );
 
     // Update document title or content
@@ -219,7 +224,7 @@ export class DocumentService extends BaseService<
         this.emitUpdate(id, document);
         return dto;
       },
-      { schema: updateDocumentSchema, resolveEntryId: (p: { id: string }) => p.id }
+      { schema: updateDocumentSchema, resolveEntryId: (p: { id: string }) => p.id },
     );
 
     // Delete a document
@@ -232,47 +237,55 @@ export class DocumentService extends BaseService<
         this.emitUpdate(id, { id, deleted: true } as Partial<Document>);
         return { id, deleted: true as const };
       },
-      { schema: deleteDocumentSchema, resolveEntryId: (p: { id: string }) => p.id }
+      { schema: deleteDocumentSchema, resolveEntryId: (p: { id: string }) => p.id },
     );
 
     // List user's documents (owned or shared with them)
-    this.defineMethod("listMyDocuments", "Read", async (payload, ctx) => {
-      if (!ctx.userId) throw new Error("Authentication required");
+    this.defineMethod(
+      "listMyDocuments",
+      "Read",
+      async (payload, ctx) => {
+        if (!ctx.userId) throw new Error("Authentication required");
 
-      const { page: rawPage, pageSize: rawPageSize } = payload as { page?: number; pageSize?: number };
-      const page = rawPage ?? 1;
-      const pageSize = Math.min(rawPageSize ?? 20, 100);
+        const { page: rawPage, pageSize: rawPageSize } = payload as {
+          page?: number;
+          pageSize?: number;
+        };
+        const page = rawPage ?? 1;
+        const pageSize = Math.min(rawPageSize ?? 20, 100);
 
-      // Find documents where user is owner OR has an ACL entry
-      // Note: JSON querying varies by database. This works for PostgreSQL.
-      const documents = await this.prisma.document.findMany({
-        where: {
-          OR: [
-            { ownerId: ctx.userId },
-            // PostgreSQL JSON containment: acl array contains object with userId
-            {
-              acl: {
-                path: [],
-                array_contains: [{ userId: ctx.userId }],
+        // Find documents where user is owner OR has an ACL entry
+        // Note: JSON querying varies by database. This works for PostgreSQL.
+        const documents = await this.prisma.document.findMany({
+          where: {
+            OR: [
+              { ownerId: ctx.userId },
+              // PostgreSQL JSON containment: acl array contains object with userId
+              {
+                acl: {
+                  path: [],
+                  array_contains: [{ userId: ctx.userId }],
+                },
               },
-            },
-          ],
-        },
-        orderBy: { updatedAt: "desc" },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      });
+            ],
+          },
+          orderBy: { updatedAt: "desc" },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        });
 
-      return documents.map((doc) => ({
-        id: doc.id,
-        title: doc.title,
-        content: doc.content,
-        ownerId: doc.ownerId,
-        acl: doc.acl as ACL | null,
-        createdAt: doc.createdAt.toISOString(),
-        updatedAt: doc.updatedAt.toISOString(),
-      }));
-    }, { schema: listMyDocumentsSchema });
+        return documents.map((doc) => ({
+          id: doc.id,
+          title: doc.title,
+          content: doc.content,
+          ownerId: doc.ownerId,
+          acl: doc.acl as ACL | null,
+          createdAt: doc.createdAt.toISOString(),
+          updatedAt: doc.updatedAt.toISOString(),
+        }));
+      },
+      { schema: listMyDocumentsSchema },
+    );
 
     // Share document with another user (add to ACL) - wrapped in transaction for atomicity
     this.defineMethod(
@@ -280,7 +293,7 @@ export class DocumentService extends BaseService<
       "Admin",
       async (payload, _ctx) => {
         const { id, userId, level } = payload as { id: string; userId: string; level: AccessLevel };
-        
+
         await this.prisma.$transaction(async (tx) => {
           const document = await tx.document.findUnique({
             where: { id },
@@ -303,7 +316,7 @@ export class DocumentService extends BaseService<
 
         return { id };
       },
-      { schema: shareDocumentSchema, resolveEntryId: (p: { id: string }) => p.id }
+      { schema: shareDocumentSchema, resolveEntryId: (p: { id: string }) => p.id },
     );
 
     // Unshare document (remove from ACL) - wrapped in transaction for atomicity
@@ -312,7 +325,7 @@ export class DocumentService extends BaseService<
       "Admin",
       async (payload, _ctx) => {
         const { id, userId } = payload as { id: string; userId: string };
-        
+
         await this.prisma.$transaction(async (tx) => {
           const document = await tx.document.findUnique({
             where: { id },
@@ -332,7 +345,7 @@ export class DocumentService extends BaseService<
 
         return { id };
       },
-      { schema: unshareDocumentSchema, resolveEntryId: (p: { id: string }) => p.id }
+      { schema: unshareDocumentSchema, resolveEntryId: (p: { id: string }) => p.id },
     );
   }
 }

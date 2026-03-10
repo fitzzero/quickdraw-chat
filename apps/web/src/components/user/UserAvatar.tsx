@@ -12,12 +12,16 @@ interface UserAvatarProps {
 
 /**
  * UserAvatar component that subscribes to real-time user updates.
- * 
+ *
  * This component demonstrates subscription deduplication:
  * Multiple UserAvatar components for the same userId will share
  * a single socket subscription, preventing duplicate network traffic.
  */
-export function UserAvatar({ userId, size = 40, showTooltip = true }: UserAvatarProps): React.ReactElement {
+export function UserAvatar({
+  userId,
+  size = 40,
+  showTooltip = true,
+}: UserAvatarProps): React.ReactElement {
   const { data: user, isLoading } = useSubscription("userService", userId);
 
   if (isLoading || !user) {
@@ -38,11 +42,7 @@ export function UserAvatar({ userId, size = 40, showTooltip = true }: UserAvatar
   );
 
   if (showTooltip && user.name) {
-    return (
-      <Tooltip title={user.name}>
-        {avatar}
-      </Tooltip>
-    );
+    return <Tooltip title={user.name}>{avatar}</Tooltip>;
   }
 
   return avatar;

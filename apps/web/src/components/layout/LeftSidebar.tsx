@@ -1,14 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  Box,
-  Drawer,
-  SwipeableDrawer,
-  List,
-  Typography,
-  Divider,
-} from "@mui/material";
+import { Box, Drawer, SwipeableDrawer, List, Typography, Divider } from "@mui/material";
 import { useTranslations } from "next-intl";
 import { useIsMobile, useFilteredNavigation } from "../../hooks";
 import { useLayout } from "../../providers";
@@ -22,9 +15,7 @@ interface LeftSidebarProps {
   appBarHeight?: number;
 }
 
-export function LeftSidebar({
-  appBarHeight = 64,
-}: LeftSidebarProps): React.ReactElement {
+export function LeftSidebar({ appBarHeight = 64 }: LeftSidebarProps): React.ReactElement {
   const t = useTranslations("Sidebar");
   const isMobile = useIsMobile();
   const { leftDrawerOpen, setLeftDrawerOpen } = useLayout();

@@ -113,11 +113,13 @@ This project uses a locally-linked `@fitzzero/quickdraw-core`:
 ### Common Scenarios
 
 **Adding a new BaseService feature:**
+
 1. Implement in quickdraw-core's `src/server/BaseService.ts`
 2. Build quickdraw-core
 3. Use immediately in quickdraw-chat services
 
 **Adding a new client hook:**
+
 1. Implement in quickdraw-core's `src/client/`
 2. Export from `src/client/index.ts`
 3. Build quickdraw-core
@@ -176,5 +178,5 @@ Enable Prisma query logging:
 
 ```typescript
 // Temporarily in code
-const prisma = new PrismaClient({ log: ['query', 'info', 'warn', 'error'] });
+const prisma = new PrismaClient({ log: ["query", "info", "warn", "error"] });
 ```

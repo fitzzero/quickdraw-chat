@@ -26,13 +26,17 @@ import { useTranslations } from "next-intl";
 import { useSocket } from "../../providers";
 import { ConfirmDialog } from "../feedback";
 import { UserServiceAccessEditor } from "./UserServiceAccessEditor";
-import type { AdminServiceMeta, AdminFieldConfig, ServiceResponse, AccessLevel } from "@project/shared";
+import type {
+  AdminServiceMeta,
+  AdminFieldConfig,
+  ServiceResponse,
+  AccessLevel,
+} from "@project/shared";
 
 /** Safely convert unknown to string for display - avoids no-base-to-string for objects */
 function toDisplayString(val: unknown, pretty = false): string {
   if (val === null || val === undefined) return "";
-  if (typeof val === "object")
-    return pretty ? JSON.stringify(val, null, 2) : JSON.stringify(val);
+  if (typeof val === "object") return pretty ? JSON.stringify(val, null, 2) : JSON.stringify(val);
   if (typeof val === "string") return val;
   if (typeof val === "number" || typeof val === "boolean") return String(val);
   if (typeof val === "symbol") return val.toString();
@@ -93,7 +97,7 @@ export function AdminEntitySidebar({
           setError(response.error);
         }
         setIsLoading(false);
-      }
+      },
     );
   }, [socket, isConnected, serviceName, entryId]);
 
@@ -124,7 +128,7 @@ export function AdminEntitySidebar({
           setError(response.error);
         }
         setIsSaving(false);
-      }
+      },
     );
   }, [socket, serviceName, entryId, entity, editedValues, meta.fields]);
 
@@ -145,7 +149,7 @@ export function AdminEntitySidebar({
           setError(response.error);
         }
         setIsDeleting(false);
-      }
+      },
     );
   }, [socket, serviceName, entryId, onDeleted]);
 

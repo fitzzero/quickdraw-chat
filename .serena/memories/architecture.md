@@ -68,12 +68,12 @@ The `apps/web/src/hooks/` directory contains thin typed wrappers around quickdra
 
 ## Key Services
 
-| Service | Purpose | ACL Pattern |
-|---------|---------|-------------|
-| UserService | User profile management | Self-access (`checkAccess` override) |
-| ChatService | Chat rooms with membership | Membership table (`checkEntryACL` override) |
-| MessageService | Real-time messaging within chats | Inherits from parent chat |
-| DocumentService | Document collaboration example | JSON ACL (default `checkEntryACL`) |
+| Service         | Purpose                          | ACL Pattern                                 |
+| --------------- | -------------------------------- | ------------------------------------------- |
+| UserService     | User profile management          | Self-access (`checkAccess` override)        |
+| ChatService     | Chat rooms with membership       | Membership table (`checkEntryACL` override) |
+| MessageService  | Real-time messaging within chats | Inherits from parent chat                   |
+| DocumentService | Document collaboration example   | JSON ACL (default `checkEntryACL`)          |
 
 ## Development Commands
 

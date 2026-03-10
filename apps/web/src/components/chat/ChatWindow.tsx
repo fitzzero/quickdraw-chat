@@ -31,7 +31,7 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
           setMessages(response.data);
         }
         setIsLoadingMessages(false);
-      }
+      },
     );
 
     // Listen for new messages via the chat-scoped event
@@ -86,18 +86,10 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {/* Messages */}
-      <MessageList
-        messages={messages}
-        isLoading={isLoadingMessages}
-        currentUserId={userId}
-      />
+      <MessageList messages={messages} isLoading={isLoadingMessages} currentUserId={userId} />
 
       {/* Input */}
-      <MessageInput
-        chatId={chatId}
-        onMessageSent={handleMessageSent}
-        disabled={!isConnected}
-      />
+      <MessageInput chatId={chatId} onMessageSent={handleMessageSent} disabled={!isConnected} />
     </Box>
   );
 }

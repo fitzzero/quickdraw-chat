@@ -29,7 +29,7 @@ describe("ChatService Integration", () => {
     const result = await emitWithAck<{ title: string }, { id: string }>(
       client,
       "chatService:createChat",
-      { title: "Test Chat" }
+      { title: "Test Chat" },
     );
 
     expect(result.id).toBeDefined();
@@ -58,7 +58,7 @@ describe("ChatService Integration", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       admin,
       "chatService:createChat",
-      { title: "Admin Chat" }
+      { title: "Admin Chat" },
     );
 
     // Invite regular user
@@ -74,10 +74,11 @@ describe("ChatService Integration", () => {
     expect(inviteResult.id).toBe(chat.id);
 
     // Regular user should now see the chat
-    const myChats = await emitWithAck<
-      { page?: number },
-      { id: string; title: string }[]
-    >(regular, "chatService:listMyChats", {});
+    const myChats = await emitWithAck<{ page?: number }, { id: string; title: string }[]>(
+      regular,
+      "chatService:listMyChats",
+      {},
+    );
 
     expect(myChats.some((c) => c.id === chat.id)).toBe(true);
 
@@ -93,13 +94,13 @@ describe("ChatService Integration", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       admin,
       "chatService:createChat",
-      { title: "Private Chat" }
+      { title: "Private Chat" },
     );
     admin.close();
 
     // Regular user tries to subscribe (not invited)
     await expect(
-      emitWithAck(regular, "chatService:subscribe", { entryId: chat.id })
+      emitWithAck(regular, "chatService:subscribe", { entryId: chat.id }),
     ).rejects.toThrow();
 
     regular.close();
@@ -113,7 +114,7 @@ describe("ChatService Integration", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       admin,
       "chatService:createChat",
-      { title: "Original Title" }
+      { title: "Original Title" },
     );
 
     // Invite moderator with Moderate access
@@ -146,7 +147,7 @@ describe("ChatService Integration", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       admin,
       "chatService:createChat",
-      { title: "Test Chat" }
+      { title: "Test Chat" },
     );
     await emitWithAck(admin, "chatService:inviteUser", {
       id: chat.id,
@@ -158,7 +159,7 @@ describe("ChatService Integration", () => {
     const leaveResult = await emitWithAck<{ id: string }, { id: string }>(
       regular,
       "chatService:leaveChat",
-      { id: chat.id }
+      { id: chat.id },
     );
 
     expect(leaveResult.id).toBe(chat.id);
@@ -186,14 +187,15 @@ describe("ChatService Integration", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       admin,
       "chatService:createChat",
-      { title: "To Delete" }
+      { title: "To Delete" },
     );
 
     // Delete it
-    const deleteResult = await emitWithAck<
-      { id: string },
-      { id: string; deleted: true }
-    >(admin, "chatService:deleteChat", { id: chat.id });
+    const deleteResult = await emitWithAck<{ id: string }, { id: string; deleted: true }>(
+      admin,
+      "chatService:deleteChat",
+      { id: chat.id },
+    );
 
     expect(deleteResult.deleted).toBe(true);
 
@@ -214,7 +216,7 @@ describe("ChatService Integration", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       admin,
       "chatService:createChat",
-      { title: "Test Chat" }
+      { title: "Test Chat" },
     );
     await emitWithAck(admin, "chatService:inviteUser", {
       id: chat.id,
@@ -234,13 +236,14 @@ describe("ChatService Integration", () => {
     expect(member).not.toBeNull();
 
     // Admin removes user
-    const removeResult = await emitWithAck<
-      { id: string; userId: string },
-      { id: string }
-    >(admin, "chatService:removeUser", {
-      id: chat.id,
-      userId: users.regular.id,
-    });
+    const removeResult = await emitWithAck<{ id: string; userId: string }, { id: string }>(
+      admin,
+      "chatService:removeUser",
+      {
+        id: chat.id,
+        userId: users.regular.id,
+      },
+    );
 
     expect(removeResult.id).toBe(chat.id);
 
@@ -267,7 +270,7 @@ describe("ChatService Integration", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       owner,
       "chatService:createChat",
-      { title: "Original Title" }
+      { title: "Original Title" },
     );
 
     // Invite member
@@ -284,7 +287,7 @@ describe("ChatService Integration", () => {
     const updatePromise = waitForEvent<{ id: string; title: string }>(
       member,
       `chatService:update:${chat.id}`,
-      3000
+      3000,
     );
 
     // Owner updates title
@@ -309,7 +312,7 @@ describe("ChatService Integration", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       owner,
       "chatService:createChat",
-      { title: "To Be Deleted" }
+      { title: "To Be Deleted" },
     );
     await emitWithAck(owner, "chatService:inviteUser", {
       id: chat.id,
@@ -324,7 +327,7 @@ describe("ChatService Integration", () => {
     const deletePromise = waitForEvent<{ id: string; deleted: boolean }>(
       member,
       `chatService:update:${chat.id}`,
-      3000
+      3000,
     );
 
     // Owner deletes chat
@@ -368,7 +371,7 @@ describe("ChatService Integration - Socket Room Updates", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       owner,
       "chatService:createChat",
-      { title: "Test Chat" }
+      { title: "Test Chat" },
     );
 
     // Add existing member first
@@ -399,9 +402,7 @@ describe("ChatService Integration - Socket Room Updates", () => {
     const memberUpdate = await memberUpdatePromise;
     expect(memberUpdate.members).toBeDefined();
     expect(memberUpdate.members.length).toBe(3); // owner, moderator, regular
-    expect(
-      memberUpdate.members.some((m) => m.userId === users.regular.id)
-    ).toBe(true);
+    expect(memberUpdate.members.some((m) => m.userId === users.regular.id)).toBe(true);
 
     owner.close();
     existingMember.close();
@@ -415,7 +416,7 @@ describe("ChatService Integration - Socket Room Updates", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       owner,
       "chatService:createChat",
-      { title: "Test Chat" }
+      { title: "Test Chat" },
     );
     await emitWithAck(owner, "chatService:inviteUser", {
       id: chat.id,
@@ -448,9 +449,7 @@ describe("ChatService Integration - Socket Room Updates", () => {
     const memberUpdate = await memberUpdatePromise;
     expect(memberUpdate.members).toBeDefined();
     expect(memberUpdate.members.length).toBe(2); // owner, moderator (regular removed)
-    expect(
-      memberUpdate.members.some((m) => m.userId === users.regular.id)
-    ).toBe(false);
+    expect(memberUpdate.members.some((m) => m.userId === users.regular.id)).toBe(false);
 
     owner.close();
     remainingMember.close();
@@ -465,7 +464,7 @@ describe("ChatService Integration - Socket Room Updates", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       owner,
       "chatService:createChat",
-      { title: "Test Chat" }
+      { title: "Test Chat" },
     );
     await emitWithAck(owner, "chatService:inviteUser", {
       id: chat.id,
@@ -497,9 +496,7 @@ describe("ChatService Integration - Socket Room Updates", () => {
     const memberUpdate = await memberUpdatePromise;
     expect(memberUpdate.members).toBeDefined();
     expect(memberUpdate.members.length).toBe(2); // owner, moderator (regular left)
-    expect(
-      memberUpdate.members.some((m) => m.userId === users.regular.id)
-    ).toBe(false);
+    expect(memberUpdate.members.some((m) => m.userId === users.regular.id)).toBe(false);
 
     owner.close();
     leavingMember.close();
@@ -539,7 +536,7 @@ describe("ChatService Integration - Permission Cascade", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       chatOwner,
       "chatService:createChat",
-      { title: "Original Title" }
+      { title: "Original Title" },
     );
 
     // Service-level Moderate can update title even without being a member
@@ -565,7 +562,7 @@ describe("ChatService Integration - Permission Cascade", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       chatOwner,
       "chatService:createChat",
-      { title: "Original Title" }
+      { title: "Original Title" },
     );
     await emitWithAck(chatOwner, "chatService:inviteUser", {
       id: chat.id,
@@ -597,7 +594,7 @@ describe("ChatService Integration - Permission Cascade", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       chatOwner,
       "chatService:createChat",
-      { title: "Original Title" }
+      { title: "Original Title" },
     );
 
     // Service-level Admin can update title (Admin > Moderate)
@@ -623,7 +620,7 @@ describe("ChatService Integration - Permission Cascade", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       chatOwner,
       "chatService:createChat",
-      { title: "Original Title" }
+      { title: "Original Title" },
     );
     await emitWithAck(chatOwner, "chatService:inviteUser", {
       id: chat.id,
@@ -636,7 +633,7 @@ describe("ChatService Integration - Permission Cascade", () => {
       emitWithAck(readOnlyMember, "chatService:updateTitle", {
         id: chat.id,
         title: "Unauthorized Update",
-      })
+      }),
     ).rejects.toThrow();
 
     // Verify title was not changed
@@ -657,7 +654,7 @@ describe("ChatService Integration - Permission Cascade", () => {
     const chat = await emitWithAck<{ title: string }, { id: string }>(
       chatOwner,
       "chatService:createChat",
-      { title: "Original Title" }
+      { title: "Original Title" },
     );
 
     // Non-member cannot update title
@@ -665,7 +662,7 @@ describe("ChatService Integration - Permission Cascade", () => {
       emitWithAck(nonMember, "chatService:updateTitle", {
         id: chat.id,
         title: "Unauthorized Update",
-      })
+      }),
     ).rejects.toThrow();
 
     // Verify title was not changed

@@ -99,9 +99,7 @@ export default function AdminServicePage(): React.ReactElement {
   if (metaError ?? !meta) {
     return (
       <Box sx={{ maxWidth: 800, mx: "auto" }}>
-        <Alert severity="error">
-          {metaError ?? t("serviceNotFound")}
-        </Alert>
+        <Alert severity="error">{metaError ?? t("serviceNotFound")}</Alert>
       </Box>
     );
   }

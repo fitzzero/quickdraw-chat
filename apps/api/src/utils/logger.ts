@@ -19,7 +19,9 @@ export const logger = winston.createLogger({
   level: process.env.LOG_LEVEL ?? "info",
   format: combine(
     timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
-    process.env.NODE_ENV === "production" ? winston.format.json() : combine(colorize(), customFormat)
+    process.env.NODE_ENV === "production"
+      ? winston.format.json()
+      : combine(colorize(), customFormat),
   ),
   transports: [transport],
 });

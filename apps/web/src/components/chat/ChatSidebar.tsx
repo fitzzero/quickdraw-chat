@@ -38,13 +38,16 @@ interface ChatSidebarProps {
 const ACCESS_LEVELS: AccessLevel[] = ["Public", "Read", "Moderate", "Admin"];
 function isLevelSufficient(
   userLevel: AccessLevel | undefined,
-  requiredLevel: AccessLevel
+  requiredLevel: AccessLevel,
 ): boolean {
   if (!userLevel) return false;
   return ACCESS_LEVELS.indexOf(userLevel) >= ACCESS_LEVELS.indexOf(requiredLevel);
 }
 
-function getRoleBadge(level: string): { label: string; color: "default" | "primary" | "secondary" } {
+function getRoleBadge(level: string): {
+  label: string;
+  color: "default" | "primary" | "secondary";
+} {
   switch (level) {
     case "Admin":
       return { label: "Admin", color: "secondary" };
@@ -69,7 +72,7 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
     "chatService",
     "getChatMembers",
     { chatId },
-    { enabled: !!chatId }
+    { enabled: !!chatId },
   );
 
   // Local members state (synced from query and socket updates)
@@ -115,14 +118,16 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
   // Get current user's membership level
   const currentUserMember = React.useMemo(
     () => members.find((m) => m.userId === userId),
-    [members, userId]
+    [members, userId],
   );
 
   // Check permissions
   const serviceLevel = serviceAccess?.chatService as AccessLevel | undefined;
   const entryLevel = currentUserMember?.level;
   const effectiveLevel = serviceLevel
-    ? (isLevelSufficient(serviceLevel, entryLevel ?? "Public") ? serviceLevel : entryLevel)
+    ? isLevelSufficient(serviceLevel, entryLevel ?? "Public")
+      ? serviceLevel
+      : entryLevel
     : entryLevel;
 
   const canModerate = isLevelSufficient(effectiveLevel, "Moderate");
@@ -154,7 +159,7 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
       setIsEditingTitle(false);
       return result;
     },
-    [chat, chatId, updateTitle]
+    [chat, chatId, updateTitle],
   );
 
   // Handle invite
@@ -203,7 +208,9 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
             update={handleTitleUpdate}
             property="title"
             commitMode="blur"
-            onSuccess={() => { setIsEditingTitle(false); }}
+            onSuccess={() => {
+              setIsEditingTitle(false);
+            }}
             autoFocus
             style={{
               width: "100%",
@@ -233,7 +240,9 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
               <IconButton
                 className="edit-icon"
                 size="small"
-                onClick={() => { setIsEditingTitle(true); }}
+                onClick={() => {
+                  setIsEditingTitle(true);
+                }}
                 sx={{ opacity: 0, transition: "opacity 0.2s" }}
               >
                 <EditIcon fontSize="small" />
@@ -266,21 +275,17 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
             slotProps={{
               input: {
                 endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={handleInvite}
-                    disabled={!inviteUsername.trim() || inviteByName.isPending}
-                    edge="end"
-                    size="small"
-                  >
-                    {inviteByName.isPending ? (
-                      <CircularProgress size={20} />
-                    ) : (
-                      <PersonAddIcon />
-                    )}
-                  </IconButton>
-                </InputAdornment>
-              ),
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={handleInvite}
+                      disabled={!inviteUsername.trim() || inviteByName.isPending}
+                      edge="end"
+                      size="small"
+                    >
+                      {inviteByName.isPending ? <CircularProgress size={20} /> : <PersonAddIcon />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
               },
             }}
           />
@@ -317,7 +322,9 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
                       <IconButton
                         edge="end"
                         size="small"
-                        onClick={() => { handleRemoveMember(member); }}
+                        onClick={() => {
+                          handleRemoveMember(member);
+                        }}
                         sx={{ opacity: 0.5, "&:hover": { opacity: 1 } }}
                       >
                         <RemoveCircleOutlineIcon fontSize="small" />
@@ -360,7 +367,9 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
               color="error"
               startIcon={<DeleteIcon />}
               fullWidth
-              onClick={() => { setDeleteDialogOpen(true); }}
+              onClick={() => {
+                setDeleteDialogOpen(true);
+              }}
             >
               {t("deleteChatButton")}
             </Button>
@@ -371,7 +380,9 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
         open={deleteDialogOpen}
-        onClose={() => { setDeleteDialogOpen(false); }}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+        }}
         onConfirm={handleDeleteChat}
         title={t("deleteChatConfirmTitle")}
         message={t("deleteChatConfirmMessage")}

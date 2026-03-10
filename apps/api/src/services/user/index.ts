@@ -73,7 +73,7 @@ export class UserService extends BaseService<
     userId: string,
     entryId: string,
     requiredLevel: AccessLevel,
-    _socket: QuickdrawSocket
+    _socket: QuickdrawSocket,
   ): boolean {
     // Any authenticated user can read any profile (for profile viewing)
     if (requiredLevel === "Read") {
@@ -90,30 +90,35 @@ export class UserService extends BaseService<
 
   private initMethods(): void {
     // Get current user
-    this.defineMethod("getMe", "Read", async (_payload, ctx) => {
-      if (!ctx.userId) return null;
-      
-      const user = await this.prisma.user.findUnique({
-        where: { id: ctx.userId },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          image: true,
-          serviceAccess: true,
-        },
-      });
+    this.defineMethod(
+      "getMe",
+      "Read",
+      async (_payload, ctx) => {
+        if (!ctx.userId) return null;
 
-      if (!user) return null;
+        const user = await this.prisma.user.findUnique({
+          where: { id: ctx.userId },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            image: true,
+            serviceAccess: true,
+          },
+        });
 
-      return {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        image: user.image,
-        serviceAccess: user.serviceAccess as Record<string, AccessLevel> | null,
-      };
-    }, { schema: z.object({}) });
+        if (!user) return null;
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image,
+          serviceAccess: user.serviceAccess as Record<string, AccessLevel> | null,
+        };
+      },
+      { schema: z.object({}) },
+    );
 
     // Update user profile
     this.defineMethod(
@@ -144,10 +149,10 @@ export class UserService extends BaseService<
 
         return updated;
       },
-      { 
+      {
         schema: updateUserSchema,
-        resolveEntryId: (p) => p.id 
-      }
+        resolveEntryId: (p) => p.id,
+      },
     );
   }
 }

@@ -1,8 +1,8 @@
 # Multi-stage build for quickdraw-chat API
 FROM node:20-alpine AS base
 
-# Install pnpm
-RUN npm install -g pnpm@9.0.0
+# Install bun
+RUN npm install -g bun@1.3.10
 
 # ============================================================================
 # Dependencies stage - install all dependencies
@@ -11,7 +11,7 @@ FROM base AS deps
 WORKDIR /app
 
 # Copy workspace configuration
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY package.json bun.lock ./
 
 # Copy package.json files for all workspaces
 COPY apps/api/package.json ./apps/api/
@@ -19,7 +19,7 @@ COPY packages/db/package.json ./packages/db/
 COPY packages/shared/package.json ./packages/shared/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN bun install --frozen-lockfile
 
 # ============================================================================
 # Builder stage - build the application
@@ -34,18 +34,18 @@ COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 
 # Copy source code
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml turbo.json ./
+COPY package.json bun.lock turbo.json ./
 COPY apps/api ./apps/api
 COPY packages/db ./packages/db
 COPY packages/shared ./packages/shared
 
 # Generate Prisma client
-RUN pnpm --filter @project/db db:generate
+RUN bun run --filter @project/db db:generate
 
 # Build packages
-RUN pnpm --filter @project/shared build
-RUN pnpm --filter @project/db build
-RUN pnpm --filter @project/api build
+RUN bun run --filter @project/shared build
+RUN bun run --filter @project/db build
+RUN bun run --filter @project/api build
 
 # ============================================================================
 # Production stage - minimal runtime image
@@ -68,10 +68,10 @@ COPY --from=builder --chown=quickdraw:nodejs /app/packages/db/prisma ./packages/
 COPY --from=builder --chown=quickdraw:nodejs /app/packages/db/package.json ./packages/db/
 COPY --from=builder --chown=quickdraw:nodejs /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder --chown=quickdraw:nodejs /app/packages/shared/package.json ./packages/shared/
-COPY --from=builder --chown=quickdraw:nodejs /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml ./
+COPY --from=builder --chown=quickdraw:nodejs /app/package.json /app/bun.lock ./
 
 # Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod --filter @project/api...
+RUN bun install --frozen-lockfile --production
 
 # Switch to non-root user
 USER quickdraw

@@ -1,11 +1,18 @@
 {
   "name": "quickdraw-chat",
+  "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
     "lint:fix": "turbo lint:fix",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
     "typecheck": "turbo typecheck",
     "check": "turbo lint typecheck",
     "test": "turbo test",
@@ -18,33 +25,24 @@
     "db:migrate": "turbo db:migrate",
     "docs:generate": "tsx scripts/generate-docs.ts",
     "build:prod": "NODE_ENV=production turbo build",
-    "db:migrate:deploy": "cd packages/db && dotenv -e ../../.env.local -- npx prisma migrate deploy",
+    "db:migrate:deploy": "cd packages/db && dotenv -e ../../.env.local -- bunx prisma migrate deploy",
     "precommit": "turbo lint typecheck test",
     "prepare": "husky"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
-    "eslint": "^9.0.0",
+    "@typescript/native-preview": "^7.0.0-dev",
+    "dotenv-cli": "^11.0.0",
     "husky": "^9.0.0",
-    "lint-staged": "^15.2.0",
-    "prettier": "^3.2.0",
+    "oxfmt": "^0.37.0",
+    "oxlint": "^1.52.0",
     "tsx": "^4.7.0",
     "turbo": "^2.0.0",
     "typescript": "^5.3.0",
     "vitest": "^1.3.0"
   },
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{json,md,yaml,yml}": [
-      "prettier --write"
-    ]
-  },
-  "packageManager": "pnpm@9.0.0",
   "engines": {
     "node": ">=20"
   },
-  "version": "0.1.0"
+  "packageManager": "bun@1.3.10"
 }

@@ -44,12 +44,7 @@ export function ConfirmDialog({
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={isLoading ? undefined : onClose}
-      maxWidth="xs"
-      fullWidth
-    >
+    <Dialog open={open} onClose={isLoading ? undefined : onClose} maxWidth="xs" fullWidth>
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
         <DialogContentText>{message}</DialogContentText>
@@ -67,7 +62,7 @@ export function ConfirmDialog({
           {isLoading ? (
             <CircularProgress size={20} color="inherit" />
           ) : (
-            confirmLabel ?? tCommon("confirm")
+            (confirmLabel ?? tCommon("confirm"))
           )}
         </Button>
       </DialogActions>

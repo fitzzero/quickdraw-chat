@@ -36,9 +36,7 @@ interface AdminLayoutProps {
  * Admin layout with admin-specific navigation.
  * Replaces the standard left sidebar with admin service navigation.
  */
-export default function AdminLayout({
-  children,
-}: AdminLayoutProps): React.ReactElement {
+export default function AdminLayout({ children }: AdminLayoutProps): React.ReactElement {
   const t = useTranslations("Admin");
   const tCommon = useTranslations("Common");
   const isMobile = useIsMobile();

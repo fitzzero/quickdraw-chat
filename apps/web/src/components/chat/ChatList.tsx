@@ -84,10 +84,7 @@ export function ChatList({
         <List sx={{ flex: 1, overflow: "auto" }}>
           {chats.length === 0 ? (
             <ListItem>
-              <ListItemText
-                secondary={t("noChats")}
-                sx={{ textAlign: "center" }}
-              />
+              <ListItemText secondary={t("noChats")} sx={{ textAlign: "center" }} />
             </ListItem>
           ) : (
             chats.map((chat) => (
@@ -147,11 +144,7 @@ export function ChatList({
             variant="contained"
             disabled={!newChatTitle.trim() || createChat.isPending}
           >
-            {createChat.isPending ? (
-              <CircularProgress size={20} />
-            ) : (
-              tCommon("create")
-            )}
+            {createChat.isPending ? <CircularProgress size={20} /> : tCommon("create")}
           </Button>
         </DialogActions>
       </Dialog>

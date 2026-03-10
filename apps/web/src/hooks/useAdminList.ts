@@ -38,7 +38,7 @@ export interface AdminListResponse<T = Record<string, unknown>> {
  */
 export function useAdminList(
   serviceName: string,
-  meta: AdminServiceMeta | null
+  meta: AdminServiceMeta | null,
 ): {
   data: AdminListResponse | null;
   isLoading: boolean;
@@ -92,24 +92,31 @@ export function useAdminList(
           setError(response.error);
         }
         setIsLoading(false);
-      }
+      },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [socket, isConnected, serviceName, meta, page, pageSize, sortField, sortDirection, refreshKey]);
+  }, [
+    socket,
+    isConnected,
+    serviceName,
+    meta,
+    page,
+    pageSize,
+    sortField,
+    sortDirection,
+    refreshKey,
+  ]);
 
   React.useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   // Reset to page 1 when sort changes
-  const handleSetSort = React.useCallback(
-    (field: string | null, direction: "asc" | "desc") => {
-      setSortField(field);
-      setSortDirection(direction);
-      setPage(1);
-    },
-    []
-  );
+  const handleSetSort = React.useCallback((field: string | null, direction: "asc" | "desc") => {
+    setSortField(field);
+    setSortDirection(direction);
+    setPage(1);
+  }, []);
 
   // Refresh function
   const refresh = React.useCallback(() => {

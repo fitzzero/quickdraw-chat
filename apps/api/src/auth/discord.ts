@@ -30,7 +30,8 @@ export function registerDiscordRoutes(router: Router): void {
   // Redirect to Discord OAuth
   router.get("/auth/discord", (_req, res) => {
     const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID ?? "";
-    const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI ?? "http://localhost:4000/auth/discord/callback";
+    const DISCORD_REDIRECT_URI =
+      process.env.DISCORD_REDIRECT_URI ?? "http://localhost:4000/auth/discord/callback";
 
     if (!DISCORD_CLIENT_ID) {
       res.status(500).json({ error: "Discord OAuth not configured" });
@@ -63,7 +64,8 @@ export function registerDiscordRoutes(router: Router): void {
   router.get("/auth/discord/callback", async (req, res) => {
     const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID ?? "";
     const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET ?? "";
-    const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI ?? "http://localhost:4000/auth/discord/callback";
+    const DISCORD_REDIRECT_URI =
+      process.env.DISCORD_REDIRECT_URI ?? "http://localhost:4000/auth/discord/callback";
     const CLIENT_URL = process.env.CLIENT_URL ?? "http://localhost:3000";
 
     const code = req.query.code as string | undefined;

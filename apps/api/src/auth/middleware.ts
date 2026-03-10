@@ -26,7 +26,7 @@ function getBootstrapAdminEmails(): Set<string> {
     emailsEnv
       .split(",")
       .map((e) => e.trim().toLowerCase())
-      .filter((e) => e.length > 0)
+      .filter((e) => e.length > 0),
   );
 }
 
@@ -53,7 +53,7 @@ function getDefaultServiceAccess(): Record<string, AccessLevel> {
  * Explicit user access takes precedence over defaults.
  */
 function mergeWithDefaults(
-  userAccess: Record<string, AccessLevel> | null
+  userAccess: Record<string, AccessLevel> | null,
 ): Record<string, AccessLevel> {
   const defaults = getDefaultServiceAccess();
   const explicit = userAccess ?? {};
@@ -71,7 +71,7 @@ async function checkAndApplyBootstrapAdmin(
   userId: string,
   email: string | null,
   currentServiceAccess: Record<string, AccessLevel> | null,
-  getServiceNames?: () => string[]
+  getServiceNames?: () => string[],
 ): Promise<Record<string, AccessLevel>> {
   const bootstrapEmails = getBootstrapAdminEmails();
 
@@ -94,9 +94,7 @@ async function checkAndApplyBootstrapAdmin(
   }
 
   // Check if user already has full admin access
-  const hasFullAccess = serviceNames.every(
-    (name) => currentServiceAccess?.[name] === "Admin"
-  );
+  const hasFullAccess = serviceNames.every((name) => currentServiceAccess?.[name] === "Admin");
 
   if (hasFullAccess) {
     // Already has full admin, no update needed
@@ -129,7 +127,7 @@ async function checkAndApplyBootstrapAdmin(
 export async function authenticateSocket(
   socket: QuickdrawSocket,
   next: (err?: Error) => void,
-  options?: AuthenticateSocketOptions
+  options?: AuthenticateSocketOptions,
 ): Promise<void> {
   try {
     const auth = socket.handshake.auth as Record<string, unknown>;
@@ -148,7 +146,7 @@ export async function authenticateSocket(
           user.id,
           user.email,
           user.serviceAccess as Record<string, AccessLevel> | null,
-          options?.getServiceNames
+          options?.getServiceNames,
         );
         void socket.join(`user:${user.id}`);
         logger.debug(`Dev auth: user ${userId} connected`);
@@ -188,7 +186,7 @@ export async function authenticateSocket(
             user.id,
             user.email,
             user.serviceAccess as Record<string, AccessLevel> | null,
-            options?.getServiceNames
+            options?.getServiceNames,
           );
           void socket.join(`user:${user.id}`);
           next();

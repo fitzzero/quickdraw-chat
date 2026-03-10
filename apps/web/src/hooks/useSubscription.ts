@@ -13,20 +13,16 @@ interface UseSubscriptionOptions<TData> {
 /**
  * Typed wrapper around quickdraw-core's useSubscription hook.
  * Provides project-specific type inference and includes subscription deduplication.
- * 
+ *
  * Multiple components subscribing to the same entity will share a single
  * socket subscription, preventing duplicate network traffic.
  */
 export function useSubscription<TService extends keyof SubscriptionDataMap>(
   serviceName: TService,
   entryId: string | null,
-  options: UseSubscriptionOptions<SubscriptionDataMap[TService]> = {}
+  options: UseSubscriptionOptions<SubscriptionDataMap[TService]> = {},
 ) {
   type TData = SubscriptionDataMap[TService];
 
-  return useQuickdrawSubscription<TData>(
-    serviceName as string,
-    entryId,
-    options
-  );
+  return useQuickdrawSubscription<TData>(serviceName as string, entryId, options);
 }

@@ -19,10 +19,7 @@ export default function ChatPage(): React.ReactElement {
   usePageTitle(chat?.title ?? null);
 
   // Set right sidebar content
-  const sidebarContent = React.useMemo(
-    () => <ChatSidebar chatId={chatId} />,
-    [chatId]
-  );
+  const sidebarContent = React.useMemo(() => <ChatSidebar chatId={chatId} />, [chatId]);
   useRightSidebar(sidebarContent);
 
   // Handle error states
@@ -35,13 +32,7 @@ export default function ChatPage(): React.ReactElement {
     ) {
       return <NoPermission message="You don't have access to this chat" />;
     }
-    return (
-      <NotFound
-        message="Chat not found"
-        backHref="/chats"
-        backLabel="Back to Chats"
-      />
-    );
+    return <NotFound message="Chat not found" backHref="/chats" backLabel="Back to Chats" />;
   }
 
   // Loading state handled by ChatWindow

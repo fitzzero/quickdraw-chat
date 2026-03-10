@@ -63,7 +63,7 @@ export function useFilteredNavigation(): {
       if (!serviceAccess) return false;
       return hasVisibleAccess(serviceAccess[serviceName]);
     },
-    [serviceAccess]
+    [serviceAccess],
   );
 
   // Filter navigation based on service access

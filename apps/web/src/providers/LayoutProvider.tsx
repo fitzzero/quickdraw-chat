@@ -52,7 +52,7 @@ export function LayoutProvider({ children }: LayoutProviderProps): React.ReactEl
       pageTitle,
       setPageTitle,
     }),
-    [rightSidebar, leftDrawerOpen, rightDrawerOpen, pageTitle]
+    [rightSidebar, leftDrawerOpen, rightDrawerOpen, pageTitle],
   );
 
   return <LayoutContext.Provider value={value}>{children}</LayoutContext.Provider>;

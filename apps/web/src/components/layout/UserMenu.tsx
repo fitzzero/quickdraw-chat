@@ -146,7 +146,11 @@ export function UserMenu(): React.ReactElement {
           <ListItemText>{t("account")}</ListItemText>
         </MenuItem>
         <Divider />
-        <MenuItem onClick={() => { void handleLogout(); }}>
+        <MenuItem
+          onClick={() => {
+            void handleLogout();
+          }}
+        >
           <ListItemIcon>
             <LogoutIcon fontSize="small" />
           </ListItemIcon>

@@ -40,10 +40,10 @@ export function parseJWTPayload(token: string): JWTPayload | null {
   try {
     const parts = token.split(".");
     if (parts.length !== 3 || !parts[1]) return null;
-    
+
     const decoded = atob(parts[1]);
     const payload: unknown = JSON.parse(decoded);
-    
+
     if (
       typeof payload === "object" &&
       payload !== null &&
@@ -77,7 +77,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
  */
 export async function logout(): Promise<void> {
   const token = getAuthToken();
-  
+
   if (token) {
     try {
       await fetch(`${API_URL}/auth/logout`, {
@@ -90,7 +90,7 @@ export async function logout(): Promise<void> {
       // Ignore network errors - we'll clear local token anyway
     }
   }
-  
+
   clearAuthToken();
 }
 
@@ -100,12 +100,12 @@ export async function logout(): Promise<void> {
  */
 export async function logoutAllDevices(): Promise<number> {
   const token = getAuthToken();
-  
+
   if (!token) {
     clearAuthToken();
     return 0;
   }
-  
+
   try {
     const response = await fetch(`${API_URL}/auth/sessions`, {
       method: "DELETE",
@@ -113,16 +113,16 @@ export async function logoutAllDevices(): Promise<number> {
         Authorization: `Bearer ${token}`,
       },
     });
-    
+
     if (response.ok) {
-      const data = await response.json() as { sessionsDeleted?: number };
+      const data = (await response.json()) as { sessionsDeleted?: number };
       clearAuthToken();
       return data.sessionsDeleted ?? 0;
     }
   } catch {
     // Ignore network errors - we'll clear local token anyway
   }
-  
+
   clearAuthToken();
   return 0;
 }

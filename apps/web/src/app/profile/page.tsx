@@ -66,9 +66,7 @@ export default function ProfilePage(): React.ReactElement {
             textAlign: "center",
           }}
         >
-          <Typography color="text.secondary">
-            {t("customizationComingSoon")}
-          </Typography>
+          <Typography color="text.secondary">{t("customizationComingSoon")}</Typography>
         </Box>
       </Paper>
     </Box>

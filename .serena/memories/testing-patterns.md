@@ -62,7 +62,7 @@ describe("<Service>Service Integration", () => {
 
     const outsider = await connectAsUser(port, users.regular.id);
     await expect(
-      emitWithAck(outsider, "chatService:subscribe", { entryId: chat.id })
+      emitWithAck(outsider, "chatService:subscribe", { entryId: chat.id }),
     ).rejects.toThrow();
     outsider.close();
   });
@@ -158,9 +158,7 @@ describe("<Service>Service Integration - Admin Methods", () => {
   // Negative tests - non-admin user (no serviceAccess)
   it("should deny non-admin from using adminList", async () => {
     const client = await connectAsUser(port, users.regular.id);
-    await expect(
-      emitWithAck(client, "<service>:adminList", {})
-    ).rejects.toThrow();
+    await expect(emitWithAck(client, "<service>:adminList", {})).rejects.toThrow();
     client.close();
   });
 
@@ -170,6 +168,7 @@ describe("<Service>Service Integration - Admin Methods", () => {
 ```
 
 **Key points:**
+
 - Use `users.admin` (has service-level Admin) for positive tests
 - Use `users.regular` (no serviceAccess) for negative tests
 - Verify database state with `testPrisma` after mutations
@@ -214,6 +213,7 @@ describe("<Service>Service Integration - Socket Room Updates", () => {
 ```
 
 **Key points:**
+
 - Both users must `subscribe` to join the Socket.io room
 - Set up `waitForEvent()` listener BEFORE triggering the action
 - Custom events use their own event names (e.g., `chat:memberUpdate`, `chat:message`)
@@ -249,7 +249,11 @@ describe("<Service>Service Integration - Permission Cascade", () => {
   // Entry-level access (user IS a member with sufficient level)
   it("should allow entry-level Moderate access", async () => {
     // Invite user with Moderate level
-    await emitWithAck(admin, "<service>:invite", { id: entityId, userId: users.regular.id, level: "Moderate" });
+    await emitWithAck(admin, "<service>:invite", {
+      id: entityId,
+      userId: users.regular.id,
+      level: "Moderate",
+    });
     const client = await connectAsUser(port, users.regular.id);
     const result = await emitWithAck(client, "<service>:moderateAction", { id: entityId });
     expect(result).toBeDefined();
@@ -261,10 +265,14 @@ describe("<Service>Service Integration - Permission Cascade", () => {
 
   // Deny: insufficient entry-level access
   it("should deny entry-level Read for Moderate-required action", async () => {
-    await emitWithAck(admin, "<service>:invite", { id: entityId, userId: users.regular.id, level: "Read" });
+    await emitWithAck(admin, "<service>:invite", {
+      id: entityId,
+      userId: users.regular.id,
+      level: "Read",
+    });
     const client = await connectAsUser(port, users.regular.id);
     await expect(
-      emitWithAck(client, "<service>:moderateAction", { id: entityId })
+      emitWithAck(client, "<service>:moderateAction", { id: entityId }),
     ).rejects.toThrow();
     client.close();
   });
@@ -275,6 +283,7 @@ describe("<Service>Service Integration - Permission Cascade", () => {
 ```
 
 **Key points:**
+
 - Test both service-level AND entry-level access paths
 - Verify higher levels work (Admin can do Moderate actions)
 - Test deny cases: insufficient level, non-member

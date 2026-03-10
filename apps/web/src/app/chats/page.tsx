@@ -51,7 +51,7 @@ export default function ChatsPage(): React.ReactElement {
           setChats(response.data);
         }
         setIsLoading(false);
-      }
+      },
     );
   }, [socket, isConnected]);
 
@@ -130,11 +130,7 @@ export default function ChatsPage(): React.ReactElement {
         ) : (
           <List disablePadding>
             {chats.map((chat, index) => (
-              <ListItem
-                key={chat.id}
-                disablePadding
-                divider={index < chats.length - 1}
-              >
+              <ListItem key={chat.id} disablePadding divider={index < chats.length - 1}>
                 <ListItemButton component={Link} href={`/chats/${chat.id}`}>
                   <ListItemText
                     primary={chat.title}
@@ -142,7 +138,13 @@ export default function ChatsPage(): React.ReactElement {
                       <>
                         {tChatList("memberCount", { count: chat.memberCount })}
                         {chat.lastMessageAt && (
-                          <> · {t("lastMessage", { date: new Date(chat.lastMessageAt).toLocaleDateString() })}</>
+                          <>
+                            {" "}
+                            ·{" "}
+                            {t("lastMessage", {
+                              date: new Date(chat.lastMessageAt).toLocaleDateString(),
+                            })}
+                          </>
                         )}
                       </>
                     }

@@ -10,10 +10,7 @@
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { config } from "dotenv";
-import {
-  McpRegistry,
-  createMcpStdioServer,
-} from "@fitzzero/quickdraw-core/server";
+import { McpRegistry, createMcpStdioServer } from "@fitzzero/quickdraw-core/server";
 import type { AccessLevel } from "@project/shared";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -39,8 +36,7 @@ const mcpRegistry = new McpRegistry({
         select: { serviceAccess: true },
       });
       return {
-        serviceAccess:
-          (user?.serviceAccess as Record<string, AccessLevel>) ?? {},
+        serviceAccess: (user?.serviceAccess as Record<string, AccessLevel>) ?? {},
       };
     } catch {
       return { serviceAccess: {} };

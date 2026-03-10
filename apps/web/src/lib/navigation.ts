@@ -78,10 +78,7 @@ export const userMenuItems: NavItem[] = [
 /**
  * Find a nav item by its href (exact match or starts with for nested routes)
  */
-export function findNavItemByHref(
-  items: NavItem[],
-  href: string
-): NavItem | undefined {
+export function findNavItemByHref(items: NavItem[], href: string): NavItem | undefined {
   for (const item of items) {
     if (item.href === href) return item;
     if (item.children) {
@@ -95,10 +92,7 @@ export function findNavItemByHref(
 /**
  * Find the parent nav item for a given href
  */
-export function findParentNavItem(
-  items: NavItem[],
-  href: string
-): NavItem | undefined {
+export function findParentNavItem(items: NavItem[], href: string): NavItem | undefined {
   for (const item of items) {
     if (item.children) {
       const childMatch = item.children.find((c) => c.href === href);

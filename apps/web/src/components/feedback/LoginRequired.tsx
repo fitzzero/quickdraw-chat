@@ -10,9 +10,7 @@ interface LoginRequiredProps {
   message?: string;
 }
 
-export function LoginRequired({
-  message,
-}: LoginRequiredProps): React.ReactElement {
+export function LoginRequired({ message }: LoginRequiredProps): React.ReactElement {
   const t = useTranslations("LoginRequired");
   const tAuth = useTranslations("Auth");
 
@@ -46,12 +44,7 @@ export function LoginRequired({
         <Typography color="text.secondary" sx={{ mb: 3 }}>
           {message ?? t("defaultMessage")}
         </Typography>
-        <Button
-          component={Link}
-          href="/auth/login"
-          variant="contained"
-          size="large"
-        >
+        <Button component={Link} href="/auth/login" variant="contained" size="large">
           {tAuth("signIn")}
         </Button>
       </Paper>

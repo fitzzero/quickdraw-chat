@@ -51,10 +51,14 @@ interface AdminTableProps {
 function formatCellValue(
   value: unknown,
   field: AdminFieldConfig,
-  t: (key: string) => string
+  t: (key: string) => string,
 ): React.ReactNode {
   if (value === null || value === undefined) {
-    return <Typography color="text.secondary" variant="body2">{t("noData")}</Typography>;
+    return (
+      <Typography color="text.secondary" variant="body2">
+        {t("noData")}
+      </Typography>
+    );
   }
 
   switch (field.type) {
@@ -245,9 +249,7 @@ export function AdminTable({
                   }}
                 >
                   {columns.map((col) => (
-                    <TableCell key={col.name}>
-                      {formatCellValue(row[col.name], col, t)}
-                    </TableCell>
+                    <TableCell key={col.name}>{formatCellValue(row[col.name], col, t)}</TableCell>
                   ))}
                 </TableRow>
               );

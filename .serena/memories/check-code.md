@@ -40,6 +40,7 @@ pnpm lint && pnpm typecheck && pnpm build
 ## Reporting
 
 After running checks, report:
+
 - ✅ **Passed** - All checks successful
 - ❌ **Failed** - List specific errors and fix them before continuing
 

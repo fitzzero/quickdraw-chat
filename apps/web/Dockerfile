@@ -1,8 +1,8 @@
 # Multi-stage build for quickdraw-chat Web (Next.js)
 FROM node:20-alpine AS base
 
-# Install pnpm
-RUN npm install -g pnpm@9.0.0
+# Install bun
+RUN npm install -g bun@1.3.10
 
 # ============================================================================
 # Dependencies stage - install all dependencies
@@ -11,14 +11,14 @@ FROM base AS deps
 WORKDIR /app
 
 # Copy workspace configuration
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY package.json bun.lock ./
 
 # Copy package.json files for all workspaces
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared/package.json ./packages/shared/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN bun install --frozen-lockfile
 
 # ============================================================================
 # Builder stage - build the application
@@ -32,19 +32,19 @@ COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 
 # Copy source code
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml turbo.json ./
+COPY package.json bun.lock turbo.json ./
 COPY apps/web ./apps/web
 COPY packages/shared ./packages/shared
 
 # Build shared package first
-RUN pnpm --filter @project/shared build
+RUN bun run --filter @project/shared build
 
 # Build Next.js application
 # Set environment variables for build
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-RUN pnpm --filter @project/web build
+RUN bun run --filter @project/web build
 
 # ============================================================================
 # Production stage - minimal runtime image
