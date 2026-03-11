@@ -1,0 +1,79 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "import", "react", "nextjs", "jsx_a11y"],
+  "categories": {
+    "correctness": "deny",
+    "suspicious": "warn",
+    "pedantic": "warn"
+  },
+  "jsPlugins": [
+    {
+      "name": "quickdraw",
+      "specifier": "@fitzzero/quickdraw-core/eslint-plugin"
+    }
+  ],
+  "rules": {
+    "no-console": "warn",
+    "no-var": "error",
+    "no-inline-comments": "off",
+    "no-negated-condition": "off",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "warn",
+    "typescript/no-import-type-side-effects": "warn",
+
+    "typescript/no-unsafe-assignment": "warn",
+    "typescript/no-unsafe-call": "warn",
+    "typescript/no-unsafe-member-access": "warn",
+    "typescript/no-unsafe-return": "warn",
+    "typescript/no-unsafe-argument": "warn",
+    "typescript/restrict-template-expressions": "off",
+    "typescript/no-redundant-type-constituents": "off",
+
+    "react/react-in-jsx-scope": "off",
+    "jsx_a11y/no-autofocus": "off",
+    "import/no-unassigned-import": "off",
+
+    "complexity": ["warn", { "max": 15 }],
+    "max-lines": ["warn", { "max": 400, "skipBlankLines": true, "skipComments": true }],
+    "max-lines-per-function": ["warn", { "max": 80, "skipBlankLines": true, "skipComments": true }]
+  },
+  "overrides": [
+    {
+      "files": ["**/services/**/*.ts"],
+      "rules": {
+        "quickdraw/no-direct-prisma-mutations": "warn",
+        "quickdraw/require-zod-schema": "warn",
+        "quickdraw/no-service-method-record": "error",
+        "quickdraw/no-unsafe-payload-cast": "warn"
+      }
+    },
+    {
+      "files": ["**/services/**/index.ts"],
+      "rules": {
+        "quickdraw/no-direct-prisma-mutations": "off"
+      }
+    },
+    {
+      "files": ["apps/web/**"],
+      "rules": {
+        "typescript/explicit-function-return-type": "off"
+      }
+    },
+    {
+      "files": ["packages/shared/**", "packages/db/**"],
+      "rules": {
+        "typescript/explicit-function-return-type": "error",
+        "typescript/explicit-module-boundary-types": "error",
+        "no-console": "error"
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/.turbo/**",
+    "**/coverage/**",
+    "**/.next/**",
+    "**/prisma/generated/**"
+  ]
+}

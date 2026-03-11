@@ -7,7 +7,7 @@ import enMessages from "../messages/en.json";
 const messages = { en: enMessages };
 type Locale = keyof typeof messages;
 
-// eslint-disable-next-line @typescript-eslint/no-empty-function
+// oxlint-disable-next-line typescript/no-empty-function
 const noop = () => {};
 
 const LocaleContext = createContext<{

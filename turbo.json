@@ -12,7 +12,7 @@
     },
     "lint": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**/*.ts", "src/**/*.tsx", "eslint.config.*"],
+      "inputs": ["src/**/*.ts", "src/**/*.tsx", "../../.oxlintrc.json"],
       "outputs": [],
       "cache": true
     },

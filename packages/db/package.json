@@ -18,8 +18,8 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "lint": "oxlint src",
-    "lint:fix": "oxlint --fix src",
+    "lint": "oxlint -c ../../.oxlintrc.json src",
+    "lint:fix": "oxlint --fix -c ../../.oxlintrc.json src",
     "typecheck": "tsgo --noEmit",
     "db:generate": "prisma generate",
     "db:push": "dotenv -e ../../.env.local -- prisma db push",

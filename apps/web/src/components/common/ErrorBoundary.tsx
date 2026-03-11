@@ -41,7 +41,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     // Log error to console in development
     if (process.env.NODE_ENV === "development") {
-      // eslint-disable-next-line no-console -- Intentional error logging in development
+      // oxlint-disable-next-line no-console -- Intentional error logging in development
       console.error("Error caught by boundary:", error, errorInfo);
     }
 

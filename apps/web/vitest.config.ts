@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
+  // oxlint-disable-next-line typescript/no-explicit-any -- Vite plugin types are incompatible with Vitest's defineConfig
   plugins: [react() as any],
   test: {
     globals: true,
