@@ -41,16 +41,10 @@
     {
       "files": ["**/services/**/*.ts"],
       "rules": {
-        "quickdraw/no-direct-prisma-mutations": "warn",
+        "quickdraw/no-cross-service-mutations": "warn",
         "quickdraw/require-zod-schema": "warn",
         "quickdraw/no-service-method-record": "error",
         "quickdraw/no-unsafe-payload-cast": "warn"
-      }
-    },
-    {
-      "files": ["**/services/**/index.ts"],
-      "rules": {
-        "quickdraw/no-direct-prisma-mutations": "off"
       }
     },
     {
