@@ -20,7 +20,6 @@ interface TestServer {
  * Start a test server with all services registered
  */
 export async function startTestServer(): Promise<TestServer> {
-  const port = getAvailablePort();
   const app = express();
   const httpServer = createServer(app);
 
@@ -104,15 +103,19 @@ export async function startTestServer(): Promise<TestServer> {
     });
   });
 
-  // Wait for server to start
+  // Listen on an ephemeral port (0) so parallel test workers never collide
   await new Promise<void>((resolve) => {
-    httpServer.listen(port, () => {
+    httpServer.listen(0, () => {
       resolve();
     });
   });
+  const address = httpServer.address();
+  if (!address || typeof address === "string") {
+    throw new Error("Test server failed to bind a port");
+  }
 
   return {
-    port,
+    port: address.port,
     io,
     stop: async () => {
       await io.close();
