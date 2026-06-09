@@ -65,9 +65,17 @@ export function parseJWTPayload(token: string): JWTPayload | null {
 /**
  * Get the API URL for OAuth redirect
  */
-export function getOAuthUrl(provider: "discord" | "google"): string {
+export function getOAuthUrl(provider: "discord" | "google" | "mock"): string {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
   return `${apiUrl}/auth/${provider}`;
+}
+
+/**
+ * Whether the dev-only mock OAuth login is enabled (never in production —
+ * the API hard-blocks it server-side as well).
+ */
+export function isMockLoginEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_ENABLE_MOCK_OAUTH === "true";
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";

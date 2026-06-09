@@ -22,19 +22,24 @@
     "lint:fix": "oxlint --fix -c ../../.oxlintrc.json src",
     "typecheck": "tsgo --noEmit",
     "db:generate": "prisma generate",
-    "db:push": "dotenv -e ../../.env.local -- prisma db push",
-    "db:migrate": "dotenv -e ../../.env.local -- prisma migrate dev",
-    "db:studio": "dotenv -e ../../.env.local -- prisma studio"
+    "db:push": "../../scripts/load-env.sh prisma db push",
+    "db:migrate": "../../scripts/load-env.sh prisma migrate dev",
+    "db:migrate:deploy": "../../scripts/load-env.sh prisma migrate deploy",
+    "db:seed": "../../scripts/load-env.sh tsx src/seed.ts",
+    "db:studio": "../../scripts/load-env.sh prisma studio"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.0.0",
-    "@prisma/client": "^7.0.0"
+    "@prisma/client": "^7.0.0",
+    "pg": "^8.13.0"
   },
   "devDependencies": {
+    "@types/pg": "^8.11.0",
     "dotenv": "^16.4.0",
     "dotenv-cli": "^11.0.0",
     "prisma": "^7.0.0",
     "tsup": "^8.0.0",
+    "tsx": "^4.7.0",
     "typescript": "^5.3.0"
   }
 }

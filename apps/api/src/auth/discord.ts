@@ -1,206 +1,72 @@
 import type { Router } from "express";
-import crypto from "crypto";
-import { prisma } from "@project/db";
-import { createJWT } from "./jwt.js";
+import {
+  createOAuthURL,
+  discordProvider,
+  exchangeOAuthCode,
+  getDiscordAvatarUrl,
+  type OAuthConfig,
+} from "@fitzzero/quickdraw-core/server";
 import { logger } from "../utils/logger.js";
+import {
+  clientUrl,
+  completeOAuthLogin,
+  issueOAuthState,
+  validateOAuthState,
+} from "./oauth-callback.js";
 
 const OAUTH_STATE_COOKIE = "discord_oauth_state";
-const SESSION_EXPIRY_DAYS = 7;
 
-interface DiscordUser {
-  id: string;
-  username: string;
-  email: string | null;
-  avatar: string | null;
-  verified: boolean;
-}
-
-interface DiscordTokenResponse {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-  refresh_token: string;
-  scope: string;
+function discordConfig(): OAuthConfig {
+  return {
+    clientId: process.env.DISCORD_CLIENT_ID ?? "",
+    clientSecret: process.env.DISCORD_CLIENT_SECRET ?? "",
+    redirectUri: process.env.DISCORD_REDIRECT_URI ?? "http://localhost:4000/auth/discord/callback",
+  };
 }
 
 /**
  * Register Discord OAuth routes
  */
 export function registerDiscordRoutes(router: Router): void {
-  // Redirect to Discord OAuth
   router.get("/auth/discord", (_req, res) => {
-    const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID ?? "";
-    const DISCORD_REDIRECT_URI =
-      process.env.DISCORD_REDIRECT_URI ?? "http://localhost:4000/auth/discord/callback";
-
-    if (!DISCORD_CLIENT_ID) {
+    const config = discordConfig();
+    if (!config.clientId) {
       res.status(500).json({ error: "Discord OAuth not configured" });
       return;
     }
 
-    // Generate cryptographically secure state parameter for CSRF protection
-    const state = crypto.randomBytes(32).toString("hex");
-
-    // Store state in httpOnly cookie (expires in 10 minutes)
-    res.cookie(OAUTH_STATE_COOKIE, state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 10 * 60 * 1000, // 10 minutes
-    });
-
-    const params = new URLSearchParams({
-      client_id: DISCORD_CLIENT_ID,
-      redirect_uri: DISCORD_REDIRECT_URI,
-      response_type: "code",
-      scope: "identify email",
-      state,
-    });
-
-    res.redirect(`https://discord.com/api/oauth2/authorize?${params.toString()}`);
+    const state = issueOAuthState(res, OAUTH_STATE_COOKIE);
+    res.redirect(createOAuthURL(discordProvider, config, state));
   });
 
-  // OAuth callback
   router.get("/auth/discord/callback", async (req, res) => {
-    const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID ?? "";
-    const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET ?? "";
-    const DISCORD_REDIRECT_URI =
-      process.env.DISCORD_REDIRECT_URI ?? "http://localhost:4000/auth/discord/callback";
-    const CLIENT_URL = process.env.CLIENT_URL ?? "http://localhost:3000";
-
-    const code = req.query.code as string | undefined;
-    const state = req.query.state as string | undefined;
-    const storedState = (req.cookies as Record<string, string> | undefined)?.[OAUTH_STATE_COOKIE];
-
-    // Clear the state cookie regardless of outcome
-    res.clearCookie(OAUTH_STATE_COOKIE);
-
-    // Validate state parameter (CSRF protection)
-    if (!state || !storedState || state !== storedState) {
-      logger.warn("Discord OAuth state mismatch", { state: !!state, storedState: !!storedState });
-      res.redirect(`${CLIENT_URL}/auth/login?error=invalid_state`);
+    if (!validateOAuthState(req, res, OAUTH_STATE_COOKIE)) {
+      logger.warn("Discord OAuth state mismatch");
+      res.redirect(`${clientUrl()}/auth/login?error=invalid_state`);
       return;
     }
 
+    const code = req.query.code as string | undefined;
     if (!code) {
-      res.redirect(`${CLIENT_URL}/auth/login?error=no_code`);
+      res.redirect(`${clientUrl()}/auth/login?error=no_code`);
       return;
     }
 
     try {
-      // Exchange code for tokens
-      const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          client_id: DISCORD_CLIENT_ID,
-          client_secret: DISCORD_CLIENT_SECRET,
-          code,
-          grant_type: "authorization_code",
-          redirect_uri: DISCORD_REDIRECT_URI,
-        }),
+      const { tokens, user } = await exchangeOAuthCode(discordProvider, discordConfig(), code);
+      await completeOAuthLogin(res, {
+        provider: "discord",
+        providerAccountId: user.id,
+        email: user.email ?? `${user.id}@discord.local`,
+        name: user.username,
+        image: getDiscordAvatarUrl(user),
+        tokens,
       });
-
-      if (!tokenResponse.ok) {
-        throw new Error("Failed to exchange code for tokens");
-      }
-
-      const tokens = (await tokenResponse.json()) as DiscordTokenResponse;
-
-      // Fetch user info
-      const userResponse = await fetch("https://discord.com/api/users/@me", {
-        headers: {
-          Authorization: `Bearer ${tokens.access_token}`,
-        },
-      });
-
-      if (!userResponse.ok) {
-        throw new Error("Failed to fetch user info");
-      }
-
-      const discordUser = (await userResponse.json()) as DiscordUser;
-
-      // Find or create user
-      let user = await prisma.user.findFirst({
-        where: {
-          accounts: {
-            some: {
-              provider: "discord",
-              providerAccountId: discordUser.id,
-            },
-          },
-        },
-        include: { accounts: true },
-      });
-
-      if (!user) {
-        // Create new user with account
-        user = await prisma.user.create({
-          data: {
-            email: discordUser.email ?? `${discordUser.id}@discord.local`,
-            name: discordUser.username,
-            image: discordUser.avatar
-              ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
-              : null,
-            accounts: {
-              create: {
-                provider: "discord",
-                providerAccountId: discordUser.id,
-                accessToken: tokens.access_token,
-                refreshToken: tokens.refresh_token,
-                expiresAt: Math.floor(Date.now() / 1000) + tokens.expires_in,
-                tokenType: tokens.token_type,
-                scope: tokens.scope,
-              },
-            },
-          },
-          include: { accounts: true },
-        });
-
-        logger.info(`Created new user via Discord OAuth: ${user.id}`);
-      } else {
-        // Update existing account tokens
-        await prisma.account.updateMany({
-          where: {
-            userId: user.id,
-            provider: "discord",
-          },
-          data: {
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token,
-            expiresAt: Math.floor(Date.now() / 1000) + tokens.expires_in,
-          },
-        });
-
-        logger.info(`Updated Discord tokens for user: ${user.id}`);
-      }
-
-      // Create JWT
-      const jwt = await createJWT({
-        userId: user.id,
-        email: user.email,
-      });
-
-      // Create session record for token revocation support
-      await prisma.session.create({
-        data: {
-          userId: user.id,
-          token: jwt,
-          expiresAt: new Date(Date.now() + SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
-        },
-      });
-
-      logger.info(`Created session for user: ${user.id}`);
-
-      // Redirect to client with token
-      res.redirect(`${CLIENT_URL}/auth/callback?token=${jwt}`);
     } catch (error) {
       logger.error("Discord OAuth error:", {
         error: error instanceof Error ? error.message : "Unknown error",
       });
-      res.redirect(`${CLIENT_URL}/auth/login?error=oauth_failed`);
+      res.redirect(`${clientUrl()}/auth/login?error=oauth_failed`);
     }
   });
 }

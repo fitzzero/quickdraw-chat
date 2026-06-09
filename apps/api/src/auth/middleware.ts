@@ -1,5 +1,6 @@
-import type { QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
+import { SESSION_COOKIE, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 import type { AccessLevel } from "@project/shared";
+import { userRoom } from "@project/shared";
 import { prisma } from "@project/db";
 import { verifyJWT } from "./jwt.js";
 import { logger } from "../utils/logger.js";
@@ -117,12 +118,131 @@ async function checkAndApplyBootstrapAdmin(
 }
 
 /**
+ * Attempt dev-mode authentication using a direct userId from the handshake.
+ * Returns true if the socket was authenticated.
+ */
+async function tryDevAuth(
+  socket: QuickdrawSocket,
+  auth: Record<string, unknown>,
+  getServiceNames?: () => string[],
+): Promise<boolean> {
+  if (process.env.ENABLE_DEV_CREDENTIALS !== "true") return false;
+  // Hard-refuse dev credentials in production — even if the flag is set,
+  // it must never authenticate arbitrary userIds on a public host.
+  if (process.env.NODE_ENV === "production") {
+    logger.error("ENABLE_DEV_CREDENTIALS is set in production — refusing to honor");
+    return false;
+  }
+  if (typeof auth.userId !== "string") return false;
+
+  const userId = auth.userId;
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, serviceAccess: true },
+  });
+
+  if (!user) return false;
+
+  socket.userId = user.id;
+  socket.serviceAccess = await checkAndApplyBootstrapAdmin(
+    user.id,
+    user.email,
+    user.serviceAccess as Record<string, AccessLevel> | null,
+    getServiceNames,
+  );
+  void socket.join(userRoom(user.id));
+  logger.debug(`Dev auth: user ${userId} connected`);
+  return true;
+}
+
+/**
+ * Extract a session cookie token from the handshake cookie header.
+ */
+function extractCookieToken(cookieHeader: string | undefined): string | undefined {
+  if (!cookieHeader) return undefined;
+  const match = cookieHeader
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${SESSION_COOKIE}=`));
+  return match ? match.slice(SESSION_COOKIE.length + 1) : undefined;
+}
+
+/**
+ * Attempt JWT-based authentication using an explicit token or session cookie.
+ * Returns true if the socket was handled (valid login or revoked session).
+ */
+async function tryTokenAuth(
+  socket: QuickdrawSocket,
+  auth: Record<string, unknown>,
+  getServiceNames?: () => string[],
+): Promise<boolean> {
+  const cookieToken = extractCookieToken(socket.handshake.headers?.cookie);
+  const token = typeof auth.token === "string" ? auth.token : cookieToken;
+  if (!token) return false;
+
+  const payload = await verifyJWT(token);
+  if (!payload?.userId) return false;
+
+  // Verify session exists and is not expired (enables token revocation)
+  const session = await prisma.session.findUnique({ where: { token } });
+  if (!session || session.expiresAt < new Date()) {
+    logger.debug("Session not found or expired", { userId: payload.userId });
+    socket.userId = undefined;
+    socket.serviceAccess = {};
+    return true;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: payload.userId },
+    select: { id: true, email: true, serviceAccess: true },
+  });
+
+  if (!user) return false;
+
+  socket.userId = user.id;
+  socket.serviceAccess = await checkAndApplyBootstrapAdmin(
+    user.id,
+    user.email,
+    user.serviceAccess as Record<string, AccessLevel> | null,
+    getServiceNames,
+  );
+  void socket.join(userRoom(user.id));
+  return true;
+}
+
+/**
+ * Load serviceAccess for a given userId.
+ * Used by auth paths that bypass authenticateSocket but still need the
+ * user's service-level permissions.
+ */
+export async function loadUserServiceAccess(
+  userId: string,
+  getServiceNames?: () => string[],
+): Promise<Record<string, AccessLevel>> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, serviceAccess: true },
+  });
+  if (!user) return mergeWithDefaults(null);
+
+  return checkAndApplyBootstrapAdmin(
+    userId,
+    user.email,
+    user.serviceAccess as Record<string, AccessLevel> | null,
+    getServiceNames,
+  );
+}
+
+/**
  * Authenticate a socket connection.
  *
  * Supports:
- * - JWT token authentication (production)
- * - Dev credentials (when ENABLE_DEV_CREDENTIALS=true)
+ * - JWT token authentication via auth.token or session cookie
+ * - Dev credentials (when ENABLE_DEV_CREDENTIALS=true, never in production)
  * - Bootstrap admin auto-promotion (when email is in ADMIN_EMAILS)
+ *
+ * Unauthenticated sockets connect anonymously — access checks happen
+ * per-method, so no auth means no access rather than a rejected connection.
  */
 export async function authenticateSocket(
   socket: QuickdrawSocket,
@@ -132,67 +252,14 @@ export async function authenticateSocket(
   try {
     const auth = socket.handshake.auth as Record<string, unknown>;
 
-    // Dev mode: accept userId directly
-    if (process.env.ENABLE_DEV_CREDENTIALS === "true" && typeof auth.userId === "string") {
-      const userId = auth.userId;
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, email: true, serviceAccess: true },
-      });
-
-      if (user) {
-        socket.userId = user.id;
-        socket.serviceAccess = await checkAndApplyBootstrapAdmin(
-          user.id,
-          user.email,
-          user.serviceAccess as Record<string, AccessLevel> | null,
-          options?.getServiceNames,
-        );
-        void socket.join(`user:${user.id}`);
-        logger.debug(`Dev auth: user ${userId} connected`);
-        next();
-        return;
-      }
+    if (await tryDevAuth(socket, auth, options?.getServiceNames)) {
+      next();
+      return;
     }
 
-    // Production: verify JWT token
-    if (typeof auth.token === "string") {
-      const token = auth.token;
-      const payload = await verifyJWT(token);
-
-      if (payload?.userId) {
-        // Verify session exists and is not expired (enables token revocation)
-        const session = await prisma.session.findUnique({
-          where: { token },
-        });
-
-        if (!session || session.expiresAt < new Date()) {
-          // Token is valid JWT but session was revoked or expired
-          logger.debug("Session not found or expired", { userId: payload.userId });
-          socket.userId = undefined;
-          socket.serviceAccess = {};
-          next();
-          return;
-        }
-
-        const user = await prisma.user.findUnique({
-          where: { id: payload.userId },
-          select: { id: true, email: true, serviceAccess: true },
-        });
-
-        if (user) {
-          socket.userId = user.id;
-          socket.serviceAccess = await checkAndApplyBootstrapAdmin(
-            user.id,
-            user.email,
-            user.serviceAccess as Record<string, AccessLevel> | null,
-            options?.getServiceNames,
-          );
-          void socket.join(`user:${user.id}`);
-          next();
-          return;
-        }
-      }
+    if (await tryTokenAuth(socket, auth, options?.getServiceNames)) {
+      next();
+      return;
     }
 
     // Allow anonymous connections (they just won't be able to do much)
