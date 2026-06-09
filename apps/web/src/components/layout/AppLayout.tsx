@@ -33,7 +33,8 @@ export function AppLayout({ children }: AppLayoutProps): React.ReactElement {
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          minWidth: 0, // Prevent flex overflow
+          // Prevent flex overflow
+          minWidth: 0,
         }}
       >
         {/* App Bar */}

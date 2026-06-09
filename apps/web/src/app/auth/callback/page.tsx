@@ -3,9 +3,11 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Box, CircularProgress, Typography, Alert } from "@mui/material";
+import { useTranslations } from "next-intl";
 import { setAuthToken, parseJWTPayload } from "../../../lib/auth";
 
 export default function AuthCallbackPage(): React.ReactElement {
+  const t = useTranslations("Auth");
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = React.useState<string | null>(null);
@@ -72,7 +74,7 @@ export default function AuthCallbackPage(): React.ReactElement {
       }}
     >
       <CircularProgress />
-      <Typography color="text.secondary">Completing sign in...</Typography>
+      <Typography color="text.secondary">{t("completingSignIn")}</Typography>
     </Box>
   );
 }

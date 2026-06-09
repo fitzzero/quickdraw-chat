@@ -19,8 +19,8 @@ import {
   Box,
 } from "@mui/material";
 import { useTranslations } from "next-intl";
-import { useSocket } from "../../providers";
-import type { AdminServiceMeta, AdminFieldConfig, ServiceResponse } from "@project/shared";
+import { useService } from "@fitzzero/quickdraw-core/client";
+import type { AdminServiceMeta, AdminFieldConfig } from "@project/shared";
 
 interface AdminCreateModalProps {
   open: boolean;
@@ -61,7 +61,6 @@ export function AdminCreateModal({
 }: AdminCreateModalProps): React.ReactElement {
   const t = useTranslations("Common");
   const tAdmin = useTranslations("Admin");
-  const { socket } = useSocket();
 
   // Initialize form values with defaults
   const [values, setValues] = React.useState<Record<string, unknown>>(() => {
@@ -74,8 +73,15 @@ export function AdminCreateModal({
     return initial;
   });
 
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  // The admin protocol uses dynamic event names not present in
+  // ServiceMethodsMap, so use the generic quickdraw-core useService here.
+  const adminCreate = useService<{ data: Record<string, unknown> }, Record<string, unknown>>(
+    serviceName,
+    "adminCreate",
+  );
+  const isSubmitting = adminCreate.isPending;
 
   // Reset form when modal opens
   React.useEffect(() => {
@@ -97,10 +103,7 @@ export function AdminCreateModal({
   };
 
   // Submit form
-  const handleSubmit = React.useCallback(() => {
-    if (!socket) return;
-
-    setIsSubmitting(true);
+  const handleSubmit = React.useCallback(async (): Promise<void> => {
     setError(null);
 
     // Filter out empty values for optional fields
@@ -115,19 +118,13 @@ export function AdminCreateModal({
         }
       });
 
-    socket.emit(
-      `${serviceName}:adminCreate`,
-      { data: createData },
-      (response: ServiceResponse<Record<string, unknown>>) => {
-        if (response.success) {
-          onSuccess();
-        } else {
-          setError(response.error);
-        }
-        setIsSubmitting(false);
-      },
-    );
-  }, [socket, serviceName, values, meta.fields, onSuccess]);
+    try {
+      await adminCreate.mutateAsync({ data: createData });
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [adminCreate, values, meta.fields, onSuccess]);
 
   // Render field input
   const renderInput = (field: AdminFieldConfig): React.ReactNode => {
@@ -246,7 +243,13 @@ export function AdminCreateModal({
         <Button onClick={onClose} disabled={isSubmitting}>
           {t("cancel")}
         </Button>
-        <Button onClick={handleSubmit} variant="contained" disabled={isSubmitting}>
+        <Button
+          onClick={(): void => {
+            void handleSubmit();
+          }}
+          variant="contained"
+          disabled={isSubmitting}
+        >
           {isSubmitting ? <CircularProgress size={20} /> : t("create")}
         </Button>
       </DialogActions>

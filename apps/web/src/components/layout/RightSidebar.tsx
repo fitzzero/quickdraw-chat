@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Box, SwipeableDrawer, Typography, IconButton } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import { useTranslations } from "next-intl";
 import { useIsMobile } from "../../hooks";
 import { useLayout } from "../../providers";
 
@@ -14,6 +15,7 @@ interface RightSidebarProps {
 }
 
 export function RightSidebar({ appBarHeight = 64 }: RightSidebarProps): React.ReactElement | null {
+  const tCommon = useTranslations("Common");
   const isMobile = useIsMobile();
   const { rightSidebar, rightDrawerOpen, setRightDrawerOpen } = useLayout();
 
@@ -50,7 +52,7 @@ export function RightSidebar({ appBarHeight = 64 }: RightSidebarProps): React.Re
             borderColor: "divider",
           }}
         >
-          <Typography variant="h6">Details</Typography>
+          <Typography variant="h6">{tCommon("details")}</Typography>
           <IconButton onClick={handleClose} edge="end">
             <CloseIcon />
           </IconButton>

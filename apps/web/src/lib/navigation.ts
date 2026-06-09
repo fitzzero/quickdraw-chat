@@ -49,7 +49,8 @@ export const siteNavigation: NavItem[] = [
     defaultExpanded: true,
     requireAuth: true,
     serviceName: "chatService",
-    dynamicChildren: true, // Children loaded via useRecentChats
+    // Children loaded via useRecentChats
+    dynamicChildren: true,
   },
 ];
 

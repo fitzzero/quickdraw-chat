@@ -124,14 +124,14 @@ bun run db:seed       # Seed demo users/chat/document (idempotent)
 
 ### Tooling
 
-| Tool   | Purpose                           |
-| ------ | --------------------------------- |
-| Bun    | Package manager and script runner |
-| oxlint | Linting (replaces ESLint)         |
-| oxfmt  | Formatting (replaces Prettier)    |
-| tsgo   | Type checking (replaces tsc)      |
-| Turbo  | Monorepo build orchestration      |
-| Vitest | Testing (unit + integration lanes)|
+| Tool   | Purpose                            |
+| ------ | ---------------------------------- |
+| Bun    | Package manager and script runner  |
+| oxlint | Linting (replaces ESLint)          |
+| oxfmt  | Formatting (replaces Prettier)     |
+| tsgo   | Type checking (replaces tsc)       |
+| Turbo  | Monorepo build orchestration       |
+| Vitest | Testing (unit + integration lanes) |
 
 ### Adding a New Service
 

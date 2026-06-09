@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { useServiceQuery } from "@fitzzero/quickdraw-core/client";
 import { useSocket } from "../providers";
 import { useSubscription } from "./useSubscription";
-import type { AdminServiceMeta, ServiceResponse } from "@project/shared";
+import type { AdminServiceMeta } from "@project/shared";
 
 /**
  * Service info for admin navigation.
@@ -25,9 +26,17 @@ const SERVICE_DISPLAY_NAMES: Record<string, string> = {
   documentService: "Documents",
 };
 
+const EMPTY_PAYLOAD: Record<string, never> = {};
+
 /**
  * Hook to get the list of services the current user has admin access to.
  * Reads the user's serviceAccess from their subscription data.
+ *
+ * Metadata is fetched with the generic quickdraw-core `useServiceQuery` (admin
+ * methods use dynamic `${serviceName}:adminMeta` event names that are not part
+ * of the typed `ServiceMethodsMap`). Because hooks can't be called in a loop,
+ * the services are queried one at a time: each settled query marks its service
+ * as attempted, which advances `pendingService` to the next one.
  *
  * @returns Object containing admin services, loading state, and whether user has any admin access
  *
@@ -45,10 +54,10 @@ export function useAdminServices(): {
   isLoading: boolean;
   hasAdminAccess: boolean;
 } {
-  const { userId, socket, isConnected } = useSocket();
+  const { userId } = useSocket();
   const { data: user } = useSubscription("userService", userId ?? "");
   const [servicesMeta, setServicesMeta] = React.useState<Map<string, AdminServiceMeta>>(new Map());
-  const [isLoadingMeta, setIsLoadingMeta] = React.useState(false);
+  const [attempted, setAttempted] = React.useState<Set<string>>(new Set());
 
   // Get services where user has Admin access
   const adminServiceNames = React.useMemo(() => {
@@ -59,31 +68,37 @@ export function useAdminServices(): {
       .map(([serviceName]) => serviceName);
   }, [user?.serviceAccess]);
 
-  // Fetch metadata for admin services
-  React.useEffect(() => {
-    if (!socket || !isConnected || adminServiceNames.length === 0) {
-      return;
-    }
+  // Next service whose metadata still needs to be fetched
+  const pendingService = adminServiceNames.find((name) => !attempted.has(name));
 
-    setIsLoadingMeta(true);
-
-    // Fetch meta for each service
-    let completed = 0;
-    const newMeta = new Map<string, AdminServiceMeta>();
-
-    adminServiceNames.forEach((serviceName) => {
-      socket.emit(`${serviceName}:adminMeta`, {}, (response: ServiceResponse<AdminServiceMeta>) => {
-        if (response.success) {
-          newMeta.set(serviceName, response.data);
-        }
-        completed++;
-        if (completed === adminServiceNames.length) {
-          setServicesMeta(newMeta);
-          setIsLoadingMeta(false);
-        }
-      });
+  const markAttempted = React.useCallback((serviceName: string) => {
+    setAttempted((prev) => {
+      const next = new Set(prev);
+      next.add(serviceName);
+      return next;
     });
-  }, [socket, isConnected, adminServiceNames]);
+  }, []);
+
+  useServiceQuery<Record<string, never>, AdminServiceMeta>(
+    pendingService ?? "",
+    "adminMeta",
+    EMPTY_PAYLOAD,
+    {
+      enabled: !!pendingService,
+      onSuccess: (meta) => {
+        if (!pendingService) return;
+        setServicesMeta((prev) => new Map(prev).set(pendingService, meta));
+        markAttempted(pendingService);
+      },
+      onError: () => {
+        if (pendingService) {
+          markAttempted(pendingService);
+        }
+      },
+    },
+  );
+
+  const isLoadingMeta = pendingService !== undefined;
 
   // Build admin services list with display names
   const adminServices = React.useMemo<AdminServiceInfo[]>(() => {

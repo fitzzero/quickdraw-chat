@@ -15,14 +15,14 @@ const EXCLUDED_ROUTES = ["/auth", "/admin"];
  * Client component that conditionally wraps children in AppLayout.
  * Auth pages render without the app shell for a cleaner login experience.
  */
-export function ClientShell({ children }: ClientShellProps): React.ReactElement {
+export function ClientShell({ children }: ClientShellProps): React.ReactNode {
   const pathname = usePathname();
 
   // Check if current route should be excluded from AppLayout
   const shouldExclude = EXCLUDED_ROUTES.some((route) => pathname.startsWith(route));
 
   if (shouldExclude) {
-    return <>{children}</>;
+    return children;
   }
 
   return <AppLayout>{children}</AppLayout>;
