@@ -149,6 +149,12 @@ export class DocumentService extends BaseService<
   }
 
   private initMethods(): void {
+    this.initCrudMethods();
+    this.initQueryMethods();
+    this.initSharingMethods();
+  }
+
+  private initCrudMethods(): void {
     // Create a new document
     this.defineMethod(
       "createDocument",
@@ -239,7 +245,9 @@ export class DocumentService extends BaseService<
       },
       { schema: deleteDocumentSchema, resolveEntryId: (p: { id: string }) => p.id },
     );
+  }
 
+  private initQueryMethods(): void {
     // List user's documents (owned or shared with them)
     this.defineMethod(
       "listMyDocuments",
@@ -286,7 +294,9 @@ export class DocumentService extends BaseService<
       },
       { schema: listMyDocumentsSchema },
     );
+  }
 
+  private initSharingMethods(): void {
     // Share document with another user (add to ACL) - wrapped in transaction for atomicity
     this.defineMethod(
       "shareDocument",

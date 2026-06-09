@@ -57,11 +57,12 @@ export class UserService extends BaseService<
       schema: adminUserSchema,
       displayName: "Users",
       tableColumns: ["id", "email", "name", "createdAt"],
-      // serviceAccess is exposed but handled by custom UI in admin sidebar
+      // serviceAccess is exposed but handled by custom UI in admin sidebar:
+      // editable via custom component, raw JSON hidden from the table
       fieldOverrides: {
         serviceAccess: {
-          editable: true, // Can be edited via custom component
-          showInTable: false, // Don't show raw JSON in table
+          editable: true,
+          showInTable: false,
           label: "Service Access",
         },
       },

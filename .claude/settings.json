@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/disallow-bare-bun.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/disallow-direct-pr.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -6,27 +6,131 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  lint-and-typecheck:
+  # Fails when schema.prisma changed without a matching migration file —
+  # keeps prisma/migrations authoritative for test DBs and deploys.
+  migrate-check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: quickdraw_chat_test
+          POSTGRES_USER: dev
+          POSTGRES_PASSWORD: dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: oven-sh/setup-bun@v2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
 
-      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile --ignore-scripts
 
-      - run: bun run db:generate
+      - name: Create shadow database
+        run: psql -c "CREATE DATABASE quickdraw_chat_shadow;"
+        env:
+          PGHOST: localhost
+          PGPORT: "5432"
+          PGUSER: dev
+          PGPASSWORD: dev
+          PGDATABASE: quickdraw_chat_test
+
+      - name: Check for schema drift (missing migration files)
+        run: |
+          cd packages/db
+          bunx prisma migrate diff \
+            --from-migrations ./prisma/migrations \
+            --to-schema ./prisma/schema.prisma \
+            --exit-code
+        env:
+          DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
+          SHADOW_DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_shadow
+
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache workspace dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            packages/shared/dist
+            packages/db/dist
+            packages/db/prisma/generated
+          key: workspace-${{ hashFiles('bun.lock', 'packages/db/prisma/schema.prisma', 'packages/shared/src/**', 'packages/db/src/index.ts') }}
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Generate Prisma client
+        run: bun run db:generate
         env:
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
 
+      - name: Build shared packages
+        run: bunx turbo build --filter=@project/shared --filter=@project/db
+
       - run: bun run lint
 
+      - run: bun run format:check
+
       - run: bun run typecheck
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache workspace dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            packages/shared/dist
+            packages/db/dist
+            packages/db/prisma/generated
+          key: workspace-${{ hashFiles('bun.lock', 'packages/db/prisma/schema.prisma', 'packages/shared/src/**', 'packages/db/src/index.ts') }}
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Generate Prisma client
+        run: bun run db:generate
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
+
+      - name: Build shared packages
+        run: bunx turbo build --filter=@project/shared --filter=@project/db
+
+      - run: bun run build
 
   test:
     runs-on: ubuntu-latest
@@ -44,47 +148,65 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1
+            int_files: "chat,message"
+          - shard: 2
+            int_files: "user,document"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Cache workspace dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            packages/shared/dist
+            packages/db/dist
+            packages/db/prisma/generated
+          key: workspace-${{ hashFiles('bun.lock', 'packages/db/prisma/schema.prisma', 'packages/shared/src/**', 'packages/db/src/index.ts') }}
 
       - uses: oven-sh/setup-bun@v2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
 
-      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile --ignore-scripts
 
-      - run: bun run db:generate
-        env:
-          DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
-
-      - run: bun run db:push
-        env:
-          DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
-
-      - run: bun run test
-        env:
-          DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
-          TEST_DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
-          JWT_SECRET: test-secret-for-ci
-
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: ".nvmrc"
-
-      - run: bun install --frozen-lockfile
-
-      - run: bun run db:generate
+      - name: Generate Prisma client
+        run: bun run db:generate
         env:
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
 
-      - run: bun run build
+      - name: Build shared packages
+        run: bunx turbo build --filter=@project/shared --filter=@project/db
+
+      - name: Test API (unit shard ${{ matrix.shard }}/2)
+        run: cd apps/api && bun run test:unit -- --silent --shard=${{ matrix.shard }}/2
+        env:
+          JWT_SECRET: test-secret-for-ci
+          TEST_DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
+
+      - name: Test API (integration — ${{ matrix.int_files }})
+        run: |
+          cd apps/api
+          IFS=',' read -ra FILES <<< "${{ matrix.int_files }}"
+          PATTERNS=""
+          for f in "${FILES[@]}"; do
+            PATTERNS="$PATTERNS src/__tests__/services/${f}.int.test.ts"
+          done
+          bunx vitest run --config vitest.int.config.ts --silent=true $PATTERNS
+        env:
+          JWT_SECRET: test-secret-for-ci
+          TEST_DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
+
+      - name: Test Web
+        if: matrix.shard == 1
+        run: cd apps/web && bun run test
+        env:
+          JWT_SECRET: test-secret-for-ci

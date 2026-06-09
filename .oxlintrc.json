@@ -3,8 +3,8 @@
   "plugins": ["typescript", "import", "react", "nextjs", "jsx_a11y"],
   "categories": {
     "correctness": "deny",
-    "suspicious": "warn",
-    "pedantic": "warn"
+    "suspicious": "deny",
+    "pedantic": "deny"
   },
   "jsPlugins": [
     {
@@ -13,44 +13,74 @@
     }
   ],
   "rules": {
-    "no-console": "warn",
+    "react/rules-of-hooks": "error",
+    "no-console": "error",
     "no-var": "error",
-    "no-inline-comments": "off",
-    "no-negated-condition": "off",
     "typescript/no-explicit-any": "error",
-    "typescript/no-non-null-assertion": "warn",
-    "typescript/no-import-type-side-effects": "warn",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/no-import-type-side-effects": "error",
 
-    "typescript/no-unsafe-assignment": "warn",
-    "typescript/no-unsafe-call": "warn",
-    "typescript/no-unsafe-member-access": "warn",
-    "typescript/no-unsafe-return": "warn",
-    "typescript/no-unsafe-argument": "warn",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/no-unsafe-argument": "error",
     "typescript/restrict-template-expressions": "off",
     "typescript/no-redundant-type-constituents": "off",
 
-    "react/react-in-jsx-scope": "off",
-    "jsx_a11y/no-autofocus": "off",
-    "import/no-unassigned-import": "off",
+    "require-await": "error",
+    "no-inline-comments": "error",
+    "no-unmodified-loop-condition": "error",
+    "no-promise-executor-return": "error",
+    "eqeqeq": "error",
+    "import/max-dependencies": ["error", { "max": 10 }],
 
-    "complexity": ["warn", { "max": 15 }],
-    "max-lines": ["warn", { "max": 400, "skipBlankLines": true, "skipComments": true }],
-    "max-lines-per-function": ["warn", { "max": 80, "skipBlankLines": true, "skipComments": true }]
+    "complexity": ["error", { "max": 15 }],
+    "max-depth": ["error", { "max": 4 }],
+    "max-lines": ["error", { "max": 500, "skipBlankLines": true, "skipComments": true }],
+    "max-lines-per-function": ["error", { "max": 80, "skipBlankLines": true, "skipComments": true }]
   },
   "overrides": [
     {
       "files": ["**/services/**/*.ts"],
       "rules": {
-        "quickdraw/no-cross-service-mutations": "warn",
-        "quickdraw/require-zod-schema": "warn",
+        "quickdraw/no-raw-service-room-string": "error",
+        "quickdraw/no-cross-service-mutations": [
+          "error",
+          {
+            "allowedModels": {
+              "chat": ["chatMember"],
+              "message": ["chat"]
+            }
+          }
+        ],
+        "quickdraw/require-zod-schema": "error",
         "quickdraw/no-service-method-record": "error",
-        "quickdraw/no-unsafe-payload-cast": "warn"
+        "quickdraw/no-unsafe-payload-cast": "error"
       }
     },
     {
-      "files": ["apps/web/**"],
+      "files": ["apps/api/src/index.ts", "apps/api/src/auth/middleware.ts"],
       "rules": {
-        "typescript/explicit-function-return-type": "off"
+        "quickdraw/no-raw-service-room-string": "error"
+      }
+    },
+    {
+      "files": ["apps/web/**", "**/*.tsx"],
+      "rules": {
+        "typescript/explicit-function-return-type": "off",
+        "jsx_a11y/no-autofocus": "off",
+        "react/react-in-jsx-scope": "off",
+        "import/no-unassigned-import": "off",
+        "import/max-dependencies": "off",
+        "max-lines-per-function": "off",
+        "max-lines": "off",
+        "no-warning-comments": "off",
+        "quickdraw/no-raw-tooltip-strings": "error",
+        "quickdraw/no-raw-typography-strings": "error",
+        "quickdraw/no-raw-button-strings": "error",
+        "quickdraw/no-raw-socket-on": "error",
+        "quickdraw/no-raw-socket-emit": "error"
       }
     },
     {
@@ -60,6 +90,16 @@
         "typescript/explicit-module-boundary-types": "error",
         "no-console": "error"
       }
+    },
+    {
+      "files": ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "max-lines-per-function": "off",
+        "max-lines": "off",
+        "no-inline-comments": "off",
+        "require-await": "off",
+        "import/max-dependencies": "off"
+      }
     }
   ],
   "ignorePatterns": [
@@ -68,6 +108,9 @@
     "**/.turbo/**",
     "**/coverage/**",
     "**/.next/**",
-    "**/prisma/generated/**"
+    "**/next-env.d.ts",
+    "**/seed.ts",
+    "scripts/**",
+    "**/public/**"
   ]
 }
