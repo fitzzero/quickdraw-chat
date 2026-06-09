@@ -1,5 +1,6 @@
 import type { Message, Prisma, PrismaClient } from "@project/db";
 import type { MessageServiceMethods, AccessLevel } from "@project/shared";
+import { serviceRoom } from "@project/shared";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
 import { z } from "zod";
 
@@ -88,6 +89,11 @@ export class MessageService extends BaseService<
   }
 
   private initMethods(): void {
+    this.initWriteMethods();
+    this.initReadMethods();
+  }
+
+  private initWriteMethods(): void {
     // Post a new message
     this.defineMethod(
       "postMessage",
@@ -131,13 +137,34 @@ export class MessageService extends BaseService<
 
         // Broadcast to all chat subscribers via Socket.io room
         // This uses the room that chatService subscribers automatically join
-        this.emitToRoom(`chatService:${payload.chatId}`, "chat:message", messageDTO);
+        this.emitToRoom(serviceRoom("chatService", payload.chatId), "chat:message", messageDTO);
 
         return { id: message.id };
       },
       { schema: postMessageSchema },
     );
 
+    // Delete a message - requires Admin in message ACL (owner) or service-level access
+    // Framework handles ACL check automatically via hasEntryACL: true
+    this.defineMethod(
+      "deleteMessage",
+      "Admin",
+      async (payload, _ctx) => {
+        await this.prisma.message.delete({ where: { id: payload.id } });
+        this.emitUpdate(payload.id, {
+          id: payload.id,
+          deleted: true,
+        } as unknown as Partial<Message>);
+        return { id: payload.id, deleted: true as const };
+      },
+      {
+        schema: deleteMessageSchema,
+        resolveEntryId: (p) => p.id,
+      },
+    );
+  }
+
+  private initReadMethods(): void {
     // List messages for a chat
     this.defineMethod(
       "listMessages",
@@ -184,25 +211,6 @@ export class MessageService extends BaseService<
         }));
       },
       { schema: listMessagesSchema },
-    );
-
-    // Delete a message - requires Admin in message ACL (owner) or service-level access
-    // Framework handles ACL check automatically via hasEntryACL: true
-    this.defineMethod(
-      "deleteMessage",
-      "Admin",
-      async (payload, _ctx) => {
-        await this.prisma.message.delete({ where: { id: payload.id } });
-        this.emitUpdate(payload.id, {
-          id: payload.id,
-          deleted: true,
-        } as unknown as Partial<Message>);
-        return { id: payload.id, deleted: true as const };
-      },
-      {
-        schema: deleteMessageSchema,
-        resolveEntryId: (p) => p.id,
-      },
     );
   }
 }

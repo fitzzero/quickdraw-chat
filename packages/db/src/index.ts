@@ -16,12 +16,14 @@ function createPrismaClient(): PrismaClient {
   // Configure connection pool for production
   // Default pool size is suitable for serverless (Cloud Run, Lambda)
   // Adjust based on your deployment environment
+  // max/min connections via DB_POOL_MAX/DB_POOL_MIN; idle connections close
+  // after 30s; acquiring a connection times out after 10s
   const pool = new Pool({
     connectionString,
-    max: parseInt(process.env.DB_POOL_MAX ?? "20", 10), // Maximum connections
-    min: parseInt(process.env.DB_POOL_MIN ?? "5", 10), // Minimum connections
-    idleTimeoutMillis: 30000, // Close idle connections after 30s
-    connectionTimeoutMillis: 10000, // Timeout for acquiring connection
+    max: parseInt(process.env.DB_POOL_MAX ?? "20", 10),
+    min: parseInt(process.env.DB_POOL_MIN ?? "5", 10),
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
   });
 
   pool.on("error", (err) => {
@@ -40,7 +42,7 @@ function createPrismaClient(): PrismaClient {
 
 // Lazy getter - only creates the client when first accessed
 export const prisma = new Proxy({} as PrismaClient, {
-  get(_target, prop): unknown {
+  get(_target: PrismaClient, prop: string | symbol): unknown {
     globalForPrisma.prisma ??= createPrismaClient();
     return Reflect.get(globalForPrisma.prisma, prop) as unknown;
   },

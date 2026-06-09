@@ -1,3 +1,4 @@
+// oxlint-disable import/max-dependencies -- composition root wires everything
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -116,11 +117,12 @@ const io = new SocketIOServer(httpServer, {
   },
 });
 
-// Rate limiting - prevents abuse and ensures fair resource usage
+// Rate limiting - prevents abuse and ensures fair resource usage:
+// 100 requests per minute per socket; subscriptions are exempt
 const rateLimiter = createRateLimiter({
-  windowMs: 60000, // 1 minute window
-  maxRequests: 100, // 100 requests per minute per socket
-  excludeEvents: ["subscribe", "unsubscribe"], // Don't rate limit subscriptions
+  windowMs: 60000,
+  maxRequests: 100,
+  excludeEvents: ["subscribe", "unsubscribe"],
 });
 
 applyRateLimitMiddleware(io, rateLimiter, {

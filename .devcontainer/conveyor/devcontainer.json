@@ -1,0 +1,37 @@
+{
+  "name": "Quickdraw Chat Agent",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "features": {
+    "ghcr.io/shyim/devcontainers-features/bun:0": {},
+    "ghcr.io/itsmechlark/features/postgresql:1": {
+      "version": "16"
+    }
+  },
+  "hostRequirements": {
+    "memory": "8gb",
+    "cpus": 4,
+    "storage": "16gb"
+  },
+  "onCreateCommand": ".devcontainer/conveyor/setup.sh",
+  "postStartCommand": ".devcontainer/conveyor/start.sh",
+  "forwardPorts": [4000, 3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Web",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    },
+    "4000": {
+      "label": "API",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

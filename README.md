@@ -1,6 +1,6 @@
 # quickdraw-chat
 
-Reference implementation and test application for [@fitzzero/quickdraw-core](https://github.com/fitzzero/quickdraw). A real-time chat application demonstrating the full quickdraw stack.
+Reference implementation and production-ready template for [@fitzzero/quickdraw-core](https://github.com/fitzzero/quickdraw). A real-time chat application demonstrating the full quickdraw stack — fork it, rename it, and go.
 
 ## Purpose
 
@@ -8,7 +8,7 @@ This project serves as:
 
 1. **Test bed** for developing @fitzzero/quickdraw-core features
 2. **Reference implementation** showing best practices for quickdraw-based apps
-3. **Production-ready template** for starting new quickdraw projects
+3. **Production-ready template** for starting new quickdraw projects (conveyor-ready out of the box)
 
 ## Features
 
@@ -16,30 +16,46 @@ This project serves as:
 - **Type-safe**: End-to-end TypeScript with shared types
 - **Service-based**: BaseService pattern with auto-wired Socket.io methods
 - **Dual ACL patterns**: Membership table (Chat) and JSON ACL (Document) examples
-- **Modern React**: TanStack Query for server state management
-- **Beautiful UI**: Material-UI with dark theme
-- **Testing**: Vitest with integration test utilities
-- **CI-ready**: Turbo for fast, cached builds
+- **Auth out of the box**: Google + Discord OAuth, session cookies, and a dev-only **mock OAuth** flow — sign in as seeded demo users with zero credentials
+- **Dual-mode testing**: integration tests run on in-memory PGlite locally (no PostgreSQL, seconds) and real PostgreSQL in CI
+- **Hardened API**: helmet, origin-validated CORS, rate-limited auth routes, production hard-blocks for dev flags
+- **Modern React**: TanStack Query for server state management, Material-UI
+- **CI/CD**: migration drift check, cached lint/typecheck/build, sharded tests; parameterized Cloud Run + Vercel deploy workflow
+- **Claude-ready**: CLAUDE.md + path-scoped rules in `.claude/rules/`
 
 ## Quick Start
 
 ```bash
+# Start postgres (or point DATABASE_URL elsewhere via .env.local)
+docker-compose up -d
+
 # Install dependencies
 bun install
 
-# Set up environment
-cp env.example .env.local
-# Edit .env.local with your database credentials
-
-# Generate Prisma client
+# Generate Prisma client, apply migrations, seed demo users
 bun run db:generate
+bun run db:migrate
+bun run db:seed
 
-# Push schema to database
-bun run db:push
-
-# Start development
-bun dev
+# Start development (env loads via scripts/load-env.sh — no .env setup needed)
+bun run dev
 ```
+
+Open http://localhost:3000 → **Continue as demo user** → pick a seeded account
+(admin@demo.local / moderator@demo.local / user@demo.local). No OAuth
+credentials required in development.
+
+## Environment
+
+Layered loading via `scripts/load-env.sh` (used by `bun run dev` and db scripts):
+
+1. `.env.infra` — checked-in dev defaults (DB URL, ports, URLs, dev flags)
+2. optional secrets layer — commented hook for your secret manager
+3. `.env.local` — your secrets & overrides, gitignored
+
+See `env.example` for the secrets that belong in `.env.local`
+(`JWT_SECRET`, `ENCRYPTION_KEY`, `ADMIN_EMAILS`, real OAuth credentials).
+Real env vars (e.g. CI) always take precedence.
 
 ## Project Structure
 
@@ -49,8 +65,8 @@ bun dev
 │   ├── api/              # Express + Socket.io server
 │   │   └── src/
 │   │       ├── services/     # Business logic (User, Chat, Message, Document)
-│   │       ├── auth/         # JWT and OAuth utilities
-│   │       └── __tests__/    # Integration tests
+│   │       ├── auth/         # OAuth (google/discord/mock), JWT, middleware
+│   │       └── __tests__/    # Integration tests + factories
 │   └── web/              # Next.js frontend
 │       └── src/
 │           ├── app/          # Next.js app router
@@ -58,31 +74,11 @@ bun dev
 │           ├── hooks/        # Typed wrappers for quickdraw-core hooks
 │           └── providers/    # QuickdrawProvider, ThemeProvider
 ├── packages/
-│   ├── db/               # Prisma schema and client
-│   └── shared/           # Shared types (ServiceMethodsMap)
-└── .serena/              # Serena MCP configuration and memories
-```
-
-## quickdraw-core Integration
-
-This project uses the published `@fitzzero/quickdraw-core` package:
-
-```json
-"@fitzzero/quickdraw-core": "^3.0.0"
-```
-
-### Server
-
-```typescript
-import { ServiceRegistry, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
-import { BaseService } from "@fitzzero/quickdraw-core/server";
-```
-
-### Client
-
-```typescript
-import { QuickdrawProvider, useQuickdrawSocket } from "@fitzzero/quickdraw-core/client";
-import { useService, useSubscription } from "@fitzzero/quickdraw-core/client";
+│   ├── db/               # Prisma schema, migrations, client, seed
+│   └── shared/           # Shared types (ServiceMethodsMap), room helpers
+├── .claude/              # Claude Code rules + hooks
+├── .devcontainer/conveyor/ # Conveyor agent devcontainer (codespace-ready)
+└── .github/workflows/    # ci.yml + parameterized deploy.yml
 ```
 
 ## Services
@@ -96,31 +92,34 @@ import { useService, useSubscription } from "@fitzzero/quickdraw-core/client";
 
 ## Development
 
-### Scripts
+> Always use `bun run <script>` (never bare `bun <script>` — that invokes
+> bun's built-ins instead of the turbo-routed package scripts).
 
 ```bash
 # Development
-bun dev           # Start all apps in dev mode
+bun run dev           # Start all apps in dev mode
 
 # Building
-bun run build     # Build all packages
-bun run typecheck # tsgo type check all packages
+bun run build         # Build all packages
+bun run typecheck     # tsgo type check all packages
 
 # Linting and formatting
-bun run lint      # oxlint across all packages
-bun run lint:fix  # Fix lint issues
-bun run format    # oxfmt auto-format
+bun run lint          # oxlint across all packages (strict: correctness/suspicious/pedantic deny)
+bun run lint:fix      # Fix lint issues
+bun run format        # oxfmt auto-format
 bun run format:check  # Check formatting
+bun run check         # lint + typecheck
 
 # Testing
-bun run test          # Run all tests
-bun run test:watch    # Watch mode
+bun run test          # All tests (unit + integration)
+bun run test:unit     # Unit tests only (no database)
+bun run test:int      # Integration tests (PGlite locally, PostgreSQL when TEST_DATABASE_URL is set)
 bun run test:coverage # With coverage
 
 # Database
 bun run db:generate   # Generate Prisma client
-bun run db:push       # Push schema changes
-bun run db:migrate    # Run migrations
+bun run db:migrate    # Create + apply a migration (required for schema changes)
+bun run db:seed       # Seed demo users/chat/document (idempotent)
 ```
 
 ### Tooling
@@ -132,7 +131,7 @@ bun run db:migrate    # Run migrations
 | oxfmt  | Formatting (replaces Prettier)    |
 | tsgo   | Type checking (replaces tsc)      |
 | Turbo  | Monorepo build orchestration      |
-| Vitest | Testing                           |
+| Vitest | Testing (unit + integration lanes)|
 
 ### Adding a New Service
 
@@ -141,127 +140,69 @@ bun run db:migrate    # Run migrations
 3. Register in `apps/api/src/index.ts`
 4. Write integration tests
 
-See Serena memory `service-patterns.md` for detailed patterns.
+See `.claude/rules/service-architecture.md` for detailed patterns.
 
 ## Authentication
 
-The app supports:
-
-- **Dev mode**: Set `ENABLE_DEV_CREDENTIALS=true` to auth with just userId
-- **JWT**: Create and verify tokens with `createJWT` / `verifyJWT`
-- **Discord OAuth**: Configure Discord credentials in `.env.local`
-
-## Environment Variables
-
-```bash
-# Database
-DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat
-TEST_DATABASE_URL=postgresql://dev:dev@localhost:5432/quickdraw_chat_test
-
-# Server
-BACKEND_PORT=4000
-FRONTEND_PORT=3000
-
-# Auth
-JWT_SECRET=your-secret-key
-ENABLE_DEV_CREDENTIALS=true  # For local development
-
-# Discord OAuth (optional)
-DISCORD_CLIENT_ID=
-DISCORD_CLIENT_SECRET=
-DISCORD_REDIRECT_URI=http://localhost:3000/auth/callback/discord
-
-# Google OAuth (optional)
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://localhost:3000/auth/callback/google
-
-# Client
-NEXT_PUBLIC_API_URL=http://localhost:4000
-```
+- **Mock OAuth (dev only)**: `ENABLE_MOCK_OAUTH=true` (default in `.env.infra`)
+  serves a real OAuth code flow from the API itself with a seeded-user picker.
+  Hard-blocked in production (the API refuses to boot with the flag set).
+- **Google / Discord OAuth**: configure credentials in `.env.local`; flows are
+  built on core's providers with CSRF state cookies and a shared callback
+  (`apps/api/src/auth/oauth-callback.ts`).
+- **Sessions**: JWT + database session row (revocable) + httpOnly session
+  cookie; sockets authenticate via token or cookie.
+- **Bootstrap admin**: list emails in `ADMIN_EMAILS` to auto-promote to Admin.
+- **Token encryption**: set `ENCRYPTION_KEY` (64-char hex) to encrypt stored
+  OAuth tokens at rest (AES-256-GCM via core).
 
 ## Testing
 
-Integration tests use a real database and socket connections via quickdraw-core testing utilities:
+Integration tests are dual-mode (see `.claude/rules/testing-patterns.md`):
 
-```typescript
-import { createTestServer, emitWithAck } from "@fitzzero/quickdraw-core/server/testing";
+- **Local (default)**: in-memory PGlite from a fingerprint-cached template —
+  no PostgreSQL, full suite in seconds.
+- **CI / real PostgreSQL**: set `TEST_DATABASE_URL`; each vitest worker gets
+  its own database cloned from a migrated template DB.
 
-describe("ChatService", () => {
-  let server: Awaited<ReturnType<typeof createTestServer>>;
-
-  beforeAll(async () => {
-    server = await createTestServer({ port: 4100 });
-    // Register services...
-  });
-
-  afterAll(async () => {
-    await server.close();
-  });
-
-  it("creates chat", async () => {
-    const client = await server.connectAs("user-1", { userId: "user-1" });
-    const result = await emitWithAck<{ id: string }>(client, "chatService:createChat", {
-      title: "Test Chat",
-    });
-    expect(result.id).toBeDefined();
-    client.close();
-  });
-});
-```
-
-## Serena MCP
-
-This project uses Serena for AI-assisted development. Memories are stored in `.serena/memories/`:
-
-- `architecture.md` - Project structure and package relationships
-- `service-patterns.md` - How to create and structure services
-- `client-patterns.md` - React component and hook patterns
-- `testing-patterns.md` - Integration and unit test patterns
+Use `seedTestUsers()` and the factories in `apps/api/src/__tests__/factories/`
+for data; `startTestServer()` + `connectAsUser()` for socket flows.
 
 ## Using as Template
-
-To start a new project from this template:
 
 ```bash
 # 1. Clone
 git clone <this-repo> my-new-project
 cd my-new-project
 
-# 2. Customize package names
+# 2. Customize
 # - Update all package.json files (@project/* -> @yourproject/*)
-# - Update env.example with your database name
+# - Rename DB (docker-compose.yml, .env.infra, ci.yml) and Cloud Run service (deploy.yml)
 # - Update metadata in apps/web/src/app/layout.tsx
 
 # 3. Initialize
-cp env.example .env.local
 bun install
-bun run db:generate
-bun run db:push
+docker-compose up -d
+bun run db:generate && bun run db:migrate && bun run db:seed
 
 # 4. Start developing
-bun dev
+bun run dev
 bun run docs:generate  # Generate API documentation
 ```
 
-**What's Already Configured:**
-
-- Dockerfiles for deployment (Vercel, Cloud Run, PM2)
-- Input validation (Zod schemas on all mutations)
-- Security hardening (JWT validation, rate limiting)
-- Error boundaries and graceful shutdown
-- Auto-generated documentation
-- Testing utilities
+**What's already configured:** strict linting (with custom quickdraw rules),
+unit/integration test lanes, CI with migration drift checks, a parameterized
+deploy workflow (Cloud Run + Vercel), Dockerfiles, mock OAuth dev login,
+Claude Code rules + hooks, and a conveyor-ready devcontainer
+(`.devcontainer/conveyor/`) so the repo passes conveyor's project readiness
+checks immediately.
 
 ## Production Deployment
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for comprehensive deployment guides covering:
-
-- Vercel (web) + GCP Cloud Run (API)
-- Docker Compose
-- PM2 on VPS
-- Database setup and migrations
-- Health checks and monitoring
+See [DEPLOYMENT.md](DEPLOYMENT.md). The short version: fill in the
+placeholders in `.github/workflows/deploy.yml` + `apps/api/env.cloudrun.yaml`,
+create the GitHub/GCP secrets it lists, and run the Deploy workflow
+(TruffleHog scan → prisma migrate → Cloud Run API → Vercel web).
 
 ## License
 

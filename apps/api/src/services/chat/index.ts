@@ -1,5 +1,6 @@
 import type { Chat, Prisma, PrismaClient } from "@project/db";
 import type { ChatServiceMethods, AccessLevel } from "@project/shared";
+import { serviceRoom } from "@project/shared";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
 import { z } from "zod";
 
@@ -163,10 +164,17 @@ export class ChatService extends BaseService<
   // Helper to emit member updates to all chat subscribers
   private async emitMemberUpdate(chatId: string): Promise<void> {
     const members = await this.fetchChatMembers(chatId);
-    this.emitToRoom(`chatService:${chatId}`, "chat:memberUpdate", { members });
+    this.emitToRoom(serviceRoom("chatService", chatId), "chat:memberUpdate", { members });
   }
 
   private initMethods(): void {
+    this.initCrudMethods();
+    this.initQueryMethods();
+    this.initInviteMethods();
+    this.initRemovalMethods();
+  }
+
+  private initCrudMethods(): void {
     // Create a new chat - demonstrates Zod validation
     this.defineMethod(
       "createChat",
@@ -216,12 +224,32 @@ export class ChatService extends BaseService<
       },
     );
 
+    // Delete chat
+    this.defineMethod(
+      "deleteChat",
+      "Admin",
+      async (payload, _ctx) => {
+        await this.prisma.chat.delete({ where: { id: payload.id } });
+        this.emitUpdate(payload.id, {
+          id: payload.id,
+          deleted: true,
+        } as Partial<Chat>);
+        return { id: payload.id, deleted: true as const };
+      },
+      {
+        schema: deleteChatSchema,
+        resolveEntryId: (p) => p.id,
+      },
+    );
+  }
+
+  private initQueryMethods(): void {
     // Get chat members with user details
     this.defineMethod(
       "getChatMembers",
       "Read",
       async (payload, _ctx) => {
-        return this.fetchChatMembers(payload.chatId);
+        return await this.fetchChatMembers(payload.chatId);
       },
       {
         schema: getChatMembersSchema,
@@ -229,6 +257,47 @@ export class ChatService extends BaseService<
       },
     );
 
+    // List user's chats
+    this.defineMethod(
+      "listMyChats",
+      "Read",
+      async (payload, ctx) => {
+        if (!ctx.userId) throw new Error("Authentication required");
+
+        const page = payload.page ?? 1;
+        const pageSize = Math.min(payload.pageSize ?? 20, 100);
+
+        const memberships = await this.prisma.chatMember.findMany({
+          where: { userId: ctx.userId },
+          include: {
+            chat: {
+              include: {
+                _count: { select: { members: true } },
+                messages: {
+                  orderBy: { createdAt: "desc" },
+                  take: 1,
+                  select: { createdAt: true },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        });
+
+        return memberships.map((m) => ({
+          id: m.chat.id,
+          title: m.chat.title,
+          memberCount: m.chat._count.members,
+          lastMessageAt: m.chat.messages[0]?.createdAt.toISOString() ?? null,
+        }));
+      },
+      { schema: listMyChatsSchema },
+    );
+  }
+
+  private initInviteMethods(): void {
     // Invite user to chat by userId
     this.defineMethod(
       "inviteUser",
@@ -296,7 +365,9 @@ export class ChatService extends BaseService<
         resolveEntryId: (p) => p.chatId,
       },
     );
+  }
 
+  private initRemovalMethods(): void {
     // Remove user from chat
     this.defineMethod(
       "removeUser",
@@ -337,63 +408,6 @@ export class ChatService extends BaseService<
       },
       {
         schema: leaveSchema,
-        resolveEntryId: (p) => p.id,
-      },
-    );
-
-    // List user's chats
-    this.defineMethod(
-      "listMyChats",
-      "Read",
-      async (payload, ctx) => {
-        if (!ctx.userId) throw new Error("Authentication required");
-
-        const page = payload.page ?? 1;
-        const pageSize = Math.min(payload.pageSize ?? 20, 100);
-
-        const memberships = await this.prisma.chatMember.findMany({
-          where: { userId: ctx.userId },
-          include: {
-            chat: {
-              include: {
-                _count: { select: { members: true } },
-                messages: {
-                  orderBy: { createdAt: "desc" },
-                  take: 1,
-                  select: { createdAt: true },
-                },
-              },
-            },
-          },
-          orderBy: { createdAt: "desc" },
-          skip: (page - 1) * pageSize,
-          take: pageSize,
-        });
-
-        return memberships.map((m) => ({
-          id: m.chat.id,
-          title: m.chat.title,
-          memberCount: m.chat._count.members,
-          lastMessageAt: m.chat.messages[0]?.createdAt.toISOString() ?? null,
-        }));
-      },
-      { schema: listMyChatsSchema },
-    );
-
-    // Delete chat
-    this.defineMethod(
-      "deleteChat",
-      "Admin",
-      async (payload, _ctx) => {
-        await this.prisma.chat.delete({ where: { id: payload.id } });
-        this.emitUpdate(payload.id, {
-          id: payload.id,
-          deleted: true,
-        } as Partial<Chat>);
-        return { id: payload.id, deleted: true as const };
-      },
-      {
-        schema: deleteChatSchema,
         resolveEntryId: (p) => p.id,
       },
     );

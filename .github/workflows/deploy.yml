@@ -1,0 +1,250 @@
+name: Deploy
+
+# ============================================================================
+# TEMPLATE: parameterized deploy to GCP Cloud Run (API) + Vercel (Web).
+#
+# Before first use:
+#   1. Rename SERVICE_NAME below and the Artifact Registry path to your app.
+#   2. Create the GitHub Secrets listed here.
+#   3. Create the GCP Secret Manager secrets consumed by deploy-api.
+#   4. Uncomment the `push: branches: [main]` trigger for deploy-on-merge.
+#
+# Required GitHub Secrets:
+#   GCP_PROJECT_ID                    - Google Cloud project ID
+#   GCP_WORKLOAD_IDENTITY_PROVIDER    - Workload Identity provider resource name
+#                                       (projects/N/locations/global/workloadIdentityPools/...)
+#   GCP_SERVICE_ACCOUNT               - Deploy service account email
+#   DATABASE_MIGRATE_URL              - PostgreSQL URL via the Cloud SQL proxy
+#                                       (postgresql://user:pass@127.0.0.1:5432/db)
+#   VERCEL_TOKEN                      - Vercel API token
+#   VERCEL_ORG_ID                     - Vercel organization ID
+#   VERCEL_PROJECT_ID                 - Vercel project ID
+#
+# GCP Secret Manager secrets (referenced by deploy-api):
+#   DATABASE_URL                      - PostgreSQL connection string (Cloud SQL socket)
+#   JWT_SECRET                        - JWT signing secret (>= 32 chars)
+#   ENCRYPTION_KEY                    - 64-char hex key for at-rest token encryption
+#   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET   - Google OAuth app
+#   DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET - Discord OAuth app
+#
+# Also remember (see apps/api/env.cloudrun.yaml): CLIENT_URL must point at the
+# deployed web origin or CORS/cookies will reject it; add extra origins via
+# EXTRA_ALLOWED_ORIGINS and set COOKIE_DOMAIN for cross-subdomain sessions.
+# ============================================================================
+
+on:
+  # push:
+  #   branches: [main]
+  workflow_dispatch:
+    inputs:
+      db_migrations:
+        description: Database migrations
+        required: true
+        default: skip
+        type: choice
+        options:
+          - skip
+          - auto
+          - only
+      run_security_scan:
+        description: Run TruffleHog secret scan
+        required: true
+        default: true
+        type: boolean
+      deploy_api:
+        description: Deploy API service
+        required: true
+        default: true
+        type: boolean
+      deploy_web:
+        description: Deploy Web app
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  # RENAME: your service/app identifier (Cloud Run service + image path)
+  SERVICE_NAME: quickdraw-chat
+  REGION: us-central1
+  REGISTRY: us-central1-docker.pkg.dev
+  # RENAME: project:region:instance of your Cloud SQL instance
+  CLOUD_SQL_INSTANCE: <GCP_PROJECT_ID>:us-central1:<INSTANCE_NAME>
+
+jobs:
+  security-scan:
+    if: ${{ github.event_name == 'push' || inputs.run_security_scan }}
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Scan for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+  db-migrate:
+    needs: security-scan
+    if: >-
+      ${{
+        always()
+        && (github.event_name != 'push' && inputs.db_migrations != 'skip')
+        && (needs['security-scan'].result == 'success' || needs['security-scan'].result == 'skipped')
+      }}
+    name: DB Migrate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - name: Restore dependencies cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            packages/*/node_modules
+          key: ${{ runner.os }}-bun-migrate-${{ hashFiles('bun.lock', 'packages/db/prisma/schema.prisma') }}
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      - name: Start Cloud SQL Proxy
+        run: |
+          curl -sSL https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.15.2/cloud-sql-proxy.linux.amd64 -o cloud-sql-proxy
+          chmod +x cloud-sql-proxy
+          nohup ./cloud-sql-proxy ${{ env.CLOUD_SQL_INSTANCE }} > proxy.log 2>&1 &
+          echo "CLOUD_SQL_PROXY_PID=$!" >> "$GITHUB_ENV"
+          sleep 3
+          if ! kill -0 $! 2>/dev/null; then cat proxy.log; exit 1; fi
+      - name: Run migrations
+        run: bunx prisma migrate deploy
+        working-directory: packages/db
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_MIGRATE_URL }}
+
+  deploy-api:
+    needs: [security-scan, db-migrate]
+    if: >-
+      ${{
+        always()
+        && (github.event_name == 'push' || inputs.deploy_api)
+        && (github.event_name == 'push' || inputs.db_migrations != 'only')
+        && (needs['security-scan'].result == 'success' || needs['security-scan'].result == 'skipped')
+        && (needs['db-migrate'].result == 'success' || needs['db-migrate'].result == 'skipped')
+      }}
+    name: Deploy API
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: google-github-actions/auth@v3
+        id: auth
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: >-
+            ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}/api:${{ github.sha }},
+            ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}/api:latest
+          build-args: BUILD_VERSION=${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}-api
+          image: ${{ env.REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}/api:${{ github.sha }}
+          region: ${{ env.REGION }}
+          env_vars_file: apps/api/env.cloudrun.yaml
+          secrets: |
+            DATABASE_URL=DATABASE_URL:latest
+            JWT_SECRET=JWT_SECRET:latest
+            ENCRYPTION_KEY=ENCRYPTION_KEY:latest
+            GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest
+            GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest
+            DISCORD_CLIENT_ID=DISCORD_CLIENT_ID:latest
+            DISCORD_CLIENT_SECRET=DISCORD_CLIENT_SECRET:latest
+          flags: >-
+            --set-cloudsql-instances=${{ env.CLOUD_SQL_INSTANCE }}
+            --port=8080
+            --cpu=1
+            --memory=512Mi
+            --min-instances=0
+            --max-instances=2
+            --session-affinity
+            --cpu-boost
+            --execution-environment=gen2
+            --timeout=3600
+            --startup-probe=tcpSocket.port=8080,periodSeconds=5,timeoutSeconds=5
+            --allow-unauthenticated
+
+  deploy-web:
+    needs: [security-scan, db-migrate]
+    if: >-
+      ${{
+        always()
+        && (github.event_name == 'push' || inputs.deploy_web)
+        && (github.event_name == 'push' || inputs.db_migrations != 'only')
+        && (needs['security-scan'].result == 'success' || needs['security-scan'].result == 'skipped')
+        && (needs['db-migrate'].result == 'success' || needs['db-migrate'].result == 'skipped')
+      }}
+    name: Deploy Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+      - name: Restore dependencies cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'package.json', 'apps/**/package.json', 'packages/**/package.json') }}
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Generate Prisma client
+        run: bun run db:generate
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+      - name: Build dependencies
+        run: bunx turbo build --filter='@project/web^...'
+      - name: Pull Vercel config
+        run: bunx vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      - name: Build locally
+        run: bunx vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      - name: Deploy prebuilt
+        run: bunx vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

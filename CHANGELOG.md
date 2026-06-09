@@ -1,5 +1,62 @@
 # Changelog
 
+## Template Modernization (2026-06-09)
+
+Back-ported conveyor's production improvements via quickdraw-core 3.7 and
+refreshed the template end to end.
+
+### Added
+
+- **Mock OAuth dev login** — "Continue as demo user" runs a real OAuth code
+  flow served by the API itself (core 3.7 `registerMockOAuthProvider`) with a
+  seeded-user picker. Hard-blocked in production (boot refusal + request-time
+  checks). `bun run db:seed` creates admin/moderator/user demo accounts.
+- **Session cookies + REST auth** — logins set an httpOnly session cookie;
+  sockets authenticate via token or cookie; `requireAuth` REST middleware with
+  session revocation.
+- **API hardening** — helmet, origin-validated CORS (CLIENT_URL +
+  EXTRA_ALLOWED_ORIGINS + codespaces), rate-limited auth routes, trust proxy,
+  raw-body capture, production hard-blocks for dev flags.
+- **Dual-mode test infrastructure** — integration tests run on in-memory
+  PGlite locally (fingerprint-cached template, no PostgreSQL) and real
+  PostgreSQL with per-worker database clones in CI; unit/integration lanes
+  (`test:unit` / `test:int`); test factories.
+- **Initial Prisma migration** + `migrate-check` CI job (schema drift fails PRs).
+- **Env layering** — `scripts/load-env.sh`: checked-in `.env.infra` → optional
+  secrets hook → `.env.local`.
+- **CI/CD** — rewritten ci.yml (migrate-check, cached lint/typecheck/build,
+  2-shard tests) + parameterized deploy.yml (TruffleHog → Cloud SQL migrate →
+  Cloud Run API → Vercel web).
+- **Conveyor readiness** — `.devcontainer/conveyor/` devcontainer with
+  postgres + bun, auto-setup (install → migrate → seed).
+- **Claude Code config** — CLAUDE.md, path-scoped `.claude/rules/`, hooks
+  (disallow bare `bun`, conveyor PR workflow guard).
+- **Utilities** — GCP-format logger + `createServiceLogger`/`errorMeta`,
+  `validateRequest` (zod), `TTLCache`, `slugify`, shared room helpers
+  (`serviceRoom`/`userRoom`); optional at-rest OAuth token encryption.
+
+### Changed
+
+- `@fitzzero/quickdraw-core` ^3.1 → ^3.7; OAuth flows rebuilt on core
+  providers with a shared callback helper; google login button added.
+- Oxlint strictness: correctness/suspicious/pedantic all deny; custom
+  quickdraw rules (cross-service mutations, raw room strings, raw socket
+  calls, raw MUI strings) enforced as errors.
+- `packages/db`: explicit pg Pool with error handler (Prisma 7 adapter).
+
+### Removed
+
+- `.serena/`, `.cursor/`, `.pnpm-store/`, `pm2.config.js`, stale pnpm-based
+  vercel.json. Serena docs replaced by `.claude/rules/`.
+
+### Follow-up
+
+- Conveyor itself can adopt core 3.7 and delete its local copies of
+  validate-origin, session-cookie, rest-middleware, encryption, express rate
+  limits, and the test-DB machinery (now in
+  `@fitzzero/quickdraw-core/server/testing/prisma`), passing its custom origin
+  and room patterns via the new options.
+
 ## Pre-Template Audit Improvements (2026-01-11)
 
 ### quickdraw-core Enhancements

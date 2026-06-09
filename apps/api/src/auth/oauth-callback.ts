@@ -65,45 +65,70 @@ export interface OAuthProfile {
  * session row (token revocation support), set the session cookie, and
  * redirect to the web client's auth callback page.
  */
-export async function completeOAuthLogin(res: Response, profile: OAuthProfile): Promise<void> {
+async function findOrCreateUser(
+  profile: OAuthProfile,
+  expiresAt: number | null,
+): Promise<{ id: string; email: string }> {
   const { provider, providerAccountId, tokens } = profile;
-  const expiresAt = tokens.expires_in ? Math.floor(Date.now() / 1000) + tokens.expires_in : null;
 
-  let user = await prisma.user.findFirst({
+  const existing = await prisma.user.findFirst({
     where: { accounts: { some: { provider, providerAccountId } } },
+    select: { id: true, email: true },
   });
 
-  if (!user) {
-    user = await prisma.user.create({
-      data: {
-        email: profile.email,
-        name: profile.name,
-        image: profile.image,
-        accounts: {
-          create: {
-            provider,
-            providerAccountId,
-            accessToken: maybeEncrypt(tokens.access_token),
-            refreshToken: maybeEncrypt(tokens.refresh_token),
-            expiresAt,
-            tokenType: tokens.token_type,
-            scope: tokens.scope,
-          },
-        },
-      },
-    });
-    logger.info(`Created new user via ${provider} OAuth`, { userId: user.id });
-  } else {
+  if (existing) {
     await prisma.account.updateMany({
-      where: { userId: user.id, provider },
+      where: { userId: existing.id, provider },
       data: {
         accessToken: maybeEncrypt(tokens.access_token),
         refreshToken: maybeEncrypt(tokens.refresh_token) ?? undefined,
         expiresAt,
       },
     });
-    logger.info(`Updated ${provider} tokens`, { userId: user.id });
+    logger.info(`Updated ${provider} tokens`, { userId: existing.id });
+    return existing;
   }
+
+  const accountData = {
+    provider,
+    providerAccountId,
+    accessToken: maybeEncrypt(tokens.access_token),
+    refreshToken: maybeEncrypt(tokens.refresh_token),
+    expiresAt,
+    tokenType: tokens.token_type,
+    scope: tokens.scope,
+  };
+
+  // Link by verified email when the user exists without this provider —
+  // covers seeded demo users and users adding a second OAuth provider.
+  const byEmail = await prisma.user.findUnique({
+    where: { email: profile.email },
+    select: { id: true, email: true },
+  });
+  if (byEmail) {
+    await prisma.account.create({ data: { ...accountData, userId: byEmail.id } });
+    logger.info(`Linked ${provider} account to existing user`, { userId: byEmail.id });
+    return byEmail;
+  }
+
+  const created = await prisma.user.create({
+    data: {
+      email: profile.email,
+      name: profile.name,
+      image: profile.image,
+      accounts: { create: accountData },
+    },
+    select: { id: true, email: true },
+  });
+  logger.info(`Created new user via ${provider} OAuth`, { userId: created.id });
+  return created;
+}
+
+export async function completeOAuthLogin(res: Response, profile: OAuthProfile): Promise<void> {
+  const { tokens } = profile;
+  const expiresAt = tokens.expires_in ? Math.floor(Date.now() / 1000) + tokens.expires_in : null;
+
+  const user = await findOrCreateUser(profile, expiresAt);
 
   const jwt = await createJWT({ userId: user.id, email: user.email });
 

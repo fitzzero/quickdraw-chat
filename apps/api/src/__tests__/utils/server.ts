@@ -8,8 +8,6 @@ import { UserService } from "../../services/user/index.js";
 import { ChatService } from "../../services/chat/index.js";
 import { MessageService } from "../../services/message/index.js";
 import { DocumentService } from "../../services/document/index.js";
-import { getAvailablePort } from "./socket.js";
-
 interface TestServer {
   port: number;
   io: SocketIOServer;
