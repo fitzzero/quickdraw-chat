@@ -1,5 +1,6 @@
 import { PrismaClient } from "../prisma/generated/prisma/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
 // Singleton pattern for Prisma client with lazy initialization
 const globalForPrisma = globalThis as unknown as {
@@ -15,15 +16,21 @@ function createPrismaClient(): PrismaClient {
   // Configure connection pool for production
   // Default pool size is suitable for serverless (Cloud Run, Lambda)
   // Adjust based on your deployment environment
-  const adapter = new PrismaPg({
+  const pool = new Pool({
     connectionString,
-    pool: {
-      max: parseInt(process.env.DB_POOL_MAX ?? "20", 10), // Maximum connections
-      min: parseInt(process.env.DB_POOL_MIN ?? "5", 10), // Minimum connections
-      idleTimeoutMillis: 30000, // Close idle connections after 30s
-      connectionTimeoutMillis: 10000, // Timeout for acquiring connection
-    },
+    max: parseInt(process.env.DB_POOL_MAX ?? "20", 10), // Maximum connections
+    min: parseInt(process.env.DB_POOL_MIN ?? "5", 10), // Minimum connections
+    idleTimeoutMillis: 30000, // Close idle connections after 30s
+    connectionTimeoutMillis: 10000, // Timeout for acquiring connection
   });
+
+  pool.on("error", (err) => {
+    // stderr intentional — this fires outside request context when an idle
+    // client encounters a backend termination or network drop.
+    process.stderr.write(`[PG Pool] Unexpected idle client error: ${err.message}\n`);
+  });
+
+  const adapter = new PrismaPg(pool);
 
   return new PrismaClient({
     adapter,
@@ -39,6 +46,6 @@ export const prisma = new Proxy({} as PrismaClient, {
   },
 });
 
-// Re-export Prisma types for convenience
-export type { PrismaClient } from "../prisma/generated/prisma/client.js";
+// Re-export the Prisma client module. `export *` includes PrismaClient as
+// both a value (for `new PrismaClient(...)` in tests) and a type.
 export * from "../prisma/generated/prisma/client.js";

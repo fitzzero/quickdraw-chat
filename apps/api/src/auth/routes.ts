@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { clearSessionCookie, extractBearerOrCookieToken } from "@fitzzero/quickdraw-core/server";
 import { prisma } from "@project/db";
 import { verifyJWT } from "./jwt.js";
 import { logger } from "../utils/logger.js";
@@ -15,15 +16,13 @@ export function createAuthRouter(): Router {
    */
   router.delete("/auth/logout", async (req, res) => {
     try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader?.startsWith("Bearer ")) {
-        res.status(401).json({ error: "Missing authorization header" });
+      const token = extractBearerOrCookieToken(req);
+      if (!token) {
+        res.status(401).json({ error: "Missing authorization" });
         return;
       }
 
-      const token = authHeader.slice(7);
       const payload = await verifyJWT(token);
-
       if (!payload?.userId) {
         res.status(401).json({ error: "Invalid token" });
         return;
@@ -41,6 +40,7 @@ export function createAuthRouter(): Router {
         logger.info("User logged out", { userId: payload.userId });
       }
 
+      clearSessionCookie(res);
       res.json({ success: true });
     } catch (error) {
       logger.error("Logout error:", {
@@ -56,15 +56,13 @@ export function createAuthRouter(): Router {
    */
   router.delete("/auth/sessions", async (req, res) => {
     try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader?.startsWith("Bearer ")) {
-        res.status(401).json({ error: "Missing authorization header" });
+      const token = extractBearerOrCookieToken(req);
+      if (!token) {
+        res.status(401).json({ error: "Missing authorization" });
         return;
       }
 
-      const token = authHeader.slice(7);
       const payload = await verifyJWT(token);
-
       if (!payload?.userId) {
         res.status(401).json({ error: "Invalid token" });
         return;
@@ -80,6 +78,7 @@ export function createAuthRouter(): Router {
         sessionsDeleted: result.count,
       });
 
+      clearSessionCookie(res);
       res.json({ success: true, sessionsDeleted: result.count });
     } catch (error) {
       logger.error("Logout all devices error:", {

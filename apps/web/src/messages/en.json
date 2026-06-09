@@ -121,10 +121,12 @@
     "title": "Welcome",
     "subtitle": "Sign in to access the chat application",
     "continueWithDiscord": "Continue with Discord",
-    "moreOptionsComingSoon": "More login options coming soon",
     "errorCancelled": "Authentication was cancelled",
     "errorFailed": "Authentication failed. Please try again.",
-    "errorGeneric": "An error occurred during login"
+    "errorGeneric": "An error occurred during login",
+    "continueWithGoogle": "Continue with Google",
+    "continueAsDemoUser": "Continue as demo user",
+    "demoLoginHint": "Development only — sign in as a seeded demo account"
   },
   "Sidebar": {
     "appName": "quickdraw-chat"
