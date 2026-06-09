@@ -4,6 +4,7 @@
 export { useService } from "./useService";
 export { useServiceQuery } from "./useServiceQuery";
 export { useSubscription } from "./useSubscription";
+export { useRoomEvents } from "@fitzzero/quickdraw-core/client";
 export { useIsMobile } from "./useIsMobile";
 export { useRecentChats } from "./useRecentChats";
 export { useFilteredNavigation } from "./useFilteredNavigation";

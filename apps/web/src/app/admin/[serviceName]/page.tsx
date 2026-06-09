@@ -21,7 +21,8 @@ export default function AdminServicePage(): React.ReactElement {
   const params = useParams();
   const serviceName = params.serviceName as string;
   const t = useTranslations("Admin");
-  useSocket(); // Ensure socket is connected
+  // Ensure socket is connected
+  useSocket();
 
   // Fetch service metadata
   const { meta, isLoading: metaLoading, error: metaError } = useAdminMeta(serviceName);

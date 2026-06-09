@@ -16,7 +16,7 @@ interface AuthGateProps {
  * Wraps page content and shows LoginRequired if the route requires auth
  * and the user is not authenticated.
  */
-export function AuthGate({ children }: AuthGateProps): React.ReactElement {
+export function AuthGate({ children }: AuthGateProps): React.ReactNode {
   const t = useTranslations("Common");
   const pathname = usePathname();
   const { isConnected, userId } = useSocket();
@@ -47,5 +47,5 @@ export function AuthGate({ children }: AuthGateProps): React.ReactElement {
     return <LoginRequired />;
   }
 
-  return <>{children}</>;
+  return children;
 }

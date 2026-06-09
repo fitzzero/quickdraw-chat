@@ -13,9 +13,14 @@ import {
 } from "@mui/material";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import { useTranslations } from "next-intl";
-import { useSocket } from "../../providers";
+import { useService } from "@fitzzero/quickdraw-core/client";
 import { useAdminServices } from "../../hooks/useAdminServices";
-import type { AccessLevel, ServiceResponse } from "@project/shared";
+import type { AccessLevel } from "@project/shared";
+
+interface AdminUpdateUserPayload {
+  id: string;
+  data: { serviceAccess: Record<string, AccessLevel> };
+}
 
 interface UserServiceAccessEditorProps {
   userId: string;
@@ -33,15 +38,21 @@ export function UserServiceAccessEditor({
   onAccessUpdated,
 }: UserServiceAccessEditorProps): React.ReactElement {
   const t = useTranslations("Admin");
-  const { socket, isConnected } = useSocket();
   const { adminServices, isLoading: servicesLoading } = useAdminServices();
 
   const [localAccess, setLocalAccess] = React.useState<Record<string, AccessLevel>>(
     currentAccess ?? {},
   );
-  const [isSaving, setIsSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [hasChanges, setHasChanges] = React.useState(false);
+
+  // The admin protocol uses dynamic event names not present in
+  // ServiceMethodsMap, so use the generic quickdraw-core useService here.
+  const adminUpdate = useService<AdminUpdateUserPayload, Record<string, unknown>>(
+    "userService",
+    "adminUpdate",
+  );
+  const isSaving = adminUpdate.isPending;
 
   // Sync local state when currentAccess changes
   React.useEffect(() => {
@@ -54,11 +65,10 @@ export function UserServiceAccessEditor({
     setLocalAccess((prev) => {
       if (checked) {
         return { ...prev, [serviceName]: "Admin" as AccessLevel };
-      } else {
-        // Remove the key by creating a new object without it
-        const { [serviceName]: _, ...rest } = prev;
-        return rest;
       }
+      // Remove the key by creating a new object without it
+      const { [serviceName]: _, ...rest } = prev;
+      return rest;
     });
     setHasChanges(true);
   };
@@ -80,26 +90,18 @@ export function UserServiceAccessEditor({
   };
 
   // Save changes
-  const handleSave = React.useCallback((): void => {
-    if (!socket || !isConnected) return;
-
-    setIsSaving(true);
+  const handleSave = React.useCallback(async (): Promise<void> => {
     setError(null);
+    const accessToSave = localAccess;
 
-    socket.emit(
-      "userService:adminUpdate",
-      { id: userId, data: { serviceAccess: localAccess } },
-      (response: ServiceResponse<Record<string, unknown>>) => {
-        if (response.success) {
-          onAccessUpdated(localAccess);
-          setHasChanges(false);
-        } else {
-          setError(response.error);
-        }
-        setIsSaving(false);
-      },
-    );
-  }, [socket, isConnected, userId, localAccess, onAccessUpdated]);
+    try {
+      await adminUpdate.mutateAsync({ id: userId, data: { serviceAccess: accessToSave } });
+      onAccessUpdated(accessToSave);
+      setHasChanges(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [adminUpdate, userId, localAccess, onAccessUpdated]);
 
   // Cancel changes
   const handleCancel = (): void => {
@@ -194,7 +196,14 @@ export function UserServiceAccessEditor({
       {/* Save/Cancel */}
       {hasChanges && (
         <Box sx={{ display: "flex", gap: 1 }}>
-          <Button variant="contained" size="small" onClick={handleSave} disabled={isSaving}>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={() => {
+              void handleSave();
+            }}
+            disabled={isSaving}
+          >
             {isSaving ? <CircularProgress size={16} /> : t("saveAccess")}
           </Button>
           <Button variant="outlined" size="small" onClick={handleCancel} disabled={isSaving}>

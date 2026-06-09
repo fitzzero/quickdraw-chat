@@ -4,6 +4,7 @@ import * as React from "react";
 import { AppBar as MuiAppBar, Toolbar, IconButton, Box, Typography } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import { useTranslations } from "next-intl";
 import { useIsMobile } from "../../hooks";
 import { useLayout } from "../../providers";
 import { Breadcrumbs } from "./Breadcrumbs";
@@ -12,6 +13,7 @@ const APP_BAR_HEIGHT = 64;
 const LEFT_DRAWER_WIDTH = 280;
 
 export function AppBar(): React.ReactElement {
+  const tCommon = useTranslations("Common");
   const isMobile = useIsMobile();
   const { setLeftDrawerOpen, rightSidebar, setRightDrawerOpen } = useLayout();
 
@@ -58,7 +60,9 @@ export function AppBar(): React.ReactElement {
               mr: 1,
             }}
           >
-            <Typography sx={{ color: "white", fontWeight: 700, fontSize: 14 }}>Q</Typography>
+            <Typography sx={{ color: "white", fontWeight: 700, fontSize: 14 }}>
+              {tCommon("logoInitial")}
+            </Typography>
           </Box>
         )}
 

@@ -22,9 +22,9 @@ import AddIcon from "@mui/icons-material/Add";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useSocket } from "../../providers";
-import { useService } from "../../hooks";
-import type { ChatListItem, ServiceResponse } from "@project/shared";
+import { useService, useServiceQuery } from "../../hooks";
+
+const LIST_CHATS_PAYLOAD = { pageSize: 50 };
 
 export default function ChatsPage(): React.ReactElement {
   const t = useTranslations("ChatsPage");
@@ -32,32 +32,21 @@ export default function ChatsPage(): React.ReactElement {
   const tChatList = useTranslations("ChatList");
   const tChatWindow = useTranslations("ChatWindow");
   const router = useRouter();
-  const { socket, isConnected } = useSocket();
-  const [chats, setChats] = React.useState<ChatListItem[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [newChatTitle, setNewChatTitle] = React.useState("");
 
   // Fetch all chats
-  const fetchChats = React.useCallback(() => {
-    if (!socket || !isConnected) return;
-
-    setIsLoading(true);
-    socket.emit(
-      "chatService:listMyChats",
-      { pageSize: 50 },
-      (response: ServiceResponse<ChatListItem[]>) => {
-        if (response.success) {
-          setChats(response.data);
-        }
-        setIsLoading(false);
-      },
-    );
-  }, [socket, isConnected]);
-
-  React.useEffect(() => {
-    fetchChats();
-  }, [fetchChats]);
+  const { data: chatsData, isError } = useServiceQuery(
+    "chatService",
+    "listMyChats",
+    LIST_CHATS_PAYLOAD,
+    {
+      // Always fetch a fresh list when opening the page
+      staleTime: 0,
+    },
+  );
+  const chats = chatsData ?? [];
+  const isLoading = chatsData === undefined && !isError;
 
   // Create chat mutation
   const createChat = useService("chatService", "createChat", {

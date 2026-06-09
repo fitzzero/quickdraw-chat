@@ -1,4 +1,4 @@
-import { createTheme, type ThemeOptions } from "@mui/material";
+import { createTheme, type ThemeOptions as MuiThemeOptions } from "@mui/material";
 
 // Custom tokens accessible via theme.custom.*
 declare module "@mui/material/styles" {
@@ -12,7 +12,7 @@ declare module "@mui/material/styles" {
   }
 }
 
-const baseOptions: ThemeOptions = {
+const baseOptions: MuiThemeOptions = {
   palette: {
     mode: "dark",
     primary: { main: "#7c3aed" },

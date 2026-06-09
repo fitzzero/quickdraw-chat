@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useSocket } from "../providers";
-import type { AdminServiceMeta, ServiceResponse } from "@project/shared";
+import { useServiceQuery } from "@fitzzero/quickdraw-core/client";
+import type { AdminServiceMeta } from "@project/shared";
 
 /**
  * Response from adminList method.
@@ -17,6 +17,10 @@ export interface AdminListResponse<T = Record<string, unknown>> {
 
 /**
  * Hook to fetch paginated admin list data for a service.
+ *
+ * Uses the generic quickdraw-core `useServiceQuery` because admin methods use
+ * dynamic event names (`${serviceName}:adminList`) that are not part of the
+ * typed `ServiceMethodsMap`.
  *
  * @param serviceName - The service to fetch data from
  * @param meta - Service metadata (used to determine if list is available)
@@ -52,64 +56,37 @@ export function useAdminList(
   setSort: (field: string | null, direction: "asc" | "desc") => void;
   refresh: () => void;
 } {
-  const { socket, isConnected } = useSocket();
-  const [data, setData] = React.useState<AdminListResponse | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(20);
   const [sortField, setSortField] = React.useState<string | null>("createdAt");
   const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("desc");
-  const [refreshKey, setRefreshKey] = React.useState(0);
 
-  // Fetch data when params change
-  const fetchData = React.useCallback(() => {
-    if (!socket || !isConnected || !serviceName || !meta) {
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    const payload: Record<string, unknown> = {
-      page,
-      pageSize,
-    };
-
+  const payload = React.useMemo<Record<string, unknown>>(() => {
+    const base: Record<string, unknown> = { page, pageSize };
     if (sortField) {
-      payload.orderBy = { [sortField]: sortDirection };
+      base.orderBy = { [sortField]: sortDirection };
     }
+    return base;
+  }, [page, pageSize, sortField, sortDirection]);
 
-    socket.emit(
-      `${serviceName}:adminList`,
-      payload,
-      (response: ServiceResponse<AdminListResponse>) => {
-        if (response.success) {
-          setData(response.data);
-          setError(null);
-        } else {
-          setData(null);
-          setError(response.error);
-        }
-        setIsLoading(false);
-      },
-    );
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, [
-    socket,
-    isConnected,
-    serviceName,
-    meta,
-    page,
-    pageSize,
-    sortField,
-    sortDirection,
-    refreshKey,
-  ]);
+  const { data, isFetching, isError, error, refetch } = useServiceQuery<
+    Record<string, unknown>,
+    AdminListResponse
+  >(serviceName, "adminList", payload, {
+    enabled: !!serviceName && !!meta,
+    // Always fetch fresh data when pagination/sorting changes
+    staleTime: 0,
+  });
 
+  // Keep the last successful page so rows stay visible while the next page loads
+  const [lastData, setLastData] = React.useState<AdminListResponse | null>(null);
   React.useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (data) {
+      setLastData(data);
+    }
+  }, [data]);
+
+  const resolvedData = isError ? null : (data ?? lastData);
 
   // Reset to page 1 when sort changes
   const handleSetSort = React.useCallback((field: string | null, direction: "asc" | "desc") => {
@@ -118,14 +95,14 @@ export function useAdminList(
     setPage(1);
   }, []);
 
-  // Refresh function
+  // Refresh function (forces a refetch of the current page)
   const refresh = React.useCallback(() => {
-    setRefreshKey((k) => k + 1);
-  }, []);
+    void refetch();
+  }, [refetch]);
 
   return {
-    data,
-    isLoading,
+    data: resolvedData,
+    isLoading: isFetching || (resolvedData === null && !isError),
     error,
     page,
     pageSize,

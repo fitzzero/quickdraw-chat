@@ -17,6 +17,7 @@ interface LeftSidebarProps {
 
 export function LeftSidebar({ appBarHeight = 64 }: LeftSidebarProps): React.ReactElement {
   const t = useTranslations("Sidebar");
+  const tCommon = useTranslations("Common");
   const isMobile = useIsMobile();
   const { leftDrawerOpen, setLeftDrawerOpen } = useLayout();
   const { navigation } = useFilteredNavigation();
@@ -58,7 +59,7 @@ export function LeftSidebar({ appBarHeight = 64 }: LeftSidebarProps): React.Reac
           }}
         >
           <Typography variant="h6" sx={{ color: "white", fontWeight: 700 }}>
-            Q
+            {tCommon("logoInitial")}
           </Typography>
         </Box>
         <Typography variant="h6" sx={{ fontWeight: 600 }}>

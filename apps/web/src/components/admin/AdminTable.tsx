@@ -150,7 +150,8 @@ export function AdminTable({
   };
 
   const handleChangePage = (_event: unknown, newPage: number) => {
-    onPageChange(newPage + 1); // MUI uses 0-indexed pages
+    // MUI uses 0-indexed pages
+    onPageChange(newPage + 1);
   };
 
   // Loading skeleton
@@ -258,10 +259,11 @@ export function AdminTable({
         </Table>
       </TableContainer>
 
+      {/* MUI uses 0-indexed pages */}
       <TablePagination
         component="div"
         count={total}
-        page={page - 1} // MUI uses 0-indexed pages
+        page={page - 1}
         onPageChange={handleChangePage}
         rowsPerPage={pageSize}
         rowsPerPageOptions={[10, 20, 50]}

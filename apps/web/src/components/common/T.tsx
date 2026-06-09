@@ -3,7 +3,8 @@
 import { useTranslations } from "next-intl";
 
 interface TProps {
-  k: string; // e.g., "ChatList.newChat"
+  // e.g., "ChatList.newChat"
+  k: string;
   values?: Record<string, string | number>;
 }
 

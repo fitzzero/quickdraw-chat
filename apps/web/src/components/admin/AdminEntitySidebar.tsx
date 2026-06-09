@@ -23,15 +23,10 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { useTranslations } from "next-intl";
-import { useSocket } from "../../providers";
+import { useService, useServiceQuery } from "@fitzzero/quickdraw-core/client";
 import { ConfirmDialog } from "../feedback";
 import { UserServiceAccessEditor } from "./UserServiceAccessEditor";
-import type {
-  AdminServiceMeta,
-  AdminFieldConfig,
-  ServiceResponse,
-  AccessLevel,
-} from "@project/shared";
+import type { AdminServiceMeta, AdminFieldConfig, AccessLevel } from "@project/shared";
 
 /** Safely convert unknown to string for display - avoids no-base-to-string for objects */
 function toDisplayString(val: unknown, pretty = false): string {
@@ -64,48 +59,54 @@ export function AdminEntitySidebar({
 }: AdminEntitySidebarProps): React.ReactElement {
   const t = useTranslations("Common");
   const tAdmin = useTranslations("Admin");
-  const { socket, isConnected } = useSocket();
 
   const [entity, setEntity] = React.useState<Record<string, unknown> | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [isEditing, setIsEditing] = React.useState(false);
   const [editedValues, setEditedValues] = React.useState<Record<string, unknown>>({});
-  const [isSaving, setIsSaving] = React.useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
-  const [isDeleting, setIsDeleting] = React.useState(false);
 
-  // Fetch entity data
+  // Fetch entity data. The admin protocol uses dynamic event names not present
+  // in ServiceMethodsMap, so the generic quickdraw-core hooks are used here.
+  const getPayload = React.useMemo(() => ({ id: entryId }), [entryId]);
+  const { data: fetchedEntity, error: fetchError } = useServiceQuery<
+    { id: string },
+    Record<string, unknown>
+  >(serviceName, "adminGet", getPayload, {
+    enabled: !!entryId,
+    // Always show fresh data when opening the sidebar
+    staleTime: 0,
+  });
+  const isLoading = fetchedEntity === undefined && !fetchError;
+
+  // Sync fetched entity into local state (edits/saves update it locally)
   React.useEffect(() => {
-    if (!socket || !isConnected || !entryId) {
-      return;
+    if (fetchedEntity) {
+      setEntity(fetchedEntity);
+      setEditedValues(fetchedEntity);
+      setError(null);
     }
+  }, [fetchedEntity]);
 
-    setIsLoading(true);
-    setError(null);
+  React.useEffect(() => {
+    if (fetchError) {
+      setEntity(null);
+      setError(fetchError);
+    }
+  }, [fetchError]);
 
-    socket.emit(
-      `${serviceName}:adminGet`,
-      { id: entryId },
-      (response: ServiceResponse<Record<string, unknown>>) => {
-        if (response.success) {
-          setEntity(response.data);
-          setEditedValues(response.data ?? {});
-          setError(null);
-        } else {
-          setEntity(null);
-          setError(response.error);
-        }
-        setIsLoading(false);
-      },
-    );
-  }, [socket, isConnected, serviceName, entryId]);
+  // Mutations for the dynamic admin protocol
+  const adminUpdate = useService<
+    { id: string; data: Record<string, unknown> },
+    Record<string, unknown>
+  >(serviceName, "adminUpdate");
+  const adminDelete = useService<{ id: string }, { success: boolean }>(serviceName, "adminDelete");
+  const isSaving = adminUpdate.isPending;
+  const isDeleting = adminDelete.isPending;
 
   // Handle save
-  const handleSave = React.useCallback(() => {
-    if (!socket || !entity) return;
-
-    setIsSaving(true);
+  const handleSave = React.useCallback(async (): Promise<void> => {
+    if (!entity) return;
 
     // Build update payload with only changed editable fields
     const updateData: Record<string, unknown> = {};
@@ -115,43 +116,27 @@ export function AdminEntitySidebar({
       }
     }
 
-    socket.emit(
-      `${serviceName}:adminUpdate`,
-      { id: entryId, data: updateData },
-      (response: ServiceResponse<Record<string, unknown>>) => {
-        if (response.success) {
-          setEntity(response.data);
-          setEditedValues(response.data ?? {});
-          setIsEditing(false);
-          setError(null);
-        } else {
-          setError(response.error);
-        }
-        setIsSaving(false);
-      },
-    );
-  }, [socket, serviceName, entryId, entity, editedValues, meta.fields]);
+    try {
+      const updated = await adminUpdate.mutateAsync({ id: entryId, data: updateData });
+      setEntity(updated);
+      setEditedValues(updated ?? {});
+      setIsEditing(false);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [adminUpdate, entryId, entity, editedValues, meta.fields]);
 
   // Handle delete
-  const handleDelete = React.useCallback(() => {
-    if (!socket) return;
-
-    setIsDeleting(true);
-
-    socket.emit(
-      `${serviceName}:adminDelete`,
-      { id: entryId },
-      (response: ServiceResponse<{ success: boolean }>) => {
-        if (response.success) {
-          setDeleteDialogOpen(false);
-          onDeleted();
-        } else {
-          setError(response.error);
-        }
-        setIsDeleting(false);
-      },
-    );
-  }, [socket, serviceName, entryId, onDeleted]);
+  const handleDelete = React.useCallback(async (): Promise<void> => {
+    try {
+      await adminDelete.mutateAsync({ id: entryId });
+      setDeleteDialogOpen(false);
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [adminDelete, entryId, onDeleted]);
 
   // Cancel editing
   const handleCancelEdit = () => {
@@ -334,7 +319,7 @@ export function AdminEntitySidebar({
         {/* ID (always shown, never editable) */}
         <Box sx={{ mb: 2 }}>
           <Typography variant="caption" color="text.secondary">
-            ID
+            {tAdmin("idLabel")}
           </Typography>
           <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
             {entryId}
@@ -391,7 +376,9 @@ export function AdminEntitySidebar({
             <Button
               variant="contained"
               startIcon={isSaving ? <CircularProgress size={16} /> : <SaveIcon />}
-              onClick={handleSave}
+              onClick={(): void => {
+                void handleSave();
+              }}
               disabled={isSaving}
               sx={{ flex: 1 }}
             >

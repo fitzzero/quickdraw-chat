@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useSocket } from "../providers";
-import type { ChatListItem, ServiceResponse } from "@project/shared";
+import { useServiceQuery } from "./useServiceQuery";
+import type { ChatListItem } from "@project/shared";
 
 interface UseRecentChatsResult {
   chats: ChatListItem[];
@@ -16,43 +17,29 @@ interface UseRecentChatsResult {
  * Returns up to `limit` chats (default 3).
  */
 export function useRecentChats(limit = 3): UseRecentChatsResult {
-  const { socket, isConnected, userId } = useSocket();
-  const [chats, setChats] = React.useState<ChatListItem[]>([]);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const { isConnected, userId } = useSocket();
+  const enabled = isConnected && !!userId;
 
-  const fetchChats = React.useCallback(() => {
-    if (!socket || !isConnected || !userId) {
-      setChats([]);
-      return;
-    }
+  const payload = React.useMemo(() => ({ pageSize: limit }), [limit]);
+  const { data, isFetching, error, refetch } = useServiceQuery(
+    "chatService",
+    "listMyChats",
+    payload,
+    {
+      enabled,
+      // Always fetch fresh chats when (re)mounting the sidebar
+      staleTime: 0,
+    },
+  );
 
-    setIsLoading(true);
-    setError(null);
-
-    socket.emit(
-      "chatService:listMyChats",
-      { pageSize: limit },
-      (response: ServiceResponse<ChatListItem[]>) => {
-        if (response.success) {
-          setChats(response.data);
-        } else {
-          setError(response.error);
-        }
-        setIsLoading(false);
-      },
-    );
-  }, [socket, isConnected, userId, limit]);
-
-  // Fetch on mount and when connection/user changes
-  React.useEffect(() => {
-    fetchChats();
-  }, [fetchChats]);
+  const refetchChats = React.useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
   return {
-    chats,
-    isLoading,
+    chats: enabled ? (data ?? []) : [],
+    isLoading: isFetching,
     error,
-    refetch: fetchChats,
+    refetch: refetchChats,
   };
 }

@@ -20,7 +20,9 @@
     "no": "No",
     "true": "True",
     "false": "False",
-    "noData": "No data"
+    "noData": "No data",
+    "logoInitial": "Q",
+    "details": "Details"
   },
   "Nav": {
     "home": "Home",
@@ -30,7 +32,14 @@
   },
   "Auth": {
     "signIn": "Sign In",
-    "signOut": "Sign Out"
+    "signOut": "Sign Out",
+    "completingSignIn": "Completing sign in..."
+  },
+  "ErrorBoundary": {
+    "title": "Something went wrong",
+    "unexpectedError": "An unexpected error occurred. Please try refreshing the page.",
+    "tryAgain": "Try Again",
+    "reloadPage": "Reload Page"
   },
   "ChatList": {
     "title": "Chats",
@@ -164,6 +173,7 @@
     "editMode": "Edit Mode",
     "viewMode": "View Mode",
     "entityDetails": "Details",
+    "idLabel": "ID",
     "rowsPerPage": "Rows per page",
     "page": "Page {page} of {total}",
     "selectToView": "Select a row to view details",
