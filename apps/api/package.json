@@ -10,9 +10,12 @@
     "lint": "oxlint -c ../../.oxlintrc.json src",
     "lint:fix": "oxlint --fix -c ../../.oxlintrc.json src",
     "typecheck": "tsgo --noEmit",
-    "test": "dotenv -e ../../.env.local -- vitest run",
-    "test:watch": "dotenv -e ../../.env.local -- vitest",
-    "test:coverage": "dotenv -e ../../.env.local -- vitest run --coverage"
+    "test": "vitest run && vitest run -c vitest.int.config.ts",
+    "test:unit": "vitest run",
+    "test:int": "vitest run -c vitest.int.config.ts",
+    "test:int:watch": "vitest -c vitest.int.config.ts",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@fitzzero/quickdraw-core": "^3.7.0",

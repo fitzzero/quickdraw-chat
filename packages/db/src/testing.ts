@@ -1,44 +1,46 @@
 import { PrismaClient } from "../prisma/generated/prisma/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { resetDatabase as coreResetDatabase } from "@fitzzero/quickdraw-core/server/testing/prisma";
 
-// Test database client singleton
-const globalForTestPrisma = globalThis as unknown as {
-  testPrisma: PrismaClient | undefined;
-};
-
-function createTestPrismaClient(): PrismaClient {
-  const connectionString = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error("TEST_DATABASE_URL or DATABASE_URL environment variable is not set");
-  }
-
-  const adapter = new PrismaPg({ connectionString });
-
-  return new PrismaClient({
-    adapter,
-    log: ["error"],
-  });
-}
-
-export const testPrisma = globalForTestPrisma.testPrisma ?? createTestPrismaClient();
-
-if (process.env.NODE_ENV === "test") {
-  globalForTestPrisma.testPrisma = testPrisma;
-}
+let _testPrisma: PrismaClient | undefined;
 
 /**
- * Reset the test database by truncating all tables.
- * Tables are truncated in reverse dependency order.
+ * Inject a PrismaClient instance for the current worker.
+ * Called by PGlite-based test setup to replace the default Postgres-backed client.
+ */
+export function setTestPrisma(client: PrismaClient): void {
+  _testPrisma = client;
+}
+
+function getTestPrisma(): PrismaClient {
+  if (!_testPrisma) {
+    const connectionString = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error(
+        "No test database configured. Either call setTestPrisma() with a PGlite-backed client, " +
+          "or set TEST_DATABASE_URL / DATABASE_URL environment variable.",
+      );
+    }
+    const adapter = new PrismaPg({ connectionString });
+    _testPrisma = new PrismaClient({ adapter, log: ["error"] });
+  }
+  return _testPrisma;
+}
+
+// Lazy proxy: resolves the client on first use so PGlite setup can inject
+// before anything touches the database.
+export const testPrisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    return Reflect.get(getTestPrisma(), prop);
+  },
+});
+
+/**
+ * Reset the test database by truncating all public tables (dynamic discovery,
+ * deadlock retry — see quickdraw-core/server/testing/prisma).
  */
 export async function resetDatabase(): Promise<void> {
-  // Truncate tables in order that respects foreign key constraints
-  await testPrisma.$executeRaw`TRUNCATE TABLE "messages" CASCADE`;
-  await testPrisma.$executeRaw`TRUNCATE TABLE "chat_members" CASCADE`;
-  await testPrisma.$executeRaw`TRUNCATE TABLE "chats" CASCADE`;
-  await testPrisma.$executeRaw`TRUNCATE TABLE "documents" CASCADE`;
-  await testPrisma.$executeRaw`TRUNCATE TABLE "sessions" CASCADE`;
-  await testPrisma.$executeRaw`TRUNCATE TABLE "accounts" CASCADE`;
-  await testPrisma.$executeRaw`TRUNCATE TABLE "users" CASCADE`;
+  await coreResetDatabase(testPrisma);
 }
 
 /**

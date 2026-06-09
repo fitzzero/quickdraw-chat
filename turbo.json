@@ -36,10 +36,18 @@
       "cache": false,
       "persistent": true
     },
-    "test:integration": {
+    "test:unit": {
       "dependsOn": ["^build"],
+      "inputs": ["src/**", "**/*.test.ts", "vitest.config.ts"],
+      "outputs": [],
+      "cache": true
+    },
+    "test:int": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "**/*.test.ts", "vitest.int.config.ts", "../../packages/db/prisma/**"],
+      "outputs": [],
       "cache": false,
-      "env": ["DATABASE_URL", "TEST_DATABASE_URL"]
+      "env": ["DATABASE_URL", "TEST_DATABASE_URL", "JWT_SECRET"]
     },
     "clean": {
       "cache": false
