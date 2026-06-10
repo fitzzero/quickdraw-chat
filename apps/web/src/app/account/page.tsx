@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import {
   Box,
   Typography,
@@ -28,7 +27,6 @@ import { logoutAllDevices } from "../../lib/auth";
 export default function AccountPage(): React.ReactElement {
   const t = useTranslations("AccountPage");
   const tCommon = useTranslations("Common");
-  const router = useRouter();
   const { userId } = useSocket();
   const { data: user } = useSubscription("userService", userId ?? "");
 
@@ -39,7 +37,8 @@ export default function AccountPage(): React.ReactElement {
     setIsSigningOut(true);
     try {
       await logoutAllDevices();
-      router.push("/auth/login");
+      // Full page navigation so the socket reconnects unauthenticated
+      window.location.assign("/auth/login");
     } finally {
       setIsSigningOut(false);
       setShowSignOutAllDialog(false);

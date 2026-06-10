@@ -2,7 +2,16 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { Box, Paper, Typography, Button, Alert, Stack, Divider } from "@mui/material";
+import {
+  Box,
+  Paper,
+  Typography,
+  Button,
+  Alert,
+  Stack,
+  Divider,
+  CircularProgress,
+} from "@mui/material";
 import { useTranslations } from "next-intl";
 import { getOAuthUrl, isMockLoginEnabled } from "../../../lib/auth";
 
@@ -39,7 +48,7 @@ function GoogleIcon(): React.ReactElement {
   );
 }
 
-export default function LoginPage(): React.ReactElement {
+function LoginContent(): React.ReactElement {
   const t = useTranslations("LoginPage");
   const tCommon = useTranslations("Common");
   const searchParams = useSearchParams();
@@ -147,5 +156,27 @@ export default function LoginPage(): React.ReactElement {
         </Stack>
       </Paper>
     </Box>
+  );
+}
+
+// useSearchParams requires a Suspense boundary for prerendering (Next 16)
+export default function LoginPage(): React.ReactElement {
+  return (
+    <React.Suspense
+      fallback={
+        <Box
+          sx={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <CircularProgress />
+        </Box>
+      }
+    >
+      <LoginContent />
+    </React.Suspense>
   );
 }

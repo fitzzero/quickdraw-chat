@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# One-shot template initializer. Run once after forking/cloning quickdraw-chat:
+#
+#   ./scripts/init-fork.sh <app-name> [backend-port] [--scope @yourscope]
+#   ./scripts/init-fork.sh acme-books 4010
+#
+# Rewrites the app identity (database names, titles, deploy service name,
+# devcontainer, MCP server name), optionally the backend port and the
+# @project/* package scope, refreshes the lockfile, formats, then deletes
+# itself. Framework references (quickdraw-core, QuickdrawProvider, ...) are
+# untouched.
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+usage() {
+  sed -n '4,12p' "$0"
+  exit 1
+}
+
+NAME="${1:-}"
+[ -z "$NAME" ] && usage
+shift
+
+PORT=""
+SCOPE=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --scope)
+      SCOPE="${2#@}"
+      shift 2
+      ;;
+    *)
+      PORT="$1"
+      shift
+      ;;
+  esac
+done
+
+if ! echo "$NAME" | grep -qE '^[a-z][a-z0-9-]*$'; then
+  echo "error: app name must be kebab-case (got '$NAME')" >&2
+  exit 1
+fi
+if [ -n "$PORT" ] && ! echo "$PORT" | grep -qE '^[0-9]{4,5}$'; then
+  echo "error: backend port must be numeric (got '$PORT')" >&2
+  exit 1
+fi
+
+DB_NAME="${NAME//-/_}"
+# kebab-case -> Title Case ("acme-books" -> "Acme Books")
+DISPLAY="$(echo "$NAME" | sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g')"
+
+echo "App name:     $NAME"
+echo "Display name: $DISPLAY"
+echo "Database:     $DB_NAME (+ ${DB_NAME}_test, ${DB_NAME}_shadow)"
+[ -n "$PORT" ] && echo "Backend port: 4000 -> $PORT"
+[ -n "$SCOPE" ] && echo "Pkg scope:    @project -> @$SCOPE"
+echo ""
+
+# Tracked text files only — never touch node_modules/.git. Migration SQL is
+# name-free; the lockfile only carries the workspace name (identity pass).
+FILES=$(git ls-files | grep -vE '^packages/db/prisma/migrations/')
+
+# ── 1. App identity ──────────────────────────────────────────────────
+echo "$FILES" | xargs sed -i \
+  -e "s/quickdraw_chat/${DB_NAME}/g" \
+  -e "s/quickdraw-chat/${NAME}/g" \
+  -e "s/Quickdraw Chat/${DISPLAY}/g"
+
+# ── 2. Backend port (targeted patterns — bare '4000' can be a timeout) ─
+if [ -n "$PORT" ]; then
+  echo "$FILES" | xargs sed -i \
+    -e "s/localhost:4000/localhost:${PORT}/g" \
+    -e "s/4000:4000/${PORT}:${PORT}/g" \
+    -e "s/BACKEND_PORT=4000/BACKEND_PORT=${PORT}/g" \
+    -e "s/BACKEND_PORT:-4000/BACKEND_PORT:-${PORT}/g" \
+    -e "s/EXPOSE 4000/EXPOSE ${PORT}/g" \
+    -e "s/\[4000,/[${PORT},/g" \
+    -e "s/\"4000\":/\"${PORT}\":/g" \
+    -e "s/(4000)/(${PORT})/g" \
+    -e "s/ports \[4000/ports [${PORT}/g"
+
+  # `?? 4000` fallbacks only where they mean the backend port — a blanket
+  # pass would also hit unrelated numeric defaults (e.g. toast durations)
+  sed -i "s/?? 4000/?? ${PORT}/g" \
+    apps/api/src/index.ts \
+    apps/api/src/auth/google.ts \
+    apps/api/src/auth/discord.ts \
+    apps/api/src/auth/mock.ts \
+    apps/web/src/lib/auth.ts \
+    apps/web/src/providers/index.tsx
+fi
+
+# ── 3. Package scope (optional) ──────────────────────────────────────
+if [ -n "$SCOPE" ]; then
+  # Covers package.json names/deps, source imports, AND the turbo
+  # --filter=@project/* references in CI/deploy workflows.
+  echo "$FILES" | xargs sed -i "s|@project/|@${SCOPE}/|g"
+fi
+
+# ── 4. README: replace the template instructions ─────────────────────
+if grep -q "^## Using as Template" README.md; then
+  awk -v name="$NAME" '
+    /^## Using as Template/ { skip = 1; print "## Template"; print "";
+      print "This project was initialized from [quickdraw-chat](https://github.com/fitzzero/quickdraw-chat) via `init-fork.sh " name "`."; print ""; next }
+    skip && /^## / { skip = 0 }
+    !skip { print }
+  ' README.md > README.md.tmp && mv README.md.tmp README.md
+fi
+
+# ── 5. Refresh lockfile + formatting ─────────────────────────────────
+echo "Installing dependencies (refreshes lockfile)..."
+bun install >/dev/null
+echo "Formatting..."
+bun run format >/dev/null 2>&1 || true
+
+echo ""
+echo "✅ Initialized '$NAME'. Next steps:"
+echo "   1. Register the project + port in telariel projects.json"
+echo "   2. docker-compose up -d        # postgres (db: $DB_NAME)"
+echo "   3. bun run db:generate && bun run db:migrate && bun run db:seed"
+echo "   4. bun run dev                 # sign in via 'Continue as demo user'"
+echo "   5. git add -A && git commit -m 'chore: initialize from template'"
+echo ""
+
+# Self-delete (this script is one-shot by design)
+rm -- "$0"

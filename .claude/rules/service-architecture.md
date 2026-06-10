@@ -49,7 +49,10 @@ export class EntityService extends BaseService<
 }
 ```
 
-Define shared types in `packages/shared/src/types.ts`, register the service in `apps/api/src/index.ts`.
+Define shared types as a new module under `packages/shared/src/types/` (one
+file per service: DTOs + `<Name>ServiceMethods`), register it in
+`types/service-methods.ts` (ServiceMethodsMap / SubscriptionDataMap), and
+register the service in `apps/api/src/index.ts`.
 
 Lint caps methods at 80 lines — when `initMethods` grows, split it into
 focused groups (`initCrudMethods()`, `initQueryMethods()`, …) as the existing

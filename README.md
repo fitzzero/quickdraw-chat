@@ -136,7 +136,8 @@ bun run db:seed       # Seed demo users/chat/document (idempotent)
 ### Adding a New Service
 
 1. Create the service in `apps/api/src/services/<name>/index.ts`
-2. Define types in `packages/shared/src/types.ts`
+2. Define types as a new module in `packages/shared/src/types/` and register
+   it in `types/service-methods.ts`
 3. Register in `apps/api/src/index.ts`
 4. Write integration tests
 
@@ -150,8 +151,9 @@ See `.claude/rules/service-architecture.md` for detailed patterns.
 - **Google / Discord OAuth**: configure credentials in `.env.local`; flows are
   built on core's providers with CSRF state cookies and a shared callback
   (`apps/api/src/auth/oauth-callback.ts`).
-- **Sessions**: JWT + database session row (revocable) + httpOnly session
-  cookie; sockets authenticate via token or cookie.
+- **Sessions**: JWT + database session row (revocable) carried in an
+  httpOnly session cookie — the sole client credential (sockets and REST);
+  no token ever appears in URLs or localStorage.
 - **Bootstrap admin**: list emails in `ADMIN_EMAILS` to auto-promote to Admin.
 - **Token encryption**: set `ENCRYPTION_KEY` (64-char hex) to encrypt stored
   OAuth tokens at rest (AES-256-GCM via core).
@@ -171,24 +173,24 @@ for data; `startTestServer()` + `connectAsUser()` for socket flows.
 ## Using as Template
 
 ```bash
-# 1. Clone
+# 1. Clone (or use GitHub's "Use this template" / `tel project new`)
 git clone <this-repo> my-new-project
 cd my-new-project
 
-# 2. Customize
-# - Update all package.json files (@project/* -> @yourproject/*)
-# - Rename DB (docker-compose.yml, .env.infra, ci.yml) and Cloud Run service (deploy.yml)
-# - Update metadata in apps/web/src/app/layout.tsx
+# 2. One-shot initialize: renames databases, titles, deploy service name,
+#    devcontainer, optional backend port and @scope — then deletes itself
+./scripts/init-fork.sh my-new-project 4010
+# options: ./scripts/init-fork.sh <app-name> [backend-port] [--scope @myorg]
 
-# 3. Initialize
-bun install
+# 3. Start developing
 docker-compose up -d
 bun run db:generate && bun run db:migrate && bun run db:seed
-
-# 4. Start developing
 bun run dev
-bun run docs:generate  # Generate API documentation
 ```
+
+The script only rewrites app identity — framework references
+(`@fitzzero/quickdraw-core`, `QuickdrawProvider`, …) are untouched. Register
+the port in telariel's `projects.json` if you assigned one.
 
 **What's already configured:** strict linting (with custom quickdraw rules),
 unit/integration test lanes, CI with migration drift checks, a parameterized
