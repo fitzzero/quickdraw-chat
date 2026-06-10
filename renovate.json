@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["before 6am on monday"],
+  "timezone": "America/Los_Angeles",
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "rangeStrategy": "bump",
+  "packageRules": [
+    {
+      "description": "Group all non-major updates into a single weekly PR",
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-minor-patch"
+    },
+    {
+      "description": "Framework updates get their own PR for visibility",
+      "matchPackageNames": ["@fitzzero/quickdraw-core"],
+      "groupName": "quickdraw-core",
+      "labels": ["dependencies", "quickdraw-core"]
+    },
+    {
+      "description": "Prisma pieces move together (client/adapter/CLI must stay in lockstep)",
+      "matchPackageNames": [
+        "prisma",
+        "@prisma/client",
+        "@prisma/adapter-pg",
+        "pglite-prisma-adapter",
+        "@electric-sql/pglite"
+      ],
+      "groupName": "prisma"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"]
+  }
+}

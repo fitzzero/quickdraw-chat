@@ -140,8 +140,9 @@ export async function completeOAuthLogin(res: Response, profile: OAuthProfile): 
     },
   });
 
-  // Cookie-based auth for same-site/REST flows; the token in the redirect URL
-  // feeds the client-side socket auth (stored by the /auth/callback page).
+  // The httpOnly session cookie is the sole client credential: sockets
+  // (handshake withCredentials) and REST both authenticate with it, so the
+  // JWT never appears in the redirect URL (history/referrer/log exposure).
   setSessionCookie(res, jwt);
-  res.redirect(`${clientUrl()}/auth/callback?token=${jwt}`);
+  res.redirect(`${clientUrl()}/auth/callback`);
 }
