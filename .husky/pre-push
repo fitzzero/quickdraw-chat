@@ -1,5 +1,8 @@
 #!/usr/bin/env sh
 export PATH="$HOME/.bun/bin:$PATH"
 
-echo "Running quality gate..."
-bun install --frozen-lockfile --ignore-scripts && bun run typecheck && bun run lint && bun run test
+# Lint + typecheck only — the full test suite (unit + integration shards)
+# runs in CI on every push. Keeping pre-push light matters for fresh forks
+# and Conveyor agents pushing early on a new clone.
+echo "Running quality gate (lint + typecheck; tests run in CI)..."
+bun install --frozen-lockfile --ignore-scripts && bun run typecheck && bun run lint
