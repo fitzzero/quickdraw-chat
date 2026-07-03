@@ -18,10 +18,12 @@ interface GameChatOverlayProps {
  * The game-server chat: the existing chat service rendered as a
  * minimizable DOM overlay in the bottom-right of the game.
  *
- * Membership in this chat is granted server-side by gameService.joinGame,
- * so this overlay only mounts once the game reports ready. ChatWindow is
- * reused as-is — this wrapper adds room membership (useSubscription), the
- * unread badge, and expand/minimize with canvas focus handoff.
+ * Membership in this chat is granted server-side by gameService.watchWorld
+ * (Godot's spectate boot) and joinGame, so this overlay mounts as soon as
+ * the engine reports ready — spectators can chat from behind the pre-game
+ * dialog. ChatWindow is reused as-is — this wrapper adds room membership
+ * (useSubscription), the unread badge, and expand/minimize with canvas
+ * focus handoff.
  */
 export function GameChatOverlay({ chatId }: GameChatOverlayProps): React.ReactElement {
   const t = useTranslations("GameChat");

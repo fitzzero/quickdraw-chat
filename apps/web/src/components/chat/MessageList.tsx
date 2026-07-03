@@ -18,10 +18,14 @@ export function MessageList({
 }: MessageListProps): React.ReactElement {
   const t = useTranslations("MessageList");
   const tCommon = useTranslations("Common");
-  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const listRef = React.useRef<HTMLDivElement>(null);
 
+  // Scroll the list container directly — scrollIntoView would also scroll
+  // every scrollable ancestor (it shifts the whole game surface when the
+  // chat overlay is open inside the full-bleed game page).
   React.useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const list = listRef.current;
+    if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
   }, [messages.length]);
 
   if (isLoading) {
@@ -55,7 +59,7 @@ export function MessageList({
   }
 
   return (
-    <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
+    <Box ref={listRef} sx={{ flex: 1, overflow: "auto", p: 2 }}>
       {messages.map((message) => {
         const isOwnMessage = message.userId === currentUserId;
 
@@ -115,7 +119,6 @@ export function MessageList({
           </Box>
         );
       })}
-      <div ref={messagesEndRef} />
     </Box>
   );
 }

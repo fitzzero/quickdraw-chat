@@ -8,6 +8,7 @@ import {
   GLOBAL_WORLD_ID,
   GLOBAL_WORLD_SLUG,
   type GameDeathEvent,
+  type HighScoreEntry,
   type QuickdrawHostConfig,
 } from "@project/shared";
 import { useRoomEvents, useService, useServiceQuery, useSubscription } from "../../hooks";
@@ -33,6 +34,7 @@ interface GameSurfaceProps {
 
 const GET_WORLD_PAYLOAD = { slug: GLOBAL_WORLD_SLUG };
 const WORLD_PAYLOAD = { worldId: GLOBAL_WORLD_ID };
+const TOP_SCORES_PAYLOAD = { worldId: GLOBAL_WORLD_ID, limit: 5 };
 
 /**
  * The full game surface: Godot canvas + every DOM overlay (loading, pre-game
@@ -101,6 +103,11 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
   // Personal best — refreshed automatically when a death lands
   const { data: myBest } = useServiceQuery("gameService", "getMyBest", WORLD_PAYLOAD, {
     enabled: !!userId,
+    invalidateOn: [GAME_EVENTS.death],
+  });
+
+  // All-time top runs shown inside the dialog (public — works signed-out too)
+  const { data: topScores } = useServiceQuery("gameService", "getHighScores", TOP_SCORES_PAYLOAD, {
     invalidateOn: [GAME_EVENTS.death],
   });
 
@@ -183,6 +190,7 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
     death,
     userId,
     bestLength: myBest?.bestLength,
+    topScores,
     ready,
     needsGuest,
     starting: creatingGuest || joinGame.isPending || respawn.isPending,
@@ -196,7 +204,9 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
     setLoadState,
     bootCanvas: !!userId,
     showHud: ready && !!userId,
-    chatId: hasJoined ? (world?.chatId ?? null) : null,
+    // Membership is granted by watchWorld (Godot's spectate boot), so the
+    // chat overlay works behind the pre-game dialog, not just after joining
+    chatId: ready && userId ? (world?.chatId ?? null) : null,
     dialog,
   };
 }
@@ -206,6 +216,7 @@ interface DialogInputs {
   death: GameDeathEvent | null;
   userId: string | null;
   bestLength: number | undefined;
+  topScores: HighScoreEntry[] | undefined;
   ready: boolean;
   needsGuest: boolean;
   starting: boolean;
@@ -222,6 +233,7 @@ function buildDialog(inputs: DialogInputs): React.ReactElement | null {
       mode={dead ? "dead" : "start"}
       lastRunLength={inputs.death?.len}
       bestLength={inputs.userId ? (inputs.bestLength ?? 0) : undefined}
+      topScores={inputs.topScores ?? []}
       canStart={inputs.needsGuest ? true : inputs.ready}
       starting={inputs.starting}
       needsGuest={inputs.needsGuest}

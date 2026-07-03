@@ -6,6 +6,10 @@ extends Node2D
 ## DOM overlays; the local snake spawns whenever my_id appears in a snapshot.
 
 const PRUNE_AFTER_TICKS := 60
+## Spectate camera: pan speed (per second) and stickiness toward the current
+## focus snake so the camera doesn't hop between similar clusters every tick.
+const SPECTATE_PAN_SPEED := 1.2
+const SPECTATE_FOCUS_BONUS := 1.35
 
 var _local: LocalSnake
 var _remotes: Dictionary = {}
@@ -15,6 +19,8 @@ var _world_layer: Node2D
 var _status: Label
 var _latest_tick := 0
 var _player_meta: Dictionary = {}
+var _spectate_focus_id := ""
+var _spectate_target := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -81,6 +87,12 @@ func _on_world_ready(bootstrap: Dictionary) -> void:
 	for snap in bootstrap.get("snaps", []):
 		_spawn_snake_from_snap(snap as Dictionary, _latest_tick)
 
+	# Spectate boot: open on the action, not the top-left corner
+	if _local == null:
+		_update_spectate_target(bootstrap.get("snaps", []))
+		_camera.position = _spectate_target
+		_camera.reset_smoothing()
+
 
 func _on_join_failed(error: String) -> void:
 	_set_status("Join failed: %s (retrying…)" % error)
@@ -142,6 +154,9 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 		else:
 			_spawn_snake_from_snap(snap, tick)
 
+	if _local == null:
+		_update_spectate_target(snapshot.get("players", []))
+
 	_prune_stale_remotes(tick)
 
 
@@ -174,13 +189,48 @@ func _on_player_died(death: Dictionary) -> void:
 
 
 # =============================================================================
+# Spectate camera — before joining (and after dying) the camera drifts toward
+# the busiest part of the world so the pre-game dialog sits over live action.
+# =============================================================================
+
+
+## Focus the snake with the most company (density score), with hysteresis so
+## the camera commits to a subject instead of flicking between clusters.
+func _update_spectate_target(snaps: Array) -> void:
+	if snaps.is_empty():
+		_spectate_focus_id = ""
+		_spectate_target = Game.bounds / 2.0
+		return
+	var previous_focus := _spectate_focus_id
+	var best_score := -1.0
+	for raw in snaps:
+		var snap := raw as Dictionary
+		var pos := Vector2(float(snap["x"]), float(snap["y"]))
+		var score := 0.0
+		for other_raw in snaps:
+			var other := other_raw as Dictionary
+			var other_pos := Vector2(float(other["x"]), float(other["y"]))
+			score += 1.0 / (1.0 + pos.distance_to(other_pos) / 400.0)
+		if str(snap["id"]) == previous_focus:
+			score *= SPECTATE_FOCUS_BONUS
+		if score > best_score:
+			best_score = score
+			_spectate_focus_id = str(snap["id"])
+			_spectate_target = pos
+
+
+# =============================================================================
 # Frame update
 # =============================================================================
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _local != null:
 		_camera.position = _local.position
+	elif Game.is_in_world:
+		_camera.position = _camera.position.lerp(
+			_spectate_target, minf(1.0, delta * SPECTATE_PAN_SPEED)
+		)
 	if not Net.client.is_socket_connected() and Game.is_in_world == false:
 		_set_status("Reconnecting…")
 	elif _status.text.begins_with("Reconnecting") and Net.client.is_socket_connected():

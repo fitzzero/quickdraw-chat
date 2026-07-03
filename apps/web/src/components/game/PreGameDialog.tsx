@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  Avatar,
   Box,
   Button,
   CircularProgress,
@@ -16,6 +17,7 @@ import ReplayIcon from "@mui/icons-material/Replay";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import type { HighScoreEntry } from "@project/shared";
 
 export interface PreGameDialogProps {
   /** "start" before the first spawn, "dead" after a death. */
@@ -24,6 +26,8 @@ export interface PreGameDialogProps {
   lastRunLength?: number;
   /** Personal best (signed-in players; undefined hides the line). */
   bestLength?: number;
+  /** All-time top runs, shown at the bottom of the dialog. */
+  topScores: HighScoreEntry[];
   /** Engine ready — Start stays disabled until the world is loaded. */
   canStart: boolean;
   /** True while joinGame/guest-creation is in flight. */
@@ -164,6 +168,8 @@ export function PreGameDialog(props: PreGameDialogProps): React.ReactElement {
           </>
         )}
 
+        <TopScoresList scores={props.topScores} />
+
         <Typography variant="caption" sx={{ display: "block", mt: 2 }}>
           <MuiLink component={Link} href="/scores" color="text.secondary" underline="hover">
             {t("highScores")}
@@ -171,5 +177,44 @@ export function PreGameDialog(props: PreGameDialogProps): React.ReactElement {
         </Typography>
       </Paper>
     </Box>
+  );
+}
+
+/** Compact all-time top runs — the /scores page in miniature. */
+function TopScoresList({ scores }: { scores: HighScoreEntry[] }): React.ReactElement | null {
+  const t = useTranslations("GameDialog");
+  if (scores.length === 0) return null;
+  return (
+    <>
+      <Divider sx={{ my: 2 }} />
+      <Box
+        sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5, mb: 1 }}
+      >
+        <EmojiEventsIcon sx={{ fontSize: 16, color: "warning.main" }} />
+        <Typography variant="subtitle2" color="text.secondary">
+          {t("topScores")}
+        </Typography>
+      </Box>
+      {scores.map((row, index) => (
+        <Box key={row.userId} sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.4 }}>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ width: 16, textAlign: "right", flexShrink: 0 }}
+          >
+            {index + 1}
+          </Typography>
+          <Avatar src={row.image ?? undefined} sx={{ width: 22, height: 22, fontSize: 12 }}>
+            {row.name?.[0] ?? "?"}
+          </Avatar>
+          <Typography variant="body2" noWrap sx={{ flex: 1, textAlign: "left" }}>
+            {row.name ?? t("anonymous")}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>
+            {row.bestLength}
+          </Typography>
+        </Box>
+      ))}
+    </>
   );
 }
