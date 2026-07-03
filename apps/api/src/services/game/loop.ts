@@ -18,6 +18,11 @@ export interface GameLoopDeps {
   emitReliable: (eventName: string, data: unknown) => void;
   /** Off-tick-path persistence hook (score upserts). Must not throw. */
   onDeath?: (death: GameDeathEvent) => void;
+  /**
+   * Is anyone watching (world-room subscribers, spectators included)?
+   * Keeps the NPC world alive behind the pre-game dialog. Omitted = false.
+   */
+  hasAudience?: () => boolean;
 }
 
 const LEADERBOARD_INTERVAL_MS = 1000;
@@ -52,8 +57,7 @@ export class GameLoop {
    * Public so integration tests can drive the world without timers.
    */
   public tickOnce(): TickResult | null {
-    // No humans: freeze the sim entirely (NPCs included — nobody's watching)
-    if (this.deps.sim.humanCount() === 0) return null;
+    if (this.isIdle()) return null;
 
     const result = this.deps.sim.step();
     this.deps.emitVolatile(GAME_EVENTS.snapshot, result.snapshot);
@@ -67,7 +71,12 @@ export class GameLoop {
   }
 
   public emitLeaderboard(): void {
-    if (this.deps.sim.humanCount() === 0) return;
+    if (this.isIdle()) return;
     this.deps.emitReliable(GAME_EVENTS.leaderboard, this.deps.sim.leaderboard());
+  }
+
+  /** Freeze the sim (NPCs included) only when nobody plays AND nobody watches. */
+  private isIdle(): boolean {
+    return this.deps.sim.humanCount() === 0 && !this.deps.hasAudience?.();
   }
 }

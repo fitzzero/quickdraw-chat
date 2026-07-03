@@ -32,7 +32,10 @@ Then send input frames; reconcile against `PlayerSnap.ack`.
 
 NPCs (`npc-` ids) live inside `GameWorldSim` (seeded, deterministic,
 `npcCount` tunable) and reach clients as ordinary remote players; they never
-persist scores and don't count toward `humanCount()` idle checks.
+persist scores and don't count toward `humanCount()`. The loop freezes only
+when `humanCount() === 0` AND `hasAudience()` is false (no world-room
+subscribers) — spectators behind the pre-game dialog keep the NPC world
+running.
 
 ## Simulation rules
 

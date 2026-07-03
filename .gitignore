@@ -54,3 +54,4 @@ yalc.lock
 # Godot editor caches
 apps/game/godot/.godot/
 # ── quickdraw-game:end ──
+.playwright-mcp/

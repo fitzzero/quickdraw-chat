@@ -221,7 +221,9 @@
     "loadingWorld": "Loading world…",
     "logIn": "Log in",
     "logInHint": "Log in for persistent stats & high scores",
-    "highScores": "High scores"
+    "topScores": "All-time best",
+    "anonymous": "Anonymous",
+    "highScores": "All high scores"
   },
   "ScoresPage": {
     "title": "High Scores",

@@ -292,6 +292,12 @@ describe("GameService spectate, presence, and scores", () => {
     expect(world.chatId).toBeTruthy();
     expect(gameService.sim.hasPlayer(users.regular.id)).toBe(false);
 
+    // Spectators get world-chat membership (the overlay works pre-join)
+    const membership = await testPrisma.chatMember.findUnique({
+      where: { chatId_userId: { chatId: world.chatId as string, userId: users.regular.id } },
+    });
+    expect(membership?.level).toBe("Read");
+
     client.close();
     await flush();
   });

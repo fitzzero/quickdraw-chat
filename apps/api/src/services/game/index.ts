@@ -86,6 +86,8 @@ export class GameService extends BaseService<
       emitVolatile: (event, data) => this.emitToRoomVolatile(room, event, data),
       emitReliable: (event, data) => this.emitToRoom(room, event, data),
       onDeath: (death) => this.persistScore(death),
+      // Spectators (pre-game dialog) keep the NPC world alive
+      hasAudience: () => (this.subscribers.get(GLOBAL_WORLD_ID)?.size ?? 0) > 0,
     });
 
     this.initMethods();
@@ -187,15 +189,7 @@ export class GameService extends BaseService<
         const { meta, isNew } = this.sim.addPlayer(ctx.userId, user?.name ?? null);
         this.playingUsers.add(ctx.userId);
 
-        // Membership in the world chat (idempotent). The chat overlay
-        // subscribes via chatService as usual.
-        if (world?.chatId) {
-          await this.prisma.chatMember.upsert({
-            where: { chatId_userId: { chatId: world.chatId, userId: ctx.userId } },
-            update: {},
-            create: { chatId: world.chatId, userId: ctx.userId, level: "Read" },
-          });
-        }
+        await this.ensureChatMembership(world?.chatId, ctx.userId);
 
         if (isNew) {
           this.emitToRoom(
@@ -212,7 +206,8 @@ export class GameService extends BaseService<
 
     // Spectate entry: full world state without spawning. The web wrapper
     // boots Godot into this; the pre-game dialog's joinGame (from the React
-    // socket) is what actually spawns the player.
+    // socket) is what actually spawns the player. Spectators get world-chat
+    // membership too, so the chat overlay works behind the pre-game dialog.
     this.defineMethod(
       "watchWorld",
       "Read",
@@ -220,10 +215,24 @@ export class GameService extends BaseService<
         if (!ctx.userId) throw new Error("Authentication required");
         if (payload.worldId !== GLOBAL_WORLD_ID) throw new Error("Unknown world");
         const world = await this.findById(GLOBAL_WORLD_ID);
+        await this.ensureChatMembership(world?.chatId, ctx.userId);
         return this.buildWorldBootstrap(world?.chatId ?? null);
       },
       { schema: worldScopedSchema },
     );
+  }
+
+  /** Idempotent membership in the world chat (the in-game chat overlay). */
+  private async ensureChatMembership(
+    chatId: string | null | undefined,
+    userId: string,
+  ): Promise<void> {
+    if (!chatId) return;
+    await this.prisma.chatMember.upsert({
+      where: { chatId_userId: { chatId, userId } },
+      update: {},
+      create: { chatId, userId, level: "Read" },
+    });
   }
 
   private buildWorldBootstrap(chatId: string | null): WorldBootstrap {
