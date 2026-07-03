@@ -35,15 +35,18 @@ const DELETE_PATHS = [
   "apps/web/public/game",
   "apps/web/src/app/game",
   "apps/web/src/app/discord",
+  "apps/web/src/app/scores",
   "apps/web/src/components/game",
   "apps/web/src/components/discord",
   "apps/web/src/lib/godot-engine.d.ts",
   "apps/api/src/services/game",
   "apps/api/src/services/definition",
   "apps/api/src/auth/discord-activity.ts",
+  "apps/api/src/auth/guest.ts",
   "apps/api/src/__tests__/services/game.int.test.ts",
   "apps/api/src/__tests__/services/definition.int.test.ts",
   "apps/api/src/__tests__/services/discord-activity.int.test.ts",
+  "apps/api/src/__tests__/services/guest-auth.int.test.ts",
   "packages/shared/src/types/game.ts",
   "packages/shared/src/types/channels.ts",
   "packages/shared/src/types/definition.ts",
@@ -61,7 +64,7 @@ for (const path of DELETE_PATHS) {
 const migrationsDir = "packages/db/prisma/migrations";
 const gameMigrations = execSync(`ls ${migrationsDir}`, { encoding: "utf8" })
   .split("\n")
-  .filter((name) => /_game_foundation$|_definitions$/.test(name));
+  .filter((name) => /_game_foundation$|_definitions$|_guest_users$/.test(name));
 for (const name of gameMigrations) {
   rmSync(join(migrationsDir, name), { recursive: true });
   console.log(`  deleted ${migrationsDir}/${name}`);
@@ -111,8 +114,13 @@ editJson("apps/web/src/messages/en.json", (data) => {
   delete data.GamePage;
   delete data.GameHud;
   delete data.GameChat;
+  delete data.GameDialog;
+  delete data.ScoresPage;
   delete data.DiscordActivity;
-  if (data.Nav) delete data.Nav.game;
+  if (data.Nav) {
+    delete data.Nav.game;
+    delete data.Nav.scores;
+  }
 });
 
 editJson("apps/web/package.json", (data) => {

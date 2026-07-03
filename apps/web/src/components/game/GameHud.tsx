@@ -4,7 +4,7 @@ import * as React from "react";
 import { Box, Fade, Paper, Typography } from "@mui/material";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import { useTranslations } from "next-intl";
-import { GLOBAL_WORLD_ID, type LeaderboardEntry } from "@project/shared";
+import { GLOBAL_WORLD_ID, NPC_ID_PREFIX, type LeaderboardEntry } from "@project/shared";
 import { useRoomEvents, useSubscription } from "../../hooks";
 import { useSocket } from "../../providers";
 
@@ -54,6 +54,7 @@ export function GameHud(): React.ReactElement | null {
         </Box>
         {board.map((entry, index) => {
           const isMe = entry.id === userId;
+          const isBot = entry.id.startsWith(NPC_ID_PREFIX);
           return (
             <Box
               key={entry.id}
@@ -64,7 +65,10 @@ export function GameHud(): React.ReactElement | null {
                 noWrap
                 sx={{ color: isMe ? "primary.light" : "grey.300", fontWeight: isMe ? 700 : 400 }}
               >
-                {t("rankedName", { rank: index + 1, name: entry.name ?? t("anonymous") })}
+                {t("rankedName", {
+                  rank: index + 1,
+                  name: `${isBot ? "🤖 " : ""}${entry.name ?? t("anonymous")}`,
+                })}
               </Typography>
               <Typography variant="body2" sx={{ color: "grey.400", flexShrink: 0 }}>
                 {entry.len}

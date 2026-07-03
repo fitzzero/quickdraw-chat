@@ -1,15 +1,19 @@
 extends Node
-## Game (autoload) — join flow and world-state fan-out.
+## Game (autoload) — world entry flow and state fan-out.
 ##
 ## Client ordering contract (see .claude/rules/game-patterns.md):
 ##   subscribe("gameService", worldId)  → room membership (gates everything)
-##   joinGame                            → bootstrap state
-##   channel input / snapshot events     → gameplay
+##   watchWorld / joinGame              → bootstrap state
+##   channel input / snapshot events    → gameplay
 ##
-## Commands stay quickdraw methods — respawn() below is the same call a
-## React button would make.
+## On the web the game boots into SPECTATE mode (watchWorld — world renders,
+## nothing spawns); the React pre-game dialog calls gameService.joinGame on
+## the page's own socket, and this client notices itself in the next snapshot
+## and spawns. That is the point of the demo: commands are ordinary quickdraw
+## methods callable from any surface. In the editor (no wrapper) the game
+## auto-joins for fast iteration.
 
-signal joined(bootstrap: Dictionary)
+signal world_ready(bootstrap: Dictionary)
 signal join_failed(error: String)
 signal snapshot_received(snapshot: Dictionary)
 signal player_joined(meta: Dictionary)
@@ -21,24 +25,29 @@ var world_id := ""
 var chat_id := ""
 var my_id := ""
 var bounds := Vector2(2400, 2400)
-var is_joined := false
+var is_in_world := false
 
 
 func _ready() -> void:
 	Net.ready_to_join.connect(_on_ready_to_join)
 	if Net.client != null:
 		Net.client.disconnected.connect(_on_disconnected)
+		# The server pushes identity on connect; spectate mode never calls
+		# joinGame, so this is where my_id comes from.
+		Net.client.on_event("auth:info", func(data: Variant) -> void:
+			if data is Dictionary:
+				my_id = str((data as Dictionary).get("userId", "")))
 
 
 func _on_ready_to_join() -> void:
-	_join()
+	_enter_world()
 
 
 func _on_disconnected() -> void:
-	is_joined = false
+	is_in_world = false
 
 
-func _join() -> void:
+func _enter_world() -> void:
 	await _load_tunables()
 
 	var world: Dictionary = await Net.client.call_method(
@@ -56,21 +65,23 @@ func _join() -> void:
 
 	_wire_events()
 
-	var join: Dictionary = await Net.client.call_method(
-		"gameService", "joinGame", {"worldId": world_id}
+	# Web: spectate (the wrapper's dialog decides when to spawn).
+	# Editor/desktop: auto-join for fast gameplay iteration.
+	var method := "joinGame" if Net.auto_spawn else "watchWorld"
+	var entry: Dictionary = await Net.client.call_method(
+		"gameService", method, {"worldId": world_id}
 	)
-	if not join.get("success", false):
-		join_failed.emit(str(join.get("error", "Join failed")))
+	if not entry.get("success", false):
+		join_failed.emit(str(entry.get("error", "Failed to enter world")))
 		return
 
-	var bootstrap := join["data"] as Dictionary
-	my_id = str((bootstrap["you"] as Dictionary)["id"])
+	var bootstrap := entry["data"] as Dictionary
 	chat_id = str(bootstrap.get("chatId", ""))
 	var b := bootstrap["bounds"] as Dictionary
 	bounds = Vector2(float(b["w"]), float(b["h"]))
-	is_joined = true
+	is_in_world = true
 
-	joined.emit(bootstrap)
+	world_ready.emit(bootstrap)
 	Net.notify_web_ready()
 
 
@@ -112,7 +123,7 @@ func _wire_events() -> void:
 
 
 func send_input(seq: int, dir: Vector2, boost: bool) -> void:
-	if not is_joined:
+	if not is_in_world:
 		return
 	Net.client.send_channel("gameService", "input", {
 		"seq": seq,
@@ -122,6 +133,7 @@ func send_input(seq: int, dir: Vector2, boost: bool) -> void:
 	})
 
 
+## Commands stay quickdraw methods — the same call a React button makes.
 func respawn() -> void:
 	if world_id.is_empty():
 		return

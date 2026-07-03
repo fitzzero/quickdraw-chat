@@ -33,6 +33,7 @@ import { GameService } from "./services/game/index.js";
 import { ensureGlobalWorld, loadSnakeTunables } from "./services/game/bootstrap.js";
 import { DefinitionService } from "./services/definition/index.js";
 import { registerDiscordActivityRoutes } from "./auth/discord-activity.js";
+import { registerGuestRoutes } from "./auth/guest.js";
 // ── quickdraw-game:end ──
 import { authenticateSocket } from "./auth/middleware.js";
 import { registerDiscordRoutes } from "./auth/discord.js";
@@ -118,6 +119,9 @@ registerMockRoutes(app);
 // Discord Activity (Embedded App SDK) code exchange — covered by the
 // /auth/discord rate limiter above
 registerDiscordActivityRoutes(app);
+// Guest sessions for anonymous game play
+app.use("/auth/guest", createAuthLimiter());
+registerGuestRoutes(app);
 // ── quickdraw-game:end ──
 app.use(createAuthRouter());
 

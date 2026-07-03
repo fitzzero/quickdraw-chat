@@ -52,8 +52,8 @@ export class GameLoop {
    * Public so integration tests can drive the world without timers.
    */
   public tickOnce(): TickResult | null {
-    // Empty world: freeze the sim entirely (no broadcasts, no food churn)
-    if (this.deps.sim.playerCount() === 0) return null;
+    // No humans: freeze the sim entirely (NPCs included — nobody's watching)
+    if (this.deps.sim.humanCount() === 0) return null;
 
     const result = this.deps.sim.step();
     this.deps.emitVolatile(GAME_EVENTS.snapshot, result.snapshot);
@@ -67,7 +67,7 @@ export class GameLoop {
   }
 
   public emitLeaderboard(): void {
-    if (this.deps.sim.playerCount() === 0) return;
+    if (this.deps.sim.humanCount() === 0) return;
     this.deps.emitReliable(GAME_EVENTS.leaderboard, this.deps.sim.leaderboard());
   }
 }

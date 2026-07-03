@@ -41,8 +41,9 @@ export async function startTestServer(): Promise<TestServer> {
   serviceRegistry.registerService("messageService", new MessageService(testPrisma));
   serviceRegistry.registerService("documentService", new DocumentService(testPrisma));
   // ── quickdraw-game:start ──
-  // Fixed seed for deterministic spawns; loop intentionally not started
-  const gameService = new GameService(testPrisma, { simSeed: 42 });
+  // Fixed seed for deterministic spawns; NPCs off (tests assert exact
+  // player sets); loop intentionally not started
+  const gameService = new GameService(testPrisma, { simSeed: 42, tunables: { npcCount: 0 } });
   serviceRegistry.registerService("gameService", gameService);
   serviceRegistry.registerService("definitionService", new DefinitionService(testPrisma));
   // ── quickdraw-game:end ──

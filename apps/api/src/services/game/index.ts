@@ -5,11 +5,13 @@ import type {
   GameDeathEvent,
   GameServiceChannels,
   GameServiceMethods,
+  HighScoreEntry,
+  WorldBootstrap,
 } from "@project/shared";
 import { GAME_EVENTS, GLOBAL_WORLD_ID, GAME_TICK_RATE, serviceRoom } from "@project/shared";
 import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 import { z } from "zod";
-import { GameWorldSim, type GameTunables } from "./world.js";
+import { GameWorldSim, isNpcId, type GameTunables } from "./world.js";
 import { GameLoop } from "./loop.js";
 
 // Zod schemas for validation
@@ -19,6 +21,11 @@ const worldScopedSchema = z.object({
 
 const getWorldSchema = z.object({
   slug: z.string().min(1).max(64),
+});
+
+const highScoresSchema = z.object({
+  worldId: z.string().min(1),
+  limit: z.number().int().min(1).max(100).optional(),
 });
 
 const gameInputSchema = z.object({
@@ -59,10 +66,10 @@ export class GameService extends BaseService<
   public readonly sim: GameWorldSim;
   public readonly loop: GameLoop;
 
-  // socketId -> userId for players who joined via that socket; a player is
-  // removed from the sim when their last joined socket disconnects.
-  private readonly joinedSockets = new Map<string, string>();
-  private readonly socketsByUser = new Map<string, Set<string>>();
+  // Users who joined the game (spawned). Presence is anchored on ROOM
+  // membership, not a specific socket: a player typically has two sockets
+  // (the React page + the Godot client) and either one keeps them alive.
+  private readonly playingUsers = new Set<string>();
 
   constructor(
     prisma: PrismaClient,
@@ -106,18 +113,30 @@ export class GameService extends BaseService<
     return requiredLevel === "Read";
   }
 
-  // Remove the player when their last joined socket goes away
+  // Remove the player only when NO subscribed socket of theirs remains in
+  // the world room. Covers both leave paths: disconnect (unsubscribeSocket)
+  // and explicit unsubscribe. The base class removes the departing socket
+  // from `subscribers` before these hooks run, so a plain scan suffices.
   public override unsubscribeSocket(socket: QuickdrawSocket): void {
     super.unsubscribeSocket(socket);
-    const userId = this.joinedSockets.get(socket.id);
-    if (!userId) return;
+    this.maybeRemovePlayer(socket.userId);
+  }
 
-    this.joinedSockets.delete(socket.id);
-    const sockets = this.socketsByUser.get(userId);
-    sockets?.delete(socket.id);
-    if (sockets && sockets.size > 0) return;
+  public override unsubscribe(entryId: string, socket: QuickdrawSocket): void {
+    super.unsubscribe(entryId, socket);
+    if (entryId === GLOBAL_WORLD_ID) this.maybeRemovePlayer(socket.userId);
+  }
 
-    this.socketsByUser.delete(userId);
+  private maybeRemovePlayer(userId: string | undefined): void {
+    if (!userId || !this.playingUsers.has(userId)) return;
+    const roomSockets = this.subscribers.get(GLOBAL_WORLD_ID);
+    if (roomSockets) {
+      for (const socket of roomSockets) {
+        // Another socket anchors them
+        if (socket.userId === userId) return;
+      }
+    }
+    this.playingUsers.delete(userId);
     if (this.sim.removePlayer(userId)) {
       this.emitToRoom(serviceRoom("gameService", GLOBAL_WORLD_ID), GAME_EVENTS.playerLeft, {
         id: userId,
@@ -125,23 +144,10 @@ export class GameService extends BaseService<
     }
   }
 
-  private trackJoin(socketId: string, userId: string): void {
-    this.joinedSockets.set(socketId, userId);
-    let sockets = this.socketsByUser.get(userId);
-    if (!sockets) this.socketsByUser.set(userId, (sockets = new Set()));
-    sockets.add(socketId);
-  }
-
-  private untrackLeave(userId: string): void {
-    const sockets = this.socketsByUser.get(userId);
-    if (sockets) {
-      for (const socketId of sockets) this.joinedSockets.delete(socketId);
-    }
-    this.socketsByUser.delete(userId);
-  }
-
   /** Score writes happen off the tick path; failures are logged, never thrown. */
   private persistScore(death: GameDeathEvent): void {
+    // Bots have no User row and no high scores
+    if (isNpcId(death.id)) return;
     void (async () => {
       await this.prisma.gameScore.upsert({
         where: { worldId_userId: { worldId: GLOBAL_WORLD_ID, userId: death.id } },
@@ -179,7 +185,7 @@ export class GameService extends BaseService<
         ]);
 
         const { meta, isNew } = this.sim.addPlayer(ctx.userId, user?.name ?? null);
-        this.trackJoin(ctx.socketId, ctx.userId);
+        this.playingUsers.add(ctx.userId);
 
         // Membership in the world chat (idempotent). The chat overlay
         // subscribes via chatService as usual.
@@ -199,21 +205,39 @@ export class GameService extends BaseService<
           );
         }
 
-        const state = this.sim.getBootstrapState();
-        return {
-          worldId: GLOBAL_WORLD_ID,
-          chatId: world?.chatId ?? null,
-          tick: this.sim.tick,
-          tickRate: GAME_TICK_RATE,
-          bounds: { w: this.sim.tunables.worldWidth, h: this.sim.tunables.worldHeight },
-          you: meta,
-          players: state.players,
-          snaps: state.snaps,
-          food: state.food,
-        };
+        return { ...this.buildWorldBootstrap(world?.chatId ?? null), you: meta };
       },
       { schema: worldScopedSchema },
     );
+
+    // Spectate entry: full world state without spawning. The web wrapper
+    // boots Godot into this; the pre-game dialog's joinGame (from the React
+    // socket) is what actually spawns the player.
+    this.defineMethod(
+      "watchWorld",
+      "Read",
+      async (payload, ctx): Promise<WorldBootstrap> => {
+        if (!ctx.userId) throw new Error("Authentication required");
+        if (payload.worldId !== GLOBAL_WORLD_ID) throw new Error("Unknown world");
+        const world = await this.findById(GLOBAL_WORLD_ID);
+        return this.buildWorldBootstrap(world?.chatId ?? null);
+      },
+      { schema: worldScopedSchema },
+    );
+  }
+
+  private buildWorldBootstrap(chatId: string | null): WorldBootstrap {
+    const state = this.sim.getBootstrapState();
+    return {
+      worldId: GLOBAL_WORLD_ID,
+      chatId,
+      tick: this.sim.tick,
+      tickRate: GAME_TICK_RATE,
+      bounds: { w: this.sim.tunables.worldWidth, h: this.sim.tunables.worldHeight },
+      players: state.players,
+      snaps: state.snaps,
+      food: state.food,
+    };
   }
 
   private initSessionMethods(): void {
@@ -235,7 +259,7 @@ export class GameService extends BaseService<
       (payload, ctx) => {
         if (!ctx.userId) throw new Error("Authentication required");
         if (payload.worldId !== GLOBAL_WORLD_ID) throw new Error("Unknown world");
-        this.untrackLeave(ctx.userId);
+        this.playingUsers.delete(ctx.userId);
         if (this.sim.removePlayer(ctx.userId)) {
           this.emitToRoom(serviceRoom("gameService", GLOBAL_WORLD_ID), GAME_EVENTS.playerLeft, {
             id: ctx.userId,
@@ -257,6 +281,48 @@ export class GameService extends BaseService<
         return world ?? null;
       },
       { schema: getWorldSchema },
+    );
+    this.initScoreMethods();
+  }
+
+  private initScoreMethods(): void {
+    this.defineMethod(
+      "getMyBest",
+      "Read",
+      async (payload, ctx) => {
+        if (!ctx.userId) throw new Error("Authentication required");
+        if (payload.worldId !== GLOBAL_WORLD_ID) throw new Error("Unknown world");
+        const score = await this.prisma.gameScore.findUnique({
+          where: { worldId_userId: { worldId: GLOBAL_WORLD_ID, userId: ctx.userId } },
+          select: { bestLength: true },
+        });
+        return { bestLength: score?.bestLength ?? 0 };
+      },
+      { schema: worldScopedSchema },
+    );
+
+    // Public: powers the /scores page for signed-out visitors too.
+    // NPCs never persist scores, so no filtering is needed here.
+    this.defineMethod(
+      "getHighScores",
+      "Public",
+      async (payload): Promise<HighScoreEntry[]> => {
+        if (payload.worldId !== GLOBAL_WORLD_ID) throw new Error("Unknown world");
+        const rows = await this.prisma.gameScore.findMany({
+          where: { worldId: GLOBAL_WORLD_ID },
+          orderBy: { bestLength: "desc" },
+          take: Math.min(payload.limit ?? 25, 100),
+          include: { user: { select: { name: true, image: true, isGuest: true } } },
+        });
+        return rows.map((row) => ({
+          userId: row.userId,
+          name: row.user.name,
+          image: row.user.image,
+          isGuest: row.user.isGuest,
+          bestLength: row.bestLength,
+        }));
+      },
+      { schema: highScoresSchema },
     );
   }
 

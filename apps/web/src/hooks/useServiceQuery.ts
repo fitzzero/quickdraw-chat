@@ -8,6 +8,8 @@ interface UseServiceQueryOptions<TResponse> {
   staleTime?: number;
   gcTime?: number;
   skipCache?: boolean;
+  /** Socket events that auto-refetch this query (debounced by core) */
+  invalidateOn?: string[];
   onSuccess?: (data: TResponse) => void;
   onError?: (error: string) => void;
 }

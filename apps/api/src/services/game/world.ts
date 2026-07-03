@@ -21,7 +21,8 @@ import type {
   PlayerSnap,
   WorldSnapshot,
 } from "@project/shared";
-import { GAME_TICK_RATE } from "@project/shared";
+import { GAME_TICK_RATE, NPC_ID_PREFIX } from "@project/shared";
+import { NpcController } from "./npc.js";
 
 export interface GameTunables {
   worldWidth: number;
@@ -50,6 +51,10 @@ export interface GameTunables {
   foodSpawnIntervalTicks: number;
   /** drop one food per N path samples when a snake dies */
   deathFoodEvery: number;
+  /** AI snakes kept alive in the world (0 disables) */
+  npcCount: number;
+  /** ticks before a dead NPC respawns */
+  npcRespawnTicks: number;
 }
 
 export const DEFAULT_TUNABLES: GameTunables = {
@@ -70,14 +75,20 @@ export const DEFAULT_TUNABLES: GameTunables = {
   initialFood: 60,
   foodSpawnIntervalTicks: 10,
   deathFoodEvery: 4,
+  npcCount: 4,
+  npcRespawnTicks: 60,
 };
+
+export function isNpcId(id: string): boolean {
+  return id.startsWith(NPC_ID_PREFIX);
+}
 
 interface Vec {
   x: number;
   y: number;
 }
 
-interface SnakeState {
+export interface SnakeState {
   meta: GamePlayerMeta;
   alive: boolean;
   head: Vec;
@@ -93,7 +104,7 @@ interface SnakeState {
 
 interface FoodState extends FoodDTO {}
 
-interface BodySample {
+export interface BodySample {
   owner: string;
   x: number;
   y: number;
@@ -124,6 +135,7 @@ export class GameWorldSim {
 
   private readonly players = new Map<string, SnakeState>();
   private readonly food = new Map<string, FoodState>();
+  private npcController: NpcController | null = null;
   private readonly rng: () => number;
   private nextFoodId = 1;
   private ticksSinceFoodSpawn = 0;
@@ -209,6 +221,15 @@ export class GameWorldSim {
     return this.players.size;
   }
 
+  /** Real players only — NPCs don't count toward "is anyone here". */
+  public humanCount(): number {
+    let count = 0;
+    for (const id of this.players.keys()) {
+      if (!isNpcId(id)) count++;
+    }
+    return count;
+  }
+
   private spawnSnake(snake: SnakeState): void {
     const { worldWidth, worldHeight, startLength } = this.tunables;
     // Spawn away from the walls
@@ -253,6 +274,8 @@ export class GameWorldSim {
     const foodSpawned: FoodDTO[] = [];
     const deaths: GameDeathEvent[] = [];
 
+    this.npcs().update(this.tick);
+
     for (const snake of this.players.values()) {
       if (!snake.alive) continue;
       this.moveSnake(snake);
@@ -271,6 +294,56 @@ export class GameWorldSim {
       },
       deaths,
     };
+  }
+
+  /** Lazily constructed so the controller sees post-applyTunables values. */
+  private npcs(): NpcController {
+    this.npcController ??= new NpcController({
+      tunables: this.tunables,
+      rng: this.rng,
+      getSnake: (id) => this.players.get(id),
+      addPlayer: (id, name) => void this.addPlayer(id, name),
+      removePlayer: (id) => void this.players.delete(id),
+      respawn: (id) => void this.respawn(id),
+      nearestFood: (from) => this.nearestFood(from),
+      buildBodyHash: () => this.buildBodyHash(),
+      probeHitsForeignBody: (selfId, x, y, hash) => this.probeHitsForeignBody(selfId, x, y, hash),
+    });
+    return this.npcController;
+  }
+
+  private nearestFood(from: Vec): FoodDTO | null {
+    let best: FoodDTO | null = null;
+    let bestDist = Infinity;
+    for (const item of this.food.values()) {
+      const dist = Math.hypot(item.x - from.x, item.y - from.y);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = item;
+      }
+    }
+    return best;
+  }
+
+  private probeHitsForeignBody(
+    selfId: string,
+    x: number,
+    y: number,
+    hash: Map<string, BodySample[]>,
+  ): boolean {
+    const reach = this.tunables.headRadius + this.tunables.bodyRadius + 6;
+    const cx = Math.floor(x / SPATIAL_CELL);
+    const cy = Math.floor(y / SPATIAL_CELL);
+    for (let ix = cx - 1; ix <= cx + 1; ix++) {
+      for (let iy = cy - 1; iy <= cy + 1; iy++) {
+        const cell = hash.get(`${ix},${iy}`);
+        if (!cell) continue;
+        if (cell.some((s) => s.owner !== selfId && Math.hypot(s.x - x, s.y - y) <= reach)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private moveSnake(snake: SnakeState): void {

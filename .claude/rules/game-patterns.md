@@ -21,9 +21,18 @@ fork with `./scripts/init-fork.sh <name> --without-game`.
 
 ## Ordering contract (clients)
 
-`subscribe("gameService", GLOBAL_WORLD_ID)` **before** `joinGame` — room
-membership is what gates the input channel (`requireRoom`) and delivers
-snapshots. Then send input frames; reconcile against `PlayerSnap.ack`.
+`subscribe("gameService", GLOBAL_WORLD_ID)` **before** `watchWorld`/`joinGame`
+— room membership is what gates the input channel (`requireRoom`) and
+delivers snapshots. The web boots Godot into SPECTATE (`watchWorld`: full
+bootstrap, no spawn); the React pre-game dialog then calls `joinGame` on the
+page's own socket and Godot spawns the local snake when its id appears in a
+snapshot. Presence is room-anchored: a player stays in the sim while ANY of
+their subscribed sockets remains (page + Godot are two sockets, one user).
+Then send input frames; reconcile against `PlayerSnap.ack`.
+
+NPCs (`npc-` ids) live inside `GameWorldSim` (seeded, deterministic,
+`npcCount` tunable) and reach clients as ordinary remote players; they never
+persist scores and don't count toward `humanCount()` idle checks.
 
 ## Simulation rules
 

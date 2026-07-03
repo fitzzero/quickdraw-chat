@@ -255,3 +255,48 @@ describe("UserService Integration - Admin Methods", () => {
     client.close();
   });
 });
+
+describe("updateUser name collisions", () => {
+  let stop: () => Promise<void>;
+  let port: number;
+  let users: Awaited<ReturnType<typeof seedTestUsers>>;
+
+  beforeAll(async () => {
+    const server = await startTestServer();
+    port = server.port;
+    stop = server.stop;
+  });
+
+  afterAll(async () => {
+    await stop();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase();
+    users = await seedTestUsers();
+  });
+
+  it("returns { error: 'name_taken' } instead of throwing on duplicates", async () => {
+    const client = await connectAsUser(port, users.regular.id);
+
+    const taken = await emitWithAck<
+      { id: string; data: { name: string } },
+      { error?: string; name?: string | null }
+    >(client, "userService:updateUser", {
+      id: users.regular.id,
+      data: { name: "Admin User" },
+    });
+    expect(taken.error).toBe("name_taken");
+
+    const ok = await emitWithAck<
+      { id: string; data: { name: string } },
+      { error?: string; name?: string | null }
+    >(client, "userService:updateUser", {
+      id: users.regular.id,
+      data: { name: "Fresh Name" },
+    });
+    expect(ok.name).toBe("Fresh Name");
+
+    client.close();
+  });
+});
