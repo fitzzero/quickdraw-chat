@@ -129,11 +129,31 @@ export class GameWorldSim {
   private ticksSinceFoodSpawn = 0;
 
   constructor(options?: { tunables?: Partial<GameTunables>; seed?: number }) {
-    this.tunables = { ...DEFAULT_TUNABLES, ...options?.tunables };
+    this.tunables = { ...DEFAULT_TUNABLES };
+    if (options?.tunables) this.applyTunables(options.tunables);
     this.rng = mulberry32(options?.seed ?? 1);
 
     for (let i = 0; i < this.tunables.initialFood; i++) {
       this.spawnFood();
+    }
+  }
+
+  /**
+   * Apply tunable overrides (boot config or a live DefinitionService edit).
+   * Only known keys with finite numeric values are accepted — definitions
+   * are admin-edited JSON, so treat them as untrusted.
+   *
+   * Note for live edits: connected Godot clients keep predicting with the
+   * values they fetched at load, so movement tunables cause reconciliation
+   * drift until players reload. Server-authoritative correction absorbs it.
+   */
+  public applyTunables(partial: Partial<GameTunables>): void {
+    for (const key of Object.keys(DEFAULT_TUNABLES) as (keyof GameTunables)[]) {
+      const value = partial[key];
+      // Non-negative finite numbers only (zero is legitimate, e.g. initialFood)
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+        this.tunables[key] = value;
+      }
     }
   }
 

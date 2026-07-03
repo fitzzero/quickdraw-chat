@@ -5,7 +5,7 @@ import {
   setSessionCookie,
   type OAuthTokenResponse,
 } from "@fitzzero/quickdraw-core/server";
-import { prisma } from "@project/db";
+import { prisma as defaultPrisma, type PrismaClient } from "@project/db";
 import { createJWT } from "./jwt.js";
 import { logger } from "../utils/logger.js";
 
@@ -68,6 +68,7 @@ export interface OAuthProfile {
 async function findOrCreateUser(
   profile: OAuthProfile,
   expiresAt: number | null,
+  prisma: PrismaClient,
 ): Promise<{ id: string; email: string }> {
   const { provider, providerAccountId, tokens } = profile;
 
@@ -124,11 +125,21 @@ async function findOrCreateUser(
   return created;
 }
 
-export async function completeOAuthLogin(res: Response, profile: OAuthProfile): Promise<void> {
+/**
+ * Provider-agnostic session mint: find-or-create the user + account, then
+ * create a JWT + Session row (token revocation support). Used by both the
+ * redirect OAuth flows (cookie + redirect) and token-returning flows like
+ * the Discord Activity endpoint, where third-party cookie restrictions make
+ * the token-in-handshake path primary.
+ */
+export async function createSessionForProfile(
+  profile: OAuthProfile,
+  prisma: PrismaClient = defaultPrisma,
+): Promise<{ token: string; userId: string }> {
   const { tokens } = profile;
   const expiresAt = tokens.expires_in ? Math.floor(Date.now() / 1000) + tokens.expires_in : null;
 
-  const user = await findOrCreateUser(profile, expiresAt);
+  const user = await findOrCreateUser(profile, expiresAt, prisma);
 
   const jwt = await createJWT({ userId: user.id, email: user.email });
 
@@ -140,9 +151,15 @@ export async function completeOAuthLogin(res: Response, profile: OAuthProfile): 
     },
   });
 
+  return { token: jwt, userId: user.id };
+}
+
+export async function completeOAuthLogin(res: Response, profile: OAuthProfile): Promise<void> {
+  const { token } = await createSessionForProfile(profile);
+
   // The httpOnly session cookie is the sole client credential: sockets
   // (handshake withCredentials) and REST both authenticate with it, so the
   // JWT never appears in the redirect URL (history/referrer/log exposure).
-  setSessionCookie(res, jwt);
+  setSessionCookie(res, token);
   res.redirect(`${clientUrl()}/auth/callback`);
 }

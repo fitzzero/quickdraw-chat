@@ -193,6 +193,28 @@ model GameWorld {
   @@map("game_worlds")
 }
 
+// Data-driven game content: tunables, items, spells — anything you'd
+// otherwise bake into Godot .tres resources. Rows are served by
+// DefinitionService (public read, admin write via the generic admin UI),
+// fetched by both the server sim and the Godot client at load, so balance
+// changes never require re-exporting the game.
+model Definition {
+  id        String   @id @default(cuid())
+  // Namespace, e.g. "tunables", "items", "spells"
+  type      String
+  // Unique key within the type, e.g. "snake"
+  key       String
+  data      Json
+  version   Int      @default(1)
+  enabled   Boolean  @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([type, key])
+  @@map("definitions")
+}
+
 // Persistent per-user score for a world. Written outside the tick loop
 // (throttled upsert on death), read for leaderboards/profiles.
 model GameScore {

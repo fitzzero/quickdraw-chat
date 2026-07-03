@@ -192,12 +192,17 @@ jobs:
             DISCORD_CLIENT_ID=DISCORD_CLIENT_ID:latest
             DISCORD_CLIENT_SECRET=DISCORD_CLIENT_SECRET:latest
           # Cloud SQL only: add --set-cloudsql-instances=${{ env.CLOUD_SQL_INSTANCE }}
+          # ── quickdraw-game:start ──
+          # max-instances=1: the game sim is single-process in-memory (see
+          # .claude/rules/game-patterns.md). Scale out only after moving the
+          # game to its own service or adding the Redis adapter.
+          # ── quickdraw-game:end ──
           flags: >-
             --port=8080
             --cpu=1
             --memory=512Mi
             --min-instances=0
-            --max-instances=2
+            --max-instances=1
             --session-affinity
             --cpu-boost
             --execution-environment=gen2

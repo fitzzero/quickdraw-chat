@@ -3,17 +3,26 @@ set -euo pipefail
 
 # One-shot template initializer. Run once after forking/cloning quickdraw-chat:
 #
-#   ./scripts/init-fork.sh <app-name> [backend-port] [--scope @yourscope]
+#   ./scripts/init-fork.sh <app-name> [backend-port] [--scope @yourscope] [--without-game]
 #   ./scripts/init-fork.sh acme-books 4010
+#   ./scripts/init-fork.sh acme-books --without-game   # non-game fork
 #
 # Rewrites the app identity (database names, titles, deploy service name,
 # devcontainer, MCP server name), optionally the backend port and the
 # @project/* package scope, refreshes the lockfile, formats, then deletes
-# itself. Framework references (quickdraw-core, QuickdrawProvider, ...) are
-# untouched.
+# itself. --without-game removes the entire game foundation first (Godot app,
+# GameService, DefinitionService, Discord Activity — see scripts/strip-game.mjs).
+# Framework references (quickdraw-core, QuickdrawProvider, ...) are untouched.
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+# Portable in-place sed (GNU: -i, BSD/macOS: -i '')
+if sed --version >/dev/null 2>&1; then
+  SED_I=(sed -i)
+else
+  SED_I=(sed -i '')
+fi
 
 usage() {
   sed -n '4,12p' "$0"
@@ -26,11 +35,16 @@ shift
 
 PORT=""
 SCOPE=""
+WITHOUT_GAME=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --scope)
       SCOPE="${2#@}"
       shift 2
+      ;;
+    --without-game)
+      WITHOUT_GAME="1"
+      shift
       ;;
     *)
       PORT="$1"
@@ -49,29 +63,40 @@ if [ -n "$PORT" ] && ! echo "$PORT" | grep -qE '^[0-9]{4,5}$'; then
 fi
 
 DB_NAME="${NAME//-/_}"
-# kebab-case -> Title Case ("acme-books" -> "Acme Books")
-DISPLAY="$(echo "$NAME" | sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g')"
+# kebab-case -> Title Case ("acme-books" -> "Acme Books") — portable (no GNU \u)
+DISPLAY="$(echo "$NAME" | awk -F- '{ for (i = 1; i <= NF; i++) $i = toupper(substr($i, 1, 1)) substr($i, 2) } 1' OFS=" ")"
 
 echo "App name:     $NAME"
 echo "Display name: $DISPLAY"
 echo "Database:     $DB_NAME (+ ${DB_NAME}_test, ${DB_NAME}_shadow)"
 [ -n "$PORT" ] && echo "Backend port: 4000 -> $PORT"
 [ -n "$SCOPE" ] && echo "Pkg scope:    @project -> @$SCOPE"
+[ -n "$WITHOUT_GAME" ] && echo "Game:         removing (Godot app, GameService, definitions, Discord Activity)"
 echo ""
 
-# Tracked text files only — never touch node_modules/.git. Migration SQL is
-# name-free; the lockfile only carries the workspace name (identity pass).
-FILES=$(git ls-files | grep -vE '^packages/db/prisma/migrations/')
+# ── 0. Optional: carve out the game foundation ───────────────────────
+if [ -n "$WITHOUT_GAME" ]; then
+  node scripts/strip-game.mjs
+fi
+
+# Tracked text files only — never touch node_modules/.git or binaries
+# (BSD sed chokes on non-UTF8 bytes). Migration SQL is name-free; the
+# lockfile only carries the workspace name (identity pass).
+FILES=$(git ls-files | grep -vE '^packages/db/prisma/migrations/|\.(wasm|pck|png|ico|jpg|jpeg|gif|webp|woff2?)$')
+# After --without-game, ls-files still lists the deleted paths — drop them
+if [ -n "$WITHOUT_GAME" ]; then
+  FILES=$(echo "$FILES" | while read -r f; do [ -f "$f" ] && echo "$f"; done)
+fi
 
 # ── 1. App identity ──────────────────────────────────────────────────
-echo "$FILES" | xargs sed -i \
+echo "$FILES" | xargs "${SED_I[@]}" \
   -e "s/quickdraw_chat/${DB_NAME}/g" \
   -e "s/quickdraw-chat/${NAME}/g" \
   -e "s/Quickdraw Chat/${DISPLAY}/g"
 
 # ── 2. Backend port (targeted patterns — bare '4000' can be a timeout) ─
 if [ -n "$PORT" ]; then
-  echo "$FILES" | xargs sed -i \
+  echo "$FILES" | xargs "${SED_I[@]}" \
     -e "s/localhost:4000/localhost:${PORT}/g" \
     -e "s/4000:4000/${PORT}:${PORT}/g" \
     -e "s/BACKEND_PORT=4000/BACKEND_PORT=${PORT}/g" \
@@ -84,7 +109,7 @@ if [ -n "$PORT" ]; then
 
   # `?? 4000` fallbacks only where they mean the backend port — a blanket
   # pass would also hit unrelated numeric defaults (e.g. toast durations)
-  sed -i "s/?? 4000/?? ${PORT}/g" \
+  "${SED_I[@]}" "s/?? 4000/?? ${PORT}/g" \
     apps/api/src/index.ts \
     apps/api/src/auth/google.ts \
     apps/api/src/auth/discord.ts \
@@ -97,7 +122,7 @@ fi
 if [ -n "$SCOPE" ]; then
   # Covers package.json names/deps, source imports, AND the turbo
   # --filter=@project/* references in CI/deploy workflows.
-  echo "$FILES" | xargs sed -i "s|@project/|@${SCOPE}/|g"
+  echo "$FILES" | xargs "${SED_I[@]}" "s|@project/|@${SCOPE}/|g"
 fi
 
 # ── 4. README: replace the template instructions ─────────────────────
@@ -115,6 +140,14 @@ echo "Installing dependencies (refreshes lockfile)..."
 bun install >/dev/null
 echo "Formatting..."
 bun run format >/dev/null 2>&1 || true
+
+# ── 6. --without-game sanity: a broken seam must fail HERE, loudly ───
+if [ -n "$WITHOUT_GAME" ]; then
+  echo "Verifying the carve-out (db:generate + build + check)..."
+  bun run db:generate >/dev/null
+  bun run build >/dev/null
+  bun run check
+fi
 
 echo ""
 echo "✅ Initialized '$NAME'. Next steps:"

@@ -133,3 +133,19 @@ export interface GameServiceMethods {
 export interface GameServiceChannels {
   input: GameInput;
 }
+
+/**
+ * The contract between the web wrapper and the Godot build. The page sets
+ * `window.QuickdrawHost` to this shape BEFORE starting the engine; Godot
+ * reads it via JavaScriptBridge (see apps/game/godot/scripts/autoload/net.gd).
+ */
+export interface QuickdrawHostConfig {
+  /** API origin, e.g. "http://localhost:4000". */
+  apiUrl: string;
+  /** Socket.io path override (Discord Activities: "/.proxy/api/socket.io"). */
+  socketPath?: string;
+  /** JWT for token auth; null/absent = cookie auth rides the WS handshake. */
+  authToken?: string | null;
+  /** World to join (slug). */
+  worldSlug: string;
+}

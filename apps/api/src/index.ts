@@ -28,8 +28,11 @@ import { MessageService } from "./services/message/index.js";
 import { DocumentService } from "./services/document/index.js";
 // ── quickdraw-game:start ──
 import { CHANNEL_EVENT_PREFIX } from "@fitzzero/quickdraw-core";
+import { DEFINITION_TYPES, SNAKE_TUNABLES_KEY } from "@project/shared";
 import { GameService } from "./services/game/index.js";
-import { ensureGlobalWorld } from "./services/game/bootstrap.js";
+import { ensureGlobalWorld, loadSnakeTunables } from "./services/game/bootstrap.js";
+import { DefinitionService } from "./services/definition/index.js";
+import { registerDiscordActivityRoutes } from "./auth/discord-activity.js";
 // ── quickdraw-game:end ──
 import { authenticateSocket } from "./auth/middleware.js";
 import { registerDiscordRoutes } from "./auth/discord.js";
@@ -111,6 +114,11 @@ app.use(["/auth/google", "/auth/discord", "/auth/mock"], createAuthLimiter());
 registerDiscordRoutes(app);
 registerGoogleRoutes(app);
 registerMockRoutes(app);
+// ── quickdraw-game:start ──
+// Discord Activity (Embedded App SDK) code exchange — covered by the
+// /auth/discord rate limiter above
+registerDiscordActivityRoutes(app);
+// ── quickdraw-game:end ──
 app.use(createAuthRouter());
 
 // Socket.io server
@@ -161,13 +169,25 @@ const documentService = new DocumentService(prisma);
 serviceRegistry.registerService("documentService", documentService);
 
 // ── quickdraw-game:start ──
+// Definition service - data-driven game content (public read, admin write)
+const definitionService = new DefinitionService(prisma);
+serviceRegistry.registerService("definitionService", definitionService);
+
 // Game service - authoritative snake sim; commands are methods, input is a
 // channel, snapshots broadcast volatile at tick rate to the world room
 await ensureGlobalWorld(prisma);
-const gameService = new GameService(prisma);
+const gameService = new GameService(prisma, { tunables: await loadSnakeTunables(prisma) });
 serviceRegistry.registerService("gameService", gameService);
 gameService.startLoop();
 process.on("SIGTERM", () => gameService.stopLoop());
+
+// Admin edits to the snake tunables hot-reload the running sim
+definitionService.onChanged((definition) => {
+  if (definition.type === DEFINITION_TYPES.tunables && definition.key === SNAKE_TUNABLES_KEY) {
+    gameService.sim.applyTunables(definition.data);
+    logger.info("Applied updated snake tunables from definition edit");
+  }
+});
 // ── quickdraw-game:end ──
 
 // Apply authentication middleware

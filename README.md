@@ -90,6 +90,30 @@ Real env vars (e.g. CI) always take precedence.
 | MessageService  | Real-time messaging        | Inherits from parent chat                   |
 | DocumentService | Document collaboration     | JSON ACL (default `checkEntryACL`)          |
 
+<!-- ── quickdraw-game:start ── -->
+
+| GameService | Real-time multiplayer game server | Public-read world + room-gated input channel |
+| DefinitionService | Data-driven game content | Public read, admin write |
+
+## Game Foundation
+
+The template ships a working multiplayer game: a Godot 4 client
+(`apps/game/`, embedded at `/game`) playing a slither-style snake in one
+global world, with real netcode (client-side prediction + reconciliation,
+snapshot-buffer interpolation), a first-party GDScript Socket.IO client, a
+DOM overlay HUD + game-server chat, DB-driven tunables editable in the admin
+UI, and a Discord Activity entry at `/discord`.
+
+- Patterns: `.claude/rules/game-patterns.md` (channels vs methods, ordering
+  contract, sim purity) and `apps/game/README.md` (editor setup, dev auth,
+  export, Discord).
+- Game commands are ordinary quickdraw methods — a React button and the Godot
+  client call them identically; only tick-rate traffic uses channels
+  (quickdraw-core ≥3.8).
+- **Not building a game?** `./scripts/init-fork.sh <name> --without-game`
+removes all of it (or run `node scripts/strip-game.mjs` standalone).
+<!-- ── quickdraw-game:end ── -->
+
 ## Development
 
 > Always use `bun run <script>` (never bare `bun <script>` — that invokes

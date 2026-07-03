@@ -23,6 +23,7 @@ async function seedUsers(): Promise<{ adminId: string; moderatorId: string; user
         documentService: "Admin",
         // ── quickdraw-game:start ──
         gameService: "Admin",
+        definitionService: "Admin",
         // ── quickdraw-game:end ──
       },
     },
@@ -156,6 +157,33 @@ async function seedGameWorld(ids: { adminId: string }): Promise<void> {
     },
   });
 }
+
+/**
+ * Snake movement tunables as a Definition row. Must mirror DEFAULT_TUNABLES
+ * in apps/api/src/services/game/world.ts — the server sim loads these at
+ * boot (and hot-reloads on admin edit); the Godot client fetches them at
+ * load. Edit via /admin/definitionService — no re-export needed.
+ */
+async function seedDefinitions(): Promise<void> {
+  await prisma.definition.upsert({
+    where: { type_key: { type: "tunables", key: "snake" } },
+    update: {},
+    create: {
+      type: "tunables",
+      key: "snake",
+      data: {
+        baseSpeed: 180,
+        boostSpeed: 320,
+        turnRate: 4,
+        startLength: 10,
+        minLength: 5,
+        boostBurnPerSecond: 1.5,
+        foodRadius: 14,
+        maxFood: 150,
+      },
+    },
+  });
+}
 // ── quickdraw-game:end ──
 
 async function main(): Promise<void> {
@@ -170,6 +198,7 @@ async function main(): Promise<void> {
   await seedDocument(ids);
   // ── quickdraw-game:start ──
   await seedGameWorld(ids);
+  await seedDefinitions();
   // ── quickdraw-game:end ──
 
   console.log("Seeded demo users:");

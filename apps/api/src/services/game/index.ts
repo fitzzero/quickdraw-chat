@@ -9,7 +9,7 @@ import type {
 import { GAME_EVENTS, GLOBAL_WORLD_ID, GAME_TICK_RATE, serviceRoom } from "@project/shared";
 import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 import { z } from "zod";
-import { GameWorldSim } from "./world.js";
+import { GameWorldSim, type GameTunables } from "./world.js";
 import { GameLoop } from "./loop.js";
 
 // Zod schemas for validation
@@ -64,12 +64,15 @@ export class GameService extends BaseService<
   private readonly joinedSockets = new Map<string, string>();
   private readonly socketsByUser = new Map<string, Set<string>>();
 
-  constructor(prisma: PrismaClient, options?: { simSeed?: number }) {
+  constructor(
+    prisma: PrismaClient,
+    options?: { simSeed?: number; tunables?: Partial<GameTunables> },
+  ) {
     super({ serviceName: "gameService", hasEntryACL: false });
     this.prisma = prisma;
     this.setDelegate(prisma.gameWorld);
 
-    this.sim = new GameWorldSim({ seed: options?.simSeed });
+    this.sim = new GameWorldSim({ seed: options?.simSeed, tunables: options?.tunables });
     const room = serviceRoom("gameService", GLOBAL_WORLD_ID);
     this.loop = new GameLoop({
       sim: this.sim,

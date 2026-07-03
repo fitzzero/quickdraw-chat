@@ -5,6 +5,7 @@ import type { MessageServiceMethods } from "./message.js";
 import type { DocumentDTO, DocumentServiceMethods } from "./document.js";
 // ── quickdraw-game:start ──
 import type { GameServiceMethods } from "./game.js";
+import type { DefinitionDTO, DefinitionServiceMethods } from "./definition.js";
 // ── quickdraw-game:end ──
 
 // ============================================================================
@@ -18,6 +19,7 @@ export interface ServiceMethodsMap {
   documentService: DocumentServiceMethods;
   // ── quickdraw-game:start ──
   gameService: GameServiceMethods;
+  definitionService: DefinitionServiceMethods;
   // ── quickdraw-game:end ──
 }
 
@@ -49,5 +51,6 @@ export interface SubscriptionDataMap {
     createdAt: string;
     updatedAt: string;
   };
+  definitionService: DefinitionDTO;
   // ── quickdraw-game:end ──
 }

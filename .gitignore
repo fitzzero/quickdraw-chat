@@ -49,3 +49,8 @@ coverage/
 yalc.lock
 
 
+
+# ── quickdraw-game:start ──
+# Godot editor caches
+apps/game/godot/.godot/
+# ── quickdraw-game:end ──
