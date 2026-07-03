@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { clearSessionCookie, extractBearerOrCookieToken } from "@fitzzero/quickdraw-core/server";
+import { createAuthLimiter } from "@fitzzero/quickdraw-core/server/express";
 import { verifyJWT } from "./jwt.js";
 import { deleteSessionByToken, deleteSessionsForUser } from "./session-store.js";
 import { logger } from "../utils/logger.js";
@@ -9,6 +10,12 @@ import { logger } from "../utils/logger.js";
  */
 export function createAuthRouter(): Router {
   const router = Router();
+
+  // Same abuse surface as the OAuth routes (JWT verify + DB writes), but
+  // these are authenticated session-management calls — looser limit.
+  // Path-scoped: the router is mounted at "/", so a bare router.use()
+  // would also count unmatched-404 traffic against the budget.
+  router.use(["/auth/logout", "/auth/sessions"], createAuthLimiter({ max: 60 }));
 
   /**
    * DELETE /auth/logout

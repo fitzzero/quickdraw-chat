@@ -40,11 +40,14 @@ import { registerDiscordRoutes } from "./auth/discord.js";
 import { registerGoogleRoutes } from "./auth/google.js";
 import { registerMockRoutes } from "./auth/mock.js";
 import { createAuthRouter } from "./auth/routes.js";
+import { deleteExpiredSessions } from "./auth/session-store.js";
 
 // Validate required environment variables in production
 if (process.env.NODE_ENV === "production") {
   validateEnv({
-    required: ["DATABASE_URL", "JWT_SECRET", "CLIENT_URL"],
+    // ENCRYPTION_KEY: stored OAuth tokens are only encrypted at rest when it
+    // is set — a public deploy without it would persist them plaintext.
+    required: ["DATABASE_URL", "JWT_SECRET", "CLIENT_URL", "ENCRYPTION_KEY"],
     productionOnly: true,
   });
 
@@ -90,6 +93,9 @@ app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(cookieParser());
 app.use(
   express.json({
+    // REST here is auth-only (tiny payloads) — raise per-route if a fork
+    // adds large webhook/upload bodies
+    limit: "100kb",
     // Keep the raw body around for webhook signature verification
     verify: (req, _res, buf) => {
       (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
@@ -235,6 +241,29 @@ io.on("connection", (socket) => {
     }
   });
 });
+
+// Expired-session cleanup: revoked/expired Session rows are already rejected
+// at auth time; this hourly sweep is hygiene so the table doesn't grow
+// unbounded. Plain timer, deliberately not the game loop (no DB in the tick
+// path — see game-patterns.md).
+const SESSION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+async function cleanupExpiredSessions(): Promise<void> {
+  try {
+    const count = await deleteExpiredSessions();
+    if (count > 0) logger.info("Deleted expired sessions", { count });
+  } catch (error) {
+    logger.error("Session cleanup failed", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+void cleanupExpiredSessions();
+const sessionCleanupTimer = setInterval(
+  () => void cleanupExpiredSessions(),
+  SESSION_CLEANUP_INTERVAL_MS,
+);
+sessionCleanupTimer.unref();
+process.on("SIGTERM", () => clearInterval(sessionCleanupTimer));
 
 // Start server
 httpServer.listen(Number(PORT), "0.0.0.0", () => {

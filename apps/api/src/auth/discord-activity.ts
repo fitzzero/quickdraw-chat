@@ -26,7 +26,7 @@ import { setSessionCookie } from "@fitzzero/quickdraw-core/server";
 import type { PrismaClient } from "@project/db";
 import { logger } from "../utils/logger.js";
 import { validateRequest, z } from "../utils/validate-request.js";
-import { createSessionForProfile } from "./oauth-callback.js";
+import { createSessionForProfile, SESSION_MAX_AGE_MS } from "./oauth-callback.js";
 
 const activityBodySchema = z.object({
   code: z.string().min(1).max(512),
@@ -113,7 +113,7 @@ export function registerDiscordActivityRoutes(app: Express, deps: DiscordActivit
 
         // Best-effort cookie for browsers that allow it; the body token is
         // what the Activity client actually uses (socket auth.token).
-        setSessionCookie(res, token);
+        setSessionCookie(res, token, { maxAgeMs: SESSION_MAX_AGE_MS });
         res.json({ token });
       } catch (error) {
         logger.warn("Discord Activity auth failed", {
