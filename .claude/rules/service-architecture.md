@@ -95,3 +95,12 @@ this.emitToRoom(serviceRoom("chatService", chatId), "chat:message", messageDTO);
 ```
 
 Clients auto-join room `{serviceName}:{entityId}` on subscribe.
+
+<!-- ── quickdraw-game:start ── -->
+
+## High-Frequency Traffic
+
+For tick-rate streams (game input, cursor positions) use quickdraw channels
+(`defineChannel`) instead of methods — see `.claude/rules/game-patterns.md`.
+
+<!-- ── quickdraw-game:end ── -->
