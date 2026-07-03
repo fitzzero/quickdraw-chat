@@ -8,6 +8,7 @@ export { useRoomEvents } from "@fitzzero/quickdraw-core/client";
 export { useIsMobile } from "./useIsMobile";
 export { useRecentChats } from "./useRecentChats";
 export { useFilteredNavigation } from "./useFilteredNavigation";
+export { useSlowLoadHint } from "./useSlowLoadHint";
 
 // Admin hooks
 export { useAdminServices, type AdminServiceInfo } from "./useAdminServices";

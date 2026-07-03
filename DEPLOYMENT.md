@@ -90,6 +90,16 @@ Two supported shapes; the workflow defaults to **hosted Postgres**:
   `--set-cloudsql-instances`), create the instance below, and point
   `DATABASE_MIGRATE_URL` at `127.0.0.1:5432` (proxy).
 
+### Cold starts
+
+The API deploys with `--min-instances=0` (see `deploy.yml`), so an idle demo
+costs ~$0 — and the first visitor after idle pays a ~5–15s Cloud Run cold
+start (`--cpu-boost` softens it). The web UI owns this: after ~2.5s of
+connecting it shows a "Warming up the server… (demo budget ☕)" hint
+(`useSlowLoadHint` in `apps/web/src/hooks/`). To eliminate cold starts
+entirely, set `--min-instances=1` in `deploy.yml` (~$10/mo for an always-warm
+instance).
+
 ### 1. GCP setup
 
 ```bash

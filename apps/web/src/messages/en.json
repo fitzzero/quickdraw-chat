@@ -2,6 +2,7 @@
   "Common": {
     "loading": "Loading...",
     "connecting": "Connecting...",
+    "warmingUp": "Warming up the server… (demo budget ☕)",
     "cancel": "Cancel",
     "confirm": "Confirm",
     "create": "Create",
