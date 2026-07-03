@@ -1,0 +1,7 @@
+# ── quickdraw-game:start ──
+# Committed Godot web export (see apps/game/export-web.sh). The engine wasm
+# only changes on Godot version bumps; routine game changes rewrite the pck.
+apps/web/public/game/*.wasm binary
+apps/web/public/game/*.pck binary
+apps/web/public/game/*.png binary
+# ── quickdraw-game:end ──

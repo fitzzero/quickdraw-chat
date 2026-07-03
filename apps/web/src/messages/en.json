@@ -28,7 +28,8 @@
     "home": "Home",
     "chats": "Chats",
     "profile": "Profile",
-    "account": "Account"
+    "account": "Account",
+    "game": "Game"
   },
   "Auth": {
     "signIn": "Sign In",
@@ -183,5 +184,10 @@
     "adminAccessFor": "Admin: {service}",
     "saveAccess": "Save Access",
     "cancelChanges": "Cancel"
+  },
+  "GamePage": {
+    "title": "Quickdraw Snake",
+    "loadingEngine": "Loading game engine…",
+    "connecting": "Connecting to the game server…"
   }
 }

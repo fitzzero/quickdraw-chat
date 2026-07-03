@@ -2,6 +2,9 @@ import ChatIcon from "@mui/icons-material/Chat";
 import HomeIcon from "@mui/icons-material/Home";
 import PersonIcon from "@mui/icons-material/Person";
 import SettingsIcon from "@mui/icons-material/Settings";
+// ── quickdraw-game:start ──
+import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
+// ── quickdraw-game:end ──
 import type { SvgIconComponent } from "@mui/icons-material";
 
 // ============================================================================
@@ -52,6 +55,15 @@ export const siteNavigation: NavItem[] = [
     // Children loaded via useRecentChats
     dynamicChildren: true,
   },
+  // ── quickdraw-game:start ──
+  {
+    id: "game",
+    label: "Game",
+    href: "/game",
+    icon: SportsEsportsIcon,
+    requireAuth: true,
+  },
+  // ── quickdraw-game:end ──
 ];
 
 /** User menu items (bottom of sidebar) */
