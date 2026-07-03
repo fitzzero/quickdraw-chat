@@ -9,7 +9,8 @@ extends Node
 ## On the web the game boots into SPECTATE mode (watchWorld — world renders,
 ## nothing spawns); the React pre-game dialog calls gameService.joinGame on
 ## the page's own socket, and this client notices itself in the next snapshot
-## and spawns. That is the point of the demo: commands are ordinary quickdraw
+## and spawns. Signed-out visitors spectate too: subscribe fails without
+## auth, but watchWorld grants world-room membership to anonymous sockets. That is the point of the demo: commands are ordinary quickdraw
 ## methods callable from any surface. In the editor (no wrapper) the game
 ## auto-joins for fast iteration.
 
@@ -60,8 +61,12 @@ func _enter_world() -> void:
 
 	var sub: Dictionary = await Net.client.subscribe("gameService", world_id)
 	if not sub.get("success", false):
-		join_failed.emit(str(sub.get("error", "Subscribe failed")))
-		return
+		# Anonymous spectators can't subscribe (registry requires auth) —
+		# watchWorld below grants world-room membership instead. Only the
+		# auto-spawn (editor/desktop) path treats this as fatal.
+		if Net.auto_spawn:
+			join_failed.emit(str(sub.get("error", "Subscribe failed")))
+			return
 
 	_wire_events()
 
