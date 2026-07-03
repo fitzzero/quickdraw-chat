@@ -20,6 +20,9 @@ packages/db/prisma/generated/
 # Machine-local docker overrides (e.g. alternate postgres host port)
 docker-compose.override.yml
 
+# Vercel CLI link/pull artifacts
+.vercel/
+
 # IDE
 .idea/
 .vscode/
