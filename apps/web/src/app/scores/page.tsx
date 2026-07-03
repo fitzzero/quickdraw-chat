@@ -17,7 +17,7 @@ import {
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import { useTranslations } from "next-intl";
 import { GLOBAL_WORLD_ID } from "@project/shared";
-import { useServiceQuery } from "../../hooks";
+import { useServiceQuery, useSlowLoadHint } from "../../hooks";
 import { useSocket } from "../../providers";
 
 const SCORES_PAYLOAD = { worldId: GLOBAL_WORLD_ID, limit: 25 };
@@ -30,7 +30,8 @@ const SCORES_PAYLOAD = { worldId: GLOBAL_WORLD_ID, limit: 25 };
  */
 export default function ScoresPage(): React.ReactElement {
   const t = useTranslations("ScoresPage");
-  const { userId } = useSocket();
+  const tCommon = useTranslations("Common");
+  const { userId, isConnected } = useSocket();
   const { data: scores, isError } = useServiceQuery(
     "gameService",
     "getHighScores",
@@ -39,12 +40,20 @@ export default function ScoresPage(): React.ReactElement {
   );
 
   const isLoading = scores === undefined && !isError;
+  // Public route (no AuthGate): only blame the server while the socket
+  // itself is still down — that's the Cloud Run cold start in production
+  const showWarmingHint = useSlowLoadHint(isLoading && !isConnected);
 
   return (
     <Box sx={{ maxWidth: 640, mx: "auto" }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 3 }}>
         <EmojiEventsIcon color="warning" fontSize="large" />
         <Typography variant="h4">{t("title")}</Typography>
+        {showWarmingHint && (
+          <Typography variant="caption" color="text.secondary" sx={{ ml: "auto" }}>
+            {tCommon("warmingUp")}
+          </Typography>
+        )}
       </Box>
 
       <Paper variant="outlined">

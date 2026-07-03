@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Box, CircularProgress, Fade, LinearProgress, Typography } from "@mui/material";
 import { useTranslations } from "next-intl";
+import { useSlowLoadHint } from "../../hooks";
 import type { GodotLoadState } from "./GodotCanvas";
 
 interface GameLoadingProps {
@@ -17,7 +18,12 @@ interface GameLoadingProps {
  */
 export function GameLoading({ state }: GameLoadingProps): React.ReactElement {
   const t = useTranslations("GamePage");
+  const tCommon = useTranslations("Common");
   const visible = state.phase !== "ready";
+  // The engine's socket waits on the same API — a long connect is (in
+  // production) a Cloud Run cold start. The wasm "loading" phase is CDN
+  // download, so the hint only keys on "connecting".
+  const showWarmingHint = useSlowLoadHint(state.phase === "connecting");
 
   return (
     <Fade in={visible} timeout={600} unmountOnExit>
@@ -51,11 +57,18 @@ export function GameLoading({ state }: GameLoadingProps): React.ReactElement {
         )}
 
         {state.phase === "connecting" && (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <CircularProgress size={20} />
-            <Typography variant="body2" color="grey.500">
-              {t("connecting")}
-            </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <CircularProgress size={20} />
+              <Typography variant="body2" color="grey.500">
+                {t("connecting")}
+              </Typography>
+            </Box>
+            <Fade in={showWarmingHint}>
+              <Typography variant="caption" color="grey.600">
+                {tCommon("warmingUp")}
+              </Typography>
+            </Fade>
           </Box>
         )}
 
