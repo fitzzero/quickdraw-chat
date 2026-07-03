@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Box, Container, Link as MuiLink, Paper, Stack, Typography } from "@mui/material";
-import CircleIcon from "@mui/icons-material/Circle";
+import { Box, Container, Link as MuiLink, Stack, Typography } from "@mui/material";
 import { useTranslations } from "next-intl";
 import { CORE_NPM_URL, GITHUB_URL } from "../../lib/site";
+import { TerminalFrame } from "./TerminalFrame";
 
 const CLONE_COMMANDS = [
   "git clone https://github.com/fitzzero/quickdraw-chat my-app",
@@ -17,18 +17,9 @@ const FORK_COMMAND = "./scripts/init-fork.sh my-app --scope @my";
 
 function TerminalPaper({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <Paper sx={{ overflow: "hidden" }}>
-      <Stack
-        direction="row"
-        spacing={0.75}
-        sx={{ px: 2, py: 1.25, borderBottom: 1, borderColor: "divider" }}
-      >
-        {["#f7768e", "#e0af68", "#9ece6a"].map((color) => (
-          <CircleIcon key={color} sx={{ fontSize: 10, color }} />
-        ))}
-      </Stack>
+    <TerminalFrame>
       <Box sx={{ p: 2.5, fontFamily: "var(--font-mono), monospace", fontSize: 14 }}>{children}</Box>
-    </Paper>
+    </TerminalFrame>
   );
 }
 
