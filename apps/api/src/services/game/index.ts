@@ -206,20 +206,45 @@ export class GameService extends BaseService<
 
     // Spectate entry: full world state without spawning. The web wrapper
     // boots Godot into this; the pre-game dialog's joinGame (from the React
-    // socket) is what actually spawns the player. Spectators get world-chat
-    // membership too, so the chat overlay works behind the pre-game dialog.
+    // socket) is what actually spawns the player. Authed spectators get
+    // world-chat membership (the chat overlay works behind the dialog);
+    // ANONYMOUS spectators (signed-out /game visitors) get world-room
+    // membership granted here instead — the registry's subscribe path
+    // requires auth, but the snapshot/leaderboard streams are public and
+    // channels stay auth-gated (core drops anonymous channel input).
     this.defineMethod(
       "watchWorld",
-      "Read",
+      "Public",
       async (payload, ctx): Promise<WorldBootstrap> => {
-        if (!ctx.userId) throw new Error("Authentication required");
         if (payload.worldId !== GLOBAL_WORLD_ID) throw new Error("Unknown world");
         const world = await this.findById(GLOBAL_WORLD_ID);
-        await this.ensureChatMembership(world?.chatId, ctx.userId);
+        if (ctx.userId) {
+          await this.ensureChatMembership(world?.chatId, ctx.userId);
+        } else {
+          this.joinSpectator(ctx.socketId);
+        }
         return this.buildWorldBootstrap(world?.chatId ?? null);
       },
       { schema: worldScopedSchema },
     );
+  }
+
+  /**
+   * World-room membership for an anonymous socket: receives the volatile
+   * snapshot + reliable event streams and counts toward `hasAudience` (the
+   * NPC world keeps ticking for spectators). Registered in `subscribers` so
+   * the standard disconnect cleanup (`unsubscribeSocket`) applies.
+   */
+  private joinSpectator(socketId: string): void {
+    const socket = this.io?.sockets.sockets.get(socketId) as QuickdrawSocket | undefined;
+    if (!socket) return;
+    void socket.join(serviceRoom("gameService", GLOBAL_WORLD_ID));
+    let roomSockets = this.subscribers.get(GLOBAL_WORLD_ID);
+    if (!roomSockets) {
+      roomSockets = new Set();
+      this.subscribers.set(GLOBAL_WORLD_ID, roomSockets);
+    }
+    roomSockets.add(socket);
   }
 
   /** Idempotent membership in the world chat (the in-game chat overlay). */

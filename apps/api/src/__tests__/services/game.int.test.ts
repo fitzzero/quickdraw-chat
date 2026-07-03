@@ -5,7 +5,7 @@ import { GAME_EVENTS, GLOBAL_WORLD_ID } from "@project/shared";
 import type { GameService } from "../../services/game/index.js";
 import { ensureGlobalWorld } from "../../services/game/bootstrap.js";
 import { startTestServer } from "../utils/server.js";
-import { connectAsUser, emitWithAck, waitForEvent } from "../utils/socket.js";
+import { connectAnonymously, connectAsUser, emitWithAck, waitForEvent } from "../utils/socket.js";
 import { createTestUser } from "../factories/user-factory.js";
 
 const INPUT_EVENT = "channel:gameService:input";
@@ -300,6 +300,39 @@ describe("GameService spectate, presence, and scores", () => {
 
     client.close();
     await flush();
+  });
+
+  it("anonymous spectators get the world via Public watchWorld", async () => {
+    const anon = await connectAnonymously(port);
+
+    // subscribe is auth-gated at the registry
+    await expect(
+      emitWithAck(anon, "gameService:subscribe", { entryId: GLOBAL_WORLD_ID }),
+    ).rejects.toThrow(/Authentication required/);
+
+    // ...but the Public watchWorld returns the bootstrap AND grants
+    // world-room membership (joinSpectator) without spawning anything
+    const world = await emitWithAck<{ worldId: string }, { chatId: string | null; tick: number }>(
+      anon,
+      "gameService:watchWorld",
+      { worldId: GLOBAL_WORLD_ID },
+    );
+    expect(world.chatId).toBeTruthy();
+    expect(gameService.sim.playerCount()).toBe(0);
+    await flush();
+
+    // A lone anonymous spectator counts as audience (the sim keeps ticking)
+    // and receives the volatile snapshot stream through room membership
+    const snapshotPromise = waitForEvent<WorldSnapshot>(anon, GAME_EVENTS.snapshot);
+    const result = gameService.loop.tickOnce();
+    expect(result).not.toBeNull();
+    const snapshot = await snapshotPromise;
+    expect(snapshot.tick).toBeGreaterThan(0);
+
+    // Disconnect cleans the spectator out of the audience
+    anon.close();
+    await flush(150);
+    expect(gameService.loop.tickOnce()).toBeNull();
   });
 
   it("dual-socket presence: any subscribed socket of the user anchors the player", async () => {

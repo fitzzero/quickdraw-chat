@@ -21,8 +21,10 @@ export function GameHud(): React.ReactElement | null {
   const { userId } = useSocket();
   const [board, setBoard] = React.useState<LeaderboardEntry[]>([]);
 
-  // Room membership for the page socket (ACL: any authenticated user)
-  useSubscription("gameService", GLOBAL_WORLD_ID);
+  // Room membership for the page socket (ACL: any authenticated user).
+  // Anonymous spectators already hold membership via the Public watchWorld
+  // call in GameSurface — subscribing would just 401.
+  useSubscription("gameService", GLOBAL_WORLD_ID, { enabled: !!userId });
 
   useRoomEvents({
     "game:leaderboard": (entries: LeaderboardEntry[]) => setBoard(entries),

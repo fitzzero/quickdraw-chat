@@ -30,6 +30,12 @@ snapshot. Presence is room-anchored: a player stays in the sim while ANY of
 their subscribed sockets remains (page + Godot are two sockets, one user).
 Then send input frames; reconcile against `PlayerSnap.ack`.
 
+Anonymous spectate: signed-out sockets can't `subscribe` (registry requires
+auth), so the **Public** `watchWorld` grants them world-room membership
+directly (`joinSpectator`) — snapshots/leaderboard flow behind the guest
+dialog, channels stay auth-gated (core drops anonymous channel input), and
+disconnect cleanup runs through the normal `unsubscribeSocket` path.
+
 NPCs (`npc-` ids) live inside `GameWorldSim` (seeded, deterministic,
 `npcCount` tunable) and reach clients as ordinary remote players; they never
 persist scores and don't count toward `humanCount()`. The loop freezes only

@@ -57,7 +57,13 @@ export function GameSurface({
     <Box sx={{ position: "relative", flex: 1, minHeight: 0, overflow: "hidden" }}>
       {session.bootCanvas ? (
         <>
-          <GodotCanvas hostConfig={hostConfig} onStateChange={session.setLoadState} />
+          {/* Keyed by user: creating a guest session must reboot the engine
+              so its websocket handshake carries the new cookie */}
+          <GodotCanvas
+            key={session.canvasKey}
+            hostConfig={hostConfig}
+            onStateChange={session.setLoadState}
+          />
           <GameLoading state={session.loadState} />
         </>
       ) : (
@@ -75,6 +81,7 @@ interface GameSession {
   loadState: GodotLoadState;
   setLoadState: (state: GodotLoadState) => void;
   bootCanvas: boolean;
+  canvasKey: string;
   showHud: boolean;
   chatId: string | null;
   dialog: React.ReactElement | null;
@@ -114,6 +121,13 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
   // Death detection on the page socket: world-room membership + the reliable
   // death stream (the same events Godot consumes)
   useSubscription("gameService", GLOBAL_WORLD_ID, { enabled: !!userId });
+
+  // Anonymous spectate: subscribe requires auth, but a Public watchWorld
+  // call grants this (page) socket world-room membership so the live
+  // leaderboard streams in behind the guest dialog
+  useServiceQuery("gameService", "watchWorld", WORLD_PAYLOAD, {
+    enabled: guestFlow && !userId,
+  });
   useRoomEvents({
     [GAME_EVENTS.death]: (event: GameDeathEvent) => {
       if (event.id === userId) setDeath(event);
@@ -134,8 +148,14 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
     },
   });
 
-  // Resume after the guest socket cycle (AuthGate remounts this component
-  // when the socket reconnects with the new cookie) or a mid-game reload
+  // The guest socket cycle doesn't remount this component (public route), so
+  // clear the in-flight guest flag once the new session lands
+  React.useEffect(() => {
+    if (userId) setCreatingGuest(false);
+  }, [userId]);
+
+  // Resume after the guest socket cycle (the canvas is keyed by user and
+  // reboots with the new cookie) or a mid-game reload
   React.useEffect(() => {
     if (ready && userId && !hasJoined && sessionStorage.getItem(PENDING_START_KEY)) {
       sessionStorage.removeItem(PENDING_START_KEY);
@@ -202,8 +222,11 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
   return {
     loadState,
     setLoadState,
-    bootCanvas: !!userId,
-    showHud: ready && !!userId,
+    // Guest surfaces boot straight into anonymous spectate; authed surfaces
+    // (Discord Activity) wait for their token auth
+    bootCanvas: guestFlow || !!userId,
+    canvasKey: userId ?? "spectator",
+    showHud: ready,
     // Membership is granted by watchWorld (Godot's spectate boot), so the
     // chat overlay works behind the pre-game dialog, not just after joining
     chatId: ready && userId ? (world?.chatId ?? null) : null,
