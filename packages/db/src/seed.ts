@@ -21,6 +21,9 @@ async function seedUsers(): Promise<{ adminId: string; moderatorId: string; user
         chatService: "Admin",
         messageService: "Admin",
         documentService: "Admin",
+        // ── quickdraw-game:start ──
+        gameService: "Admin",
+        // ── quickdraw-game:end ──
       },
     },
   });
@@ -114,6 +117,47 @@ async function seedDocument(ids: { adminId: string; moderatorId: string }): Prom
   });
 }
 
+// ── quickdraw-game:start ──
+/**
+ * The global game world + its chat. Uses the same deterministic id as the
+ * API's boot-time bootstrap (ensureGlobalWorld), so seeding and booting in
+ * either order converges on the same row.
+ */
+async function seedGameWorld(ids: { adminId: string }): Promise<void> {
+  const GLOBAL_WORLD_ID = "gameworld_global";
+
+  const existing = await prisma.gameWorld.findUnique({ where: { id: GLOBAL_WORLD_ID } });
+  if (existing?.chatId) return;
+
+  const chat = await prisma.chat.create({
+    data: {
+      title: "🌍 Game Server",
+      members: { create: [{ userId: ids.adminId, level: "Admin" }] },
+    },
+  });
+
+  await prisma.gameWorld.upsert({
+    where: { id: GLOBAL_WORLD_ID },
+    update: { chatId: chat.id },
+    create: {
+      id: GLOBAL_WORLD_ID,
+      slug: "global",
+      name: "Snake — Global",
+      chatId: chat.id,
+    },
+  });
+
+  await prisma.message.create({
+    data: {
+      chatId: chat.id,
+      userId: ids.adminId,
+      content: "Welcome to the game server chat — everyone who joins the game lands here.",
+      acl: [{ userId: ids.adminId, level: "Admin" }],
+    },
+  });
+}
+// ── quickdraw-game:end ──
+
 async function main(): Promise<void> {
   const existing = await prisma.user.findUnique({ where: { email: DEMO_ADMIN_EMAIL } });
   if (existing) {
@@ -124,6 +168,9 @@ async function main(): Promise<void> {
   const ids = await seedUsers();
   await seedChat(ids);
   await seedDocument(ids);
+  // ── quickdraw-game:start ──
+  await seedGameWorld(ids);
+  // ── quickdraw-game:end ──
 
   console.log("Seeded demo users:");
   console.log(`  admin@demo.local      (Admin on all services)`);
