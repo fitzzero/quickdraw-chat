@@ -14,7 +14,13 @@
     },
     "lint": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**/*.ts", "src/**/*.tsx", "../../.oxlintrc.json"],
+      "inputs": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "../../.oxlintrc.json",
+        "../../eslint-plugin-project/**",
+        "../../node_modules/@fitzzero/quickdraw-core/oxlint.base.jsonc"
+      ],
       "outputs": [],
       "cache": true
     },

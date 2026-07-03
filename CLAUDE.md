@@ -31,7 +31,7 @@ bun run build         # Build all packages
 bun run test          # All tests (unit + integration)
 bun run test:unit     # Unit tests only (no database)
 bun run test:int      # Integration tests (PGlite locally, PostgreSQL in CI)
-bun run lint          # Lint all packages (oxlint, strict)
+bun run lint          # Lint all packages (oxlint, strict; extends quickdraw-core's shipped base config, see .claude/rules/linting.md)
 bun run typecheck     # Type-check all packages (tsgo)
 bun run check         # lint + typecheck
 
