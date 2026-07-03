@@ -39,6 +39,8 @@ func _on_disconnected() -> void:
 
 
 func _join() -> void:
+	await _load_tunables()
+
 	var world: Dictionary = await Net.client.call_method(
 		"gameService", "getWorld", {"slug": Net.world_slug}
 	)
@@ -70,6 +72,19 @@ func _join() -> void:
 
 	joined.emit(bootstrap)
 	Net.notify_web_ready()
+
+
+## Fetch movement tunables from DefinitionService so the client predicts
+## with the same values the server simulates with. Falls back to the
+## GameConfig defaults if the definition is missing.
+func _load_tunables() -> void:
+	var result: Dictionary = await Net.client.call_method(
+		"definitionService", "getDefinition", {"type": "tunables", "key": "snake"}
+	)
+	if result.get("success", false) and result.get("data") is Dictionary:
+		var definition := result["data"] as Dictionary
+		if definition.get("data") is Dictionary:
+			GameConfig.apply_tunables(definition["data"] as Dictionary)
 
 
 var _events_wired := false

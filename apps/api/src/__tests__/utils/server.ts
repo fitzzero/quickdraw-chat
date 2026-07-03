@@ -10,6 +10,7 @@ import { MessageService } from "../../services/message/index.js";
 import { DocumentService } from "../../services/document/index.js";
 // ── quickdraw-game:start ──
 import { GameService } from "../../services/game/index.js";
+import { DefinitionService } from "../../services/definition/index.js";
 // ── quickdraw-game:end ──
 interface TestServer {
   port: number;
@@ -43,6 +44,7 @@ export async function startTestServer(): Promise<TestServer> {
   // Fixed seed for deterministic spawns; loop intentionally not started
   const gameService = new GameService(testPrisma, { simSeed: 42 });
   serviceRegistry.registerService("gameService", gameService);
+  serviceRegistry.registerService("definitionService", new DefinitionService(testPrisma));
   // ── quickdraw-game:end ──
 
   // Parse SERVICE_DEFAULT_ACCESS env var (same as production middleware)

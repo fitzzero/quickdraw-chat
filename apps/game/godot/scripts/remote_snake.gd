@@ -66,7 +66,7 @@ func _render_at(render_tick: float) -> void:
 	if after.is_empty():
 		# Underrun: extrapolate along last velocity, capped, then freeze
 		var over := minf(render_tick - float(before["tick"]), MAX_EXTRAPOLATION_TICKS)
-		var speed := GameConfig.BOOST_SPEED if bool(before["boost"]) else GameConfig.BASE_SPEED
+		var speed := GameConfig.boost_speed if bool(before["boost"]) else GameConfig.base_speed
 		position = (before["pos"] as Vector2) + (before["dir"] as Vector2) * speed * GameConfig.FIXED_DT * over
 		length = float(before["len"])
 		boosting = bool(before["boost"])

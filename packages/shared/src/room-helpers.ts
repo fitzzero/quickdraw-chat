@@ -5,7 +5,8 @@ type ServiceRoomName =
   | "messageService"
   | "documentService"
   // ── quickdraw-game:start ──
-  | "gameService";
+  | "gameService"
+  | "definitionService";
 // ── quickdraw-game:end ──
 
 /** Type-safe room string: `{service}:{entityId}` */

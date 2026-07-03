@@ -15,7 +15,7 @@ const CORRECTION_HALF_LIFE := 0.08
 var seq := 0
 var sim_pos := Vector2.ZERO
 var sim_dir := Vector2.RIGHT
-var sim_len := float(GameConfig.START_LENGTH)
+var sim_len := float(GameConfig.start_length)
 
 var _pending: Array[Dictionary] = []
 var _accum := 0.0
@@ -45,7 +45,7 @@ func _physics_process(delta: float) -> void:
 	var decay := pow(0.5, delta / CORRECTION_HALF_LIFE)
 	_visual_offset *= decay
 	position = sim_pos + _visual_offset
-	boosting = _is_boosting() and sim_len > GameConfig.MIN_LENGTH
+	boosting = _is_boosting() and sim_len > GameConfig.min_length
 	length = sim_len
 	advance_path(position)
 

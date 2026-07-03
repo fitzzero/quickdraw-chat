@@ -6,7 +6,7 @@ extends Node2D
 ## spacing walking backward along the path.
 
 var hue := 0.0
-var length := float(GameConfig.START_LENGTH)
+var length := float(GameConfig.start_length)
 var display_name := ""
 var boosting := false
 
@@ -34,9 +34,9 @@ func advance_path(head: Vector2) -> void:
 		_path.append(head)
 		return
 	var last := _path[_path.size() - 1]
-	if head.distance_to(last) >= GameConfig.SAMPLE_SPACING:
+	if head.distance_to(last) >= GameConfig.sample_spacing:
 		_path.append(head)
-		var max_samples := ceili(length * GameConfig.SEGMENT_SPACING / GameConfig.SAMPLE_SPACING) + 4
+		var max_samples := ceili(length * GameConfig.segment_spacing / GameConfig.sample_spacing) + 4
 		while _path.size() > max_samples:
 			_path.remove_at(0)
 	queue_redraw()
@@ -54,7 +54,7 @@ func _draw() -> void:
 	var segments := int(length)
 	var placed := 0
 	var walk := 0.0
-	var next_at := GameConfig.SEGMENT_SPACING
+	var next_at := GameConfig.segment_spacing
 	var prev := position
 
 	for i in range(_path.size() - 1, -1, -1):
@@ -65,18 +65,18 @@ func _draw() -> void:
 		while walk + step >= next_at and placed < segments:
 			var t := (next_at - walk) / maxf(step, 0.001)
 			var seg_pos := prev.lerp(sample, t)
-			var r := GameConfig.BODY_RADIUS * (1.0 - 0.3 * float(placed) / maxf(float(segments), 1.0))
+			var r := GameConfig.body_radius * (1.0 - 0.3 * float(placed) / maxf(float(segments), 1.0))
 			draw_circle(seg_pos - position, r + 3.0, glow)
 			draw_circle(seg_pos - position, r, body_color.darkened(0.1 + 0.02 * (placed % 2)))
 			placed += 1
-			next_at += GameConfig.SEGMENT_SPACING
+			next_at += GameConfig.segment_spacing
 		walk += step
 		prev = sample
 
 	# Head (drawn last, on top), with boost flare
 	if boosting:
-		draw_circle(Vector2.ZERO, GameConfig.HEAD_RADIUS + 6.0, Color(1, 1, 1, 0.25))
-	draw_circle(Vector2.ZERO, GameConfig.HEAD_RADIUS + 3.0, glow)
-	draw_circle(Vector2.ZERO, GameConfig.HEAD_RADIUS, body_color)
+		draw_circle(Vector2.ZERO, GameConfig.head_radius + 6.0, Color(1, 1, 1, 0.25))
+	draw_circle(Vector2.ZERO, GameConfig.head_radius + 3.0, glow)
+	draw_circle(Vector2.ZERO, GameConfig.head_radius, body_color)
 	draw_circle(Vector2(3, -3), 2.5, Color.WHITE)
 	draw_circle(Vector2(3, 3), 2.5, Color.WHITE)
