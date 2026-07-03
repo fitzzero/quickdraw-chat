@@ -1,0 +1,19 @@
+# Dependencies & build outputs (recreated inside the image)
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+packages/db/prisma/generated
+
+# VCS / tooling
+.git
+.claude
+**/.vercel
+
+# Env & secrets — runtime config comes from the deploy environment
+.env*
+
+# Local-only
+docker-compose.override.yml
+*.log
