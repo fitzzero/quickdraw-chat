@@ -1,0 +1,21 @@
+{
+  "name": "Quickdraw",
+  "short_name": "Quickdraw",
+  "theme_color": "#7c4dff",
+  "background_color": "#16161e",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "/web-app-manifest-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/web-app-manifest-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

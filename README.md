@@ -1,27 +1,42 @@
-# quickdraw-chat
+<p align="center">
+  <img src="apps/web/public/logo.png" width="140" alt="Quickdraw logo" />
+</p>
 
-Reference implementation and production-ready template for [@fitzzero/quickdraw-core](https://github.com/fitzzero/quickdraw). A real-time chat application demonstrating the full quickdraw stack — fork it, rename it, and go.
+<h1 align="center">Quickdraw</h1>
 
-## Purpose
+<p align="center">
+  <strong>The realtime fullstack starter for <a href="https://github.com/fitzzero/quickdraw">@fitzzero/quickdraw-core</a></strong><br />
+  Typed Socket.IO services, two-tier ACL, a full auth suite, and a multiplayer game foundation — already wired together.
+</p>
 
-This project serves as:
+<p align="center">
+  <a href="https://quickdraw.techtree.gg"><strong>▶ See it live → quickdraw.techtree.gg</strong></a>
+</p>
 
-1. **Test bed** for developing @fitzzero/quickdraw-core features
-2. **Reference implementation** showing best practices for quickdraw-based apps
-3. **Production-ready template** for starting new quickdraw projects (conveyor-ready out of the box)
+<p align="center">
+  <a href="https://github.com/fitzzero/quickdraw-chat/actions/workflows/ci.yml"><img src="https://github.com/fitzzero/quickdraw-chat/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://www.npmjs.com/package/@fitzzero/quickdraw-core"><img src="https://img.shields.io/npm/v/%40fitzzero%2Fquickdraw-core?label=quickdraw-core&color=7c4dff" alt="quickdraw-core version" /></a>
+  <img src="https://img.shields.io/badge/license-MIT-7aa2f7" alt="MIT license" />
+</p>
 
-## Features
+---
 
-- **Real-time chat**: Socket.io for live updates and subscriptions
-- **Type-safe**: End-to-end TypeScript with shared types
-- **Service-based**: BaseService pattern with auto-wired Socket.io methods
-- **Dual ACL patterns**: Membership table (Chat) and JSON ACL (Document) examples
-- **Auth out of the box**: Google + Discord OAuth, session cookies, and a dev-only **mock OAuth** flow — sign in as seeded demo users with zero credentials
-- **Dual-mode testing**: integration tests run on in-memory PGlite locally (no PostgreSQL, seconds) and real PostgreSQL in CI
-- **Hardened API**: helmet, origin-validated CORS, rate-limited auth routes, production hard-blocks for dev flags
-- **Modern React**: TanStack Query for server state management, Material-UI
-- **CI/CD**: migration drift check, cached lint/typecheck/build, sharded tests; parameterized Cloud Run + Vercel deploy workflow
-- **Claude-ready**: CLAUDE.md + path-scoped rules in `.claude/rules/`
+This repo is three things at once:
+
+1. **A production-ready template** — fork it, run one script, and start on the interesting part of your app.
+2. **The reference implementation** for quickdraw-core's patterns: services, ACL, subscriptions, channels, auth.
+3. **A working demo** — a realtime chat app _and_ a multiplayer Godot snake game sharing one typed API. [Play it.](https://quickdraw.techtree.gg/game)
+
+## What you get
+
+- **Typed realtime services** — `BaseService` + `defineMethod()`: request/response over Socket.IO, zod-validated, ACL-gated, consumed through typed React hooks (`useServiceQuery`, `useService`, `useSubscription`) with TanStack Query caching.
+- **Two-tier access control** — service-level roles (`Public/Read/Moderate/Admin`) plus per-entry ACLs, shown in both flavors: membership table (`ChatService`) and JSON ACL (`DocumentService`). Enforced server-side on every method, subscription, and channel.
+- **A multiplayer game foundation** _(optional — carve it out in one command)_ — Godot 4 client with a first-party GDScript Socket.IO client, 20Hz fire-and-forget input channels, client-side prediction + reconciliation, snapshot interpolation, server-side NPC AI, guest play, live leaderboards, and React overlays (pre-game dialog, HUD, chat) driving the same typed API as the game engine.
+- **Auth, all of it** — Google + Discord OAuth, revocable DB sessions in httpOnly cookies, **mock OAuth** for zero-credential local dev, **guest sessions** for anonymous play, a **Discord Activity** embed, and dev-credential flows for the Godot editor. Dev flags hard-block production boot.
+- **Generic admin dashboard** — every service gets a CRUD surface at `/admin` for free; the game's tunables (`DefinitionService`) are edited live in the browser.
+- **Dual-mode testing** — the same integration suite runs on in-memory PGlite locally (no PostgreSQL, seconds) and real PostgreSQL in CI, with seeded users, factories, and socket test helpers.
+- **CI/CD included** — migration drift checks, cached lint/typecheck/build, sharded tests, and a parameterized deploy workflow (TruffleHog → migrate → Cloud Run → Vercel).
+- **Strict tooling, framework-synced** — oxlint extending quickdraw-core's shipped base config (plus a local custom-rule showcase), oxfmt, tsgo, turbo, bun. Claude Code rules in `.claude/rules/` load by path.
 
 ## Quick Start
 
@@ -45,17 +60,52 @@ Open http://localhost:3000 → **Continue as demo user** → pick a seeded accou
 (admin@demo.local / moderator@demo.local / user@demo.local). No OAuth
 credentials required in development.
 
-## Environment
+## Using as Template
 
-Layered loading via `scripts/load-env.sh` (used by `bun run dev` and db scripts):
+```bash
+# 1. Clone (or use GitHub's "Use this template" / `tel project new`)
+git clone https://github.com/fitzzero/quickdraw-chat my-new-project
+cd my-new-project
 
-1. `.env.infra` — checked-in dev defaults (DB URL, ports, URLs, dev flags)
-2. optional secrets layer — commented hook for your secret manager
-3. `.env.local` — your secrets & overrides, gitignored
+# 2. One-shot initialize: renames databases, titles, deploy service name,
+#    devcontainer, optional backend port and @scope — then deletes itself
+./scripts/init-fork.sh my-new-project 4010
+# options: ./scripts/init-fork.sh <app-name> [backend-port] [--scope @myorg] [--without-game]
 
-See `env.example` for the secrets that belong in `.env.local`
-(`JWT_SECRET`, `ENCRYPTION_KEY`, `ADMIN_EMAILS`, real OAuth credentials).
-Real env vars (e.g. CI) always take precedence.
+# 3. Start developing
+docker-compose up -d
+bun run db:generate && bun run db:migrate && bun run db:seed
+bun run dev
+```
+
+The script only rewrites app identity — framework references
+(`@fitzzero/quickdraw-core`, `QuickdrawProvider`, …) are untouched.
+
+**Not building a game?** `--without-game` removes the entire game foundation
+(Godot app, GameService, DefinitionService, Discord Activity, guest auth,
+scores) along marked seams, then verifies the carve-out builds clean.
+
+### Set up without Conveyor compute
+
+If this repo was generated by [Conveyor](https://conveyor.rallycryapp.com)'s
+project wizard but you skipped compute setup (no agent to run the rename for
+you), initialize it manually:
+
+```bash
+git clone <your-new-repo> && cd <your-new-repo>
+./scripts/init-fork.sh <your-project-name>
+git add -A && git commit -m 'chore: initialize from template' && git push
+```
+
+Then follow the Quick Start above. Your Conveyor board works against the repo
+either way — the rename just fixes package/database/display names.
+
+**What's already configured:** strict linting (extending quickdraw-core's
+shipped base + custom local rules), unit/integration test lanes, CI with
+migration drift checks, a parameterized deploy workflow (Cloud Run + Vercel),
+Dockerfiles, mock OAuth dev login, Claude Code rules + hooks, and a
+conveyor-ready devcontainer (`.devcontainer/conveyor/`) so the repo passes
+conveyor's project readiness checks immediately.
 
 ## Project Structure
 
@@ -64,15 +114,16 @@ Real env vars (e.g. CI) always take precedence.
 ├── apps/
 │   ├── api/              # Express + Socket.io server
 │   │   └── src/
-│   │       ├── services/     # Business logic (User, Chat, Message, Document)
-│   │       ├── auth/         # OAuth (google/discord/mock), JWT, middleware
+│   │       ├── services/     # User, Chat, Message, Document, Game, Definition
+│   │       ├── auth/         # OAuth (google/discord/mock), guest, JWT, middleware
 │   │       └── __tests__/    # Integration tests + factories
-│   └── web/              # Next.js frontend
-│       └── src/
-│           ├── app/          # Next.js app router
-│           ├── components/   # React components
-│           ├── hooks/        # Typed wrappers for quickdraw-core hooks
-│           └── providers/    # QuickdrawProvider, ThemeProvider
+│   ├── web/              # Next.js frontend (MUI, dark-tokyo theme)
+│   │   └── src/
+│   │       ├── app/          # App router: landing, chats, game, scores, admin
+│   │       ├── components/   # React components (landing, chat, game overlays)
+│   │       ├── hooks/        # Typed wrappers for quickdraw-core hooks
+│   │       └── providers/    # QuickdrawProvider, ThemeProvider
+│   └── game/             # Godot 4 project (exports into apps/web/public/game)
 ├── packages/
 │   ├── db/               # Prisma schema, migrations, client, seed
 │   └── shared/           # Shared types (ServiceMethodsMap), room helpers
@@ -92,24 +143,28 @@ Real env vars (e.g. CI) always take precedence.
 
 <!-- ── quickdraw-game:start ── -->
 
-| GameService | Real-time multiplayer game server | Public-read world + room-gated input channel |
-| DefinitionService | Data-driven game content | Public read, admin write |
+| Game service      | Purpose                                          | ACL Pattern                                  |
+| ----------------- | ------------------------------------------------ | -------------------------------------------- |
+| GameService       | Multiplayer sim, high scores, input channel      | Public-read world + room-gated input channel |
+| DefinitionService | Data-driven game content (tunables, live-edited) | Public read, admin write                     |
 
 ## Game Foundation
 
 The template ships a working multiplayer game: a Godot 4 client
 (`apps/game/`, embedded at `/game`) playing a slither-style snake in one
 global world, with real netcode (client-side prediction + reconciliation,
-snapshot-buffer interpolation), a first-party GDScript Socket.IO client, a
-DOM overlay HUD + game-server chat, DB-driven tunables editable in the admin
-UI, and a Discord Activity entry at `/discord`.
+snapshot-buffer interpolation), server-side NPC snakes, a first-party
+GDScript Socket.IO client, guest sessions for anonymous play, a public
+high-scores page (`/scores`), DOM overlay HUD + game-server chat, DB-driven
+tunables editable in the admin UI, and a Discord Activity entry at `/discord`.
 
 - Patterns: `.claude/rules/game-patterns.md` (channels vs methods, ordering
   contract, sim purity) and `apps/game/README.md` (editor setup, dev auth,
   export, Discord).
 - Game commands are ordinary quickdraw methods — a React button and the Godot
   client call them identically; only tick-rate traffic uses channels
-  (quickdraw-core ≥3.8).
+  (quickdraw-core ≥3.8). The pre-game dialog is the showcase: React drives
+  the world Godot renders, through the same typed, ACL'd API.
 - **Not building a game?** `./scripts/init-fork.sh <name> --without-game`
 removes all of it (or run `node scripts/strip-game.mjs` standalone).
 <!-- ── quickdraw-game:end ── -->
@@ -128,7 +183,7 @@ bun run build         # Build all packages
 bun run typecheck     # tsgo type check all packages
 
 # Linting and formatting
-bun run lint          # oxlint across all packages (strict: correctness/suspicious/pedantic deny)
+bun run lint          # oxlint across all packages (extends quickdraw-core's base config)
 bun run lint:fix      # Fix lint issues
 bun run format        # oxfmt auto-format
 bun run format:check  # Check formatting
@@ -167,6 +222,18 @@ bun run db:seed       # Seed demo users/chat/document (idempotent)
 
 See `.claude/rules/service-architecture.md` for detailed patterns.
 
+## Environment
+
+Layered loading via `scripts/load-env.sh` (used by `bun run dev` and db scripts):
+
+1. `.env.infra` — checked-in dev defaults (DB URL, ports, URLs, dev flags)
+2. optional secrets layer — commented hook for your secret manager
+3. `.env.local` — your secrets & overrides, gitignored
+
+See `env.example` for the secrets that belong in `.env.local`
+(`JWT_SECRET`, `ENCRYPTION_KEY`, `ADMIN_EMAILS`, real OAuth credentials).
+Real env vars (e.g. CI) always take precedence.
+
 ## Authentication
 
 - **Mock OAuth (dev only)**: `ENABLE_MOCK_OAUTH=true` (default in `.env.infra`)
@@ -176,8 +243,16 @@ See `.claude/rules/service-architecture.md` for detailed patterns.
   built on core's providers with CSRF state cookies and a shared callback
   (`apps/api/src/auth/oauth-callback.ts`).
 - **Sessions**: JWT + database session row (revocable) carried in an
-  httpOnly session cookie — the sole client credential (sockets and REST);
-  no token ever appears in URLs or localStorage.
+httpOnly session cookie — the sole client credential (sockets and REST);
+no token ever appears in URLs or localStorage.
+<!-- ── quickdraw-game:start ── -->
+- **Guest sessions**: `POST /auth/guest` mints a real (marked `isGuest`) user
+  - session so signed-out visitors can play the game; scores persist if they
+    later log in. Rate-limited like the OAuth routes.
+- **Dev credentials**: `ENABLE_DEV_CREDENTIALS=true` lets the Godot editor
+authenticate as a seeded user during development — also hard-blocked in
+production.
+<!-- ── quickdraw-game:end ── -->
 - **Bootstrap admin**: list emails in `ADMIN_EMAILS` to auto-promote to Admin.
 - **Token encryption**: set `ENCRYPTION_KEY` (64-char hex) to encrypt stored
   OAuth tokens at rest (AES-256-GCM via core).
@@ -194,55 +269,13 @@ Integration tests are dual-mode (see `.claude/rules/testing-patterns.md`):
 Use `seedTestUsers()` and the factories in `apps/api/src/__tests__/factories/`
 for data; `startTestServer()` + `connectAsUser()` for socket flows.
 
-## Using as Template
-
-```bash
-# 1. Clone (or use GitHub's "Use this template" / `tel project new`)
-git clone <this-repo> my-new-project
-cd my-new-project
-
-# 2. One-shot initialize: renames databases, titles, deploy service name,
-#    devcontainer, optional backend port and @scope — then deletes itself
-./scripts/init-fork.sh my-new-project 4010
-# options: ./scripts/init-fork.sh <app-name> [backend-port] [--scope @myorg]
-
-# 3. Start developing
-docker-compose up -d
-bun run db:generate && bun run db:migrate && bun run db:seed
-bun run dev
-```
-
-The script only rewrites app identity — framework references
-(`@fitzzero/quickdraw-core`, `QuickdrawProvider`, …) are untouched.
-
-### Set up without Conveyor compute
-
-If this repo was generated by [Conveyor](https://conveyor.rallycryapp.com)'s
-project wizard but you skipped compute setup (no agent to run the rename for
-you), initialize it manually:
-
-```bash
-git clone <your-new-repo> && cd <your-new-repo>
-./scripts/init-fork.sh <your-project-name>
-git add -A && git commit -m 'chore: initialize from template' && git push
-```
-
-Then follow the Quick Start above. Your Conveyor board works against the repo
-either way — the rename just fixes package/database/display names.
-
-**What's already configured:** strict linting (with custom quickdraw rules),
-unit/integration test lanes, CI with migration drift checks, a parameterized
-deploy workflow (Cloud Run + Vercel), Dockerfiles, mock OAuth dev login,
-Claude Code rules + hooks, and a conveyor-ready devcontainer
-(`.devcontainer/conveyor/`) so the repo passes conveyor's project readiness
-checks immediately.
-
 ## Production Deployment
 
 See [DEPLOYMENT.md](DEPLOYMENT.md). The short version: fill in the
 placeholders in `.github/workflows/deploy.yml` + `apps/api/env.cloudrun.yaml`,
 create the GitHub/GCP secrets it lists, and run the Deploy workflow
-(TruffleHog scan → prisma migrate → Cloud Run API → Vercel web).
+(TruffleHog scan → prisma migrate → Cloud Run API → Vercel web). Prefer
+self-hosting? The Dockerfiles + `docker-compose.yml` cover that path too.
 
 ## License
 

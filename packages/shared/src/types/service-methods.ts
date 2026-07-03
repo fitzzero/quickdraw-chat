@@ -34,6 +34,10 @@ export interface SubscriptionDataMap {
     name: string | null;
     image: string | null;
     serviceAccess: Record<string, AccessLevel> | null;
+    // ── quickdraw-game:start ──
+    /** Anonymous game guest session (see apps/api/src/auth/guest.ts) */
+    isGuest?: boolean;
+    // ── quickdraw-game:end ──
   };
   chatService: {
     id: string;

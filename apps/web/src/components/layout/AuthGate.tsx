@@ -23,6 +23,12 @@ export function AuthGate({ children }: AuthGateProps): React.ReactNode {
 
   const requiresAuth = routeRequiresAuth(pathname);
 
+  // Public routes render immediately — only auth-gated routes wait for the
+  // socket (their pages need the user to decide what to show)
+  if (!requiresAuth) {
+    return children;
+  }
+
   // Still connecting - show loading
   if (!isConnected) {
     return (

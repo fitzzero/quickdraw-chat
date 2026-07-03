@@ -21,8 +21,8 @@
     "true": "True",
     "false": "False",
     "noData": "No data",
-    "logoInitial": "Q",
-    "details": "Details"
+    "details": "Details",
+    "viewOnGitHub": "View source on GitHub"
   },
   "Nav": {
     "home": "Home",
@@ -78,18 +78,36 @@
     "title": "Not Found",
     "defaultMessage": "The page you're looking for doesn't exist"
   },
-  "HomePage": {
-    "title": "Welcome to Quickdraw Chat",
-    "subtitle": "Real-time chat application built with the Quickdraw framework",
-    "goToChats": "Go to Chats",
-    "signInToStart": "Sign In to Get Started",
-    "featuresTitle": "Features",
-    "feature1Title": "Real-time Messaging",
-    "feature1Desc": "Send and receive messages instantly with Socket.IO-powered real-time communication.",
-    "feature2Title": "Multi-user Chats",
-    "feature2Desc": "Create chat rooms and invite multiple users to collaborate in real-time.",
-    "feature3Title": "Access Control",
-    "feature3Desc": "Fine-grained permissions with Read, Moderate, and Admin access levels."
+  "Landing": {
+    "title": "quickdraw",
+    "tagline": "The realtime fullstack starter for quickdraw-core",
+    "subtitle": "Typed Socket.IO services, two-tier access control, a full auth suite, and a multiplayer game foundation — already wired together. Fork it and build the interesting part.",
+    "ctaPlay": "Play the demo",
+    "ctaGitHub": "View on GitHub",
+    "featuresOverline": "What you get",
+    "featuresTitle": "Everything wired, nothing hidden",
+    "featRealtimeTitle": "Typed realtime services",
+    "featRealtimeDesc": "Request/response methods, live subscriptions, and fire-and-forget channels over Socket.IO — end-to-end typed, zod-validated, cached with TanStack Query.",
+    "featAclTitle": "Two-tier access control",
+    "featAclDesc": "Service-level roles plus per-entry ACLs (JSON or membership tables), enforced server-side on every method, subscription, and channel.",
+    "featGameTitle": "Multiplayer game foundation",
+    "featGameDesc": "A Godot 4 snake demo with real netcode: 20Hz input channels, client prediction, snapshot interpolation, server-side NPCs, and React overlays driving the sim.",
+    "featAuthTitle": "Auth, all of it",
+    "featAuthDesc": "Google & Discord OAuth, revocable sessions, guest play, a Discord Activity embed — and a mock OAuth flow so local dev never needs real credentials.",
+    "featAdminTitle": "Generic admin dashboard",
+    "featAdminDesc": "Every service gets an admin CRUD surface for free — the game's live-tunable variables are edited right in the browser.",
+    "featTestingTitle": "Dual-mode testing",
+    "featTestingDesc": "Integration tests run on in-memory PGlite locally (seconds, no setup) and real PostgreSQL in CI — the same suite, both places.",
+    "featDeployTitle": "CI/CD included",
+    "featDeployDesc": "GitHub Actions for drift checks, lint, types, and sharded tests, plus a one-click deploy pipeline to Cloud Run and Vercel.",
+    "featForkTitle": "Fork in one command",
+    "featForkDesc": "init-fork.sh renames the whole identity — app, database, deploy targets — and can carve out the game foundation cleanly if you don't need it.",
+    "quickStartOverline": "Quick start",
+    "quickStartTitle": "Zero to realtime in four commands",
+    "quickStartForkHint": "# then make it yours — one script renames everything:",
+    "footerGitHub": "GitHub",
+    "footerCore": "quickdraw-core on npm",
+    "footerNote": "MIT licensed. Fork it and go."
   },
   "ChatsPage": {
     "title": "Your Chats",
@@ -133,7 +151,7 @@
   },
   "LoginPage": {
     "title": "Welcome",
-    "subtitle": "Sign in to access the chat application",
+    "subtitle": "Sign in to Quickdraw",
     "continueWithDiscord": "Continue with Discord",
     "errorCancelled": "Authentication was cancelled",
     "errorFailed": "Authentication failed. Please try again.",
@@ -143,7 +161,7 @@
     "demoLoginHint": "Development only — sign in as a seeded demo account"
   },
   "Sidebar": {
-    "appName": "quickdraw-chat"
+    "appName": "quickdraw"
   },
   "ChatSidebar": {
     "membersTitle": "Members",

@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { AppBar as MuiAppBar, Toolbar, IconButton, Box, Typography } from "@mui/material";
+import { AppBar as MuiAppBar, Toolbar, IconButton, Box, Tooltip } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import GitHubIcon from "@mui/icons-material/GitHub";
 import { useTranslations } from "next-intl";
 import { useIsMobile } from "../../hooks";
 import { useLayout } from "../../providers";
+import { GITHUB_URL } from "../../lib/site";
+import { Logo } from "../common/Logo";
 import { Breadcrumbs } from "./Breadcrumbs";
 
 const APP_BAR_HEIGHT = 64;
@@ -48,21 +51,8 @@ export function AppBar(): React.ReactElement {
 
         {/* Mobile: App logo */}
         {isMobile && (
-          <Box
-            sx={{
-              width: 28,
-              height: 28,
-              borderRadius: 1,
-              bgcolor: "primary.main",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              mr: 1,
-            }}
-          >
-            <Typography sx={{ color: "white", fontWeight: 700, fontSize: 14 }}>
-              {tCommon("logoInitial")}
-            </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", mr: 1 }}>
+            <Logo size={28} />
           </Box>
         )}
 
@@ -70,6 +60,19 @@ export function AppBar(): React.ReactElement {
         <Box sx={{ flex: 1 }}>
           <Breadcrumbs />
         </Box>
+
+        {/* Source link */}
+        <Tooltip title={tCommon("viewOnGitHub")}>
+          <IconButton
+            component="a"
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={tCommon("viewOnGitHub")}
+          >
+            <GitHubIcon />
+          </IconButton>
+        </Tooltip>
 
         {/* Mobile: Right sidebar toggle (only if page has right sidebar) */}
         {isMobile && rightSidebar && (
