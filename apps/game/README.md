@@ -109,3 +109,35 @@ cross-origin assets need CORP headers; this is why the default is off).
    `Net.client.send_channel(...)`.
 3. Movement/balance changes → update `world.ts` AND `game_config.gd`
    (until the DefinitionService phase makes the server the single source).
+
+## Discord Activity
+
+The `/discord` route is a working [Discord Activity](https://discord.com/developers/docs/activities/overview)
+entry: the Embedded App SDK handshakes, `authorize()` yields a code, the API
+exchanges it at `POST /auth/discord/activity` (reusing the regular Discord
+OAuth user upsert — existing Discord-linked users resolve to the same
+account), and the returned session JWT authenticates both the socket and the
+Godot client (third-party cookies don't survive the Activity iframe, so
+token-in-handshake is primary there).
+
+Setup in the [Discord developer portal](https://discord.com/developers/applications):
+
+1. Use the same application as your Discord OAuth (client id/secret already
+   in `.env.local`); add `NEXT_PUBLIC_DISCORD_CLIENT_ID=<same id>`.
+2. Enable Activities and set **URL mappings**:
+   | Prefix | Target |
+   | ------ | ------ |
+   | `/` | your web host (e.g. `quickdraw.techtree.gg`) |
+   | `/api` | your API host (e.g. `quickdraw-io.techtree.gg`) |
+3. Set the Activity entry point URL to `/discord`.
+
+Everything the page loads must use **relative URLs** (the committed game
+assets and the socket path already do): inside Discord the app is served from
+`<app-id>.discordsays.com` and all traffic tunnels through `/.proxy/…` —
+which is why the socket connects with `socketPath: "/.proxy/api/socket.io"`
+and why the non-threaded Godot export (no COOP/COEP headers) matters.
+
+Local testing: Discord requires an https URL — run a tunnel
+(`cloudflared tunnel --url http://localhost:3000`) and point the URL mapping
+at it. The Activity only functions inside the Discord client; the `/discord`
+route in a normal browser stops at "Connecting to Discord…".

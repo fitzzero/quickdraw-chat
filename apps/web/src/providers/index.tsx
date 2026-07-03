@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { usePathname } from "next/navigation";
 import { ThemeProvider } from "./ThemeProvider";
 import { LayoutProvider } from "./LayoutProvider";
 import { IntlProvider } from "./IntlProvider";
@@ -15,6 +16,23 @@ interface ProvidersProps {
 const SERVER_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export function Providers({ children }: ProvidersProps): React.ReactElement {
+  const pathname = usePathname();
+
+  // ── quickdraw-game:start ──
+  // The Discord Activity route runs inside Discord's sandboxed iframe: no
+  // app chrome, and its own QuickdrawProvider that connects through the
+  // /.proxy path with token auth (third-party cookies don't survive there).
+  if (pathname?.startsWith("/discord")) {
+    return (
+      <ThemeProvider>
+        <ToastProvider>
+          <IntlProvider>{children}</IntlProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    );
+  }
+  // ── quickdraw-game:end ──
+
   // Auth is cookie-based: the socket handshake carries the httpOnly session
   // cookie (QuickdrawProvider defaults withCredentials: true) and the server
   // answers with auth:info — no client-side token handling required.

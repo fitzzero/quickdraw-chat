@@ -32,6 +32,7 @@ import { DEFINITION_TYPES, SNAKE_TUNABLES_KEY } from "@project/shared";
 import { GameService } from "./services/game/index.js";
 import { ensureGlobalWorld, loadSnakeTunables } from "./services/game/bootstrap.js";
 import { DefinitionService } from "./services/definition/index.js";
+import { registerDiscordActivityRoutes } from "./auth/discord-activity.js";
 // ── quickdraw-game:end ──
 import { authenticateSocket } from "./auth/middleware.js";
 import { registerDiscordRoutes } from "./auth/discord.js";
@@ -113,6 +114,11 @@ app.use(["/auth/google", "/auth/discord", "/auth/mock"], createAuthLimiter());
 registerDiscordRoutes(app);
 registerGoogleRoutes(app);
 registerMockRoutes(app);
+// ── quickdraw-game:start ──
+// Discord Activity (Embedded App SDK) code exchange — covered by the
+// /auth/discord rate limiter above
+registerDiscordActivityRoutes(app);
+// ── quickdraw-game:end ──
 app.use(createAuthRouter());
 
 // Socket.io server
