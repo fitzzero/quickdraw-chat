@@ -32,6 +32,9 @@ model User {
   chatMembers   ChatMember[]
   messages      Message[]
   documents     Document[]
+  // ── quickdraw-game:start ──
+  gameScores    GameScore[]
+  // ── quickdraw-game:end ──
 
   @@map("users")
 }
@@ -147,18 +150,64 @@ model Document {
   title     String
   content   String   @default("")
   ownerId   String   @map("owner_id")
-  
+
   // Entry-level ACL stored as JSON array (same format as Chat.acl)
   // Format: [{ "userId": "...", "level": "Read" | "Moderate" | "Admin" }]
   // Unlike Chat, we use this directly instead of a membership table
   acl       Json?
-  
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-  
+
   // Relations
   owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([ownerId])
   @@map("documents")
 }
+
+// ── quickdraw-game:start ──
+// ============================================================================
+// Game Models
+// ============================================================================
+
+// A game world (the demo ships one global world with a deterministic id —
+// see GLOBAL_WORLD_ID in @project/shared). The row exists so the world gets
+// quickdraw subscription/room semantics and an admin surface for free; the
+// live simulation state is in-memory and never touches the database per tick.
+
+model GameWorld {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  // The world's global chat (rendered as the in-game chat overlay)
+  chatId    String?  @map("chat_id")
+  // Optional world-specific config overrides (tunables come from definitions)
+  config    Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  scores    GameScore[]
+
+  @@map("game_worlds")
+}
+
+// Persistent per-user score for a world. Written outside the tick loop
+// (throttled upsert on death), read for leaderboards/profiles.
+model GameScore {
+  id         String   @id @default(cuid())
+  worldId    String   @map("world_id")
+  userId     String   @map("user_id")
+  bestLength Int      @default(0) @map("best_length")
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  world GameWorld @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([worldId, userId])
+  @@map("game_scores")
+}
+// ── quickdraw-game:end ──

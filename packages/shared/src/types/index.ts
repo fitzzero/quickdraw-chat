@@ -9,3 +9,8 @@ export type * from "./message.js";
 export type * from "./document.js";
 export type * from "./service-methods.js";
 export type * from "./admin.js";
+// ── quickdraw-game:start ──
+// (value exports for game.js live in ../index.ts — this barrel is type-only)
+export type * from "./game.js";
+export type * from "./channels.js";
+// ── quickdraw-game:end ──

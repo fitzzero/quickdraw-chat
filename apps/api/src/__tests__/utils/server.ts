@@ -8,10 +8,17 @@ import { UserService } from "../../services/user/index.js";
 import { ChatService } from "../../services/chat/index.js";
 import { MessageService } from "../../services/message/index.js";
 import { DocumentService } from "../../services/document/index.js";
+// ── quickdraw-game:start ──
+import { GameService } from "../../services/game/index.js";
+// ── quickdraw-game:end ──
 interface TestServer {
   port: number;
   io: SocketIOServer;
   stop: () => Promise<void>;
+  // ── quickdraw-game:start ──
+  /** Loop is NOT started in tests — drive ticks via gameService.loop.tickOnce() */
+  gameService: GameService;
+  // ── quickdraw-game:end ──
 }
 
 /**
@@ -32,6 +39,11 @@ export async function startTestServer(): Promise<TestServer> {
   serviceRegistry.registerService("chatService", new ChatService(testPrisma));
   serviceRegistry.registerService("messageService", new MessageService(testPrisma));
   serviceRegistry.registerService("documentService", new DocumentService(testPrisma));
+  // ── quickdraw-game:start ──
+  // Fixed seed for deterministic spawns; loop intentionally not started
+  const gameService = new GameService(testPrisma, { simSeed: 42 });
+  serviceRegistry.registerService("gameService", gameService);
+  // ── quickdraw-game:end ──
 
   // Parse SERVICE_DEFAULT_ACCESS env var (same as production middleware)
   const getDefaultServiceAccess = (): Record<string, AccessLevel> => {
@@ -115,6 +127,9 @@ export async function startTestServer(): Promise<TestServer> {
   return {
     port: address.port,
     io,
+    // ── quickdraw-game:start ──
+    gameService,
+    // ── quickdraw-game:end ──
     stop: async () => {
       await io.close();
       await new Promise<void>((resolve) => {

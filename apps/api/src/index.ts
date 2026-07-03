@@ -26,6 +26,11 @@ import { UserService } from "./services/user/index.js";
 import { ChatService } from "./services/chat/index.js";
 import { MessageService } from "./services/message/index.js";
 import { DocumentService } from "./services/document/index.js";
+// ── quickdraw-game:start ──
+import { CHANNEL_EVENT_PREFIX } from "@fitzzero/quickdraw-core";
+import { GameService } from "./services/game/index.js";
+import { ensureGlobalWorld } from "./services/game/bootstrap.js";
+// ── quickdraw-game:end ──
 import { authenticateSocket } from "./auth/middleware.js";
 import { registerDiscordRoutes } from "./auth/discord.js";
 import { registerGoogleRoutes } from "./auth/google.js";
@@ -123,6 +128,10 @@ const rateLimiter = createRateLimiter({
   windowMs: 60000,
   maxRequests: 100,
   excludeEvents: ["subscribe", "unsubscribe"],
+  // ── quickdraw-game:start ──
+  // Channels enforce their own per-socket token buckets (see game-patterns.md)
+  excludePrefixes: [CHANNEL_EVENT_PREFIX],
+  // ── quickdraw-game:end ──
 });
 
 applyRateLimitMiddleware(io, rateLimiter, {
@@ -150,6 +159,16 @@ serviceRegistry.registerService("messageService", messageService);
 // Document service - demonstrates simpler JSON ACL pattern (no membership table)
 const documentService = new DocumentService(prisma);
 serviceRegistry.registerService("documentService", documentService);
+
+// ── quickdraw-game:start ──
+// Game service - authoritative snake sim; commands are methods, input is a
+// channel, snapshots broadcast volatile at tick rate to the world room
+await ensureGlobalWorld(prisma);
+const gameService = new GameService(prisma);
+serviceRegistry.registerService("gameService", gameService);
+gameService.startLoop();
+process.on("SIGTERM", () => gameService.stopLoop());
+// ── quickdraw-game:end ──
 
 // Apply authentication middleware
 // Pass getServiceNames for bootstrap admin functionality
