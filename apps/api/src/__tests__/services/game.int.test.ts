@@ -253,3 +253,160 @@ describe("GameService Integration", () => {
     await flush();
   });
 });
+
+describe("GameService spectate, presence, and scores", () => {
+  let stop: () => Promise<void>;
+  let port: number;
+  let gameService: GameService;
+  let users: Awaited<ReturnType<typeof seedTestUsers>>;
+
+  beforeAll(async () => {
+    const server = await startTestServer();
+    port = server.port;
+    stop = server.stop;
+    gameService = server.gameService;
+  });
+
+  afterAll(async () => {
+    await stop();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase();
+    users = await seedTestUsers();
+    await ensureGlobalWorld(testPrisma);
+  });
+
+  it("watchWorld returns the bootstrap without spawning", async () => {
+    const client = await connectAsUser(port, users.regular.id);
+    await emitWithAck(client, "gameService:subscribe", { entryId: GLOBAL_WORLD_ID });
+
+    const before = gameService.sim.playerCount();
+    const world = await emitWithAck<
+      { worldId: string },
+      { snaps: { id: string }[]; chatId: string | null }
+    >(client, "gameService:watchWorld", { worldId: GLOBAL_WORLD_ID });
+
+    expect(gameService.sim.playerCount()).toBe(before);
+    expect(world.snaps.map((s) => s.id)).not.toContain(users.regular.id);
+    expect(world.chatId).toBeTruthy();
+    expect(gameService.sim.hasPlayer(users.regular.id)).toBe(false);
+
+    client.close();
+    await flush();
+  });
+
+  it("dual-socket presence: any subscribed socket of the user anchors the player", async () => {
+    // Socket A = "Godot" (subscribes only), socket B = "React page" (joins)
+    const godot = await connectAsUser(port, users.regular.id);
+    const page = await connectAsUser(port, users.regular.id);
+    await emitWithAck(godot, "gameService:subscribe", { entryId: GLOBAL_WORLD_ID });
+    await emitWithAck(page, "gameService:subscribe", { entryId: GLOBAL_WORLD_ID });
+    await emitWithAck(page, "gameService:joinGame", { worldId: GLOBAL_WORLD_ID });
+
+    // The joining socket dies (page reload) — the Godot socket keeps the player alive
+    page.close();
+    await flush(150);
+    expect(gameService.sim.hasPlayer(users.regular.id)).toBe(true);
+
+    // Last socket gone → player removed
+    godot.close();
+    await flush(150);
+    expect(gameService.sim.hasPlayer(users.regular.id)).toBe(false);
+  });
+
+  it("explicit unsubscribe also releases presence (no player leak)", async () => {
+    const a = await connectAsUser(port, users.regular.id);
+    const b = await connectAsUser(port, users.regular.id);
+    await emitWithAck(a, "gameService:subscribe", { entryId: GLOBAL_WORLD_ID });
+    await emitWithAck(b, "gameService:subscribe", { entryId: GLOBAL_WORLD_ID });
+    await emitWithAck(b, "gameService:joinGame", { worldId: GLOBAL_WORLD_ID });
+
+    await emitWithAck(b, "gameService:unsubscribe", { entryId: GLOBAL_WORLD_ID });
+    await flush();
+    expect(gameService.sim.hasPlayer(users.regular.id)).toBe(true);
+
+    await emitWithAck(a, "gameService:unsubscribe", { entryId: GLOBAL_WORLD_ID });
+    await flush();
+    expect(gameService.sim.hasPlayer(users.regular.id)).toBe(false);
+
+    a.close();
+    b.close();
+    await flush();
+  });
+
+  it("getMyBest returns 0 without a score and the persisted best with one", async () => {
+    const client = await connectAsUser(port, users.regular.id);
+
+    const empty = await emitWithAck<{ worldId: string }, { bestLength: number }>(
+      client,
+      "gameService:getMyBest",
+      { worldId: GLOBAL_WORLD_ID },
+    );
+    expect(empty.bestLength).toBe(0);
+
+    await testPrisma.gameScore.create({
+      data: { worldId: GLOBAL_WORLD_ID, userId: users.regular.id, bestLength: 42 },
+    });
+    const withScore = await emitWithAck<{ worldId: string }, { bestLength: number }>(
+      client,
+      "gameService:getMyBest",
+      { worldId: GLOBAL_WORLD_ID },
+    );
+    expect(withScore.bestLength).toBe(42);
+
+    client.close();
+    await flush();
+  });
+
+  it("getHighScores is public, ordered, limited, and joins user info", async () => {
+    await testPrisma.gameScore.createMany({
+      data: [
+        { worldId: GLOBAL_WORLD_ID, userId: users.regular.id, bestLength: 10 },
+        { worldId: GLOBAL_WORLD_ID, userId: users.moderator.id, bestLength: 30 },
+        { worldId: GLOBAL_WORLD_ID, userId: users.admin.id, bestLength: 20 },
+      ],
+    });
+
+    const client = await connectAsUser(port, users.regular.id);
+    const scores = await emitWithAck<
+      { worldId: string; limit?: number },
+      { userId: string; name: string | null; bestLength: number; isGuest: boolean }[]
+    >(client, "gameService:getHighScores", { worldId: GLOBAL_WORLD_ID, limit: 2 });
+
+    expect(scores).toHaveLength(2);
+    expect(scores[0]?.bestLength).toBe(30);
+    expect(scores[1]?.bestLength).toBe(20);
+    expect(scores[0]?.name).toBeTruthy();
+    expect(scores[0]?.isGuest).toBe(false);
+
+    client.close();
+    await flush();
+  });
+
+  it("NPC deaths never create GameScore rows", async () => {
+    // Force NPCs on in a cramped world via live tunables, run ticks until an
+    // NPC dies, then confirm nothing was persisted for npc ids.
+    gameService.sim.applyTunables({ npcCount: 3, worldWidth: 450, worldHeight: 450 });
+    const client = await connectAsUser(port, users.regular.id);
+    await emitWithAck(client, "gameService:subscribe", { entryId: GLOBAL_WORLD_ID });
+    await emitWithAck(client, "gameService:joinGame", { worldId: GLOBAL_WORLD_ID });
+
+    let sawNpcDeath = false;
+    for (let i = 0; i < 3000 && !sawNpcDeath; i++) {
+      const result = gameService.loop.tickOnce();
+      if (result?.deaths.some((d) => d.id.startsWith("npc-"))) sawNpcDeath = true;
+    }
+    expect(sawNpcDeath).toBe(true);
+    await flush(200);
+
+    const npcScores = await testPrisma.gameScore.findMany({
+      where: { userId: { startsWith: "npc-" } },
+    });
+    expect(npcScores).toHaveLength(0);
+
+    gameService.sim.applyTunables({ npcCount: 0, worldWidth: 2400, worldHeight: 2400 });
+    client.close();
+    await flush();
+  });
+});

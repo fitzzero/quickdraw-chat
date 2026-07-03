@@ -3,7 +3,9 @@ import type { GameInput } from "@project/shared";
 import { GameWorldSim, DEFAULT_TUNABLES } from "./world.js";
 
 function makeSim(overrides?: Partial<typeof DEFAULT_TUNABLES>): GameWorldSim {
-  return new GameWorldSim({ seed: 7, tunables: overrides });
+  // NPCs off by default — these tests assert exact player/food counts.
+  // Dedicated NPC behavior tests opt back in below.
+  return new GameWorldSim({ seed: 7, tunables: { npcCount: 0, ...overrides } });
 }
 
 /** Assert-and-narrow: fails the test instead of using non-null assertions. */
@@ -214,5 +216,99 @@ describe("GameWorldSim", () => {
     const board = sim.leaderboard();
     expect(board).toHaveLength(2);
     expect(must(board[0]).len).toBeGreaterThanOrEqual(must(board[1]).len);
+  });
+});
+
+describe("NPC snakes", () => {
+  function npcSim(count = 3): GameWorldSim {
+    return new GameWorldSim({ seed: 11, tunables: { npcCount: count, npcRespawnTicks: 5 } });
+  }
+
+  it("syncs the population to npcCount, including live lowering", () => {
+    const sim = npcSim(3);
+    sim.step();
+    expect(sim.playerCount()).toBe(3);
+    expect(sim.humanCount()).toBe(0);
+
+    sim.applyTunables({ npcCount: 1 });
+    sim.step();
+    expect(sim.playerCount()).toBe(1);
+
+    sim.applyTunables({ npcCount: 4 });
+    sim.step();
+    expect(sim.playerCount()).toBe(4);
+  });
+
+  it("excludes NPCs from humanCount but includes them in snapshots", () => {
+    const sim = npcSim(2);
+    sim.addPlayer("human", "Human");
+    const result = sim.step();
+
+    expect(sim.humanCount()).toBe(1);
+    expect(sim.playerCount()).toBe(3);
+    expect(result.snapshot.players).toHaveLength(3);
+    const npcSnaps = result.snapshot.players.filter((p) => p.id.startsWith("npc-"));
+    expect(npcSnaps).toHaveLength(2);
+  });
+
+  it("NPCs find and eat food", () => {
+    const sim = npcSim(1);
+    let ate = false;
+    for (let i = 0; i < 400 && !ate; i++) {
+      const result = sim.step();
+      if (result.snapshot.foodEaten?.length) ate = true;
+    }
+    expect(ate).toBe(true);
+    expect(must(sim.getLength("npc-0"))).toBeGreaterThan(DEFAULT_TUNABLES.startLength);
+  });
+
+  it("NPCs stay inside the world bounds (wall avoidance)", () => {
+    const sim = npcSim(3);
+    for (let i = 0; i < 600; i++) {
+      sim.step();
+    }
+    for (const id of ["npc-0", "npc-1", "npc-2"]) {
+      if (!sim.isAlive(id)) continue;
+      const head = must(sim.getHead(id));
+      expect(head.x).toBeGreaterThan(0);
+      expect(head.y).toBeGreaterThan(0);
+      expect(head.x).toBeLessThan(DEFAULT_TUNABLES.worldWidth);
+      expect(head.y).toBeLessThan(DEFAULT_TUNABLES.worldHeight);
+    }
+  });
+
+  it("dead NPCs respawn after npcRespawnTicks", () => {
+    // Cramped world makes an NPC death inevitable, then the cooldown revives it
+    const tiny = new GameWorldSim({
+      seed: 13,
+      tunables: {
+        npcCount: 3,
+        npcRespawnTicks: 5,
+        worldWidth: 450,
+        worldHeight: 450,
+        initialFood: 5,
+      },
+    });
+    let deathTick = 0;
+    for (let i = 0; i < 3000 && deathTick === 0; i++) {
+      const result = tiny.step();
+      if (result.deaths.some((d) => d.id.startsWith("npc-"))) deathTick = tiny.tick;
+    }
+    expect(deathTick).toBeGreaterThan(0);
+
+    for (let i = 0; i < 10; i++) tiny.step();
+    const aliveCount = ["npc-0", "npc-1", "npc-2"].filter((id) => tiny.isAlive(id)).length;
+    expect(aliveCount).toBeGreaterThan(0);
+  });
+
+  it("NPC behavior is deterministic for a fixed seed", () => {
+    const a = npcSim(2);
+    const b = npcSim(2);
+    for (let i = 0; i < 100; i++) {
+      a.step();
+      b.step();
+    }
+    expect(a.getHead("npc-0")).toEqual(b.getHead("npc-0"));
+    expect(a.getHead("npc-1")).toEqual(b.getHead("npc-1"));
   });
 });

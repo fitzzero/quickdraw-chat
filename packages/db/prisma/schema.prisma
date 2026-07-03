@@ -22,6 +22,11 @@ model User {
   
   // Service-level access control: { "chatService": "Admin", "userService": "Read" }
   serviceAccess Json?     @map("service_access")
+
+  // ── quickdraw-game:start ──
+  // Guest sessions (anonymous game players) — see apps/api/src/auth/guest.ts
+  isGuest       Boolean   @default(false) @map("is_guest")
+  // ── quickdraw-game:end ──
   
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")

@@ -17,6 +17,7 @@ var sim_pos := Vector2.ZERO
 var sim_dir := Vector2.RIGHT
 var sim_len := float(GameConfig.start_length)
 
+var _prev_sim_pos := Vector2.ZERO
 var _pending: Array[Dictionary] = []
 var _accum := 0.0
 var _visual_offset := Vector2.ZERO
@@ -28,23 +29,29 @@ func init_from_snap(snap: Dictionary) -> void:
 	sim_len = float(snap["len"])
 	length = sim_len
 	seq = int(snap.get("ack", 0))
+	_prev_sim_pos = sim_pos
 	position = sim_pos
 	reset_path(sim_pos)
 
 
 func _physics_process(delta: float) -> void:
-	if not Game.is_joined:
+	if not Game.is_in_world:
 		return
 
 	_accum += delta
 	while _accum >= GameConfig.FIXED_DT:
 		_accum -= GameConfig.FIXED_DT
+		_prev_sim_pos = sim_pos
 		_step_once()
 
-	# Render: predicted position plus the decaying correction offset
+	# Render interpolation: the sim advances in fixed 20Hz steps; drawing at
+	# the raw sim position would move the snake at 20fps (visible judder/
+	# "motion blur"). Blend between the previous and current sim states by the
+	# accumulator fraction, plus the decaying reconciliation offset.
 	var decay := pow(0.5, delta / CORRECTION_HALF_LIFE)
 	_visual_offset *= decay
-	position = sim_pos + _visual_offset
+	var alpha := clampf(_accum / GameConfig.FIXED_DT, 0.0, 1.0)
+	position = _prev_sim_pos.lerp(sim_pos, alpha) + _visual_offset
 	boosting = _is_boosting() and sim_len > GameConfig.min_length
 	length = sim_len
 	advance_path(position)
@@ -97,12 +104,16 @@ func on_server_snap(snap: Dictionary) -> void:
 		# Lag spike or respawn: teleport rather than smear across the world
 		sim_pos = rp
 		sim_dir = rd
+		_prev_sim_pos = rp
 		_visual_offset = Vector2.ZERO
 		position = sim_pos
 		reset_path(sim_pos)
 	else:
-		# Adopt the corrected state; keep what the player SEES continuous
+		# Adopt the corrected state; keep what the player SEES continuous.
+		# Shift the interpolation anchor by the same delta so the current
+		# frame doesn't lerp between old-prediction and corrected states.
 		_visual_offset += sim_pos - rp
+		_prev_sim_pos += rp - sim_pos
 		sim_pos = rp
 		sim_dir = rd
 	# Length is server-authoritative (growth comes from server-side eating)

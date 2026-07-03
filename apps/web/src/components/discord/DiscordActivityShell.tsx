@@ -5,8 +5,7 @@ import { Box, CircularProgress, Typography } from "@mui/material";
 import { useTranslations } from "next-intl";
 import { QuickdrawProvider } from "@fitzzero/quickdraw-core/client";
 import { GLOBAL_WORLD_SLUG, type QuickdrawHostConfig } from "@project/shared";
-import { GodotCanvas, GameLoading, GameHud, GameChatOverlay, type GodotLoadState } from "../game";
-import { useServiceQuery } from "../../hooks";
+import { GameSurface } from "../game";
 
 /** Discord's proxy rewrites everything through this path prefix. */
 const PROXY_SOCKET_PATH = "/.proxy/api/socket.io";
@@ -121,17 +120,7 @@ export function DiscordActivityShell(): React.ReactElement {
   );
 }
 
-const GET_WORLD_PAYLOAD = { slug: GLOBAL_WORLD_SLUG };
-
 function ActivityGame({ token }: { token: string }): React.ReactElement {
-  const [loadState, setLoadState] = React.useState<GodotLoadState>({
-    phase: "loading",
-    progress: null,
-  });
-  const ready = loadState.phase === "ready";
-
-  const { data: world } = useServiceQuery("gameService", "getWorld", GET_WORLD_PAYLOAD);
-
   const hostConfig = React.useMemo<QuickdrawHostConfig>(
     () => ({
       apiUrl: window.location.origin,
@@ -142,12 +131,11 @@ function ActivityGame({ token }: { token: string }): React.ReactElement {
     [token],
   );
 
+  // Discord users are always authenticated (token flow) — no guest flow;
+  // the shared GameSurface provides the same dialog/HUD/chat as /game.
   return (
-    <Box sx={{ position: "relative", height: "100vh", overflow: "hidden" }}>
-      <GodotCanvas hostConfig={hostConfig} onStateChange={setLoadState} />
-      <GameLoading state={loadState} />
-      {ready && <GameHud />}
-      {ready && world?.chatId && <GameChatOverlay chatId={world.chatId} />}
+    <Box sx={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      <GameSurface hostConfig={hostConfig} guestFlow={false} />
     </Box>
   );
 }

@@ -13,21 +13,26 @@ export interface UserServiceMethods {
         image?: string | null;
       };
     };
-    response: {
-      id: string;
-      email: string;
-      name: string | null;
-      image: string | null;
-    };
+    response:
+      | { error: "name_taken" }
+      | {
+          id: string;
+          email: string;
+          name: string | null;
+          image: string | null;
+        };
   };
   getMe: {
     payload: Record<string, never>;
-    response: {
-      id: string;
-      email: string;
-      name: string | null;
-      image: string | null;
-      serviceAccess: Record<string, AccessLevel> | null;
-    } | null;
+    response:
+      | { error: "name_taken" }
+      | {
+          id: string;
+          email: string;
+          name: string | null;
+          image: string | null;
+          serviceAccess: Record<string, AccessLevel> | null;
+        }
+      | null;
   };
 }

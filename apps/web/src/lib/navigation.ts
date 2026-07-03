@@ -4,6 +4,7 @@ import PersonIcon from "@mui/icons-material/Person";
 import SettingsIcon from "@mui/icons-material/Settings";
 // ── quickdraw-game:start ──
 import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
+import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 // ── quickdraw-game:end ──
 import type { SvgIconComponent } from "@mui/icons-material";
 
@@ -19,6 +20,8 @@ export interface NavItem {
   children?: NavItem[];
   defaultExpanded?: boolean;
   requireAuth?: boolean;
+  /** If true, the page fills the content area edge-to-edge (no padding) */
+  fullBleed?: boolean;
   /** If true, children are loaded dynamically (e.g., recent chats) */
   dynamicChildren?: boolean;
   /** Service name for access control (e.g., "chatService"). If set, user needs Read+ access. */
@@ -61,7 +64,15 @@ export const siteNavigation: NavItem[] = [
     label: "Game",
     href: "/game",
     icon: SportsEsportsIcon,
-    requireAuth: true,
+    requireAuth: false,
+    fullBleed: true,
+  },
+  {
+    id: "scores",
+    label: "High Scores",
+    href: "/scores",
+    icon: LeaderboardIcon,
+    requireAuth: false,
   },
   // ── quickdraw-game:end ──
 ];
@@ -191,4 +202,12 @@ export function routeRequiresAuth(pathname: string): boolean {
   }
 
   return false;
+}
+
+/**
+ * Check if a route renders full-bleed (no content padding — e.g. the game).
+ */
+export function routeIsFullBleed(pathname: string): boolean {
+  const navItem = findNavItemByHref(siteNavigation, pathname);
+  return navItem?.fullBleed ?? false;
 }

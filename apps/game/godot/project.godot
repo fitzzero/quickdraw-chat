@@ -19,8 +19,9 @@ Game="*res://scripts/autoload/game.gd"
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
-window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
+; Render at native resolution (no framebuffer upscale = crisp motion).
+; World scale is normalized via camera zoom in main.gd.
+window/stretch/mode="disabled"
 
 [editor_plugins]
 

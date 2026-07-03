@@ -1,8 +1,9 @@
 extends Node2D
-## Main scene: builds the world from the joinGame bootstrap, routes snapshots
-## to the right snake implementation (prediction for the local player,
-## interpolation buffers for remotes), and owns the minimal in-canvas UI.
-## The polished HUD/chat lives in the web wrapper as a DOM overlay.
+## Main scene: builds the world from the entry bootstrap (spectate or join),
+## routes snapshots to the right snake implementation (prediction for the
+## local player, interpolation buffers for remotes). All player-facing UI
+## (pre-game dialog, death screen, HUD, chat) lives in the web wrapper as
+## DOM overlays; the local snake spawns whenever my_id appears in a snapshot.
 
 const PRUNE_AFTER_TICKS := 60
 
@@ -12,14 +13,13 @@ var _food: FoodLayer
 var _camera: Camera2D
 var _world_layer: Node2D
 var _status: Label
-var _death_panel: Control
 var _latest_tick := 0
 var _player_meta: Dictionary = {}
 
 
 func _ready() -> void:
 	_build_scene()
-	Game.joined.connect(_on_joined)
+	Game.world_ready.connect(_on_world_ready)
 	Game.join_failed.connect(_on_join_failed)
 	Game.snapshot_received.connect(_on_snapshot)
 	Game.player_joined.connect(func(meta: Dictionary) -> void:
@@ -37,11 +37,15 @@ func _build_scene() -> void:
 	_world_layer.add_child(_food)
 
 	_camera = Camera2D.new()
-	_camera.zoom = Vector2(1, 1)
 	_camera.position_smoothing_enabled = true
 	_camera.position_smoothing_speed = 8.0
 	add_child(_camera)
 	_camera.make_current()
+
+	# Stretch is disabled (native-resolution rendering); normalize apparent
+	# world scale across window sizes with camera zoom instead.
+	_update_camera_zoom()
+	get_viewport().size_changed.connect(_update_camera_zoom)
 
 	var ui := CanvasLayer.new()
 	add_child(ui)
@@ -52,32 +56,11 @@ func _build_scene() -> void:
 	_status.add_theme_color_override("font_color", Color(1, 1, 1, 0.7))
 	ui.add_child(_status)
 
-	_death_panel = _build_death_panel()
-	ui.add_child(_death_panel)
 
-
-func _build_death_panel() -> Control:
-	var panel := CenterContainer.new()
-	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	panel.visible = false
-
-	var box := VBoxContainer.new()
-	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	panel.add_child(box)
-
-	var label := Label.new()
-	label.text = "You died"
-	label.add_theme_font_size_override("font_size", 32)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(label)
-
-	var button := Button.new()
-	button.text = "Respawn"
-	button.custom_minimum_size = Vector2(160, 44)
-	button.pressed.connect(_on_respawn_pressed)
-	box.add_child(button)
-
-	return panel
+func _update_camera_zoom() -> void:
+	var size := get_viewport_rect().size
+	if size.y > 0:
+		_camera.zoom = Vector2.ONE * (size.y / 720.0)
 
 
 # =============================================================================
@@ -85,9 +68,8 @@ func _build_death_panel() -> Control:
 # =============================================================================
 
 
-func _on_joined(bootstrap: Dictionary) -> void:
+func _on_world_ready(bootstrap: Dictionary) -> void:
 	_set_status("")
-	_death_panel.visible = false
 	_clear_world()
 
 	for meta in bootstrap.get("players", []):
@@ -103,8 +85,8 @@ func _on_joined(bootstrap: Dictionary) -> void:
 func _on_join_failed(error: String) -> void:
 	_set_status("Join failed: %s (retrying…)" % error)
 	await get_tree().create_timer(3.0).timeout
-	if not Game.is_joined and Net.client.is_socket_connected():
-		Game._join()
+	if not Game.is_in_world and Net.client.is_socket_connected():
+		Game._enter_world()
 
 
 func _clear_world() -> void:
@@ -150,9 +132,9 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 		var id := str(snap["id"])
 		if id == Game.my_id:
 			if _local == null:
-				# (Re)spawned server-side — build the local snake from this snap
+				# (Re)spawned server-side (joinGame/respawn was called — possibly
+				# by the React dialog) — build the local snake from this snap
 				_spawn_snake_from_snap(snap, tick)
-				_death_panel.visible = false
 			else:
 				_local.on_server_snap(snap)
 		elif _remotes.has(id):
@@ -182,18 +164,13 @@ func _on_player_left(id: String) -> void:
 func _on_player_died(death: Dictionary) -> void:
 	var id := str(death["id"])
 	if id == Game.my_id:
+		# The wrapper's dialog owns the death UI; keep rendering the world
 		if _local != null:
 			_local.queue_free()
 			_local = null
-		_death_panel.visible = true
 	elif _remotes.has(id):
 		(_remotes[id] as RemoteSnake).queue_free()
 		_remotes.erase(id)
-
-
-func _on_respawn_pressed() -> void:
-	_death_panel.visible = false
-	Game.respawn()
 
 
 # =============================================================================
@@ -204,7 +181,7 @@ func _on_respawn_pressed() -> void:
 func _process(_delta: float) -> void:
 	if _local != null:
 		_camera.position = _local.position
-	if not Net.client.is_socket_connected() and Game.is_joined == false:
+	if not Net.client.is_socket_connected() and Game.is_in_world == false:
 		_set_status("Reconnecting…")
 	elif _status.text.begins_with("Reconnecting") and Net.client.is_socket_connected():
 		_set_status("")

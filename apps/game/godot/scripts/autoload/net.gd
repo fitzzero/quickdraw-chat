@@ -18,6 +18,8 @@ var socket_path := "/socket.io"
 var auth: Dictionary = {}
 var world_slug := "global"
 var config_ok := false
+## Editor/desktop runs auto-join on connect (no wrapper dialog to drive it).
+var auto_spawn := true
 
 
 func _ready() -> void:
@@ -46,6 +48,8 @@ func _resolve_config() -> void:
 
 
 func _resolve_web_config() -> void:
+	# On the web the wrapper's pre-game dialog owns spawning (spectate boot)
+	auto_spawn = false
 	var host: JavaScriptObject = JavaScriptBridge.get_interface("QuickdrawHost")
 	if host == null:
 		push_warning("Net: window.QuickdrawHost missing — set it before engine start")

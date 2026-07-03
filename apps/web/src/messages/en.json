@@ -29,7 +29,8 @@
     "chats": "Chats",
     "profile": "Profile",
     "account": "Account",
-    "game": "Game"
+    "game": "Game",
+    "scores": "High Scores"
   },
   "Auth": {
     "signIn": "Sign In",
@@ -100,7 +101,10 @@
     "title": "Profile",
     "publicProfileTitle": "Public Profile",
     "publicProfileDesc": "This is how others see your profile. Your email is not visible to other users.",
-    "customizationComingSoon": "Profile customization coming soon..."
+    "customizationComingSoon": "Profile customization coming soon...",
+    "editName": "Edit display name",
+    "nameTaken": "That name is already taken",
+    "displayNameHint": "Your display name is shown to other players in chats, in the game, and on the high-scores board."
   },
   "AccountPage": {
     "title": "Account Settings",
@@ -203,5 +207,29 @@
   "DiscordActivity": {
     "connectingDiscord": "Connecting to Discord…",
     "authorizing": "Authorizing…"
+  },
+  "GameDialog": {
+    "title": "Quickdraw Snake",
+    "deathTitle": "You died!",
+    "lastRun": "That run: {length} segments",
+    "bestRun": "Best run: {length} segments",
+    "guestNamePlaceholder": "Pick a snake name…",
+    "start": "Start",
+    "playAsGuest": "Play as guest",
+    "respawn": "Respawn",
+    "starting": "Starting…",
+    "loadingWorld": "Loading world…",
+    "logIn": "Log in",
+    "logInHint": "Log in for persistent stats & high scores",
+    "highScores": "High scores"
+  },
+  "ScoresPage": {
+    "title": "High Scores",
+    "rank": "#",
+    "player": "Player",
+    "best": "Best",
+    "guest": "Guest",
+    "anonymous": "Anonymous",
+    "empty": "No scores yet — go play!"
   }
 }

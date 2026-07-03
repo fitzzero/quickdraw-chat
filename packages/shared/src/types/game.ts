@@ -97,23 +97,54 @@ export interface LeaderboardEntry {
   len: number;
 }
 
-export interface GameBootstrap {
+/**
+ * Spectate bootstrap: full world state without spawning. Godot boots into
+ * this on the web; joinGame (called by the wrapper's pre-game dialog) is
+ * what actually spawns the player.
+ */
+export interface WorldBootstrap {
   worldId: string;
   /** The world's global chat (null until bootstrapped). */
   chatId: string | null;
   tick: number;
   tickRate: number;
   bounds: { w: number; h: number };
-  you: GamePlayerMeta;
   players: GamePlayerMeta[];
   snaps: PlayerSnap[];
   food: FoodDTO[];
+}
+
+export interface GameBootstrap extends WorldBootstrap {
+  you: GamePlayerMeta;
+}
+
+/** NPC ids are namespaced; clients use this for 🤖 markers etc. */
+export const NPC_ID_PREFIX = "npc-";
+
+export interface HighScoreEntry {
+  userId: string;
+  name: string | null;
+  image: string | null;
+  isGuest: boolean;
+  bestLength: number;
 }
 
 export interface GameServiceMethods {
   joinGame: {
     payload: { worldId: string };
     response: GameBootstrap;
+  };
+  watchWorld: {
+    payload: { worldId: string };
+    response: WorldBootstrap;
+  };
+  getMyBest: {
+    payload: { worldId: string };
+    response: { bestLength: number };
+  };
+  getHighScores: {
+    payload: { worldId: string; limit?: number };
+    response: HighScoreEntry[];
   };
   respawn: {
     payload: { worldId: string };
