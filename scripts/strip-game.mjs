@@ -125,6 +125,7 @@ editJson("apps/web/src/messages/en.json", (data) => {
     delete data.Landing.ctaPlay;
     delete data.Landing.featGameTitle;
     delete data.Landing.featGameDesc;
+    delete data.Landing.featGameDetail;
   }
 });
 
