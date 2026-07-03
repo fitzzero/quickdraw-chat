@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { Box, Button, Chip, Stack, Typography } from "@mui/material";
 import { keyframes } from "@mui/material/styles";
 import GitHubIcon from "@mui/icons-material/GitHub";
 // ── quickdraw-game:start ──
+import Link from "next/link";
 import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 // ── quickdraw-game:end ──
 import { useTranslations } from "next-intl";
