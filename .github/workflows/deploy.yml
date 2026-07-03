@@ -14,8 +14,11 @@ name: Deploy
 #   GCP_WORKLOAD_IDENTITY_PROVIDER    - Workload Identity provider resource name
 #                                       (projects/N/locations/global/workloadIdentityPools/...)
 #   GCP_SERVICE_ACCOUNT               - Deploy service account email
-#   DATABASE_MIGRATE_URL              - PostgreSQL URL via the Cloud SQL proxy
-#                                       (postgresql://user:pass@127.0.0.1:5432/db)
+#   DATABASE_MIGRATE_URL              - PostgreSQL URL migrations run against.
+#                                       Hosted Postgres (Prisma Postgres/Neon): the
+#                                       direct TCP URL (postgres://...?sslmode=require).
+#                                       Cloud SQL: proxy URL (postgresql://user:pass@127.0.0.1:5432/db)
+#                                       + re-enable the "Cloud SQL only" bits below.
 #   VERCEL_TOKEN                      - Vercel API token
 #   VERCEL_ORG_ID                     - Vercel organization ID
 #   VERCEL_PROJECT_ID                 - Vercel project ID
@@ -33,8 +36,8 @@ name: Deploy
 # ============================================================================
 
 on:
-  # push:
-  #   branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       db_migrations:
@@ -71,8 +74,8 @@ env:
   SERVICE_NAME: quickdraw-chat
   REGION: us-central1
   REGISTRY: us-central1-docker.pkg.dev
-  # RENAME: project:region:instance of your Cloud SQL instance
-  CLOUD_SQL_INSTANCE: <GCP_PROJECT_ID>:us-central1:<INSTANCE_NAME>
+  # Cloud SQL only: project:region:instance of your Cloud SQL instance
+  # CLOUD_SQL_INSTANCE: <GCP_PROJECT_ID>:us-central1:<INSTANCE_NAME>
 
 jobs:
   security-scan:
@@ -91,7 +94,7 @@ jobs:
     if: >-
       ${{
         always()
-        && (github.event_name != 'push' && inputs.db_migrations != 'skip')
+        && (github.event_name == 'push' || inputs.db_migrations != 'skip')
         && (needs['security-scan'].result == 'success' || needs['security-scan'].result == 'skipped')
       }}
     name: DB Migrate
@@ -115,14 +118,17 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-      - name: Start Cloud SQL Proxy
-        run: |
-          curl -sSL https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.15.2/cloud-sql-proxy.linux.amd64 -o cloud-sql-proxy
-          chmod +x cloud-sql-proxy
-          nohup ./cloud-sql-proxy ${{ env.CLOUD_SQL_INSTANCE }} > proxy.log 2>&1 &
-          echo "CLOUD_SQL_PROXY_PID=$!" >> "$GITHUB_ENV"
-          sleep 3
-          if ! kill -0 $! 2>/dev/null; then cat proxy.log; exit 1; fi
+      # Cloud SQL only: re-enable (with CLOUD_SQL_INSTANCE above) and point
+      # DATABASE_MIGRATE_URL at 127.0.0.1:5432. Hosted Postgres with a direct
+      # TCP URL (Prisma Postgres/Neon) needs no proxy.
+      # - name: Start Cloud SQL Proxy
+      #   run: |
+      #     curl -sSL https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.15.2/cloud-sql-proxy.linux.amd64 -o cloud-sql-proxy
+      #     chmod +x cloud-sql-proxy
+      #     nohup ./cloud-sql-proxy ${{ env.CLOUD_SQL_INSTANCE }} > proxy.log 2>&1 &
+      #     echo "CLOUD_SQL_PROXY_PID=$!" >> "$GITHUB_ENV"
+      #     sleep 3
+      #     if ! kill -0 $! 2>/dev/null; then cat proxy.log; exit 1; fi
       - name: Run migrations
         run: bunx prisma migrate deploy
         working-directory: packages/db
@@ -185,8 +191,8 @@ jobs:
             GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest
             DISCORD_CLIENT_ID=DISCORD_CLIENT_ID:latest
             DISCORD_CLIENT_SECRET=DISCORD_CLIENT_SECRET:latest
+          # Cloud SQL only: add --set-cloudsql-instances=${{ env.CLOUD_SQL_INSTANCE }}
           flags: >-
-            --set-cloudsql-instances=${{ env.CLOUD_SQL_INSTANCE }}
             --port=8080
             --cpu=1
             --memory=512Mi
@@ -199,15 +205,15 @@ jobs:
             --startup-probe=tcpSocket.port=8080,periodSeconds=5,timeoutSeconds=5
             --allow-unauthenticated
 
+  # Runs in parallel with db-migrate → deploy-api (web never touches the DB)
   deploy-web:
-    needs: [security-scan, db-migrate]
+    needs: security-scan
     if: >-
       ${{
         always()
         && (github.event_name == 'push' || inputs.deploy_web)
         && (github.event_name == 'push' || inputs.db_migrations != 'only')
         && (needs['security-scan'].result == 'success' || needs['security-scan'].result == 'skipped')
-        && (needs['db-migrate'].result == 'success' || needs['db-migrate'].result == 'skipped')
       }}
     name: Deploy Web
     runs-on: ubuntu-latest

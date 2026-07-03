@@ -17,6 +17,9 @@ packages/db/prisma/generated/
 .env.*.local
 .env.production
 
+# Machine-local docker overrides (e.g. alternate postgres host port)
+docker-compose.override.yml
+
 # IDE
 .idea/
 .vscode/

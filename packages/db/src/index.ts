@@ -5,6 +5,7 @@ import { Pool } from "pg";
 // Singleton pattern for Prisma client with lazy initialization
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
+  prismaPool: Pool | undefined;
 };
 
 function createPrismaClient(): PrismaClient {
@@ -34,10 +35,23 @@ function createPrismaClient(): PrismaClient {
 
   const adapter = new PrismaPg(pool);
 
+  globalForPrisma.prismaPool = pool;
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });
+}
+
+/**
+ * Disconnect the client AND end the pg pool. Prisma does not end an
+ * externally-owned pool, and its min idle connections otherwise keep the
+ * process alive — one-shot scripts (seed, jobs) must call this to exit.
+ */
+export async function disconnectPrisma(): Promise<void> {
+  await globalForPrisma.prisma?.$disconnect();
+  await globalForPrisma.prismaPool?.end();
+  globalForPrisma.prisma = undefined;
+  globalForPrisma.prismaPool = undefined;
 }
 
 // Lazy getter - only creates the client when first accessed
