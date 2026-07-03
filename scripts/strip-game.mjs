@@ -121,6 +121,11 @@ editJson("apps/web/src/messages/en.json", (data) => {
     delete data.Nav.game;
     delete data.Nav.scores;
   }
+  if (data.Landing) {
+    delete data.Landing.ctaPlay;
+    delete data.Landing.featGameTitle;
+    delete data.Landing.featGameDesc;
+  }
 });
 
 editJson("apps/web/package.json", (data) => {

@@ -1,11 +1,43 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { Providers } from "../providers";
 import { ErrorBoundary } from "../components/common/ErrorBoundary";
 import "./globals.css";
 
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
+
+const TAGLINE =
+  "Realtime fullstack starter — typed Socket.IO services, ACL, auth, and a multiplayer game foundation. Fork it and build.";
+
 export const metadata: Metadata = {
-  title: "Quickdraw Chat",
-  description: "Real-time chat application built with the Quickdraw framework",
+  metadataBase: new URL("https://quickdraw.techtree.gg"),
+  title: "Quickdraw — Realtime Fullstack Starter",
+  description: TAGLINE,
+  manifest: "/site.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+    shortcut: "/favicon.ico",
+  },
+  openGraph: {
+    title: "Quickdraw",
+    description: TAGLINE,
+    siteName: "Quickdraw",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Quickdraw",
+    description: TAGLINE,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#16161e",
 };
 
 export default function RootLayout({
@@ -14,7 +46,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>): React.ReactElement {
   return (
-    <html lang="en">
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body>
         <ErrorBoundary>
           <Providers>{children}</Providers>

@@ -20,6 +20,8 @@ export interface NavItem {
   children?: NavItem[];
   defaultExpanded?: boolean;
   requireAuth?: boolean;
+  /** If true, hidden from guest sessions (anonymous game players) */
+  hideForGuests?: boolean;
   /** If true, the page fills the content area edge-to-edge (no padding) */
   fullBleed?: boolean;
   /** If true, children are loaded dynamically (e.g., recent chats) */
@@ -46,6 +48,7 @@ export const siteNavigation: NavItem[] = [
     href: "/",
     icon: HomeIcon,
     requireAuth: false,
+    fullBleed: true,
   },
   {
     id: "chats",
@@ -53,8 +56,11 @@ export const siteNavigation: NavItem[] = [
     href: "/chats",
     icon: ChatIcon,
     defaultExpanded: true,
+    // Chat access is membership-based (any signed-in full user can create
+    // chats and list their own), so the item isn't service-gated — it's
+    // just hidden from anonymous guest sessions.
     requireAuth: true,
-    serviceName: "chatService",
+    hideForGuests: true,
     // Children loaded via useRecentChats
     dynamicChildren: true,
   },
