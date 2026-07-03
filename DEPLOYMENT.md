@@ -76,18 +76,33 @@ LOG_LEVEL=info  # debug, info, warn, error
 One-time setup, then deploys are a `workflow_dispatch` away (or uncomment the
 `push: branches: [main]` trigger for deploy-on-merge).
 
+### 0. Pick a database
+
+Two supported shapes; the workflow defaults to **hosted Postgres**:
+
+- **Hosted Postgres with a direct TCP URL** (Prisma Postgres, Neon, Supabase…):
+  free tiers scale to zero, so an idle demo costs ~$0. Use the direct
+  `postgres://…?sslmode=require` string (for Prisma Postgres, _not_ the
+  `prisma+postgres://` Accelerate URL) as both the `DATABASE_URL` GCP secret
+  and the `DATABASE_MIGRATE_URL` GitHub secret. No proxy, no extra flags.
+- **Cloud SQL** (~$9+/mo, always-on): re-enable the three blocks marked
+  `Cloud SQL only` in `deploy.yml` (`CLOUD_SQL_INSTANCE` env, the proxy step,
+  `--set-cloudsql-instances`), create the instance below, and point
+  `DATABASE_MIGRATE_URL` at `127.0.0.1:5432` (proxy).
+
 ### 1. GCP setup
 
 ```bash
 gcloud projects create <PROJECT_ID>            # or reuse one
-gcloud services enable run.googleapis.com sqladmin.googleapis.com \
+gcloud services enable run.googleapis.com \
   artifactregistry.googleapis.com secretmanager.googleapis.com
 
 # Artifact Registry repo (matches SERVICE_NAME in deploy.yml)
 gcloud artifacts repositories create quickdraw-chat \
   --repository-format=docker --location=us-central1
 
-# Cloud SQL (PostgreSQL 16)
+# Cloud SQL only (PostgreSQL 16) — skip for hosted Postgres
+gcloud services enable sqladmin.googleapis.com
 gcloud sql instances create <INSTANCE_NAME> --database-version=POSTGRES_16 \
   --region=us-central1 --tier=db-f1-micro
 gcloud sql databases create quickdraw_chat --instance=<INSTANCE_NAME>
@@ -108,7 +123,7 @@ gcloud sql databases create quickdraw_chat --instance=<INSTANCE_NAME>
 
 ### 3. Placeholders
 
-- `.github/workflows/deploy.yml`: `SERVICE_NAME`, `CLOUD_SQL_INSTANCE`, region
+- `.github/workflows/deploy.yml`: `SERVICE_NAME`, region (+ `CLOUD_SQL_INSTANCE` if using Cloud SQL)
 - `apps/api/env.cloudrun.yaml`: `CLIENT_URL` (+ optional `EXTRA_ALLOWED_ORIGINS`, `COOKIE_DOMAIN`)
 
 ### 4. Vercel

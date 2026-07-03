@@ -7,7 +7,7 @@
  * already exists. Run with `bun run db:seed`.
  */
 
-import { prisma } from "./index.js";
+import { disconnectPrisma, prisma } from "./index.js";
 
 const DEMO_ADMIN_EMAIL = "admin@demo.local";
 
@@ -136,4 +136,4 @@ main()
     console.error("Seed failed:", error);
     process.exitCode = 1;
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => disconnectPrisma());
