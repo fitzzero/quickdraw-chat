@@ -61,8 +61,8 @@ const nextConfig = {
   // `vercel build` (bun symlink layout) and standalone tracing needs it.
   outputFileTracingRoot: workspaceRoot,
   turbopack: { root: workspaceRoot },
-  async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+  headers() {
+    return Promise.resolve([{ source: "/:path*", headers: securityHeaders }]);
   },
 };
 
