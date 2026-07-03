@@ -54,6 +54,10 @@
         "vitest": "^4.0.17",
       },
     },
+    "apps/game": {
+      "name": "@project/game",
+      "version": "0.0.1",
+    },
     "apps/web": {
       "name": "@project/web",
       "version": "0.0.1",
@@ -523,6 +527,8 @@
     "@project/api": ["@project/api@workspace:apps/api"],
 
     "@project/db": ["@project/db@workspace:packages/db"],
+
+    "@project/game": ["@project/game@workspace:apps/game"],
 
     "@project/shared": ["@project/shared@workspace:packages/shared"],
 
