@@ -5,7 +5,7 @@
     "": {
       "name": "quickdraw-chat",
       "devDependencies": {
-        "@fitzzero/quickdraw-core": "^3.9.0",
+        "@fitzzero/quickdraw-core": "^3.9.1",
         "@types/node": "^20.10.0",
         "@typescript/native-preview": "^7.0.0-dev",
         "dotenv-cli": "^11.0.0",
@@ -22,7 +22,7 @@
       "name": "@project/api",
       "version": "0.0.1",
       "dependencies": {
-        "@fitzzero/quickdraw-core": "^3.9.0",
+        "@fitzzero/quickdraw-core": "^3.9.1",
         "@project/db": "workspace:*",
         "@project/shared": "workspace:*",
         "cookie-parser": "^1.4.7",
@@ -66,7 +66,7 @@
         "@emotion/cache": "^11.11.0",
         "@emotion/react": "^11.11.0",
         "@emotion/styled": "^11.11.0",
-        "@fitzzero/quickdraw-core": "^3.9.0",
+        "@fitzzero/quickdraw-core": "^3.9.1",
         "@mui/icons-material": "^7.0.0",
         "@mui/material": "^7.0.0",
         "@project/shared": "workspace:*",
@@ -94,7 +94,7 @@
       "name": "@project/db",
       "version": "0.0.1",
       "dependencies": {
-        "@fitzzero/quickdraw-core": "^3.9.0",
+        "@fitzzero/quickdraw-core": "^3.9.1",
         "@prisma/adapter-pg": "^7.0.0",
         "@prisma/client": "^7.0.0",
         "pg": "^8.13.0",
@@ -113,7 +113,7 @@
       "name": "@project/shared",
       "version": "0.0.1",
       "dependencies": {
-        "@fitzzero/quickdraw-core": "^3.9.0",
+        "@fitzzero/quickdraw-core": "^3.9.1",
         "zod": "^3.22.0",
       },
       "devDependencies": {
@@ -279,7 +279,7 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.27.3", "", { "os": "win32", "cpu": "x64" }, "sha512-4uJGhsxuptu3OcpVAzli+/gWusVGwZZHTlS63hh++ehExkVT8SgiEf7/uC/PclrPPkLhZqGgCTjd0VWLo6xMqA=="],
 
-    "@fitzzero/quickdraw-core": ["@fitzzero/quickdraw-core@3.9.0", "", { "dependencies": { "jose": "^5.2.0", "zod": "^3.22.0" }, "peerDependencies": { "@electric-sql/pglite": ">=0.3.0", "@eslint/js": ">=9.0.0", "@prisma/client": ">=5.0.0", "@tanstack/react-query": ">=5.0.0", "eslint": ">=9.0.0", "eslint-config-next": ">=16.0.0", "express-rate-limit": ">=8.0.0", "globals": ">=16.0.0", "pg": ">=8.0.0", "react": ">=18.0.0", "socket.io": ">=4.0.0", "socket.io-client": ">=4.0.0", "typescript-eslint": ">=8.0.0" }, "optionalPeers": ["@electric-sql/pglite", "@eslint/js", "@prisma/client", "@tanstack/react-query", "eslint", "eslint-config-next", "express-rate-limit", "globals", "pg", "react", "socket.io", "socket.io-client", "typescript-eslint"] }, "sha512-XMYC4bEuZh1QdhMDFtsxD8mombvdnB90aerfQaRYIUzpzX4M8pfHkNOkwPNPcc3ME6n71F/IWDBGN2472dfWhw=="],
+    "@fitzzero/quickdraw-core": ["@fitzzero/quickdraw-core@3.9.1", "", { "dependencies": { "jose": "^5.2.0", "zod": "^3.22.0" }, "peerDependencies": { "@electric-sql/pglite": ">=0.3.0", "@eslint/js": ">=9.0.0", "@prisma/client": ">=5.0.0", "@tanstack/react-query": ">=5.0.0", "eslint": ">=9.0.0", "eslint-config-next": ">=16.0.0", "express-rate-limit": ">=8.0.0", "globals": ">=16.0.0", "pg": ">=8.0.0", "react": ">=18.0.0", "socket.io": ">=4.0.0", "socket.io-client": ">=4.0.0", "typescript-eslint": ">=8.0.0" }, "optionalPeers": ["@electric-sql/pglite", "@eslint/js", "@prisma/client", "@tanstack/react-query", "eslint", "eslint-config-next", "express-rate-limit", "globals", "pg", "react", "socket.io", "socket.io-client", "typescript-eslint"] }, "sha512-1GY2dQiqx4UWHsl3G+oWm6a3EJe7J56jUM/mV5vXVru2dkurKUknkRMRN+fPQPxWlAgKw8dddzCvVNLAjqr91w=="],
 
     "@formatjs/ecma402-abstract": ["@formatjs/ecma402-abstract@3.1.1", "", { "dependencies": { "@formatjs/fast-memoize": "3.1.0", "@formatjs/intl-localematcher": "0.8.1", "decimal.js": "^10.6.0", "tslib": "^2.8.1" } }, "sha512-jhZbTwda+2tcNrs4kKvxrPLPjx8QsBCLCUgrrJ/S+G9YrGHWLhAyFMMBHJBnBoOwuLHd7L14FgYudviKaxkO2Q=="],
 

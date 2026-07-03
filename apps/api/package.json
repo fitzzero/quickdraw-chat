@@ -18,7 +18,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@fitzzero/quickdraw-core": "^3.9.0",
+    "@fitzzero/quickdraw-core": "^3.9.1",
     "@project/db": "workspace:*",
     "@project/shared": "workspace:*",
     "cookie-parser": "^1.4.7",

@@ -17,8 +17,8 @@ import { prisma as defaultPrisma, type PrismaClient } from "@project/db";
 import { logger } from "../utils/logger.js";
 import { validateRequest, z } from "../utils/validate-request.js";
 import { createJWT } from "./jwt.js";
+import { SESSION_MAX_AGE_MS } from "./oauth-callback.js";
 
-const SESSION_EXPIRY_DAYS = 7;
 const NAME_ATTEMPTS = 3;
 
 const guestBodySchema = z.object({
@@ -81,11 +81,11 @@ export function registerGuestRoutes(app: Express, deps: GuestAuthDeps = {}): voi
           data: {
             userId: user.id,
             token,
-            expiresAt: new Date(Date.now() + SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+            expiresAt: new Date(Date.now() + SESSION_MAX_AGE_MS),
           },
         });
 
-        setSessionCookie(res, token);
+        setSessionCookie(res, token, { maxAgeMs: SESSION_MAX_AGE_MS });
         res.json({ userId: user.id, name: user.name });
       } catch (error) {
         logger.warn("Guest session creation failed", {

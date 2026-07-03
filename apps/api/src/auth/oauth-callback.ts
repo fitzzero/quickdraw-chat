@@ -8,8 +8,14 @@ import {
 import { prisma as defaultPrisma, type PrismaClient } from "@project/db";
 import { createJWT } from "./jwt.js";
 import { logger } from "../utils/logger.js";
+import { safeImageUrl } from "../utils/safe-image-url.js";
+import { timingSafeStringEqual } from "../utils/timing-safe-equal.js";
 
-const SESSION_EXPIRY_DAYS = 7;
+/** Must match DEFAULT_EXPIRATION in jwt.ts — the Session row, the JWT, and
+ * the cookie all expire together (a cookie that outlives the JWT just sends
+ * a token the server will reject). */
+export const SESSION_EXPIRY_DAYS = 7;
+export const SESSION_MAX_AGE_MS = SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 const STATE_COOKIE_MAX_AGE_MS = 10 * 60 * 1000;
 
 export function clientUrl(): string {
@@ -47,7 +53,7 @@ export function validateOAuthState(req: Request, res: Response, cookieName: stri
   const state = req.query.state as string | undefined;
   const storedState = (req.cookies as Record<string, string> | undefined)?.[cookieName];
   res.clearCookie(cookieName);
-  return Boolean(state && storedState && state === storedState);
+  return timingSafeStringEqual(state, storedState);
 }
 
 export interface OAuthProfile {
@@ -116,7 +122,7 @@ async function findOrCreateUser(
     data: {
       email: profile.email,
       name: profile.name,
-      image: profile.image,
+      image: safeImageUrl(profile.image),
       accounts: { create: accountData },
     },
     select: { id: true, email: true },
@@ -147,7 +153,7 @@ export async function createSessionForProfile(
     data: {
       userId: user.id,
       token: jwt,
-      expiresAt: new Date(Date.now() + SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + SESSION_MAX_AGE_MS),
     },
   });
 
@@ -160,6 +166,6 @@ export async function completeOAuthLogin(res: Response, profile: OAuthProfile): 
   // The httpOnly session cookie is the sole client credential: sockets
   // (handshake withCredentials) and REST both authenticate with it, so the
   // JWT never appears in the redirect URL (history/referrer/log exposure).
-  setSessionCookie(res, token);
+  setSessionCookie(res, token, { maxAgeMs: SESSION_MAX_AGE_MS });
   res.redirect(`${clientUrl()}/auth/callback`);
 }
