@@ -20,6 +20,9 @@ packages/db/prisma/generated/
 # Machine-local docker overrides (e.g. alternate postgres host port)
 docker-compose.override.yml
 
+# Machine-local direnv config (workspace env inheritance)
+.envrc
+
 # Vercel CLI link/pull artifacts
 .vercel/
 
