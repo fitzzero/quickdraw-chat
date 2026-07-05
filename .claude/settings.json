@@ -6,11 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/disallow-bare-bun.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/disallow-direct-pr.sh"
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/disallow-bare-bun.sh\""
           }
         ]
       }
