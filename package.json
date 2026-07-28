@@ -21,6 +21,7 @@
     "test:watch": "turbo test:watch",
     "test:coverage": "turbo test -- --coverage",
     "clean": "turbo clean",
+    "reset:dev": "bash scripts/reset-dev.sh",
     "db:generate": "turbo db:generate",
     "db:push": "turbo db:push",
     "db:migrate": "turbo db:migrate",
