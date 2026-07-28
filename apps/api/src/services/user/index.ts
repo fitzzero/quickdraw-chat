@@ -145,24 +145,33 @@ export class UserService extends BaseService<
           throw new Error("Cannot update other users");
         }
 
-        const updated = await this.prisma.user.update({
-          where: { id: payload.id },
-          data: {
-            name: payload.data.name,
-            image: payload.data.image,
-          },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            image: true,
-          },
-        });
+        try {
+          const updated = await this.prisma.user.update({
+            where: { id: payload.id },
+            data: {
+              name: payload.data.name,
+              image: payload.data.image,
+            },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              image: true,
+            },
+          });
 
-        // Emit update to subscribers
-        this.emitUpdate(payload.id, updated);
+          // Emit update to subscribers
+          this.emitUpdate(payload.id, updated);
 
-        return updated;
+          return updated;
+        } catch (error) {
+          // User.name is unique — surface collisions as a typed result
+          // (mirrors chatService.inviteByName's { error } pattern)
+          if ((error as { code?: string }).code === "P2002") {
+            return { error: "name_taken" as const };
+          }
+          throw error;
+        }
       },
       {
         schema: updateUserSchema,

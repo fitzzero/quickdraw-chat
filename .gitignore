@@ -17,6 +17,15 @@ packages/db/prisma/generated/
 .env.*.local
 .env.production
 
+# Machine-local docker overrides (e.g. alternate postgres host port)
+docker-compose.override.yml
+
+# Machine-local direnv config (workspace env inheritance)
+.envrc
+
+# Vercel CLI link/pull artifacts
+.vercel/
+
 # IDE
 .idea/
 .vscode/
@@ -43,3 +52,9 @@ coverage/
 yalc.lock
 
 
+
+# ── quickdraw-game:start ──
+# Godot editor caches
+apps/game/godot/.godot/
+# ── quickdraw-game:end ──
+.playwright-mcp/

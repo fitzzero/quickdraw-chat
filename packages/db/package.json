@@ -29,7 +29,7 @@
     "db:studio": "../../scripts/load-env.sh prisma studio"
   },
   "dependencies": {
-    "@fitzzero/quickdraw-core": "^3.7.0",
+    "@fitzzero/quickdraw-core": "^3.9.1",
     "@prisma/adapter-pg": "^7.0.0",
     "@prisma/client": "^7.0.0",
     "pg": "^8.13.0"

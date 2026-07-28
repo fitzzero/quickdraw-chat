@@ -4,6 +4,7 @@ import * as React from "react";
 import { useSocket } from "../providers";
 import { siteNavigation, type NavItem } from "../lib/navigation";
 import type { AccessLevel } from "@project/shared";
+import { useSubscription } from "./useSubscription";
 
 /**
  * Access levels that grant visibility to a service.
@@ -51,6 +52,11 @@ export function useFilteredNavigation(): {
   // Use serviceAccess from socket - this includes merged SERVICE_DEFAULT_ACCESS from server
   const { userId, isConnected, serviceAccess: socketServiceAccess } = useSocket();
 
+  // Guest sessions hide `hideForGuests` items. Structural probe so the hook
+  // stays generic — the field only exists when the guest-auth feature does.
+  const { data: ownUser } = useSubscription("userService", userId ?? "");
+  const isGuestSession = (ownUser as { isGuest?: boolean } | null)?.isGuest === true;
+
   // Convert to proper type (socket returns it as unknown)
   const serviceAccess = React.useMemo<Record<string, AccessLevel> | null>(() => {
     if (!socketServiceAccess || Object.keys(socketServiceAccess).length === 0) return null;
@@ -68,30 +74,32 @@ export function useFilteredNavigation(): {
 
   // Filter navigation based on service access
   const navigation = React.useMemo<NavItem[]>(() => {
+    const items = siteNavigation.filter((item) => !(isGuestSession && item.hideForGuests));
+
     // If not logged in, only show items that don't require auth
     if (!userId) {
-      return siteNavigation.filter((item) => !item.requireAuth);
+      return items.filter((item) => !item.requireAuth);
     }
 
     // If socket is still connecting, show ALL items to prevent flash
     if (!isConnected) {
-      return siteNavigation;
+      return items;
     }
 
     // If no service access (empty defaults), show only items without service restriction
     if (!serviceAccess) {
-      return siteNavigation.filter((item) => !item.serviceName);
+      return items.filter((item) => !item.serviceName);
     }
 
     // Filter based on service access
-    return siteNavigation.filter((item) => {
+    return items.filter((item) => {
       // Items without serviceName are always shown (e.g., Home)
       if (!item.serviceName) return true;
 
       // Check if user has Read or higher access to the service
       return hasVisibleAccess(serviceAccess[item.serviceName]);
     });
-  }, [userId, isConnected, serviceAccess]);
+  }, [userId, isConnected, serviceAccess, isGuestSession]);
 
   return {
     navigation,

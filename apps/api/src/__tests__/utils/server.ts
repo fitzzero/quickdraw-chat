@@ -5,12 +5,20 @@ import { UserService } from "../../services/user/index.js";
 import { ChatService } from "../../services/chat/index.js";
 import { MessageService } from "../../services/message/index.js";
 import { DocumentService } from "../../services/document/index.js";
+// ── quickdraw-game:start ──
+import { GameService } from "../../services/game/index.js";
+import { DefinitionService } from "../../services/definition/index.js";
+// ── quickdraw-game:end ──
 import { createSocketAuth } from "../../auth/middleware.js";
 
 interface TestServer {
   port: number;
   io: SocketIOServer;
   stop: () => Promise<void>;
+  // ── quickdraw-game:start ──
+  /** Loop is NOT started in tests — drive ticks via gameService.loop.tickOnce() */
+  gameService: GameService;
+  // ── quickdraw-game:end ──
 }
 
 /**
@@ -25,11 +33,20 @@ interface TestServer {
  */
 export async function startTestServer(): Promise<TestServer> {
   const chatService = new ChatService(testPrisma);
+  // ── quickdraw-game:start ──
+  // Fixed seed for deterministic spawns; NPCs off (tests assert exact
+  // player sets); loop intentionally not started
+  const gameService = new GameService(testPrisma, { simSeed: 42, tunables: { npcCount: 0 } });
+  // ── quickdraw-game:end ──
   const services = {
     userService: new UserService(testPrisma),
     chatService,
     messageService: new MessageService(testPrisma, chatService),
     documentService: new DocumentService(testPrisma),
+    // ── quickdraw-game:start ──
+    gameService,
+    definitionService: new DefinitionService(testPrisma),
+    // ── quickdraw-game:end ──
   };
 
   const { io, httpServer } = createQuickdrawServer({
@@ -56,6 +73,9 @@ export async function startTestServer(): Promise<TestServer> {
   return {
     port: address.port,
     io,
+    // ── quickdraw-game:start ──
+    gameService,
+    // ── quickdraw-game:end ──
     stop: async () => {
       await io.close();
       await new Promise<void>((resolve) => {

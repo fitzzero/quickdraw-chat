@@ -15,6 +15,10 @@ export interface UserDTO {
   name: string | null;
   image: string | null;
   serviceAccess: Record<string, AccessLevel> | null;
+  // ── quickdraw-game:start ──
+  /** Anonymous game guest session (see apps/api/src/auth/guest.ts) */
+  isGuest?: boolean;
+  // ── quickdraw-game:end ──
 }
 
 export interface UserServiceMethods {
@@ -26,21 +30,26 @@ export interface UserServiceMethods {
         image?: string | null;
       };
     };
-    response: {
-      id: string;
-      email: string;
-      name: string | null;
-      image: string | null;
-    };
+    response:
+      | { error: "name_taken" }
+      | {
+          id: string;
+          email: string;
+          name: string | null;
+          image: string | null;
+        };
   };
   getMe: {
     payload: Record<string, never>;
-    response: {
-      id: string;
-      email: string;
-      name: string | null;
-      image: string | null;
-      serviceAccess: Record<string, AccessLevel> | null;
-    } | null;
+    response:
+      | { error: "name_taken" }
+      | {
+          id: string;
+          email: string;
+          name: string | null;
+          image: string | null;
+          serviceAccess: Record<string, AccessLevel> | null;
+        }
+      | null;
   };
 }

@@ -1,62 +1,27 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "extends": ["./node_modules/@fitzzero/quickdraw-core/oxlint.base.jsonc"],
   "plugins": ["typescript", "import", "react", "nextjs", "jsx_a11y"],
-  "categories": {
-    "correctness": "deny",
-    "suspicious": "deny",
-    "pedantic": "deny"
-  },
   "jsPlugins": [
     {
-      "name": "quickdraw",
-      "specifier": "@fitzzero/quickdraw-core/eslint-plugin"
+      "name": "project",
+      "specifier": "./eslint-plugin-project/index.mjs"
     }
   ],
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "no-console": "error",
-    "no-var": "error",
-    "typescript/no-explicit-any": "error",
-    "typescript/no-non-null-assertion": "error",
-    "typescript/no-import-type-side-effects": "error",
-
-    "typescript/no-unsafe-assignment": "error",
-    "typescript/no-unsafe-call": "error",
-    "typescript/no-unsafe-member-access": "error",
-    "typescript/no-unsafe-return": "error",
-    "typescript/no-unsafe-argument": "error",
-    "typescript/restrict-template-expressions": "off",
-    "typescript/no-redundant-type-constituents": "off",
-
-    "require-await": "error",
-    "no-inline-comments": "error",
-    "no-unmodified-loop-condition": "error",
-    "no-promise-executor-return": "error",
-    "eqeqeq": "error",
-    "import/max-dependencies": ["error", { "max": 10 }],
-
-    "complexity": ["error", { "max": 15 }],
-    "max-depth": ["error", { "max": 4 }],
-    "max-lines": ["error", { "max": 500, "skipBlankLines": true, "skipComments": true }],
-    "max-lines-per-function": ["error", { "max": 80, "skipBlankLines": true, "skipComments": true }]
-  },
   "overrides": [
     {
       "files": ["**/services/**/*.ts"],
       "rules": {
-        "quickdraw/no-raw-service-room-string": "error",
         "quickdraw/no-cross-service-mutations": [
           "error",
           {
             "allowedModels": {
               "chat": ["chatMember"],
-              "message": ["chat"]
+              "message": ["chat"],
+              "game": ["chat", "chatMember", "gameScore"]
             }
           }
-        ],
-        "quickdraw/require-zod-schema": "error",
-        "quickdraw/no-service-method-record": "error",
-        "quickdraw/no-unsafe-payload-cast": "error"
+        ]
       }
     },
     {
@@ -66,39 +31,9 @@
       }
     },
     {
-      "files": ["apps/web/**", "**/*.tsx"],
+      "files": ["**/routes.ts", "**/routes/**/*.ts"],
       "rules": {
-        "typescript/explicit-function-return-type": "off",
-        "jsx_a11y/no-autofocus": "off",
-        "react/react-in-jsx-scope": "off",
-        "import/no-unassigned-import": "off",
-        "import/max-dependencies": "off",
-        "max-lines-per-function": "off",
-        "max-lines": "off",
-        "no-warning-comments": "off",
-        "quickdraw/no-raw-tooltip-strings": "error",
-        "quickdraw/no-raw-typography-strings": "error",
-        "quickdraw/no-raw-button-strings": "error",
-        "quickdraw/no-raw-socket-on": "error",
-        "quickdraw/no-raw-socket-emit": "error"
-      }
-    },
-    {
-      "files": ["packages/shared/**", "packages/db/**"],
-      "rules": {
-        "typescript/explicit-function-return-type": "error",
-        "typescript/explicit-module-boundary-types": "error",
-        "no-console": "error"
-      }
-    },
-    {
-      "files": ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"],
-      "rules": {
-        "max-lines-per-function": "off",
-        "max-lines": "off",
-        "no-inline-comments": "off",
-        "require-await": "off",
-        "import/max-dependencies": "off"
+        "project/no-prisma-in-routes": "error"
       }
     }
   ],

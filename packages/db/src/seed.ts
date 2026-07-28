@@ -7,7 +7,7 @@
  * already exists. Run with `bun run db:seed`.
  */
 
-import { prisma } from "./index.js";
+import { disconnectPrisma, prisma } from "./index.js";
 
 const DEMO_ADMIN_EMAIL = "admin@demo.local";
 
@@ -21,6 +21,10 @@ async function seedUsers(): Promise<{ adminId: string; moderatorId: string; user
         chatService: "Admin",
         messageService: "Admin",
         documentService: "Admin",
+        // ── quickdraw-game:start ──
+        gameService: "Admin",
+        definitionService: "Admin",
+        // ── quickdraw-game:end ──
       },
     },
   });
@@ -114,6 +118,74 @@ async function seedDocument(ids: { adminId: string; moderatorId: string }): Prom
   });
 }
 
+// ── quickdraw-game:start ──
+/**
+ * The global game world + its chat. Uses the same deterministic id as the
+ * API's boot-time bootstrap (ensureGlobalWorld), so seeding and booting in
+ * either order converges on the same row.
+ */
+async function seedGameWorld(ids: { adminId: string }): Promise<void> {
+  const GLOBAL_WORLD_ID = "gameworld_global";
+
+  const existing = await prisma.gameWorld.findUnique({ where: { id: GLOBAL_WORLD_ID } });
+  if (existing?.chatId) return;
+
+  const chat = await prisma.chat.create({
+    data: {
+      title: "🌍 Game Server",
+      members: { create: [{ userId: ids.adminId, level: "Admin" }] },
+    },
+  });
+
+  await prisma.gameWorld.upsert({
+    where: { id: GLOBAL_WORLD_ID },
+    update: { chatId: chat.id },
+    create: {
+      id: GLOBAL_WORLD_ID,
+      slug: "global",
+      name: "Snake — Global",
+      chatId: chat.id,
+    },
+  });
+
+  await prisma.message.create({
+    data: {
+      chatId: chat.id,
+      userId: ids.adminId,
+      content: "Welcome to the game server chat — everyone who joins the game lands here.",
+      acl: [{ userId: ids.adminId, level: "Admin" }],
+    },
+  });
+}
+
+/**
+ * Snake movement tunables as a Definition row. Must mirror DEFAULT_TUNABLES
+ * in apps/api/src/services/game/world.ts — the server sim loads these at
+ * boot (and hot-reloads on admin edit); the Godot client fetches them at
+ * load. Edit via /admin/definitionService — no re-export needed.
+ */
+async function seedDefinitions(): Promise<void> {
+  await prisma.definition.upsert({
+    where: { type_key: { type: "tunables", key: "snake" } },
+    update: {},
+    create: {
+      type: "tunables",
+      key: "snake",
+      data: {
+        baseSpeed: 180,
+        boostSpeed: 320,
+        turnRate: 4,
+        startLength: 10,
+        minLength: 5,
+        boostBurnPerSecond: 1.5,
+        foodRadius: 14,
+        maxFood: 150,
+      },
+    },
+  });
+}
+// ── quickdraw-game:end ──
+
 async function main(): Promise<void> {
   const existing = await prisma.user.findUnique({ where: { email: DEMO_ADMIN_EMAIL } });
   if (existing) {
@@ -124,6 +196,10 @@ async function main(): Promise<void> {
   const ids = await seedUsers();
   await seedChat(ids);
   await seedDocument(ids);
+  // ── quickdraw-game:start ──
+  await seedGameWorld(ids);
+  await seedDefinitions();
+  // ── quickdraw-game:end ──
 
   console.log("Seeded demo users:");
   console.log(`  admin@demo.local      (Admin on all services)`);
@@ -136,4 +212,4 @@ main()
     console.error("Seed failed:", error);
     process.exitCode = 1;
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => disconnectPrisma());

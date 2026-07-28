@@ -22,6 +22,11 @@ model User {
   
   // Service-level access control: { "chatService": "Admin", "userService": "Read" }
   serviceAccess Json?     @map("service_access")
+
+  // ── quickdraw-game:start ──
+  // Guest sessions (anonymous game players) — see apps/api/src/auth/guest.ts
+  isGuest       Boolean   @default(false) @map("is_guest")
+  // ── quickdraw-game:end ──
   
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
@@ -32,6 +37,9 @@ model User {
   chatMembers   ChatMember[]
   messages      Message[]
   documents     Document[]
+  // ── quickdraw-game:start ──
+  gameScores    GameScore[]
+  // ── quickdraw-game:end ──
 
   @@map("users")
 }
@@ -147,18 +155,86 @@ model Document {
   title     String
   content   String   @default("")
   ownerId   String   @map("owner_id")
-  
+
   // Entry-level ACL stored as JSON array (same format as Chat.acl)
   // Format: [{ "userId": "...", "level": "Read" | "Moderate" | "Admin" }]
   // Unlike Chat, we use this directly instead of a membership table
   acl       Json?
-  
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-  
+
   // Relations
   owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([ownerId])
   @@map("documents")
 }
+
+// ── quickdraw-game:start ──
+// ============================================================================
+// Game Models
+// ============================================================================
+
+// A game world (the demo ships one global world with a deterministic id —
+// see GLOBAL_WORLD_ID in @project/shared). The row exists so the world gets
+// quickdraw subscription/room semantics and an admin surface for free; the
+// live simulation state is in-memory and never touches the database per tick.
+
+model GameWorld {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  // The world's global chat (rendered as the in-game chat overlay)
+  chatId    String?  @map("chat_id")
+  // Optional world-specific config overrides (tunables come from definitions)
+  config    Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  scores    GameScore[]
+
+  @@map("game_worlds")
+}
+
+// Data-driven game content: tunables, items, spells — anything you'd
+// otherwise bake into Godot .tres resources. Rows are served by
+// DefinitionService (public read, admin write via the generic admin UI),
+// fetched by both the server sim and the Godot client at load, so balance
+// changes never require re-exporting the game.
+model Definition {
+  id        String   @id @default(cuid())
+  // Namespace, e.g. "tunables", "items", "spells"
+  type      String
+  // Unique key within the type, e.g. "snake"
+  key       String
+  data      Json
+  version   Int      @default(1)
+  enabled   Boolean  @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([type, key])
+  @@map("definitions")
+}
+
+// Persistent per-user score for a world. Written outside the tick loop
+// (throttled upsert on death), read for leaderboards/profiles.
+model GameScore {
+  id         String   @id @default(cuid())
+  worldId    String   @map("world_id")
+  userId     String   @map("user_id")
+  bestLength Int      @default(0) @map("best_length")
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  world GameWorld @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([worldId, userId])
+  @@map("game_scores")
+}
+// ── quickdraw-game:end ──

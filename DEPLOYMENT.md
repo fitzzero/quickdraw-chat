@@ -76,24 +76,89 @@ LOG_LEVEL=info  # debug, info, warn, error
 One-time setup, then deploys are a `workflow_dispatch` away (or uncomment the
 `push: branches: [main]` trigger for deploy-on-merge).
 
+### 0. Pick a database
+
+Two supported shapes; the workflow defaults to **hosted Postgres**:
+
+- **Hosted Postgres with a direct TCP URL** (Prisma Postgres, Neon, Supabase…):
+  free tiers scale to zero, so an idle demo costs ~$0. Use the direct
+  `postgres://…?sslmode=require` string (for Prisma Postgres, _not_ the
+  `prisma+postgres://` Accelerate URL) as both the `DATABASE_URL` GCP secret
+  and the `DATABASE_MIGRATE_URL` GitHub secret. No proxy, no extra flags.
+- **Cloud SQL** (~$9+/mo, always-on): re-enable the three blocks marked
+  `Cloud SQL only` in `deploy.yml` (`CLOUD_SQL_INSTANCE` env, the proxy step,
+  `--set-cloudsql-instances`), create the instance below, and point
+  `DATABASE_MIGRATE_URL` at `127.0.0.1:5432` (proxy).
+
+### Cold starts
+
+The API deploys with `--min-instances=0` (see `deploy.yml`), so an idle demo
+costs ~$0 — and the first visitor after idle pays a ~5–15s Cloud Run cold
+start (`--cpu-boost` softens it). The web UI owns this: after ~2.5s of
+connecting it shows a "Warming up the server… (demo budget ☕)" hint
+(`useSlowLoadHint` in `apps/web/src/hooks/`). To eliminate cold starts
+entirely, set `--min-instances=1` in `deploy.yml` (~$10/mo for an always-warm
+instance).
+
 ### 1. GCP setup
 
 ```bash
 gcloud projects create <PROJECT_ID>            # or reuse one
-gcloud services enable run.googleapis.com sqladmin.googleapis.com \
+gcloud services enable run.googleapis.com \
   artifactregistry.googleapis.com secretmanager.googleapis.com
 
 # Artifact Registry repo (matches SERVICE_NAME in deploy.yml)
 gcloud artifacts repositories create quickdraw-chat \
   --repository-format=docker --location=us-central1
 
-# Cloud SQL (PostgreSQL 16)
+# Cloud SQL only (PostgreSQL 16) — skip for hosted Postgres
+gcloud services enable sqladmin.googleapis.com
 gcloud sql instances create <INSTANCE_NAME> --database-version=POSTGRES_16 \
   --region=us-central1 --tier=db-f1-micro
 gcloud sql databases create quickdraw_chat --instance=<INSTANCE_NAME>
+```
 
-# Workload Identity Federation for GitHub Actions (no JSON keys)
-# https://github.com/google-github-actions/auth#setup
+Workload Identity Federation + deploy service account (no JSON keys;
+`<PROJECT_NUMBER>` from `gcloud projects describe <PROJECT_ID>`):
+
+```bash
+gcloud iam workload-identity-pools create github --location=global
+gcloud iam workload-identity-pools providers create-oidc github-oidc \
+  --location=global --workload-identity-pool=github \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository=='<OWNER>/<REPO>'"
+
+gcloud iam service-accounts create <APP>-deploy
+DEPLOY_SA="<APP>-deploy@<PROJECT_ID>.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding <PROJECT_ID> \
+  --member="serviceAccount:$DEPLOY_SA" --role=roles/run.admin --condition=None
+gcloud projects add-iam-policy-binding <PROJECT_ID> \
+  --member="serviceAccount:$DEPLOY_SA" --role=roles/artifactregistry.writer --condition=None
+# Cloud SQL only: also grant roles/cloudsql.client for the migrate proxy
+
+# deploy SA may act as the runtime SA (default compute)
+gcloud iam service-accounts add-iam-policy-binding \
+  <PROJECT_NUMBER>-compute@developer.gserviceaccount.com \
+  --member="serviceAccount:$DEPLOY_SA" --role=roles/iam.serviceAccountUser
+
+# GitHub OIDC may impersonate the deploy SA (this repo only)
+gcloud iam service-accounts add-iam-policy-binding "$DEPLOY_SA" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github/attribute.repository/<OWNER>/<REPO>"
+
+# GCP_WORKLOAD_IDENTITY_PROVIDER GitHub secret value:
+#   projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github/providers/github-oidc
+```
+
+Secrets (repeat per name in the deploy.yml header; grant the runtime SA read):
+
+```bash
+printf '%s' "<value>" | gcloud secrets create JWT_SECRET \
+  --data-file=- --replication-policy=automatic
+gcloud secrets add-iam-policy-binding JWT_SECRET \
+  --member="serviceAccount:<PROJECT_NUMBER>-compute@developer.gserviceaccount.com" \
+  --role=roles/secretmanager.secretAccessor
 ```
 
 ### 2. Secrets
@@ -108,20 +173,48 @@ gcloud sql databases create quickdraw_chat --instance=<INSTANCE_NAME>
 
 ### 3. Placeholders
 
-- `.github/workflows/deploy.yml`: `SERVICE_NAME`, `CLOUD_SQL_INSTANCE`, region
+- `.github/workflows/deploy.yml`: `SERVICE_NAME`, region (+ `CLOUD_SQL_INSTANCE` if using Cloud SQL)
 - `apps/api/env.cloudrun.yaml`: `CLIENT_URL` (+ optional `EXTRA_ALLOWED_ORIGINS`, `COOKIE_DOMAIN`)
 
 ### 4. Vercel
 
-Create the Vercel project once (`bunx vercel link` from the repo root —
-`vercel.json` configures the Next.js build), set `NEXT_PUBLIC_API_URL` to the
-Cloud Run URL in the Vercel dashboard, and grab the org/project IDs for the
-GitHub secrets.
+- `bunx vercel link --yes --project <name>` once to create the project; org and
+  project IDs land in `.vercel/project.json` (→ GitHub secrets).
+- Set the project **Root Directory** to `apps/web` — dashboard
+  (Settings → Build & Deployment) or API; the CLI cannot set it, and builds
+  fail without it (`vercel.json` lives in `apps/web`).
+- Set `NEXT_PUBLIC_API_URL` for Production to the API origin.
+  **Do not create it as a "sensitive" env var** (some `vercel env add`
+  versions default to sensitive): the deploy workflow builds via
+  `vercel pull → vercel build`, and `pull` cannot decrypt sensitive values —
+  the bundle silently gets `""` and sockets connect to the page's own origin.
+  Verify with `vercel env pull`: the real value must appear.
+- Create an API token (Account Settings → Tokens) for the `VERCEL_TOKEN`
+  secret.
 
 ### 5. Deploy
 
-Run the **Deploy** workflow from the Actions tab. Inputs let you run
-migrations only, skip the scan, or deploy a single side.
+Run the **Deploy** workflow from the Actions tab (or merge to `main`). Inputs
+let you run migrations only, skip the scan, or deploy a single side.
+
+### 6. Custom domains (recommended)
+
+Serve web and API from the same parent domain (`app.example.com` +
+`app-io.example.com`): the session cookie then stays same-site, which keeps
+cookie auth working in Safari (the raw `vercel.app` ↔ `run.app` pairing is
+cross-site).
+
+- **Vercel**: add the domain to the project (dashboard/API), then
+  CNAME `<web-sub>` → `cname.vercel-dns.com` (DNS-only if your DNS proxies).
+- **Cloud Run**: verify the apex domain in
+  [Search Console](https://search.google.com/search-console) with the same
+  Google account as gcloud, then
+  `gcloud beta run domain-mappings create --service=<APP>-api --domain=<api-domain> --region=us-central1`
+  and CNAME `<api-sub>` → `ghs.googlehosted.com` (DNS-only). Managed cert
+  takes ~15–60 min.
+- Point `CLIENT_URL` + redirect URIs (`apps/api/env.cloudrun.yaml`) and
+  `NEXT_PUBLIC_API_URL` (Vercel) at these domains, and register the redirect
+  URIs in the Google/Discord consoles.
 
 ---
 

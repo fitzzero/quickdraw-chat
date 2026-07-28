@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { clearSessionCookie, extractBearerOrCookieToken } from "@fitzzero/quickdraw-core/server";
-import { prisma } from "@project/db";
+import { createAuthLimiter } from "@fitzzero/quickdraw-core/server/express";
 import { verifyJWT } from "./jwt.js";
+import { deleteSessionByToken, deleteSessionsForUser } from "./session-store.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -9,6 +10,12 @@ import { logger } from "../utils/logger.js";
  */
 export function createAuthRouter(): Router {
   const router = Router();
+
+  // Same abuse surface as the OAuth routes (JWT verify + DB writes), but
+  // these are authenticated session-management calls — looser limit.
+  // Path-scoped: the router is mounted at "/", so a bare router.use()
+  // would also count unmatched-404 traffic against the budget.
+  router.use(["/auth/logout", "/auth/sessions"], createAuthLimiter({ max: 60 }));
 
   /**
    * DELETE /auth/logout
@@ -28,12 +35,9 @@ export function createAuthRouter(): Router {
         return;
       }
 
-      // Delete the specific session
-      const result = await prisma.session.deleteMany({
-        where: { token },
-      });
+      const deletedCount = await deleteSessionByToken(token);
 
-      if (result.count === 0) {
+      if (deletedCount === 0) {
         // Session already deleted or never existed - still return success
         logger.debug("Logout: session not found", { userId: payload.userId });
       } else {
@@ -68,18 +72,15 @@ export function createAuthRouter(): Router {
         return;
       }
 
-      // Delete all sessions for this user
-      const result = await prisma.session.deleteMany({
-        where: { userId: payload.userId },
-      });
+      const deletedCount = await deleteSessionsForUser(payload.userId);
 
       logger.info("User logged out all devices", {
         userId: payload.userId,
-        sessionsDeleted: result.count,
+        sessionsDeleted: deletedCount,
       });
 
       clearSessionCookie(res);
-      res.json({ success: true, sessionsDeleted: result.count });
+      res.json({ success: true, sessionsDeleted: deletedCount });
     } catch (error) {
       logger.error("Logout all devices error:", {
         error: error instanceof Error ? error.message : "Unknown error",

@@ -40,6 +40,35 @@ export async function connectAsUser(port: number, userId: string): Promise<Socke
 }
 
 /**
+ * Connect to a test server with NO authentication (anonymous visitor).
+ * Public methods work; subscribe/channels are refused by the server.
+ */
+export async function connectAnonymously(port: number): Promise<Socket> {
+  const socket = ioClient(`http://localhost:${port}`, {
+    transports: ["websocket"],
+    autoConnect: true,
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error("Connection timeout"));
+    }, 5000);
+
+    socket.on("connect", () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+
+    socket.on("connect_error", (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+  });
+
+  return socket;
+}
+
+/**
  * Emit an event and wait for acknowledgment.
  */
 // oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- TPayload documents the expected payload shape for callers

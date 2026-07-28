@@ -2,6 +2,8 @@
   "Common": {
     "loading": "Loading...",
     "connecting": "Connecting...",
+    "close": "Close",
+    "warmingUp": "Warming up the server… (demo budget ☕)",
     "cancel": "Cancel",
     "confirm": "Confirm",
     "create": "Create",
@@ -21,14 +23,16 @@
     "true": "True",
     "false": "False",
     "noData": "No data",
-    "logoInitial": "Q",
-    "details": "Details"
+    "details": "Details",
+    "viewOnGitHub": "View source on GitHub"
   },
   "Nav": {
     "home": "Home",
     "chats": "Chats",
     "profile": "Profile",
-    "account": "Account"
+    "account": "Account",
+    "game": "Game",
+    "scores": "High Scores"
   },
   "Auth": {
     "signIn": "Sign In",
@@ -77,18 +81,49 @@
     "title": "Not Found",
     "defaultMessage": "The page you're looking for doesn't exist"
   },
-  "HomePage": {
-    "title": "Welcome to Quickdraw Chat",
-    "subtitle": "Real-time chat application built with the Quickdraw framework",
-    "goToChats": "Go to Chats",
-    "signInToStart": "Sign In to Get Started",
-    "featuresTitle": "Features",
-    "feature1Title": "Real-time Messaging",
-    "feature1Desc": "Send and receive messages instantly with Socket.IO-powered real-time communication.",
-    "feature2Title": "Multi-user Chats",
-    "feature2Desc": "Create chat rooms and invite multiple users to collaborate in real-time.",
-    "feature3Title": "Access Control",
-    "feature3Desc": "Fine-grained permissions with Read, Moderate, and Admin access levels."
+  "Landing": {
+    "title": "quickdraw",
+    "tagline": "The realtime fullstack starter for quickdraw-core",
+    "subtitle": "Typed Socket.IO services, two-tier access control, a full auth suite, and a multiplayer game foundation — already wired together. Fork it and build the interesting part.",
+    "ctaPlay": "Play the demo",
+    "ctaGitHub": "View on GitHub",
+    "featuresOverline": "What you get",
+    "featuresTitle": "Everything wired, nothing hidden",
+    "featRealtimeTitle": "Typed realtime services",
+    "featRealtimeDesc": "Request/response methods, live subscriptions, and fire-and-forget channels over Socket.IO — end-to-end typed, zod-validated, cached with TanStack Query.",
+    "featRealtimeDetail": "One defineMethod call gives you a validated, ACL-gated, acknowledged Socket.IO endpoint — and the client consumes it through a typed hook with caching and auto-invalidation. No REST boilerplate, no drift between client and server types.",
+    "featAclTitle": "Two-tier access control",
+    "featAclDesc": "Service-level roles plus per-entry ACLs (JSON or membership tables), enforced server-side on every method, subscription, and channel.",
+    "featAclDetail": "Core checks service-level roles first (Public/Read/Moderate/Admin from user.serviceAccess), then hands per-entry decisions to your service. ChatService overrides checkEntryACL with a membership table; DocumentService uses the built-in JSON ACL — both patterns ship working.",
+    "featGameTitle": "Multiplayer game foundation",
+    "featGameDesc": "A Godot 4 snake demo with real netcode: 20Hz input channels, client prediction, snapshot interpolation, server-side NPCs, and React overlays driving the sim.",
+    "featGameDetail": "Channels are the high-frequency counterpart to methods: fire-and-forget, zod-validated per message, rate-limited by a per-socket token bucket, and gated on room membership. The Godot client speaks the same wire format through a first-party GDScript Socket.IO client — game commands stay ordinary quickdraw methods a React button can call too.",
+    "featAuthTitle": "Auth, all of it",
+    "featAuthDesc": "Google & Discord OAuth, revocable sessions, guest play, a Discord Activity embed — and a mock OAuth flow so local dev never needs real credentials.",
+    "featAuthDetail": "Sessions are JWTs paired with revocable database rows, carried only in an httpOnly cookie — the same credential authenticates REST and every socket. Guest sessions mint real (marked) users so anonymous players get scores and chat; the mock OAuth provider runs a genuine code flow against seeded users and hard-blocks production boot.",
+    "featAdminTitle": "Generic admin dashboard",
+    "featAdminDesc": "Every service gets an admin CRUD surface for free — the game's live-tunable variables are edited right in the browser.",
+    "featAdminDetail": "installAdminMethods exposes list/get/create/update/delete with per-action access levels, and the generic /admin UI renders tables and editors from the schema — no per-service admin pages to build. The game's tunables (definitions) are edited live this way.",
+    "featTestingTitle": "Dual-mode testing",
+    "featTestingDesc": "Integration tests run on in-memory PGlite locally (seconds, no setup) and real PostgreSQL in CI — the same suite, both places.",
+    "featTestingDetail": "startTestServer boots the full Socket.IO server on an ephemeral port; connectAsUser and emitWithAck drive it like a real client. TEST_DATABASE_URL flips the database between fingerprint-cached in-memory PGlite (local default) and per-worker cloned PostgreSQL (CI).",
+    "featDeployTitle": "CI/CD included",
+    "featDeployDesc": "GitHub Actions for drift checks, lint, types, and sharded tests, plus a one-click deploy pipeline to Cloud Run and Vercel.",
+    "featDeployDetail": "CI fails PRs on migration drift and runs cached lint/typecheck/build plus sharded integration tests against real PostgreSQL. The deploy workflow chains a secret scan, Prisma migrations, a Docker image to Cloud Run, and the web app to Vercel — fill in the placeholders and it's one click.",
+    "featGuardrailsTitle": "Guardrails, for humans & agents",
+    "featGuardrailsDesc": "Strict lint rules ship with the framework and update with it, a custom-rule showcase is one file away, and path-scoped Claude rules keep agents on the rails.",
+    "featGuardrailsDetail": "The oxlint config extends quickdraw-core's shipped base (strict categories, the quickdraw rule plugin, complexity budgets) so best practices update with the package. eslint-plugin-project shows how to add your own rules — no-prisma-in-routes ships as the example — and .claude/rules/*.md load automatically when Claude Code touches matching paths.",
+    "featForkTitle": "Fork in one command",
+    "featForkDesc": "init-fork.sh renames the whole identity — app, database, deploy targets — and can carve out the game foundation cleanly if you don't need it.",
+    "featForkDetail": "One script rewrites databases, display names, deploy service names, the devcontainer, and optionally the backend port and package scope — then deletes itself. --without-game removes the entire game foundation along marked seams and verifies the result builds before it finishes.",
+    "viewCode": "View the code",
+    "viewSource": "View source on GitHub",
+    "quickStartOverline": "Quick start",
+    "quickStartTitle": "Zero to realtime in four commands",
+    "quickStartForkHint": "# then make it yours — one script renames everything:",
+    "footerGitHub": "GitHub",
+    "footerCore": "quickdraw-core on npm",
+    "footerNote": "MIT licensed. Fork it and go."
   },
   "ChatsPage": {
     "title": "Your Chats",
@@ -100,7 +135,10 @@
     "title": "Profile",
     "publicProfileTitle": "Public Profile",
     "publicProfileDesc": "This is how others see your profile. Your email is not visible to other users.",
-    "customizationComingSoon": "Profile customization coming soon..."
+    "customizationComingSoon": "Profile customization coming soon...",
+    "editName": "Edit display name",
+    "nameTaken": "That name is already taken",
+    "displayNameHint": "Your display name is shown to other players in chats, in the game, and on the high-scores board."
   },
   "AccountPage": {
     "title": "Account Settings",
@@ -129,7 +167,7 @@
   },
   "LoginPage": {
     "title": "Welcome",
-    "subtitle": "Sign in to access the chat application",
+    "subtitle": "Sign in to Quickdraw",
     "continueWithDiscord": "Continue with Discord",
     "errorCancelled": "Authentication was cancelled",
     "errorFailed": "Authentication failed. Please try again.",
@@ -139,7 +177,7 @@
     "demoLoginHint": "Development only — sign in as a seeded demo account"
   },
   "Sidebar": {
-    "appName": "quickdraw-chat"
+    "appName": "quickdraw"
   },
   "ChatSidebar": {
     "membersTitle": "Members",
@@ -184,5 +222,50 @@
     "adminAccessFor": "Admin: {service}",
     "saveAccess": "Save Access",
     "cancelChanges": "Cancel"
+  },
+  "GamePage": {
+    "title": "Quickdraw Snake",
+    "loadingEngine": "Loading game engine…",
+    "connecting": "Connecting to the game server…"
+  },
+  "GameHud": {
+    "leaderboard": "Leaderboard",
+    "anonymous": "Anonymous",
+    "rankedName": "{rank}. {name}"
+  },
+  "GameChat": {
+    "title": "🌍 Game Server",
+    "open": "Open game chat",
+    "minimize": "Minimize chat"
+  },
+  "DiscordActivity": {
+    "connectingDiscord": "Connecting to Discord…",
+    "authorizing": "Authorizing…"
+  },
+  "GameDialog": {
+    "title": "Quickdraw Snake",
+    "deathTitle": "You died!",
+    "lastRun": "That run: {length} segments",
+    "bestRun": "Best run: {length} segments",
+    "guestNamePlaceholder": "Pick a snake name…",
+    "start": "Start",
+    "playAsGuest": "Play as guest",
+    "respawn": "Respawn",
+    "starting": "Starting…",
+    "loadingWorld": "Loading world…",
+    "logIn": "Log in",
+    "logInHint": "Log in for persistent stats & high scores",
+    "topScores": "All-time best",
+    "anonymous": "Anonymous",
+    "highScores": "All high scores"
+  },
+  "ScoresPage": {
+    "title": "High Scores",
+    "rank": "#",
+    "player": "Player",
+    "best": "Best",
+    "guest": "Guest",
+    "anonymous": "Anonymous",
+    "empty": "No scores yet — go play!"
   }
 }

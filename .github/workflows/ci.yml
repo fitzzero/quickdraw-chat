@@ -11,6 +11,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Secret scan is blocking (verified findings only ≈ no false positives);
+  # the dependency audit is advisory — remove continue-on-error once your
+  # fork owns its dependency tree (see .claude/rules/security.md).
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Scan for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Dependency audit (advisory)
+        run: bun audit
+        continue-on-error: true
+
   # Fails when schema.prisma changed without a matching migration file —
   # keeps prisma/migrations authoritative for test DBs and deploys.
   migrate-check:
@@ -155,7 +176,7 @@ jobs:
           - shard: 1
             int_files: "chat,message"
           - shard: 2
-            int_files: "user,document"
+            int_files: "user,document,session-cleanup"
     steps:
       - uses: actions/checkout@v6
 

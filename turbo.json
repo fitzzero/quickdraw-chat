@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "envMode": "loose",
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -7,13 +8,20 @@
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "dev": {
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true,
       "passThroughEnv": ["*"]
     },
     "lint": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**/*.ts", "src/**/*.tsx", "../../.oxlintrc.json"],
+      "inputs": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "../../.oxlintrc.json",
+        "../../eslint-plugin-project/**",
+        "../../node_modules/@fitzzero/quickdraw-core/oxlint.base.jsonc"
+      ],
       "outputs": [],
       "cache": true
     },

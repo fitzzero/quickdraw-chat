@@ -25,14 +25,18 @@ export function MessageList({
 }: MessageListProps): React.ReactElement {
   const t = useTranslations("MessageList");
   const tCommon = useTranslations("Common");
-  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const listRef = React.useRef<HTMLDivElement>(null);
 
-  // Follow the conversation only when the *newest* message changes —
-  // paging older history in at the top must not yank the scroll down
+  // Scroll the list container directly — scrollIntoView would also scroll
+  // every scrollable ancestor (it shifts the whole game surface when the
+  // chat overlay is open inside the full-bleed game page). Follow the
+  // conversation only when the *newest* message changes — paging older
+  // history in at the top must not yank the scroll down.
   const lastMessageId = messages.length > 0 ? messages[messages.length - 1]?.id : undefined;
   React.useEffect(() => {
-    if (lastMessageId) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const list = listRef.current;
+    if (list && lastMessageId) {
+      list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
     }
   }, [lastMessageId]);
 
@@ -67,7 +71,7 @@ export function MessageList({
   }
 
   return (
-    <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
+    <Box ref={listRef} sx={{ flex: 1, overflow: "auto", p: 2 }}>
       {hasMore && (
         <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
           <Button size="small" variant="outlined" onClick={onLoadOlder} disabled={isLoadingMore}>
@@ -134,7 +138,6 @@ export function MessageList({
           </Box>
         );
       })}
-      <div ref={messagesEndRef} />
     </Box>
   );
 }

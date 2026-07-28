@@ -20,7 +20,7 @@ import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useSocket } from "../../providers";
-import { useSubscription, useAdminServices } from "../../hooks";
+import { useSubscription, useAdminServices, useSlowLoadHint } from "../../hooks";
 import { logout } from "../../lib/auth";
 
 export function UserMenu(): React.ReactElement {
@@ -28,6 +28,7 @@ export function UserMenu(): React.ReactElement {
   const tCommon = useTranslations("Common");
   const tAuth = useTranslations("Auth");
   const { userId, isConnected } = useSocket();
+  const showWarmingHint = useSlowLoadHint(!isConnected);
   const { data: user } = useSubscription("userService", userId ?? "");
   const { hasAdminAccess } = useAdminServices();
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
@@ -47,12 +48,12 @@ export function UserMenu(): React.ReactElement {
     window.location.href = "/";
   };
 
-  // Not connected yet
+  // Not connected yet — a long wait is (in production) a cold start
   if (!isConnected) {
     return (
       <Box sx={{ p: 2, opacity: 0.5 }}>
         <Typography variant="body2" color="text.secondary">
-          {tCommon("connecting")}
+          {showWarmingHint ? tCommon("warmingUp") : tCommon("connecting")}
         </Typography>
       </Box>
     );

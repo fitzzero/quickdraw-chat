@@ -5,6 +5,7 @@ import { Box, Drawer, SwipeableDrawer, List, Typography, Divider } from "@mui/ma
 import { useTranslations } from "next-intl";
 import { useIsMobile, useFilteredNavigation } from "../../hooks";
 import { useLayout } from "../../providers";
+import { Logo } from "../common/Logo";
 import { NavAccordion } from "./NavAccordion";
 import { UserMenu } from "./UserMenu";
 
@@ -17,7 +18,6 @@ interface LeftSidebarProps {
 
 export function LeftSidebar({ appBarHeight = 64 }: LeftSidebarProps): React.ReactElement {
   const t = useTranslations("Sidebar");
-  const tCommon = useTranslations("Common");
   const isMobile = useIsMobile();
   const { leftDrawerOpen, setLeftDrawerOpen } = useLayout();
   const { navigation } = useFilteredNavigation();
@@ -47,21 +47,7 @@ export function LeftSidebar({ appBarHeight = 64 }: LeftSidebarProps): React.Reac
           minHeight: appBarHeight,
         }}
       >
-        <Box
-          sx={{
-            width: 32,
-            height: 32,
-            borderRadius: 1,
-            bgcolor: "primary.main",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Typography variant="h6" sx={{ color: "white", fontWeight: 700 }}>
-            {tCommon("logoInitial")}
-          </Typography>
-        </Box>
+        <Logo size={32} />
         <Typography variant="h6" sx={{ fontWeight: 600 }}>
           {t("appName")}
         </Typography>
@@ -70,7 +56,7 @@ export function LeftSidebar({ appBarHeight = 64 }: LeftSidebarProps): React.Reac
       <Divider />
 
       {/* Navigation */}
-      <Box sx={{ flex: 1, overflow: "auto", py: 1 }}>
+      <Box sx={{ flex: 1, overflow: "auto", py: 1, px: 1 }}>
         <List disablePadding>
           {navigation.map((item) => (
             <NavAccordion

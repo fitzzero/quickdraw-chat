@@ -27,16 +27,28 @@ import { UserService } from "./services/user/index.js";
 import { ChatService } from "./services/chat/index.js";
 import { MessageService } from "./services/message/index.js";
 import { DocumentService } from "./services/document/index.js";
+// ── quickdraw-game:start ──
+import { CHANNEL_EVENT_PREFIX } from "@fitzzero/quickdraw-core";
+import { DEFINITION_TYPES, SNAKE_TUNABLES_KEY } from "@project/shared";
+import { GameService } from "./services/game/index.js";
+import { ensureGlobalWorld, loadSnakeTunables } from "./services/game/bootstrap.js";
+import { DefinitionService } from "./services/definition/index.js";
+import { registerDiscordActivityRoutes } from "./auth/discord-activity.js";
+import { registerGuestRoutes } from "./auth/guest.js";
+// ── quickdraw-game:end ──
 import { createSocketAuth } from "./auth/middleware.js";
 import { registerDiscordRoutes } from "./auth/discord.js";
 import { registerGoogleRoutes } from "./auth/google.js";
 import { registerMockRoutes } from "./auth/mock.js";
 import { createAuthRouter } from "./auth/routes.js";
+import { deleteExpiredSessions } from "./auth/session-store.js";
 
 // Validate required environment variables in production
 if (process.env.NODE_ENV === "production") {
   validateEnv({
-    required: ["DATABASE_URL", "JWT_SECRET", "CLIENT_URL"],
+    // ENCRYPTION_KEY: stored OAuth tokens are only encrypted at rest when it
+    // is set — a public deploy without it would persist them plaintext.
+    required: ["DATABASE_URL", "JWT_SECRET", "CLIENT_URL", "ENCRYPTION_KEY"],
     productionOnly: true,
   });
 
@@ -82,6 +94,9 @@ app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(cookieParser());
 app.use(
   express.json({
+    // REST here is auth-only (tiny payloads) — raise per-route if a fork
+    // adds large webhook/upload bodies
+    limit: "100kb",
     // Keep the raw body around for webhook signature verification
     verify: (req, _res, buf) => {
       (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
@@ -107,6 +122,14 @@ app.use(["/auth/google", "/auth/discord", "/auth/mock"], createAuthLimiter());
 registerDiscordRoutes(app);
 registerGoogleRoutes(app);
 registerMockRoutes(app);
+// ── quickdraw-game:start ──
+// Discord Activity (Embedded App SDK) code exchange — covered by the
+// /auth/discord rate limiter above
+registerDiscordActivityRoutes(app);
+// Guest sessions for anonymous game play
+app.use("/auth/guest", createAuthLimiter());
+registerGuestRoutes(app);
+// ── quickdraw-game:end ──
 app.use(createAuthRouter());
 
 // Socket.io server
@@ -135,6 +158,28 @@ serviceRegistry.registerService("messageService", messageService);
 const documentService = new DocumentService(prisma);
 serviceRegistry.registerService("documentService", documentService);
 
+// ── quickdraw-game:start ──
+// Definition service - data-driven game content (public read, admin write)
+const definitionService = new DefinitionService(prisma);
+serviceRegistry.registerService("definitionService", definitionService);
+
+// Game service - authoritative snake sim; commands are methods, input is a
+// channel, snapshots broadcast volatile at tick rate to the world room
+await ensureGlobalWorld(prisma);
+const gameService = new GameService(prisma, { tunables: await loadSnakeTunables(prisma) });
+serviceRegistry.registerService("gameService", gameService);
+gameService.startLoop();
+process.on("SIGTERM", () => gameService.stopLoop());
+
+// Admin edits to the snake tunables hot-reload the running sim
+definitionService.onChanged((definition) => {
+  if (definition.type === DEFINITION_TYPES.tunables && definition.key === SNAKE_TUNABLES_KEY) {
+    gameService.sim.applyTunables(definition.data);
+    logger.info("Applied updated snake tunables from definition edit");
+  }
+});
+// ── quickdraw-game:end ──
+
 // Rate limiting - prevents abuse and ensures fair resource usage:
 // 100 requests per minute per socket. Subscription traffic is exempt —
 // exclusion is exact event-name matching, so the list is built from the
@@ -151,6 +196,10 @@ const rateLimiter = createRateLimiter({
       `${service}:collection:subscribe`,
       `${service}:collection:unsubscribe`,
     ]),
+  // ── quickdraw-game:start ──
+  // Channels enforce their own per-socket token buckets (see game-patterns.md)
+  excludePrefixes: [CHANNEL_EVENT_PREFIX],
+  // ── quickdraw-game:end ──
 });
 
 applyRateLimitMiddleware(io, rateLimiter, {
@@ -238,6 +287,29 @@ io.on("connection", (socket) => {
     }
   });
 });
+
+// Expired-session cleanup: revoked/expired Session rows are already rejected
+// at auth time; this hourly sweep is hygiene so the table doesn't grow
+// unbounded. Plain timer, deliberately not the game loop (no DB in the tick
+// path — see game-patterns.md).
+const SESSION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+async function cleanupExpiredSessions(): Promise<void> {
+  try {
+    const count = await deleteExpiredSessions();
+    if (count > 0) logger.info("Deleted expired sessions", { count });
+  } catch (error) {
+    logger.error("Session cleanup failed", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+void cleanupExpiredSessions();
+const sessionCleanupTimer = setInterval(
+  () => void cleanupExpiredSessions(),
+  SESSION_CLEANUP_INTERVAL_MS,
+);
+sessionCleanupTimer.unref();
+process.on("SIGTERM", () => clearInterval(sessionCleanupTimer));
 
 // Start server
 httpServer.listen(Number(PORT), "0.0.0.0", () => {

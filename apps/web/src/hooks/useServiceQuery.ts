@@ -9,9 +9,9 @@ interface UseServiceQueryOptions<TResponse> {
   gcTime?: number;
   skipCache?: boolean;
   /**
-   * Room events that invalidate (refetch) this query — for genuinely
-   * query-shaped reads (joins, aggregates). Live *row lists* should be
-   * server collections consumed with useCollection instead.
+   * Socket events that auto-refetch this query (debounced by core) — for
+   * genuinely query-shaped reads (joins, aggregates). Live *row lists*
+   * should be server collections consumed with useCollection instead.
    */
   invalidateOn?: string[];
   onSuccess?: (data: TResponse) => void;
