@@ -1,5 +1,5 @@
 import type { User, Prisma, PrismaClient } from "@project/db";
-import type { UserServiceMethods, AccessLevel } from "@project/shared";
+import type { UserDTO, UserServiceMethods, AccessLevel } from "@project/shared";
 import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 import { z } from "zod";
 
@@ -24,7 +24,9 @@ export class UserService extends BaseService<
   User,
   Prisma.UserCreateInput,
   Prisma.UserUpdateInput,
-  UserServiceMethods
+  UserServiceMethods,
+  Record<string, never>,
+  UserDTO
 > {
   private readonly prisma: PrismaClient;
 
@@ -69,6 +71,17 @@ export class UserService extends BaseService<
     });
   }
 
+  // Wire shape: the public profile + protected fields (see below)
+  protected override toDto(user: User): UserDTO {
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      image: user.image,
+      serviceAccess: user.serviceAccess as Record<string, AccessLevel> | null,
+    };
+  }
+
   // Users can access their own data
   protected override checkAccess(
     userId: string,
@@ -84,8 +97,9 @@ export class UserService extends BaseService<
     return userId === entryId;
   }
 
-  // Protected fields that non-elevated subscribers won't receive
-  protected override getProtectedFields(): (keyof User)[] {
+  // Protected fields (of the wire DTO) that non-elevated subscribers won't
+  // receive — live emits strip these for everyone outside the :full room
+  protected override getProtectedFields(): (keyof UserDTO)[] {
     return ["email", "serviceAccess"];
   }
 
@@ -155,5 +169,8 @@ export class UserService extends BaseService<
         resolveEntryId: (p) => p.id,
       },
     );
+
+    // Fail fast at construction if the method map and definitions drift
+    this.verifyAllMethods(["getMe", "updateUser"]);
   }
 }

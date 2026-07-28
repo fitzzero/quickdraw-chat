@@ -25,7 +25,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { SocketTextField } from "@fitzzero/quickdraw-core/client";
 import { useSocket } from "../../providers";
-import { useRoomEvents, useService, useServiceQuery, useSubscription } from "../../hooks";
+import { useService, useServiceQuery, useSubscription } from "../../hooks";
 import { UserAvatar } from "../user";
 import { ConfirmDialog } from "../feedback";
 import type { ChatMemberDTO, AccessLevel, SubscriptionDataMap } from "@project/shared";
@@ -301,26 +301,21 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
   const router = useRouter();
   const { userId, serviceAccess } = useSocket();
 
-  // Chat subscription for title (also keeps the socket in the chat room)
+  // Chat subscription for title (also keeps the socket in the chat room,
+  // which the invalidateOn below relies on)
   const { data: chat } = useSubscription("chatService", chatId);
 
-  // Fetch members with useServiceQuery
+  // Members roster: a genuinely query-shaped read (joined user profiles),
+  // so it stays a query — invalidateOn refetches it whenever the server
+  // broadcasts the typed chat:memberUpdate room event. This replaces the
+  // old useState + useRoomEvents merge.
   const { data: queryMembers, isLoading: membersLoading } = useServiceQuery(
     "chatService",
     "getChatMembers",
     { chatId },
-    { enabled: !!chatId },
+    { enabled: !!chatId, invalidateOn: ["chat:memberUpdate"] },
   );
-
-  // Local members state (synced from query and socket updates)
-  const [members, setMembers] = React.useState<ChatMemberDTO[]>([]);
-
-  // Sync query data to local state
-  React.useEffect(() => {
-    if (queryMembers) {
-      setMembers(queryMembers);
-    }
-  }, [queryMembers]);
+  const members = React.useMemo(() => queryMembers ?? [], [queryMembers]);
 
   // UI state
   const [isEditingTitle, setIsEditingTitle] = React.useState(false);
@@ -349,17 +344,6 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
 
   const canModerate = isLevelSufficient(effectiveLevel, "Moderate");
   const canAdmin = isLevelSufficient(effectiveLevel, "Admin");
-
-  // Listen for member updates broadcast to the chat room.
-  // Room membership is managed by the useSubscription call above;
-  // useRoomEvents only attaches/detaches the listener.
-  useRoomEvents({
-    "chat:memberUpdate": (update: { members?: ChatMemberDTO[] }) => {
-      if (update.members) {
-        setMembers(update.members);
-      }
-    },
-  });
 
   // Handle title update
   const handleTitleUpdate = React.useCallback(

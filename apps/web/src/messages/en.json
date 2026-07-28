@@ -57,7 +57,8 @@
     "placeholder": "Type a message..."
   },
   "MessageList": {
-    "noMessages": "No messages yet. Start the conversation!"
+    "noMessages": "No messages yet. Start the conversation!",
+    "loadOlder": "Load older messages"
   },
   "UserMenu": {
     "profile": "Profile",

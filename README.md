@@ -10,16 +10,55 @@ This project serves as:
 2. **Reference implementation** showing best practices for quickdraw-based apps
 3. **Production-ready template** for starting new quickdraw projects (conveyor-ready out of the box)
 
+## Live lists in one declaration
+
+The heart of quickdraw 4.0: a **collection** is "rows of this service,
+grouped by a scope id derived from the row". Declare it once server-side and
+every list UI gets live deltas, pagination, reconnect re-snapshots, and ACL —
+no hand-typed `*:created`/`*:deleted` events, no `staleTime: 0` refetching,
+no merge/dedupe state.
+
+```typescript
+// apps/api/src/services/message/index.ts — the chat's message history
+this.defineCollection("byChat", {
+  resolveScopeId: (message) => message.chatId, // membership is a pure function of the row
+  checkScopeAccess: (userId, chatId) => this.checkChatAccess(userId, chatId, "Read"),
+  snapshot: (chatId, { cursor, limit }) => this.byChatSnapshot(chatId, { cursor, limit }),
+});
+// this.create()/this.delete() now emit added/removed deltas automatically
+```
+
+```tsx
+// apps/web/src/components/chat/ChatWindow.tsx — the whole client
+const {
+  items: messages,
+  hasMore,
+  loadMore,
+} = useCollection<MessageDTO>("messageService", "byChat", chatId, { compare: compareByCreatedAt });
+```
+
+The template demonstrates both scope shapes end to end:
+
+| Collection                | Scope                            | Shows off                                                                                                                                                                                                                                        |
+| ------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `messageService` `byChat` | chat id                          | Fully automatic deltas from the CRUD trio; unbounded history (no `ids`) with `loadMore` cursor paging                                                                                                                                            |
+| `chatService` `myChats`   | **user id** (`string[]` fan-out) | Scopes aren't only parent entities: one chat fans out to every member's list. Manual choke points for junction-table writes + cascade-safe delete; snapshot `ids` prune offline deletions; cross-service `lastMessageAt` refresh via write hooks |
+
 ## Features
 
+- **Live collections**: `defineCollection` + `useCollection` power the chat
+  sidebar and message history (see above) — plus write lifecycle hooks and
+  typed room events (`QuickdrawEventMap`)
 - **Real-time chat**: Socket.io for live updates and subscriptions
-- **Type-safe**: End-to-end TypeScript with shared types
+- **Type-safe**: End-to-end TypeScript with shared types; services declare
+  wire DTOs (`TDto` + `toDto`)
 - **Service-based**: BaseService pattern with auto-wired Socket.io methods
 - **Dual ACL patterns**: Membership table (Chat) and JSON ACL (Document) examples
-- **Auth out of the box**: Google + Discord OAuth, session cookies, and a dev-only **mock OAuth** flow — sign in as seeded demo users with zero credentials
+- **Auth out of the box**: Google + Discord OAuth, session cookies, and a dev-only **mock OAuth** flow — sign in as seeded demo users with zero credentials; socket auth is shaped as core's `createQuickdrawServer` hooks
 - **Dual-mode testing**: integration tests run on in-memory PGlite locally (no PostgreSQL, seconds) and real PostgreSQL in CI
 - **Hardened API**: helmet, origin-validated CORS, rate-limited auth routes, production hard-blocks for dev flags
 - **Modern React**: TanStack Query for server state management, Material-UI
+- **MCP server**: every service method exposed as an MCP tool over stdio (`.mcp.json` wired for Claude Code)
 - **CI/CD**: migration drift check, cached lint/typecheck/build, sharded tests; parameterized Cloud Run + Vercel deploy workflow
 - **Claude-ready**: CLAUDE.md + path-scoped rules in `.claude/rules/`
 
@@ -83,12 +122,23 @@ Real env vars (e.g. CI) always take precedence.
 
 ## Services
 
-| Service         | Purpose                    | ACL Pattern                                 |
-| --------------- | -------------------------- | ------------------------------------------- |
-| UserService     | User profile management    | Self-access (override `checkAccess`)        |
-| ChatService     | Chat rooms with membership | Membership table (`checkEntryACL` override) |
-| MessageService  | Real-time messaging        | Inherits from parent chat                   |
-| DocumentService | Document collaboration     | JSON ACL (default `checkEntryACL`)          |
+| Service         | Purpose                    | ACL Pattern                                 | Collections             |
+| --------------- | -------------------------- | ------------------------------------------- | ----------------------- |
+| UserService     | User profile management    | Self-access (override `checkAccess`)        | —                       |
+| ChatService     | Chat rooms with membership | Membership table (`checkEntryACL` override) | `myChats` (user-scoped) |
+| MessageService  | Real-time messaging        | Inherits from parent chat                   | `byChat` (chat-scoped)  |
+| DocumentService | Document collaboration     | JSON ACL (default `checkEntryACL`)          | —                       |
+
+Cross-service helpers (auth guards, pagination, schema builders) live in
+`apps/api/src/services/shared/`.
+
+## MCP Server
+
+`apps/api/src/mcp-server.ts` exposes every service method as an MCP tool over
+stdio (core's `McpRegistry` + `createMcpStdioServer`). The root `.mcp.json`
+registers it for Claude Code — build once (`bun run build`), and the server
+runs through `scripts/load-env.sh` so it sees the same database as `bun run
+dev`. Run it manually with `bun run mcp` from `apps/api`.
 
 ## Development
 

@@ -44,9 +44,10 @@ const mcpRegistry = new McpRegistry({
   },
 });
 
+const chatService = new ChatService(prisma);
 mcpRegistry.registerService("userService", new UserService(prisma));
-mcpRegistry.registerService("chatService", new ChatService(prisma));
-mcpRegistry.registerService("messageService", new MessageService(prisma));
+mcpRegistry.registerService("chatService", chatService);
+mcpRegistry.registerService("messageService", new MessageService(prisma, chatService));
 mcpRegistry.registerService("documentService", new DocumentService(prisma));
 
 createMcpStdioServer({

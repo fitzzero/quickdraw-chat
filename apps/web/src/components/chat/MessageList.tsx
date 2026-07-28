@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Box, Typography, Avatar, Paper, CircularProgress } from "@mui/material";
+import { Box, Button, Typography, Avatar, Paper, CircularProgress } from "@mui/material";
 import { useTranslations } from "next-intl";
 import type { MessageDTO } from "@project/shared";
 
@@ -9,20 +9,32 @@ interface MessageListProps {
   messages: MessageDTO[];
   isLoading: boolean;
   currentUserId?: string | null;
+  /** Older history exists beyond the loaded window */
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadOlder?: () => void;
 }
 
 export function MessageList({
   messages,
   isLoading,
   currentUserId,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadOlder,
 }: MessageListProps): React.ReactElement {
   const t = useTranslations("MessageList");
   const tCommon = useTranslations("Common");
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
+  // Follow the conversation only when the *newest* message changes —
+  // paging older history in at the top must not yank the scroll down
+  const lastMessageId = messages.length > 0 ? messages[messages.length - 1]?.id : undefined;
   React.useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+    if (lastMessageId) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [lastMessageId]);
 
   if (isLoading) {
     return (
@@ -56,6 +68,13 @@ export function MessageList({
 
   return (
     <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
+      {hasMore && (
+        <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
+          <Button size="small" variant="outlined" onClick={onLoadOlder} disabled={isLoadingMore}>
+            {isLoadingMore ? <CircularProgress size={18} /> : t("loadOlder")}
+          </Button>
+        </Box>
+      )}
       {messages.map((message) => {
         const isOwnMessage = message.userId === currentUserId;
 

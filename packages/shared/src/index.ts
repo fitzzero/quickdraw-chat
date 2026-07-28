@@ -2,4 +2,4 @@
 // These types are used by both server and client
 
 export type * from "./types.js";
-export { serviceRoom, userRoom } from "./room-helpers.js";
+export { serviceRoom, collectionRoom, userRoom } from "./room-helpers.js";

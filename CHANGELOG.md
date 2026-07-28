@@ -1,5 +1,87 @@
 # Changelog
 
+## quickdraw-core 4.0 migration + collections demo (2026-07-28)
+
+Migrated to `@fitzzero/quickdraw-core` ^4.0.0 and made the template the
+reference demo for the collection-subscription primitive (core RFC 0001 —
+this repo is Phase 3). Every hand-maintained live list is gone: no
+`staleTime: 0` refetching, no mirror room events, no `useState` merge/dedupe.
+
+### Added
+
+- **`chatService` `myChats` collection** — scope = _user id_, exercising the
+  `string[]` fan-out (one chat row lands in every member's scope).
+  `createChat`/`updateTitle` emit deltas automatically through the CRUD trio;
+  membership writes (invite/remove/leave) and `deleteChat` go through the
+  manual choke points (`refreshMyChatsItem`, `emitCollectionRemove` — see the
+  cascade-delete comment on `deleteChat`). Snapshots return membership `ids`,
+  so reconnecting clients prune chats deleted while they were offline.
+- **`messageService` `byChat` collection** — scope = chat id, unbounded
+  history (`ids` deliberately omitted): fully automatic `added`/`removed`
+  deltas from the trio, cursor pagination via the subscribe event.
+- **Client**: `useMyChats()` (one live subscription shared by the sidebar nav
+  and the /chats page) and `ChatWindow` on
+  `useCollection("messageService", "byChat", chatId)` with a real
+  "Load older messages" control (`loadMore`/`hasMore` — the old page
+  hardcoded pageSize 50 with no paging). `ChatSidebar`'s member roster now
+  demonstrates `invalidateOn: ["chat:memberUpdate"]` for query-shaped reads.
+- **Write lifecycle hooks demo**: `MessageService.afterCreate/afterDelete`
+  call `chatService.refreshMyChatsItem`, keeping `lastMessageAt` (and sidebar
+  ordering) live across services.
+- **Typed room events**: `QuickdrawEventMap` augmentation in
+  `packages/shared/src/types/events.ts` (`chat:memberUpdate`); shared room
+  helpers now wrap core's, including `collectionRoom`.
+- **`services/shared/` helpers** — `requireAuth`/`requireEntity` guards,
+  `parsePagination`/`cursorPageArgs`/`sliceCursorPage`, zod schema builders —
+  consumed by the services, upstream candidates (core RFC 0002 §3.4).
+- **MCP server wired**: root `.mcp.json` runs the existing
+  `apps/api/src/mcp-server.ts` scaffold through `scripts/load-env.sh`
+  (build first: `bun run build`); `bun run mcp` from `apps/api` for manual runs.
+- **`collections.int.test.ts`**: 10 integration tests pinning the server
+  contract — delta propagation to a second client (automatic + choke-point +
+  cross-service paths), scope ACL denials, and the reconnect re-snapshot
+  `ids` prune for rows deleted while disconnected.
+
+### Changed
+
+- `@fitzzero/quickdraw-core` ^3.7.0 → ^4.0.0 (UPGRADE-PROMPT Part 1):
+  - All four services declare wire DTOs (`TDto` + `toDto`) — `emitUpdate`
+    casts are gone and `SubscriptionDataMap` finally tells the truth (ISO
+    dates on the wire). Deletes route through `this.delete()` for the
+    framework tombstone.
+  - Socket auth reshaped into the `createQuickdrawServer` hook contract:
+    `createSocketAuth({ prisma, getServiceNames })` returns
+    `{ authenticate, loadServiceAccess }`. Production runs the hooks in a
+    local middleware (it owns its Express app for OAuth); the integration
+    test server now IS `createQuickdrawServer` with the same hooks against
+    the test DB. `auth:info` gains `principalType` and is emitted for
+    anonymous sockets; user-room joins moved to the connection handler.
+  - Admin types: web hooks import the canonical 4.0 shapes from core instead
+    of redeclaring them.
+  - Rate limiter subscription exemptions fixed: `excludeEvents` is
+    exact-match, so the list is built from registered services (the old
+    `["subscribe", "unsubscribe"]` matched nothing) and covers the new
+    collection subscribe events.
+  - Services call `verifyAllMethods([...])` at construction.
+- `.claude/rules/` refreshed: collections as THE live-list pattern +
+  lifecycle hooks + two-tier emit model (service-architecture),
+  `useCollection` as the default list tool + legacy patterns called out
+  (client-patterns), collection test recipe (testing-patterns), MCP + auth
+  hooks + `verifyAllMethods` (api-conventions).
+
+### Removed
+
+- `listMyChats` / `listMessages` methods (collection snapshots replaced
+  them), the `chat:message` compensation event, `useRecentChats`, the unused
+  `ChatList` component, and the local `serviceRoom`/`userRoom`
+  implementations (now core re-exports).
+
+### Follow-up (upstream)
+
+Core 4.0 friction found while building the demo — cascade-delete vs async
+`resolveScopeId`, `createQuickdrawServer` extensibility, double `toDto` per
+write, and more — is written up in `docs/FOLLOW-UP-core-4.0.md`.
+
 ## Template Modernization (2026-06-09)
 
 Back-ported conveyor's production improvements via quickdraw-core 3.7 and

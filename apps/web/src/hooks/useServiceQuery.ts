@@ -8,6 +8,12 @@ interface UseServiceQueryOptions<TResponse> {
   staleTime?: number;
   gcTime?: number;
   skipCache?: boolean;
+  /**
+   * Room events that invalidate (refetch) this query — for genuinely
+   * query-shaped reads (joins, aggregates). Live *row lists* should be
+   * server collections consumed with useCollection instead.
+   */
+  invalidateOn?: string[];
   onSuccess?: (data: TResponse) => void;
   onError?: (error: string) => void;
 }

@@ -1,7 +1,14 @@
 import type { Document, Prisma, PrismaClient } from "@project/db";
-import type { DocumentServiceMethods, ACL, AccessLevel } from "@project/shared";
+import type { DocumentDTO, DocumentServiceMethods, ACL, AccessLevel } from "@project/shared";
 import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 import { z } from "zod";
+import {
+  byIdSchema,
+  cuidSchema,
+  paginationSchema,
+  parsePagination,
+  requireAuth,
+} from "../shared/index.js";
 
 // Admin schema - defines fields available for admin CRUD
 const adminDocumentSchema = z.object({
@@ -15,34 +22,21 @@ const createDocumentSchema = z.object({
   content: z.string().max(100000).optional(),
 });
 
-const getDocumentSchema = z.object({
-  id: z.string().cuid("Invalid document ID"),
-});
-
 const updateDocumentSchema = z.object({
-  id: z.string().cuid("Invalid document ID"),
+  id: cuidSchema("document ID"),
   title: z.string().min(1).max(200).optional(),
   content: z.string().max(100000).optional(),
 });
 
-const deleteDocumentSchema = z.object({
-  id: z.string().cuid("Invalid document ID"),
-});
-
-const listMyDocumentsSchema = z.object({
-  page: z.number().int().positive().optional(),
-  pageSize: z.number().int().positive().max(100).optional(),
-});
-
 const shareDocumentSchema = z.object({
-  id: z.string().cuid("Invalid document ID"),
-  userId: z.string().cuid("Invalid user ID"),
+  id: cuidSchema("document ID"),
+  userId: cuidSchema("user ID"),
   level: z.enum(["Public", "Read", "Moderate", "Admin"]),
 });
 
 const unshareDocumentSchema = z.object({
-  id: z.string().cuid("Invalid document ID"),
-  userId: z.string().cuid("Invalid user ID"),
+  id: cuidSchema("document ID"),
+  userId: cuidSchema("user ID"),
 });
 
 /**
@@ -65,7 +59,9 @@ export class DocumentService extends BaseService<
   Document,
   Prisma.DocumentCreateInput,
   Prisma.DocumentUpdateInput,
-  DocumentServiceMethods
+  DocumentServiceMethods,
+  Record<string, never>,
+  DocumentDTO
 > {
   private readonly prisma: PrismaClient;
 
@@ -99,6 +95,19 @@ export class DocumentService extends BaseService<
       displayName: "Documents",
       tableColumns: ["id", "title", "ownerId", "createdAt", "updatedAt"],
     });
+  }
+
+  // Wire shape: ISO dates + typed ACL (what SubscriptionDataMap advertises)
+  protected override toDto(document: Document): DocumentDTO {
+    return {
+      id: document.id,
+      title: document.title,
+      content: document.content,
+      ownerId: document.ownerId,
+      acl: document.acl as ACL | null,
+      createdAt: document.createdAt.toISOString(),
+      updatedAt: document.updatedAt.toISOString(),
+    };
   }
 
   /**
@@ -152,6 +161,16 @@ export class DocumentService extends BaseService<
     this.initCrudMethods();
     this.initQueryMethods();
     this.initSharingMethods();
+    // Fail fast at construction if the method map and definitions drift
+    this.verifyAllMethods([
+      "createDocument",
+      "getDocument",
+      "updateDocument",
+      "deleteDocument",
+      "listMyDocuments",
+      "shareDocument",
+      "unshareDocument",
+    ]);
   }
 
   private initCrudMethods(): void {
@@ -160,7 +179,7 @@ export class DocumentService extends BaseService<
       "createDocument",
       "Read",
       async (payload, ctx) => {
-        if (!ctx.userId) throw new Error("Authentication required");
+        requireAuth(ctx);
 
         const document = await this.prisma.document.create({
           data: {
@@ -188,21 +207,13 @@ export class DocumentService extends BaseService<
         });
 
         if (!document) return null;
-
-        return {
-          id: document.id,
-          title: document.title,
-          content: document.content,
-          ownerId: document.ownerId,
-          acl: document.acl as ACL | null,
-          createdAt: document.createdAt.toISOString(),
-          updatedAt: document.updatedAt.toISOString(),
-        };
+        return this.toDto(document);
       },
-      { schema: getDocumentSchema, resolveEntryId: (p: { id: string }) => p.id },
+      { schema: byIdSchema, resolveEntryId: (p: { id: string }) => p.id },
     );
 
-    // Update document title or content
+    // Update document title or content — the CRUD trio emits the DTO
+    // (via toDto) to subscribers, no cast needed
     this.defineMethod(
       "updateDocument",
       "Moderate",
@@ -212,38 +223,24 @@ export class DocumentService extends BaseService<
         if (title !== undefined) data.title = title;
         if (content !== undefined) data.content = content;
 
-        const document = await this.prisma.document.update({
-          where: { id },
-          data,
-        });
-
-        const dto = {
-          id: document.id,
-          title: document.title,
-          content: document.content,
-          ownerId: document.ownerId,
-          acl: document.acl as ACL | null,
-          createdAt: document.createdAt.toISOString(),
-          updatedAt: document.updatedAt.toISOString(),
-        };
-
-        this.emitUpdate(id, document);
-        return dto;
+        const document = await this.update(id, data);
+        return document ? this.toDto(document) : null;
       },
       { schema: updateDocumentSchema, resolveEntryId: (p: { id: string }) => p.id },
     );
 
-    // Delete a document
+    // Delete a document — the CRUD trio emits the {id, deleted: true}
+    // tombstone to subscribers itself
     this.defineMethod(
       "deleteDocument",
       "Admin",
       async (payload, _ctx) => {
         const { id } = payload as { id: string };
-        await this.prisma.document.delete({ where: { id } });
-        this.emitUpdate(id, { id, deleted: true } as Partial<Document>);
+        const deleted = await this.delete(id);
+        if (!deleted) throw new Error("Document not found");
         return { id, deleted: true as const };
       },
-      { schema: deleteDocumentSchema, resolveEntryId: (p: { id: string }) => p.id },
+      { schema: byIdSchema, resolveEntryId: (p: { id: string }) => p.id },
     );
   }
 
@@ -253,14 +250,9 @@ export class DocumentService extends BaseService<
       "listMyDocuments",
       "Read",
       async (payload, ctx) => {
-        if (!ctx.userId) throw new Error("Authentication required");
+        requireAuth(ctx);
 
-        const { page: rawPage, pageSize: rawPageSize } = payload as {
-          page?: number;
-          pageSize?: number;
-        };
-        const page = rawPage ?? 1;
-        const pageSize = Math.min(rawPageSize ?? 20, 100);
+        const { skip, take } = parsePagination(payload);
 
         // Find documents where user is owner OR has an ACL entry
         // Note: JSON querying varies by database. This works for PostgreSQL.
@@ -278,21 +270,13 @@ export class DocumentService extends BaseService<
             ],
           },
           orderBy: { updatedAt: "desc" },
-          skip: (page - 1) * pageSize,
-          take: pageSize,
+          skip,
+          take,
         });
 
-        return documents.map((doc) => ({
-          id: doc.id,
-          title: doc.title,
-          content: doc.content,
-          ownerId: doc.ownerId,
-          acl: doc.acl as ACL | null,
-          createdAt: doc.createdAt.toISOString(),
-          updatedAt: doc.updatedAt.toISOString(),
-        }));
+        return documents.map((doc) => this.toDto(doc));
       },
-      { schema: listMyDocumentsSchema },
+      { schema: paginationSchema },
     );
   }
 

@@ -1,15 +1,38 @@
 import type { AccessLevel } from "./access.js";
 
 // ============================================================================
-// Chat Service Methods
+// Chat Service Types
 // ============================================================================
 
+/** Wire shape of a chat entity (subscription payloads + emitUpdate). */
+export interface ChatDTO {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Item of the `myChats` collection — one row per chat the scope user is a
+ * member of. `createdAt` doubles as the activity fallback when a chat has no
+ * messages yet, so clients can sort by `lastMessageAt ?? createdAt`.
+ */
 export interface ChatListItem {
   id: string;
   title: string;
   memberCount: number;
   lastMessageAt: string | null;
+  createdAt: string;
 }
+
+/**
+ * Collections served by chatService. `myChats` is scoped by *user id* —
+ * scopes are not always parent entities — and fans out: one chat row appears
+ * in every member's scope.
+ */
+export type ChatCollections = {
+  myChats: { item: ChatListItem };
+};
 
 export interface ChatMemberDTO {
   id: string;
@@ -61,10 +84,6 @@ export interface ChatServiceMethods {
   leaveChat: {
     payload: { id: string };
     response: { id: string };
-  };
-  listMyChats: {
-    payload: { page?: number; pageSize?: number };
-    response: ChatListItem[];
   };
   deleteChat: {
     payload: { id: string };

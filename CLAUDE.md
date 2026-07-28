@@ -1,9 +1,12 @@
 # Quickdraw Chat — Project Context
 
 Quickdraw Chat is a real-time chat application template built on
-`@fitzzero/quickdraw-core` (framework for typed real-time Socket.IO services).
-It is meant to be forked as the starting point for new projects: services with
-ACL patterns, OAuth (+ a dev-only mock OAuth flow), dual-mode test
+`@fitzzero/quickdraw-core` 4.0 (framework for typed real-time Socket.IO
+services). It is the reference demo for core's collection subscriptions —
+live lists via `defineCollection`/`useCollection` (both scope shapes:
+chat-scoped `byChat`, user-scoped fan-out `myChats`). It is meant to be
+forked as the starting point for new projects: services with ACL patterns,
+OAuth (+ a dev-only mock OAuth flow), an MCP server, dual-mode test
 infrastructure, CI/CD, and conveyor-ready devcontainer config are all wired up.
 
 ## Repository Structure

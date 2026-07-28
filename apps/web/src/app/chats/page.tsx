@@ -22,9 +22,7 @@ import AddIcon from "@mui/icons-material/Add";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useService, useServiceQuery } from "../../hooks";
-
-const LIST_CHATS_PAYLOAD = { pageSize: 50 };
+import { useMyChats, useService } from "../../hooks";
 
 export default function ChatsPage(): React.ReactElement {
   const t = useTranslations("ChatsPage");
@@ -35,20 +33,12 @@ export default function ChatsPage(): React.ReactElement {
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [newChatTitle, setNewChatTitle] = React.useState("");
 
-  // Fetch all chats
-  const { data: chatsData, isError } = useServiceQuery(
-    "chatService",
-    "listMyChats",
-    LIST_CHATS_PAYLOAD,
-    {
-      // Always fetch a fresh list when opening the page
-      staleTime: 0,
-    },
-  );
-  const chats = chatsData ?? [];
-  const isLoading = chatsData === undefined && !isError;
+  // Live chat list: the myChats collection pushes added/updated/removed
+  // deltas, so a chat someone else creates with you appears without a refresh
+  const { items: chats, isLoading } = useMyChats();
 
-  // Create chat mutation
+  // Create chat mutation — no refetch on success: the collection's `added`
+  // delta puts the new chat into the list on its own
   const createChat = useService("chatService", "createChat", {
     onSuccess: (data) => {
       setCreateDialogOpen(false);

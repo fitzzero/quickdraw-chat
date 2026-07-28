@@ -1,13 +1,12 @@
-import express from "express";
-import { createServer } from "http";
-import { Server as SocketIOServer } from "socket.io";
-import { ServiceRegistry, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
-import type { AccessLevel } from "@project/shared";
+import type { Server as SocketIOServer } from "socket.io";
+import { createQuickdrawServer } from "@fitzzero/quickdraw-core/server";
 import { testPrisma } from "@project/db/testing";
 import { UserService } from "../../services/user/index.js";
 import { ChatService } from "../../services/chat/index.js";
 import { MessageService } from "../../services/message/index.js";
 import { DocumentService } from "../../services/document/index.js";
+import { createSocketAuth } from "../../auth/middleware.js";
+
 interface TestServer {
   port: number;
   io: SocketIOServer;
@@ -15,98 +14,40 @@ interface TestServer {
 }
 
 /**
- * Start a test server with all services registered
+ * Start a test server with all services registered.
+ *
+ * Uses core's `createQuickdrawServer` with the same auth hooks as production
+ * (`createSocketAuth`), pointed at the test database. Dev-credential auth
+ * (handshake `auth.userId`) works because setup.ts sets
+ * ENABLE_DEV_CREDENTIALS=true; serviceAccess loads through the real
+ * `loadServiceAccess` (SERVICE_DEFAULT_ACCESS merge included), so tests
+ * exercise the production auth path end to end.
  */
 export async function startTestServer(): Promise<TestServer> {
-  const app = express();
-  const httpServer = createServer(app);
-
-  const io = new SocketIOServer(httpServer, {
-    cors: { origin: "*" },
-  });
-
-  const serviceRegistry = new ServiceRegistry(io);
-
-  // Register services (use testPrisma to match test database)
-  serviceRegistry.registerService("userService", new UserService(testPrisma));
-  serviceRegistry.registerService("chatService", new ChatService(testPrisma));
-  serviceRegistry.registerService("messageService", new MessageService(testPrisma));
-  serviceRegistry.registerService("documentService", new DocumentService(testPrisma));
-
-  // Parse SERVICE_DEFAULT_ACCESS env var (same as production middleware)
-  const getDefaultServiceAccess = (): Record<string, AccessLevel> => {
-    const config = process.env.SERVICE_DEFAULT_ACCESS;
-    if (!config) return {};
-    const defaults: Record<string, AccessLevel> = {};
-    for (const entry of config.split(",")) {
-      const [service, level] = entry.trim().split(":");
-      if (service && level && ["Public", "Read", "Moderate", "Admin"].includes(level)) {
-        defaults[service] = level as AccessLevel;
-      }
-    }
-    return defaults;
+  const chatService = new ChatService(testPrisma);
+  const services = {
+    userService: new UserService(testPrisma),
+    chatService,
+    messageService: new MessageService(testPrisma, chatService),
+    documentService: new DocumentService(testPrisma),
   };
 
-  // Merge user's explicit access with defaults
-  const mergeWithDefaults = (
-    userAccess: Record<string, AccessLevel> | null,
-  ): Record<string, AccessLevel> => {
-    const defaults = getDefaultServiceAccess();
-    const explicit = userAccess ?? {};
-    return { ...defaults, ...explicit };
-  };
-
-  // Dev auth middleware - load serviceAccess from database and merge with defaults
-  io.use(async (socket, next) => {
-    const quickdrawSocket = socket as QuickdrawSocket;
-    const auth = socket.handshake.auth as Record<string, unknown>;
-
-    if (typeof auth.userId === "string") {
-      const userId = auth.userId;
-      const user = await testPrisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, serviceAccess: true },
-      });
-
-      if (user) {
-        quickdrawSocket.userId = user.id;
-        quickdrawSocket.serviceAccess = mergeWithDefaults(
-          user.serviceAccess as Record<string, AccessLevel> | null,
-        );
-      }
-    }
-
-    next();
+  const { io, httpServer } = createQuickdrawServer({
+    // Port 0: the OS assigns an ephemeral port, so parallel workers never collide
+    port: 0,
+    services,
+    auth: createSocketAuth({
+      prisma: testPrisma,
+      getServiceNames: () => Object.keys(services),
+    }),
   });
 
-  // Connection handler
-  io.on("connection", (socket) => {
-    const quickdrawSocket = socket as QuickdrawSocket;
-
-    if (quickdrawSocket.userId) {
-      quickdrawSocket.emit("auth:info", {
-        userId: quickdrawSocket.userId,
-        serviceAccess: quickdrawSocket.serviceAccess ?? {},
-      });
-    }
-
-    quickdrawSocket.on("disconnect", () => {
-      for (const service of serviceRegistry.getServiceInstances()) {
-        try {
-          service.unsubscribeSocket(quickdrawSocket);
-        } catch {
-          // Ignore
-        }
-      }
-    });
-  });
-
-  // Listen on an ephemeral port (0) so parallel test workers never collide
   await new Promise<void>((resolve) => {
-    httpServer.listen(0, () => {
+    httpServer.once("listening", () => {
       resolve();
     });
   });
+
   const address = httpServer.address();
   if (!address || typeof address === "string") {
     throw new Error("Test server failed to bind a port");

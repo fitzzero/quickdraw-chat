@@ -1,6 +1,5 @@
-import type { AccessLevel } from "./access.js";
-import type { UserServiceMethods } from "./user.js";
-import type { ChatServiceMethods } from "./chat.js";
+import type { UserDTO, UserServiceMethods } from "./user.js";
+import type { ChatDTO, ChatServiceMethods } from "./chat.js";
 import type { MessageServiceMethods } from "./message.js";
 import type { DocumentDTO, DocumentServiceMethods } from "./document.js";
 
@@ -18,20 +17,11 @@ export interface ServiceMethodsMap {
 // ============================================================================
 // Subscription Data Map (for useSubscription typing)
 // ============================================================================
+// One source of truth: each entry is the service's TDto — the wire shape its
+// toDto() produces and emitUpdate/subscribe actually send.
 
 export interface SubscriptionDataMap {
-  userService: {
-    id: string;
-    email: string;
-    name: string | null;
-    image: string | null;
-    serviceAccess: Record<string, AccessLevel> | null;
-  };
-  chatService: {
-    id: string;
-    title: string;
-    createdAt: string;
-    updatedAt: string;
-  };
+  userService: UserDTO;
+  chatService: ChatDTO;
   documentService: DocumentDTO;
 }

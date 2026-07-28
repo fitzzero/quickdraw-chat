@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
+import type { CollectionSnapshotResponse } from "@fitzzero/quickdraw-core";
+import type { ChatListItem } from "@project/shared";
 import { startTestServer } from "../utils/server.js";
 import { connectAsUser, emitWithAck, waitForEvent } from "../utils/socket.js";
 
@@ -73,14 +75,16 @@ describe("ChatService Integration", () => {
 
     expect(inviteResult.id).toBe(chat.id);
 
-    // Regular user should now see the chat
-    const myChats = await emitWithAck<{ page?: number }, { id: string; title: string }[]>(
-      regular,
-      "chatService:listMyChats",
-      {},
-    );
+    // Regular user should now see the chat in their myChats collection
+    const myChats = await emitWithAck<
+      { collection: string; scopeId: string },
+      CollectionSnapshotResponse<ChatListItem>
+    >(regular, "chatService:collection:subscribe", {
+      collection: "myChats",
+      scopeId: users.regular.id,
+    });
 
-    expect(myChats.some((c) => c.id === chat.id)).toBe(true);
+    expect(myChats.items.some((c) => c.id === chat.id)).toBe(true);
 
     admin.close();
     regular.close();
