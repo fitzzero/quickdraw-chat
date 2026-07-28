@@ -33,10 +33,21 @@ Integration tests pick their database automatically (see
   exact levels. For custom access, use the factories.
 - Factories in `apps/api/src/__tests__/factories/` — `createTestUser()`,
   `createTestChat()`, `createTestMessage()` for arbitrary setups.
-- `startTestServer()` (`__tests__/utils/server.ts`) — full Socket.IO server on
-  an ephemeral port with all services registered.
+- `startTestServer()` (`__tests__/utils/server.ts`) — core's
+  `createQuickdrawServer` on an ephemeral port with all services registered
+  and the production auth hooks (`createSocketAuth`) against the test DB.
 - `connectAsUser(port, userId)` / `emitWithAck(socket, event, payload)` /
   `waitForEvent(socket, event)` from `__tests__/utils/socket.ts`.
+
+## Collection tests
+
+See `collections.int.test.ts` for the pattern. Subscribe via
+`emitWithAck(socket, "{service}:collection:subscribe", { collection, scopeId })`
+(ack = snapshot; denied = rejected ack). Deltas arrive on the event named
+`collectionRoom(service, collection, scopeId)` from `@project/shared` — set up
+`waitForEvent` on it BEFORE triggering the write. Cover, per collection: delta
+propagation to a second client, scope ACL denial, and (for `ids`-bearing
+collections) the reconnect re-snapshot excluding rows deleted while offline.
 
 **Always test these roles:** Admin, Moderator, Entry Admin, Entry Read, Outsider, Self
 

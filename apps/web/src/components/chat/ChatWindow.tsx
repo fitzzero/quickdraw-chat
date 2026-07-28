@@ -4,7 +4,7 @@ import * as React from "react";
 import { Box, Typography } from "@mui/material";
 import { useTranslations } from "next-intl";
 import { useSocket } from "../../providers";
-import { useRoomEvents, useServiceQuery } from "../../hooks";
+import { useCollection } from "../../hooks";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import type { MessageDTO } from "@project/shared";
@@ -13,61 +13,35 @@ interface ChatWindowProps {
   chatId: string;
 }
 
+// Chronological order; ids tie-break equal timestamps deterministically.
+// Module scope keeps the comparator referentially stable across renders.
+function compareByCreatedAt(a: MessageDTO, b: MessageDTO): number {
+  return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
+}
+
 export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
   const t = useTranslations("ChatWindow");
   const { isConnected, userId } = useSocket();
-  const [messages, setMessages] = React.useState<MessageDTO[]>([]);
 
-  // Load messages on mount and when chatId changes
-  const listPayload = React.useMemo(() => ({ chatId, limit: 50 }), [chatId]);
-  const { data: loadedMessages, isError } = useServiceQuery(
-    "messageService",
-    "listMessages",
-    listPayload,
-    {
-      enabled: !!chatId,
-      // Always fetch fresh messages when opening a chat
-      staleTime: 0,
-    },
-  );
-
-  // Sync fetched history into local state (new messages are appended below)
-  React.useEffect(() => {
-    if (loadedMessages) {
-      setMessages(loadedMessages);
-    }
-  }, [loadedMessages]);
-
-  const isLoadingMessages = loadedMessages === undefined && !isError;
-
-  // Listen for new messages via the chat-scoped event.
-  // This event is emitted to the chatService room when any message is posted.
-  // Room membership is managed by the page's useSubscription; useRoomEvents
-  // only attaches/detaches the listener (including across reconnects).
-  //
-  // Note: Message deletions/edits are handled via the subscription system.
-  // When a message is deleted, the messageService emits an update with
-  // { deleted: true } which is received by subscribers. For future edit
-  // support, add a 'chat:messageUpdate' handler here.
-  useRoomEvents({
-    "chat:message": (message: MessageDTO) => {
-      // Only add if it's for this chat (should always be true due to room routing)
-      if (message.chatId !== chatId) return;
-      setMessages((prev) => {
-        // Avoid duplicates (in case of reconnection or race conditions)
-        if (prev.some((m) => m.id === message.id)) {
-          return prev;
-        }
-        return [...prev, message];
-      });
-    },
+  // The chat's live message history: one hook replaces the old
+  // useServiceQuery(listMessages) + useRoomEvents("chat:message") +
+  // useState merge/dedupe stack. The snapshot pages newest-first;
+  // `compare` renders chronologically; `loadMore` walks into history via
+  // the same subscribe event with a cursor; live added/removed deltas and
+  // reconnect re-snapshots are handled by the framework.
+  const {
+    items: messages,
+    isLoading,
+    hasMore,
+    isLoadingMore,
+    loadMore,
+  } = useCollection<MessageDTO>("messageService", "byChat", chatId || null, {
+    compare: compareByCreatedAt,
   });
 
-  // No need to refresh after sending - real-time updates handle it
-  const handleMessageSent = React.useCallback(() => {
-    // The message will appear via the chat:message event
-    // No manual refresh needed
-  }, []);
+  const handleLoadOlder = React.useCallback(() => {
+    void loadMore();
+  }, [loadMore]);
 
   if (!chatId) {
     return (
@@ -87,10 +61,17 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {/* Messages */}
-      <MessageList messages={messages} isLoading={isLoadingMessages} currentUserId={userId} />
+      <MessageList
+        messages={messages}
+        isLoading={isLoading}
+        currentUserId={userId}
+        hasMore={hasMore}
+        isLoadingMore={isLoadingMore}
+        onLoadOlder={handleLoadOlder}
+      />
 
       {/* Input */}
-      <MessageInput chatId={chatId} onMessageSent={handleMessageSent} disabled={!isConnected} />
+      <MessageInput chatId={chatId} disabled={!isConnected} />
     </Box>
   );
 }

@@ -17,7 +17,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { NavItem } from "../../lib/navigation";
-import { useRecentChats } from "../../hooks";
+import { useMyChats } from "../../hooks";
 
 interface NavAccordionProps {
   item: NavItem;
@@ -32,8 +32,9 @@ export function NavAccordion({ item, onNavigate }: NavAccordionProps): React.Rea
   const pathname = usePathname();
   const [expanded, setExpanded] = React.useState(item.defaultExpanded ?? false);
 
-  // Load dynamic children (recent chats)
-  const { chats, isLoading: isLoadingChats } = useRecentChats(3);
+  // Dynamic children: the live myChats collection (shared with the /chats
+  // page — one subscription), most recent activity first
+  const { items: chats, isLoading: isLoadingChats } = useMyChats();
 
   // Get translated label for nav items, fall back to original label
   const getLabel = (navItem: NavItem): string => {
@@ -43,11 +44,11 @@ export function NavAccordion({ item, onNavigate }: NavAccordionProps): React.Rea
     return navItem.label;
   };
 
-  // Build children array - either static children or dynamic from recent chats
+  // Build children array - either static children or the 3 most recent chats
   const children: NavItem[] = React.useMemo(() => {
     if (item.children) return item.children;
     if (item.dynamicChildren && item.id === "chats") {
-      return chats.map((chat) => ({
+      return chats.slice(0, 3).map((chat) => ({
         id: chat.id,
         label: chat.title,
         href: `/chats/${chat.id}`,

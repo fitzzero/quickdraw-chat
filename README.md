@@ -24,16 +24,52 @@
 This repo is three things at once:
 
 1. **A production-ready template** — fork it, run one script, and start on the interesting part of your app.
-2. **The reference implementation** for quickdraw-core's patterns: services, ACL, subscriptions, channels, auth.
+2. **The reference implementation** for quickdraw-core's patterns: services, ACL, subscriptions, **collections**, channels, auth.
 3. **A working demo** — a realtime chat app _and_ a multiplayer Godot snake game sharing one typed API. [Play it.](https://quickdraw.techtree.gg/game)
+
+## Live lists in one declaration
+
+The heart of quickdraw 4.0: a **collection** is "rows of this service,
+grouped by a scope id derived from the row". Declare it once server-side and
+every list UI gets live deltas, pagination, reconnect re-snapshots, and ACL —
+no hand-typed `*:created`/`*:deleted` events, no `staleTime: 0` refetching,
+no merge/dedupe state.
+
+```typescript
+// apps/api/src/services/message/index.ts — the chat's message history
+this.defineCollection("byChat", {
+  resolveScopeId: (message) => message.chatId, // membership is a pure function of the row
+  checkScopeAccess: (userId, chatId) => this.checkChatAccess(userId, chatId, "Read"),
+  snapshot: (chatId, { cursor, limit }) => this.byChatSnapshot(chatId, { cursor, limit }),
+});
+// this.create()/this.delete() now emit added/removed deltas automatically
+```
+
+```tsx
+// apps/web/src/components/chat/ChatWindow.tsx — the whole client
+const {
+  items: messages,
+  hasMore,
+  loadMore,
+} = useCollection<MessageDTO>("messageService", "byChat", chatId, { compare: compareByCreatedAt });
+```
+
+The template demonstrates both scope shapes end to end:
+
+| Collection                | Scope                            | Shows off                                                                                                                                                                                                                                        |
+| ------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `messageService` `byChat` | chat id                          | Fully automatic deltas from the CRUD trio; unbounded history (no `ids`) with `loadMore` cursor paging                                                                                                                                            |
+| `chatService` `myChats`   | **user id** (`string[]` fan-out) | Scopes aren't only parent entities: one chat fans out to every member's list. Manual choke points for junction-table writes + cascade-safe delete; snapshot `ids` prune offline deletions; cross-service `lastMessageAt` refresh via write hooks |
 
 ## What you get
 
-- **Typed realtime services** — `BaseService` + `defineMethod()`: request/response over Socket.IO, zod-validated, ACL-gated, consumed through typed React hooks (`useServiceQuery`, `useService`, `useSubscription`) with TanStack Query caching.
-- **Two-tier access control** — service-level roles (`Public/Read/Moderate/Admin`) plus per-entry ACLs, shown in both flavors: membership table (`ChatService`) and JSON ACL (`DocumentService`). Enforced server-side on every method, subscription, and channel.
+- **Typed realtime services** — `BaseService` + `defineMethod()`: request/response over Socket.IO, zod-validated, ACL-gated, consumed through typed React hooks (`useServiceQuery`, `useService`, `useSubscription`) with TanStack Query caching. Services declare wire DTOs (`TDto` + `toDto`).
+- **Live collections** — `defineCollection` + `useCollection` power the chat sidebar and message history (see above), plus write lifecycle hooks and typed room events (`QuickdrawEventMap`).
+- **Two-tier access control** — service-level roles (`Public/Read/Moderate/Admin`) plus per-entry ACLs, shown in both flavors: membership table (`ChatService`) and JSON ACL (`DocumentService`). Enforced server-side on every method, subscription, collection, and channel.
 - **A multiplayer game foundation** _(optional — carve it out in one command)_ — Godot 4 client with a first-party GDScript Socket.IO client, 20Hz fire-and-forget input channels, client-side prediction + reconciliation, snapshot interpolation, server-side NPC AI, guest play, live leaderboards, and React overlays (pre-game dialog, HUD, chat) driving the same typed API as the game engine.
-- **Auth, all of it** — Google + Discord OAuth, revocable DB sessions in httpOnly cookies, **mock OAuth** for zero-credential local dev, **guest sessions** for anonymous play, a **Discord Activity** embed, and dev-credential flows for the Godot editor. Dev flags hard-block production boot.
+- **Auth, all of it** — Google + Discord OAuth, revocable DB sessions in httpOnly cookies, **mock OAuth** for zero-credential local dev, **guest sessions** for anonymous play, a **Discord Activity** embed, and dev-credential flows for the Godot editor. Dev flags hard-block production boot. Socket auth is shaped as core's `createQuickdrawServer` hooks.
 - **Generic admin dashboard** — every service gets a CRUD surface at `/admin` for free; the game's tunables (`DefinitionService`) are edited live in the browser.
+- **MCP server** — every service method exposed as an MCP tool over stdio (`.mcp.json` wired for Claude Code).
 - **Dual-mode testing** — the same integration suite runs on in-memory PGlite locally (no PostgreSQL, seconds) and real PostgreSQL in CI, with seeded users, factories, and socket test helpers.
 - **CI/CD included** — migration drift checks, cached lint/typecheck/build, sharded tests, and a parameterized deploy workflow (TruffleHog → migrate → Cloud Run → Vercel).
 - **Strict tooling, framework-synced** — oxlint extending quickdraw-core's shipped base config (plus a local custom-rule showcase), oxfmt, tsgo, turbo, bun. Claude Code rules in `.claude/rules/` load by path.
@@ -134,12 +170,23 @@ conveyor's project readiness checks immediately.
 
 ## Services
 
-| Service         | Purpose                    | ACL Pattern                                 |
-| --------------- | -------------------------- | ------------------------------------------- |
-| UserService     | User profile management    | Self-access (override `checkAccess`)        |
-| ChatService     | Chat rooms with membership | Membership table (`checkEntryACL` override) |
-| MessageService  | Real-time messaging        | Inherits from parent chat                   |
-| DocumentService | Document collaboration     | JSON ACL (default `checkEntryACL`)          |
+| Service         | Purpose                    | ACL Pattern                                 | Collections             |
+| --------------- | -------------------------- | ------------------------------------------- | ----------------------- |
+| UserService     | User profile management    | Self-access (override `checkAccess`)        | —                       |
+| ChatService     | Chat rooms with membership | Membership table (`checkEntryACL` override) | `myChats` (user-scoped) |
+| MessageService  | Real-time messaging        | Inherits from parent chat                   | `byChat` (chat-scoped)  |
+| DocumentService | Document collaboration     | JSON ACL (default `checkEntryACL`)          | —                       |
+
+Cross-service helpers (auth guards, pagination, schema builders) live in
+`apps/api/src/services/shared/`.
+
+## MCP Server
+
+`apps/api/src/mcp-server.ts` exposes every service method as an MCP tool over
+stdio (core's `McpRegistry` + `createMcpStdioServer`). The root `.mcp.json`
+registers it for Claude Code — build once (`bun run build`), and the server
+runs through `scripts/load-env.sh` so it sees the same database as `bun run
+dev`. Run it manually with `bun run mcp` from `apps/api`.
 
 <!-- ── quickdraw-game:start ── -->
 

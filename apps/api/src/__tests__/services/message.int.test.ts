@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
+import type { CollectionDelta, CollectionSnapshotResponse } from "@fitzzero/quickdraw-core";
+import type { MessageDTO } from "@project/shared";
+import { collectionRoom } from "@project/shared";
 import { startTestServer } from "../utils/server.js";
 import { connectAsUser, emitWithAck, waitForEvent } from "../utils/socket.js";
-import type { MessageDTO } from "@project/shared";
 
 describe("MessageService Integration", () => {
   let stop: () => Promise<void>;
@@ -58,7 +60,7 @@ describe("MessageService Integration", () => {
     client.close();
   });
 
-  it("should list messages for a chat", async () => {
+  it("should snapshot and page message history via the byChat collection", async () => {
     const client = await connectAsUser(port, users.regular.id);
 
     // Create chat
@@ -82,19 +84,38 @@ describe("MessageService Integration", () => {
       content: "Third message",
     });
 
-    // List messages
-    const messages = await emitWithAck<{ chatId: string; limit?: number }, MessageDTO[]>(
-      client,
-      "messageService:listMessages",
-      {
-        chatId: chat.id,
-        limit: 10,
-      },
-    );
+    // First page: newest first, limit 2 → a cursor into older history
+    const page1 = await emitWithAck<
+      { collection: string; scopeId: string; limit?: number },
+      CollectionSnapshotResponse<MessageDTO>
+    >(client, "messageService:collection:subscribe", {
+      collection: "byChat",
+      scopeId: chat.id,
+      limit: 2,
+    });
 
-    expect(messages).toHaveLength(3);
-    expect(messages[0]?.content).toBe("First message");
-    expect(messages[2]?.content).toBe("Third message");
+    expect(page1.items).toHaveLength(2);
+    expect(page1.items[0]?.content).toBe("Third message");
+    expect(page1.items[1]?.content).toBe("Second message");
+    expect(page1.totalCount).toBe(3);
+    expect(page1.nextCursor).not.toBeNull();
+    // Unbounded history: byChat never returns a membership ids list
+    expect(page1.ids).toBeUndefined();
+
+    // Cursor-bearing call = pure paging (no room join), continues into history
+    const page2 = await emitWithAck<
+      { collection: string; scopeId: string; cursor: string | null; limit?: number },
+      CollectionSnapshotResponse<MessageDTO>
+    >(client, "messageService:collection:subscribe", {
+      collection: "byChat",
+      scopeId: chat.id,
+      cursor: page1.nextCursor,
+      limit: 2,
+    });
+
+    expect(page2.items).toHaveLength(1);
+    expect(page2.items[0]?.content).toBe("First message");
+    expect(page2.nextCursor).toBeNull();
 
     client.close();
   });
@@ -220,7 +241,7 @@ describe("MessageService Integration - Socket Room Updates", () => {
     users = await seedTestUsers();
   });
 
-  it("should broadcast new message to all chat subscribers", async () => {
+  it("should broadcast new message to byChat collection subscribers", async () => {
     const owner = await connectAsUser(port, users.admin.id);
     const member = await connectAsUser(port, users.regular.id);
 
@@ -236,26 +257,34 @@ describe("MessageService Integration - Socket Room Updates", () => {
       level: "Read",
     });
 
-    // Both users subscribe to the chat (so they join the room)
-    await emitWithAck(owner, "chatService:subscribe", { entryId: chat.id });
-    await emitWithAck(member, "chatService:subscribe", { entryId: chat.id });
+    // Member subscribes to the chat's message collection (joins the scope room)
+    await emitWithAck(member, "messageService:collection:subscribe", {
+      collection: "byChat",
+      scopeId: chat.id,
+    });
 
-    // Set up listener for chat:message event BEFORE posting
-    const messagePromise = waitForEvent<MessageDTO>(member, "chat:message", 3000);
+    // Deltas arrive on the scope-room event (event name == room name)
+    const deltaPromise = waitForEvent<CollectionDelta<MessageDTO>>(
+      member,
+      collectionRoom("messageService", "byChat", chat.id),
+      3000,
+    );
 
-    // Owner posts a message
+    // Owner posts a message — the CRUD trio emits the `added` delta itself
     await emitWithAck(owner, "messageService:postMessage", {
       chatId: chat.id,
       content: "Hello from owner!",
     });
 
-    // Member should receive the message broadcast
-    const receivedMessage = await messagePromise;
-    expect(receivedMessage.content).toBe("Hello from owner!");
-    expect(receivedMessage.userId).toBe(users.admin.id);
-    expect(receivedMessage.chatId).toBe(chat.id);
-    expect(receivedMessage.user).toBeDefined();
-    expect(receivedMessage.user?.name).toBe("Admin User");
+    // Member should receive the added delta with the full item
+    const delta = await deltaPromise;
+    expect(delta.type).toBe("added");
+    if (delta.type !== "added") throw new Error("unreachable");
+    expect(delta.item.content).toBe("Hello from owner!");
+    expect(delta.item.userId).toBe(users.admin.id);
+    expect(delta.item.chatId).toBe(chat.id);
+    expect(delta.item.user?.name).toBe("Admin User");
+    expect(delta.rev).toBeGreaterThan(0);
 
     owner.close();
     member.close();

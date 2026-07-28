@@ -1,7 +1,11 @@
 // ============================================================================
-// Message Service Methods
+// Message Service Types
 // ============================================================================
 
+/**
+ * Wire shape of a message (subscription payloads, emitUpdate, and the
+ * `byChat` collection item).
+ */
 export interface MessageDTO {
   id: string;
   chatId: string;
@@ -16,6 +20,14 @@ export interface MessageDTO {
   };
 }
 
+/**
+ * Collections served by messageService. `byChat` is scoped by chat id and
+ * unbounded (no membership `ids` in snapshots — history pages in forever).
+ */
+export type MessageCollections = {
+  byChat: { item: MessageDTO };
+};
+
 export interface MessageServiceMethods {
   postMessage: {
     payload: {
@@ -24,14 +36,6 @@ export interface MessageServiceMethods {
       role?: "user" | "assistant" | "system";
     };
     response: { id: string };
-  };
-  listMessages: {
-    payload: {
-      chatId: string;
-      before?: string;
-      limit?: number;
-    };
-    response: MessageDTO[];
   };
   deleteMessage: {
     payload: { id: string };

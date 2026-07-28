@@ -21,6 +21,7 @@ import {
   type QuickdrawSocket,
 } from "@fitzzero/quickdraw-core/server";
 import { createAuthLimiter } from "@fitzzero/quickdraw-core/server/express";
+import { userRoom } from "@project/shared";
 import { prisma } from "@project/db";
 import { UserService } from "./services/user/index.js";
 import { ChatService } from "./services/chat/index.js";
@@ -35,7 +36,7 @@ import { DefinitionService } from "./services/definition/index.js";
 import { registerDiscordActivityRoutes } from "./auth/discord-activity.js";
 import { registerGuestRoutes } from "./auth/guest.js";
 // ── quickdraw-game:end ──
-import { authenticateSocket } from "./auth/middleware.js";
+import { createSocketAuth } from "./auth/middleware.js";
 import { registerDiscordRoutes } from "./auth/discord.js";
 import { registerGoogleRoutes } from "./auth/google.js";
 import { registerMockRoutes } from "./auth/mock.js";
@@ -140,27 +141,6 @@ const io = new SocketIOServer(httpServer, {
   },
 });
 
-// Rate limiting - prevents abuse and ensures fair resource usage:
-// 100 requests per minute per socket; subscriptions are exempt
-const rateLimiter = createRateLimiter({
-  windowMs: 60000,
-  maxRequests: 100,
-  excludeEvents: ["subscribe", "unsubscribe"],
-  // ── quickdraw-game:start ──
-  // Channels enforce their own per-socket token buckets (see game-patterns.md)
-  excludePrefixes: [CHANNEL_EVENT_PREFIX],
-  // ── quickdraw-game:end ──
-});
-
-applyRateLimitMiddleware(io, rateLimiter, {
-  logger,
-  // Use userId if authenticated, otherwise socket.id
-  keyGenerator: (socket) => {
-    const quickdrawSocket = socket as QuickdrawSocket;
-    return quickdrawSocket.userId ?? socket.id;
-  },
-});
-
 // Initialize service registry
 const serviceRegistry = new ServiceRegistry(io, { logger });
 
@@ -171,7 +151,7 @@ serviceRegistry.registerService("userService", userService);
 const chatService = new ChatService(prisma);
 serviceRegistry.registerService("chatService", chatService);
 
-const messageService = new MessageService(prisma);
+const messageService = new MessageService(prisma, chatService);
 serviceRegistry.registerService("messageService", messageService);
 
 // Document service - demonstrates simpler JSON ACL pattern (no membership table)
@@ -200,12 +180,72 @@ definitionService.onChanged((definition) => {
 });
 // ── quickdraw-game:end ──
 
-// Apply authentication middleware
-// Pass getServiceNames for bootstrap admin functionality
+// Rate limiting - prevents abuse and ensures fair resource usage:
+// 100 requests per minute per socket. Subscription traffic is exempt —
+// exclusion is exact event-name matching, so the list is built from the
+// registered services (reconnect re-snapshot storms must not eat the budget).
+const rateLimiter = createRateLimiter({
+  windowMs: 60000,
+  maxRequests: 100,
+  excludeEvents: serviceRegistry
+    .getServices()
+    .flatMap((service) => [
+      `${service}:subscribe`,
+      `${service}:batchSubscribe`,
+      `${service}:unsubscribe`,
+      `${service}:collection:subscribe`,
+      `${service}:collection:unsubscribe`,
+    ]),
+  // ── quickdraw-game:start ──
+  // Channels enforce their own per-socket token buckets (see game-patterns.md)
+  excludePrefixes: [CHANNEL_EVENT_PREFIX],
+  // ── quickdraw-game:end ──
+});
+
+applyRateLimitMiddleware(io, rateLimiter, {
+  logger,
+  // Use userId if authenticated, otherwise socket.id
+  keyGenerator: (socket) => {
+    const quickdrawSocket = socket as QuickdrawSocket;
+    return quickdrawSocket.userId ?? socket.id;
+  },
+});
+
+// Socket authentication + connection lifecycle. This block mirrors what
+// core's `createQuickdrawServer` does with the same auth hooks — kept local
+// only because this app needs its own Express app (OAuth routes, helmet,
+// CORS function), which `createQuickdrawServer` cannot host yet. The test
+// server (`__tests__/utils/server.ts`) passes the identical hooks straight
+// to `createQuickdrawServer`.
+const socketAuth = createSocketAuth({
+  prisma,
+  getServiceNames: () => serviceRegistry.getServices(),
+});
+
 io.use((socket, next) => {
-  void authenticateSocket(socket as QuickdrawSocket, next, {
-    getServiceNames: () => serviceRegistry.getServices(),
-  });
+  const quickdrawSocket = socket as QuickdrawSocket;
+  void (async () => {
+    try {
+      const auth = socket.handshake.auth as Record<string, unknown>;
+      const identity = await socketAuth.authenticate(quickdrawSocket, auth);
+
+      quickdrawSocket.userId = identity?.userId;
+      quickdrawSocket.principalType = identity?.principalType;
+      quickdrawSocket.claims = identity?.claims;
+
+      let serviceAccess = identity?.serviceAccess;
+      if (!serviceAccess && identity?.userId) {
+        serviceAccess = (await socketAuth.loadServiceAccess(identity.userId)) ?? undefined;
+      }
+      quickdrawSocket.serviceAccess = serviceAccess ?? {};
+      next();
+    } catch (error) {
+      logger.error("Socket authentication error:", {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      next(new Error("Authentication failed"));
+    }
+  })();
 });
 
 // Socket.io connection handler
@@ -217,13 +257,19 @@ io.on("connection", (socket) => {
     userId: quickdrawSocket.userId,
   });
 
-  // Send auth info to client
+  // Authenticated sockets join their user room (targeted notifications,
+  // adapter-safe collection kicks).
   if (quickdrawSocket.userId) {
-    quickdrawSocket.emit("auth:info", {
-      userId: quickdrawSocket.userId,
-      serviceAccess: quickdrawSocket.serviceAccess ?? {},
-    });
+    void quickdrawSocket.join(userRoom(quickdrawSocket.userId));
   }
+
+  // Tell the client who it is — QuickdrawProvider populates its
+  // userId/serviceAccess context from this (anonymous sockets included).
+  quickdrawSocket.emit("auth:info", {
+    userId: quickdrawSocket.userId ?? null,
+    serviceAccess: quickdrawSocket.serviceAccess ?? {},
+    principalType: quickdrawSocket.principalType,
+  });
 
   quickdrawSocket.on("disconnect", () => {
     logger.info("Socket disconnected", {

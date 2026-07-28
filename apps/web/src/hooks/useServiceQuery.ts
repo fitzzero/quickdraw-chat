@@ -8,7 +8,11 @@ interface UseServiceQueryOptions<TResponse> {
   staleTime?: number;
   gcTime?: number;
   skipCache?: boolean;
-  /** Socket events that auto-refetch this query (debounced by core) */
+  /**
+   * Socket events that auto-refetch this query (debounced by core) — for
+   * genuinely query-shaped reads (joins, aggregates). Live *row lists*
+   * should be server collections consumed with useCollection instead.
+   */
   invalidateOn?: string[];
   onSuccess?: (data: TResponse) => void;
   onError?: (error: string) => void;

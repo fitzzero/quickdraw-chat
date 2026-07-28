@@ -2,18 +2,15 @@
 
 import * as React from "react";
 import { useServiceQuery } from "@fitzzero/quickdraw-core/client";
+import type { AdminListResponse as CoreAdminListResponse } from "@fitzzero/quickdraw-core";
 import type { AdminServiceMeta } from "@project/shared";
 
 /**
- * Response from adminList method.
+ * Response from adminList method — core 4.0's canonical shape (the
+ * pre-4.0 root export had a different, aspirational shape; this app was
+ * already built against what the server actually sends).
  */
-export interface AdminListResponse<T = Record<string, unknown>> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
+export type AdminListResponse<T = Record<string, unknown>> = CoreAdminListResponse<T>;
 
 /**
  * Hook to fetch paginated admin list data for a service.

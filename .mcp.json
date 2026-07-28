@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "quickdraw-chat": {
+      "command": "scripts/load-env.sh",
+      "args": ["node", "apps/api/dist/mcp-bootstrap.js"]
+    }
+  }
+}

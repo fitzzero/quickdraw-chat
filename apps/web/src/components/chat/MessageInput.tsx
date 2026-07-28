@@ -8,22 +8,18 @@ import { useService } from "../../hooks";
 
 interface MessageInputProps {
   chatId: string;
-  onMessageSent?: () => void;
   disabled?: boolean;
 }
 
-export function MessageInput({
-  chatId,
-  onMessageSent,
-  disabled,
-}: MessageInputProps): React.ReactElement {
+export function MessageInput({ chatId, disabled }: MessageInputProps): React.ReactElement {
   const t = useTranslations("MessageInput");
   const [message, setMessage] = React.useState("");
 
+  // No follow-up work on success: the byChat collection delivers the posted
+  // message to every subscriber (this window included)
   const postMessage = useService("messageService", "postMessage", {
     onSuccess: () => {
       setMessage("");
-      onMessageSent?.();
     },
   });
 

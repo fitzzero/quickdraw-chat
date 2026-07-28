@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Box, Typography, Avatar, Paper, CircularProgress } from "@mui/material";
+import { Box, Button, Typography, Avatar, Paper, CircularProgress } from "@mui/material";
 import { useTranslations } from "next-intl";
 import type { MessageDTO } from "@project/shared";
 
@@ -9,12 +9,19 @@ interface MessageListProps {
   messages: MessageDTO[];
   isLoading: boolean;
   currentUserId?: string | null;
+  /** Older history exists beyond the loaded window */
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadOlder?: () => void;
 }
 
 export function MessageList({
   messages,
   isLoading,
   currentUserId,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadOlder,
 }: MessageListProps): React.ReactElement {
   const t = useTranslations("MessageList");
   const tCommon = useTranslations("Common");
@@ -22,11 +29,16 @@ export function MessageList({
 
   // Scroll the list container directly — scrollIntoView would also scroll
   // every scrollable ancestor (it shifts the whole game surface when the
-  // chat overlay is open inside the full-bleed game page).
+  // chat overlay is open inside the full-bleed game page). Follow the
+  // conversation only when the *newest* message changes — paging older
+  // history in at the top must not yank the scroll down.
+  const lastMessageId = messages.length > 0 ? messages[messages.length - 1]?.id : undefined;
   React.useEffect(() => {
     const list = listRef.current;
-    if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
-  }, [messages.length]);
+    if (list && lastMessageId) {
+      list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+    }
+  }, [lastMessageId]);
 
   if (isLoading) {
     return (
@@ -60,6 +72,13 @@ export function MessageList({
 
   return (
     <Box ref={listRef} sx={{ flex: 1, overflow: "auto", p: 2 }}>
+      {hasMore && (
+        <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
+          <Button size="small" variant="outlined" onClick={onLoadOlder} disabled={isLoadingMore}>
+            {isLoadingMore ? <CircularProgress size={18} /> : t("loadOlder")}
+          </Button>
+        </Box>
+      )}
       {messages.map((message) => {
         const isOwnMessage = message.userId === currentUserId;
 

@@ -6,18 +6,14 @@ paths:
 # Client Patterns
 
 ```typescript
-// Data fetching (from @fitzzero/quickdraw-core/client)
-useServiceQuery("entityService", "getEntity", { id })   // read
-useService("entityService", "updateEntity")              // mutation
-useSubscription("entityService", entityId)               // real-time updates
+// Data fetching (typed wrappers in src/hooks/, over @fitzzero/quickdraw-core/client)
+useCollection("messageService", "byChat", chatId, { compare }) // live lists (THE default)
+useSubscription("entityService", entityId)                     // real-time single entity
+useServiceQuery("entityService", "getEntity", { id })          // one-shot reads
+useService("entityService", "updateEntity")                    // mutation
 
-// Custom room events
-useRoomEvents({
-  "chat:message": (msg) => appendMessage(msg),
-});
-
-// Auto-invalidating queries
-useServiceQuery("chatService", "listMyChats", {}, {
+// Query-shaped reads that must react to a room event
+useServiceQuery("chatService", "getChatMembers", { chatId }, {
   invalidateOn: ["chat:memberUpdate"],
 });
 
@@ -25,6 +21,31 @@ useServiceQuery("chatService", "listMyChats", {}, {
 <SocketTextField ... />
 <SocketCheckbox ... />
 ```
+
+## Live lists: `useCollection` is the default
+
+Any list of rows that should update in real time is a server-declared
+collection (`defineCollection`) consumed with `useCollection` — items, byId,
+totalCount, `loadMore` pagination, live `added`/`updated`/`removed` merge,
+reconnect re-snapshot, and offline-deletion pruning all come from the
+framework:
+
+```tsx
+const { items, isLoading, hasMore, isLoadingMore, loadMore } = useCollection<MessageDTO>(
+  "messageService",
+  "byChat",
+  chatId,
+  { compare: compareByCreatedAt }, // module-scope comparator (referential stability)
+);
+```
+
+Project examples: `useMyChats()` (wraps the user-scoped `myChats`
+collection; shared by the sidebar and /chats page) and `ChatWindow`
+(`byChat` with `loadMore` history paging).
+
+**Legacy patterns — do NOT reintroduce for row lists:** `staleTime: 0`
+refetching, `onRefresh` callback props, `useRoomEvents` mirror handlers with
+`useState` merge/dedupe, and `invalidateOn` as a list-refresh mechanism.
 
 ## Socket Data Hooks — NEVER Use Raw `socket.on` or `socket.emit`
 
@@ -34,15 +55,25 @@ safety, miss caching/deduplication, and leak subscriptions.
 
 | Operation             | Hook                                        | Example                                                         |
 | --------------------- | ------------------------------------------- | --------------------------------------------------------------- |
+| Live row lists        | `useCollection(service, name, scopeId)`     | `useCollection("chatService", "myChats", userId)`               |
 | Real-time entity data | `useSubscription(service, id)`              | `useSubscription("chatService", chatId)`                        |
-| One-shot reads        | `useServiceQuery(service, method, payload)` | `useServiceQuery("chatService", "listMyChats", {})`             |
+| One-shot reads        | `useServiceQuery(service, method, payload)` | `useServiceQuery("userService", "getMe", {})`                   |
 | Mutations             | `useService(service, method, opts?)`        | `useService("chatService", "createChat")`                       |
-| Custom room events    | `useRoomEvents({ event: handler })`         | `useRoomEvents({ "chat:message": (msg) => append(msg) })`       |
-| Auto-refetch on event | `useServiceQuery(..., { invalidateOn })`    | `useServiceQuery(..., { invalidateOn: ["chat:memberUpdate"] })` |
+| Custom room events    | `useRoomEvents({ event: handler })`         | `useRoomEvents({ "presence:changed": (p) => ... })`             |
+| Query + room event    | `useServiceQuery(..., { invalidateOn })`    | `useServiceQuery(..., { invalidateOn: ["chat:memberUpdate"] })` |
 
-`useRoomEvents` manages listener attach/detach + reconnect, but room
-membership comes from `useSubscription` — keep both when consuming room
-broadcasts.
+- Custom events are typed via the `QuickdrawEventMap` augmentation in
+  `packages/shared/src/types/events.ts` — add new events there, never
+  hand-type payloads at call sites. Collection deltas and entity updates are
+  framework events; they never appear in the map.
+- `invalidateOn` is for genuinely query-shaped reads (joins/aggregates like
+  the member roster), not row lists.
+- `useRoomEvents` manages listener attach/detach + reconnect, but room
+  membership comes from `useSubscription` — keep both when consuming room
+  broadcasts.
+- Reconnects: the provider invalidates all TanStack queries by default
+  (`reconnectBehavior="invalidate-queries"`), and collections re-snapshot
+  themselves — no hand-rolled resync effects.
 
 ## UI Text & Styling
 
