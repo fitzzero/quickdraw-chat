@@ -40,6 +40,8 @@ export interface BotOptions {
   userId: string;
   name: string;
   behaviorKind: "wander" | "cross" | "orbit" | "spectator";
+  /** optional oscillating render clock (BotSpec.render) */
+  render?: { minFps: number; maxFps: number; periodS: number; phaseS?: number };
   scenario: Scenario;
   tunables: PredictionTunables;
   tickRate: number;
@@ -163,8 +165,19 @@ export class BotClient {
   private scheduleRenderFrame(): void {
     if (this.stopped) return;
     const elapsed = performance.now() - this.lastFrameAt;
-    const wait = Math.max(0, RENDER_FRAME_MS - elapsed);
+    const wait = Math.max(0, this.currentFrameMs() - elapsed);
     this.renderTimer = setTimeout(() => this.renderFrame(), wait);
+  }
+
+  /** Steady 60fps, or a sinusoidal 30-90fps-style oscillation (BotSpec.render). */
+  private currentFrameMs(): number {
+    const profile = this.opts.render;
+    if (!profile) return RENDER_FRAME_MS;
+    const tSec = performance.now() / 1000 + (profile.phaseS ?? 0);
+    const mid = (profile.minFps + profile.maxFps) / 2;
+    const amp = (profile.maxFps - profile.minFps) / 2;
+    const fps = mid + amp * Math.sin((2 * Math.PI * tSec) / profile.periodS);
+    return 1000 / fps;
   }
 
   private renderFrame(): void {
