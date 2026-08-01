@@ -16,6 +16,33 @@ Template:
 
 ---
 
+## 2026-08-01 — H2+H3b: Send-timestamp clock sync + graceful stall recovery [KEPT]
+
+- Branch: netcode/stall-glide (H2 netcode/snapshot-timestamps + H3b; merged into netcode/rd)
+- Scenarios (vs post-H1 baselines, 3 runs each): ALL FIVE PASS.
+  remoteVsRemote divergence p95: baseline 0.78→0.05, jitter 3.81→0.12,
+  encounter 0.70→0.05, fps-varying 0.93→0.08, bursty 12.65→1.06 (−91…−99%).
+  jerkRms −19…−42% (bursty within-noise). shapeError p95 up to −56%.
+  renderLatency −12…−15% everywhere (~17ms estimator lag eliminated).
+- What shipped: (a) `WorldSnapshot.t` send-time stamp (additive; loop stamps
+  at emit, sim stays pure); (b) WorldClock anchors on 4s rolling min of
+  (arrival−send), free-runs on the client clock between snapshots, 2 ticks/s
+  slew — arrival jitter no longer wobbles the render timeline; (c) underrun
+  extrapolation coasts to a stop (no freeze) and buffer-refill jumps fold
+  into a 100ms-half-life render glide — stalls recover smoothly. Interp
+  delay stays uniform 2.5 ticks.
+- Dead end recorded: per-client ADAPTIVE delay (naive H3, commit a677e65's
+  successor, discarded) — fixed stall jerk but structurally desyncs clients
+  on unequal links (each converges to a different timeline offset; bursty
+  remoteVsRemote p50 hit 38px). Any per-client delay divergence breaks
+  cross-client alignment → queued new hypothesis: server-coordinated uniform
+  delay (server observes per-socket backpressure and can suggest one delay
+  for the room).
+- GDScript port pending (with H1): remote_snake.gd/game.gd — shared clock,
+  snapshot `t` consumption, soft-stop + glide. Tier-2 validation after.
+
+---
+
 ## 2026-08-01 — H1: Global world clock [KEPT]
 
 - Branch: netcode/global-world-clock (merged into netcode/rd)
