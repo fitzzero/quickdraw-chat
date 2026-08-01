@@ -108,6 +108,8 @@ func _clear_world() -> void:
 	for snake: RemoteSnake in _remotes.values():
 		snake.queue_free()
 	_remotes.clear()
+	if Bench.enabled:
+		Bench.clear_snakes()
 
 
 func _spawn_snake_from_snap(snap: Dictionary, tick: int) -> void:
@@ -121,12 +123,16 @@ func _spawn_snake_from_snap(snap: Dictionary, tick: int) -> void:
 		_world_layer.add_child(_local)
 		_local.setup(float(meta.get("hue", 0)), "", start)
 		_local.init_from_snap(snap)
+		if Bench.enabled:
+			Bench.register_snake(id, _local)
 	else:
 		var remote := RemoteSnake.new()
 		_world_layer.add_child(remote)
 		remote.setup(float(meta.get("hue", 0)), display, start)
 		remote.push_snap(tick, snap)
 		_remotes[id] = remote
+		if Bench.enabled:
+			Bench.register_snake(id, remote)
 
 
 # =============================================================================
@@ -168,12 +174,16 @@ func _prune_stale_remotes(tick: int) -> void:
 		if tick - snake.last_seen_tick > PRUNE_AFTER_TICKS:
 			snake.queue_free()
 			_remotes.erase(id)
+			if Bench.enabled:
+				Bench.unregister_snake(id)
 
 
 func _on_player_left(id: String) -> void:
 	if _remotes.has(id):
 		(_remotes[id] as RemoteSnake).queue_free()
 		_remotes.erase(id)
+		if Bench.enabled:
+			Bench.unregister_snake(id)
 
 
 func _on_player_died(death: Dictionary) -> void:
@@ -183,9 +193,13 @@ func _on_player_died(death: Dictionary) -> void:
 		if _local != null:
 			_local.queue_free()
 			_local = null
+			if Bench.enabled:
+				Bench.unregister_snake(id)
 	elif _remotes.has(id):
 		(_remotes[id] as RemoteSnake).queue_free()
 		_remotes.erase(id)
+		if Bench.enabled:
+			Bench.unregister_snake(id)
 
 
 # =============================================================================

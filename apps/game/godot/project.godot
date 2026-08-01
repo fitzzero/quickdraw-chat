@@ -14,6 +14,7 @@ config/features=PackedStringArray("4.7")
 
 Net="*res://scripts/autoload/net.gd"
 Game="*res://scripts/autoload/game.gd"
+Bench="*res://scripts/autoload/bench.gd"
 
 [display]
 

@@ -21,7 +21,17 @@ declare class GodotEngine {
   requestQuit(): void;
 }
 
+/** Telemetry batch collector for the netcode bench harness (?bench=1). */
+interface QuickdrawBenchSink {
+  batches: unknown[];
+  push: (json: string) => void;
+  drain: () => unknown[];
+}
+
 interface Window {
   Engine: typeof GodotEngine;
   QuickdrawHost?: import("@project/shared").QuickdrawHostConfig;
+  /** Presence (pre-boot) switches the Godot Bench autoload on. */
+  QuickdrawBenchConfig?: { autoSpawn: boolean; devUserId?: string };
+  QuickdrawBench?: QuickdrawBenchSink;
 }
