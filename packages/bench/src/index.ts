@@ -10,3 +10,12 @@ export {
 export { computeStats } from "./metrics/tracks.js";
 export { saveScorecard, loadScorecard, printSummary } from "./scorecard.js";
 export { SCENARIOS, getScenario } from "./scenarios.js";
+export {
+  compareScorecards,
+  printComparison,
+  DEFAULT_THRESHOLDS,
+  type CompareResult,
+  type CompareThresholds,
+  type MetricComparison,
+  type Verdict,
+} from "./compare.js";

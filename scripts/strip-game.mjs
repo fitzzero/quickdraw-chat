@@ -56,6 +56,9 @@ const DELETE_PATHS = [
   "apps/bench-web",
   "bench-baselines",
   "bench-results",
+  "docs/netcode-bench.md",
+  "docs/netcode-rd",
+  ".claude/skills/netcode-rd",
   ".claude/rules/game-patterns.md",
 ];
 
