@@ -16,6 +16,29 @@ Template:
 
 ---
 
+## 2026-08-01 — Iteration 3: GDScript port of H1+H2+H3b + Tier-2 validation [KEPT]
+
+- Branch: netcode/godot-port (merged into netcode/rd). TS bot netcode
+  unchanged — this pass ships the kept hypotheses to the real client.
+- Port: world clock into game.gd (timestamp-anchored, min-delay filter,
+  slew-limited; fallback nudge when the server sends no `t`);
+  remote_snake.gd drops its per-entity estimator, renders on
+  Game.render_tick(), coasts to a stop on underrun, and glides through
+  buffer-refill jumps. WASM re-exported.
+- Tier-2 (headless, baseline-3p-100ms), post-port vs old client:
+  remoteVsRemote divergence p50/p95 0.6/2.5 → 0.3/1.4px (−50/−44%), remote
+  shapeError p95 ~3.0 → ~2.0px, renderLatency 235 → 205ms. jerkRms deltas
+  proved to be machine-load noise: a same-session pre-port control run
+  matched post-port (1800–2100) — single-run headless SwiftShader jerk is
+  not comparable across sessions; only within-session A/B counts.
+- Bug caught by Tier-2 that Tier-1 could not see: first port stored clock
+  samples in Vector2 — Godot Vector2 is FLOAT32, quantizing epoch-ms delay
+  deltas to ~131s and garbaging the min-delay anchor (remotes rendered with
+  zero delay, jerk 6900). Fixed with PackedFloat64Array. Rule: never put
+  epoch-ms values in Vector2/3 in GDScript.
+
+---
+
 ## 2026-08-01 — H2+H3b: Send-timestamp clock sync + graceful stall recovery [KEPT]
 
 - Branch: netcode/stall-glide (H2 netcode/snapshot-timestamps + H3b; merged into netcode/rd)
