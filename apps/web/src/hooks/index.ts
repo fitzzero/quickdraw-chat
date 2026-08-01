@@ -9,6 +9,8 @@ export { useIsMobile } from "./useIsMobile";
 export { useMyChats } from "./useMyChats";
 export { useFilteredNavigation } from "./useFilteredNavigation";
 export { useSlowLoadHint } from "./useSlowLoadHint";
+export { useServiceWorker } from "./useServiceWorker";
+export { usePushNotifications, type UsePushNotificationsResult } from "./usePushNotifications";
 
 // Admin hooks
 export { useAdminServices, type AdminServiceInfo } from "./useAdminServices";

@@ -1,9 +1,13 @@
 {
+  "id": "/",
   "name": "Quickdraw",
   "short_name": "Quickdraw",
+  "description": "Realtime chat starter — typed Socket.IO services, ACL, auth, and a multiplayer game foundation.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
   "theme_color": "#7c4dff",
   "background_color": "#16161e",
-  "display": "standalone",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",

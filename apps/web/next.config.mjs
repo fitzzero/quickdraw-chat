@@ -62,7 +62,15 @@ const nextConfig = {
   outputFileTracingRoot: workspaceRoot,
   turbopack: { root: workspaceRoot },
   headers() {
-    return Promise.resolve([{ source: "/:path*", headers: securityHeaders }]);
+    return Promise.resolve([
+      {
+        // The service worker must revalidate on every load so new versions
+        // activate without users hard-refreshing (SWs otherwise cache hard)
+        source: "/sw.js",
+        headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }],
+      },
+      { source: "/:path*", headers: securityHeaders },
+    ]);
   },
 };
 

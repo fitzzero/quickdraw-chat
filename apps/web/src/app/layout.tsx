@@ -14,7 +14,16 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://quickdraw.techtree.gg"),
   title: "Quickdraw — Realtime Fullstack Starter",
   description: TAGLINE,
+  applicationName: "Quickdraw",
   manifest: "/site.webmanifest",
+  appleWebApp: {
+    capable: true,
+    // Opaque status bar ("black", never "black-translucent"): translucent
+    // shifts iOS fixed-position origins by the top inset and breaks dvh in
+    // standalone mode.
+    statusBarStyle: "black",
+    title: "Quickdraw",
+  },
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },

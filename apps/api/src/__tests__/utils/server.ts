@@ -5,6 +5,7 @@ import { UserService } from "../../services/user/index.js";
 import { ChatService } from "../../services/chat/index.js";
 import { MessageService } from "../../services/message/index.js";
 import { DocumentService } from "../../services/document/index.js";
+import { PushService, type PushServiceOptions } from "../../services/push-subscription/index.js";
 // ── quickdraw-game:start ──
 import { GameService } from "../../services/game/index.js";
 import { DefinitionService } from "../../services/definition/index.js";
@@ -15,10 +16,16 @@ interface TestServer {
   port: number;
   io: SocketIOServer;
   stop: () => Promise<void>;
+  pushService: PushService;
   // ── quickdraw-game:start ──
   /** Loop is NOT started in tests — drive ticks via gameService.loop.tickOnce() */
   gameService: GameService;
   // ── quickdraw-game:end ──
+}
+
+interface TestServerOptions {
+  /** Push transport/online-check injection (default: push sends disabled). */
+  push?: PushServiceOptions;
 }
 
 /**
@@ -31,8 +38,9 @@ interface TestServer {
  * `loadServiceAccess` (SERVICE_DEFAULT_ACCESS merge included), so tests
  * exercise the production auth path end to end.
  */
-export async function startTestServer(): Promise<TestServer> {
+export async function startTestServer(options: TestServerOptions = {}): Promise<TestServer> {
   const chatService = new ChatService(testPrisma);
+  const pushService = new PushService(testPrisma, options.push);
   // ── quickdraw-game:start ──
   // Fixed seed for deterministic spawns; NPCs off (tests assert exact
   // player sets); loop intentionally not started
@@ -41,8 +49,9 @@ export async function startTestServer(): Promise<TestServer> {
   const services = {
     userService: new UserService(testPrisma),
     chatService,
-    messageService: new MessageService(testPrisma, chatService),
+    messageService: new MessageService(testPrisma, chatService, pushService),
     documentService: new DocumentService(testPrisma),
+    pushService,
     // ── quickdraw-game:start ──
     gameService,
     definitionService: new DefinitionService(testPrisma),
@@ -73,6 +82,7 @@ export async function startTestServer(): Promise<TestServer> {
   return {
     port: address.port,
     io,
+    pushService,
     // ── quickdraw-game:start ──
     gameService,
     // ── quickdraw-game:end ──

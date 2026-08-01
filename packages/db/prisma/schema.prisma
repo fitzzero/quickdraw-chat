@@ -37,6 +37,7 @@ model User {
   chatMembers   ChatMember[]
   messages      Message[]
   documents     Document[]
+  pushSubscriptions PushSubscription[]
   // ── quickdraw-game:start ──
   gameScores    GameScore[]
   // ── quickdraw-game:end ──
@@ -169,6 +170,32 @@ model Document {
 
   @@index([ownerId])
   @@map("documents")
+}
+
+// ============================================================================
+// Push Subscriptions - Web Push (PWA)
+// ============================================================================
+
+// One row per browser push endpoint. `endpoint` is globally unique so a
+// re-subscribe upserts in place (and can move an endpoint between users if
+// the browser profile switches accounts). Rows are pruned automatically when
+// a push send returns 410/404 (endpoint expired or revoked).
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 // ── quickdraw-game:start ──

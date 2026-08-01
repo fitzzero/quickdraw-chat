@@ -9,6 +9,7 @@ import { BaseService } from "@fitzzero/quickdraw-core/server";
 import type { CollectionSnapshotPage } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
 import type { ChatService } from "../chat/index.js";
+import type { PushService } from "../push-subscription/index.js";
 import { byIdSchema, cursorPageArgs, requireAuth, sliceCursorPage } from "../shared/index.js";
 
 // Zod schemas for validation
@@ -41,14 +42,17 @@ export class MessageService extends BaseService<
 > {
   private readonly prisma: PrismaClient;
   private readonly chatService: ChatService | undefined;
+  private readonly pushService: PushService | undefined;
 
-  constructor(prisma: PrismaClient, chatService?: ChatService) {
+  constructor(prisma: PrismaClient, chatService?: ChatService, pushService?: PushService) {
     // Enable entry ACL - message creator gets Admin in their message's ACL
     super({ serviceName: "messageService", hasEntryACL: true });
     this.prisma = prisma;
     // Optional so the service can run standalone (e.g. MCP); when present,
     // write hooks keep chatService's `myChats` items live (lastMessageAt)
     this.chatService = chatService;
+    // Optional: web-push new-message notifications to offline members
+    this.pushService = pushService;
     this.setDelegate(prisma.message);
 
     // The live message history of one chat. Scope = chat id; membership is a
@@ -164,6 +168,8 @@ export class MessageService extends BaseService<
 
   protected override async afterCreate(message: Message): Promise<void> {
     await this.chatService?.refreshMyChatsItem(message.chatId);
+    // Fire-and-forget web push to offline chat members (no-op without VAPID)
+    this.pushService?.notifyNewMessage(message);
   }
 
   protected override async afterDelete(message: Message): Promise<void> {

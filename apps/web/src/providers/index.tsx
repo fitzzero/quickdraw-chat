@@ -10,6 +10,7 @@ import { IntlProvider } from "./IntlProvider";
 import { ToastProvider } from "./ToastProvider";
 import { QuickdrawProvider, useQuickdrawSocket } from "@fitzzero/quickdraw-core/client";
 import { ClientShell } from "../components/layout";
+import { useServiceWorker } from "../hooks/useServiceWorker";
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -18,6 +19,9 @@ interface ProvidersProps {
 const SERVER_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export function Providers({ children }: ProvidersProps): React.ReactElement {
+  // PWA: register the service worker (installability + web push)
+  useServiceWorker(SERVER_URL);
+
   // ── quickdraw-game:start ──
   const pathname = usePathname();
 
