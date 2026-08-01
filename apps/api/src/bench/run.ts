@@ -141,6 +141,7 @@ async function executeRun(scenario: Scenario): Promise<RunTraces> {
           userId,
           name: spec.name,
           behaviorKind: spec.behavior.kind,
+          ...(spec.render ? { render: spec.render } : {}),
           scenario,
           tunables: { ...DEFAULT_TUNABLES, ...scenario.tunables },
           tickRate: GAME_TICK_RATE,

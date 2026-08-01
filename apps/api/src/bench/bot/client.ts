@@ -25,6 +25,7 @@ import type {
 import { GAME_EVENTS, GLOBAL_WORLD_ID } from "@project/shared";
 import { LocalPredictor, type PredictionTunables } from "./prediction.js";
 import { RemoteInterpolator } from "./interpolation.js";
+import { WorldClock } from "./world-clock.js";
 import { makeBehavior, type BehaviorFn } from "./behaviors.js";
 
 const RENDER_FRAME_MS = 1000 / 60;
@@ -40,6 +41,8 @@ export interface BotOptions {
   userId: string;
   name: string;
   behaviorKind: "wander" | "cross" | "orbit" | "spectator";
+  /** optional oscillating render clock (BotSpec.render) */
+  render?: { minFps: number; maxFps: number; periodS: number; phaseS?: number };
   scenario: Scenario;
   tunables: PredictionTunables;
   tickRate: number;
@@ -65,6 +68,7 @@ function emitWithAck<T>(socket: Socket, event: string, payload: unknown): Promis
 
 export class BotClient {
   private socket: Socket | null = null;
+  private readonly worldClock: WorldClock;
   private predictor: LocalPredictor | null = null;
   private readonly interpolators = new Map<string, RemoteInterpolator>();
   private behavior: BehaviorFn;
@@ -81,6 +85,7 @@ export class BotClient {
   private readonly unacked: { seq: number; tSent: number }[] = [];
 
   constructor(private readonly opts: BotOptions) {
+    this.worldClock = new WorldClock(opts.tickRate);
     this.behavior = makeBehavior(
       opts.behaviorKind,
       mulberry32(deriveSeed(opts.scenario.seed, `behavior:${opts.name}`)),
@@ -163,8 +168,19 @@ export class BotClient {
   private scheduleRenderFrame(): void {
     if (this.stopped) return;
     const elapsed = performance.now() - this.lastFrameAt;
-    const wait = Math.max(0, RENDER_FRAME_MS - elapsed);
+    const wait = Math.max(0, this.currentFrameMs() - elapsed);
     this.renderTimer = setTimeout(() => this.renderFrame(), wait);
+  }
+
+  /** Steady 60fps, or a sinusoidal 30-90fps-style oscillation (BotSpec.render). */
+  private currentFrameMs(): number {
+    const profile = this.opts.render;
+    if (!profile) return RENDER_FRAME_MS;
+    const tSec = performance.now() / 1000 + (profile.phaseS ?? 0);
+    const mid = (profile.minFps + profile.maxFps) / 2;
+    const amp = (profile.maxFps - profile.minFps) / 2;
+    const fps = mid + amp * Math.sin((2 * Math.PI * tSec) / profile.periodS);
+    return 1000 / fps;
   }
 
   private renderFrame(): void {
@@ -192,12 +208,14 @@ export class BotClient {
       entities[this.opts.userId] = this.predictor.getRenderedPos();
     }
 
+    this.worldClock.advance(deltaS, tWall);
+    const renderTick = this.worldClock.renderTick();
     for (const [id, interp] of this.interpolators) {
       if (this.latestTick - interp.lastSeenTick > PRUNE_AFTER_TICKS) {
         this.interpolators.delete(id);
         continue;
       }
-      const pos = interp.renderFrame(deltaS);
+      const pos = renderTick === null ? null : interp.renderFrame(renderTick, deltaS);
       if (pos) entities[id] = pos;
     }
 
@@ -218,6 +236,7 @@ export class BotClient {
     const tWall = now();
     this.trace.snapshots.push({ tWall, tick: snapshot.tick });
     this.latestTick = snapshot.tick;
+    this.worldClock.observe(snapshot.tick, snapshot.t, tWall);
 
     for (const snap of snapshot.players) {
       if (snap.id === this.opts.userId && this.predictor) {

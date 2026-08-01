@@ -43,10 +43,12 @@ single PR to main.
    `bun run bench:compare bench-baselines/<scenario>.json bench-results/<scenario>/<newest>.json`
 
 6. **Verdict.**
-   - **KEEP** iff baseline-3p-100ms PASSES with ≥1 `improved` headline
-     metric that is NOT `within-noise`, AND the other two scenarios show no
-     `fail`. Mind the run-variance column — a "win" inside the noise band is
-     a DISCARD (or rerun with `--runs 5` if it looks close).
+   - **KEEP** iff every benched scenario PASSES and at least ONE of them
+     shows ≥1 `improved` headline metric that is NOT `within-noise` (a
+     scenario-specific win — e.g. only under fps variation or jitter — is a
+     legitimate KEEP; users hit those conditions). Mind the run-variance
+     column — a "win" inside the noise band is a DISCARD (or rerun with
+     `--runs 5` if it looks close).
    - Otherwise **DISCARD**.
 
 7. **Record + integrate.**
