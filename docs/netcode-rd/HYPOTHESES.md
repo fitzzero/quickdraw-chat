@@ -61,6 +61,14 @@ visible direction popping at segment boundaries.
 - Confirm: `shapeErrorPx` ↓, `jerkRms` ↓ at unchanged `renderLatencyMs`.
 - Wire: none.
 
+## 4b. Server-coordinated uniform interpolation delay
+
+Per-client adaptive delay (tried in iteration 2, discarded) desyncs clients
+on unequal links. The server sees per-socket backpressure/drop rates and
+could broadcast a single recommended delay for the room (slow-moving, e.g.
+p95 of observed client jitter envelopes) — adaptivity without breaking
+cross-client alignment. Only worth testing on mixed-link scenarios.
+
 ## 5. Input redundancy
 
 Each input frame is sent once, fire-and-forget. A delayed/dropped frame
