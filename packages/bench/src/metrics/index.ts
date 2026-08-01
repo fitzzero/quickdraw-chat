@@ -54,6 +54,24 @@ export function computeScorecard(
     };
   }
 
+  // Tier 2: FPS samples + frame-time distribution from the real render loop
+  const fpsValues = traces.clients.flatMap((c) =>
+    (c.fpsSamples ?? [])
+      .filter((s) => s.tWall >= windowStart && s.tWall <= windowEnd)
+      .map((s) => s.fps),
+  );
+  const frameTimes = traces.clients.flatMap((c) => {
+    const times: number[] = [];
+    for (let i = 1; i < c.frames.length; i++) {
+      const cur = c.frames[i];
+      const prev = c.frames[i - 1];
+      if (!cur || !prev || cur.tWall < windowStart || cur.tWall > windowEnd) continue;
+      const dt = cur.tWall - prev.tWall;
+      if (dt > 0 && dt < 1000) times.push(dt);
+    }
+    return times;
+  });
+
   return {
     schemaVersion: 1,
     scenario: scenario.name,
@@ -73,6 +91,9 @@ export function computeScorecard(
     },
     clients,
     divergence: computeDivergence(traces.clients, traces.server, windowStart, windowEnd),
+    ...(fpsValues.length > 0
+      ? { tier2: { fps: computeStats(fpsValues), frameTimeMs: computeStats(frameTimes) } }
+      : {}),
   };
 }
 

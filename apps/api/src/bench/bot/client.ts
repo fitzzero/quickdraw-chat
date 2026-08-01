@@ -121,6 +121,10 @@ export class BotClient {
 
     socket.on(GAME_EVENTS.snapshot, (snapshot: WorldSnapshot) => this.onSnapshot(snapshot));
     socket.on(GAME_EVENTS.death, (death: GameDeathEvent) => this.onDeath(death));
+    // Parity with main.gd _on_player_left
+    socket.on(GAME_EVENTS.playerLeft, (event: { id: string }) => {
+      this.interpolators.delete(event.id);
+    });
 
     // Ordering contract: subscribe FIRST (room membership gates the input
     // channel and snapshot delivery), then join/watch.
@@ -257,7 +261,12 @@ export class BotClient {
   }
 
   private onDeath(death: GameDeathEvent): void {
-    if (death.id !== this.opts.userId) return;
+    // Mirror main.gd _on_player_died: drop dead remotes immediately so no
+    // frozen ghost keeps rendering until the prune timeout
+    if (death.id !== this.opts.userId) {
+      this.interpolators.delete(death.id);
+      return;
+    }
     this.alive = false;
     setTimeout(() => {
       if (this.stopped || !this.socket) return;

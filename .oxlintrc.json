@@ -37,7 +37,7 @@
       }
     },
     {
-      "files": ["**/src/bench/**", "**/apps/bench-web/**"],
+      "files": ["**/src/bench/**", "**/apps/bench-web/**", "**/packages/bench/src/cli/**"],
       "rules": {
         "no-console": "off",
         "import/max-dependencies": "off"
