@@ -176,7 +176,7 @@ jobs:
           - shard: 1
             int_files: "chat,message,collections,guest-auth,discord-activity"
           - shard: 2
-            int_files: "user,document,session-cleanup,game,definition"
+            int_files: "user,document,session-cleanup,game,definition,push"
     steps:
       - uses: actions/checkout@v6
 
