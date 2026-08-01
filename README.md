@@ -139,7 +139,9 @@ either way — the rename just fixes package/database/display names.
 **What's already configured:** strict linting (extending quickdraw-core's
 shipped base + custom local rules), unit/integration test lanes, CI with
 migration drift checks, a parameterized deploy workflow (Cloud Run + Vercel),
-Dockerfiles, mock OAuth dev login, Claude Code rules + hooks, and a
+Dockerfiles, mock OAuth dev login, Claude Code rules + hooks, shared Conveyor
+workflow skills (`@rallycry/conveyor-skills`, symlinked into `.claude/skills/`
+and refreshed on every install via the `prepare` script), and a
 conveyor-ready devcontainer (`.devcontainer/conveyor/`) so the repo passes
 conveyor's project readiness checks immediately.
 
