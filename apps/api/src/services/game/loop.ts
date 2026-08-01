@@ -23,6 +23,20 @@ export interface GameLoopDeps {
    * Keeps the NPC world alive behind the pre-game dialog. Omitted = false.
    */
   hasAudience?: () => boolean;
+  /**
+   * Bench/observability hook — called after every tick with the result and
+   * timing stats. Stats are only measured when the hook is present, so
+   * production (which never passes it) pays nothing.
+   */
+  onTick?: (result: TickResult, stats: TickStats) => void;
+}
+
+export interface TickStats {
+  tick: number;
+  /** epoch ms with sub-ms precision (performance.timeOrigin + now) */
+  tWall: number;
+  tickDurMs: number;
+  snapshotBytes: number;
 }
 
 const LEADERBOARD_INTERVAL_MS = 1000;
@@ -59,13 +73,22 @@ export class GameLoop {
   public tickOnce(): TickResult | null {
     if (this.isIdle()) return null;
 
+    const t0 = this.deps.onTick ? performance.now() : 0;
     const result = this.deps.sim.step();
+    const tickDurMs = this.deps.onTick ? performance.now() - t0 : 0;
     this.deps.emitVolatile(GAME_EVENTS.snapshot, result.snapshot);
 
     for (const death of result.deaths) {
       this.deps.emitReliable(GAME_EVENTS.death, death);
       this.deps.onDeath?.(death);
     }
+
+    this.deps.onTick?.(result, {
+      tick: result.snapshot.tick,
+      tWall: performance.timeOrigin + performance.now(),
+      tickDurMs,
+      snapshotBytes: JSON.stringify(result.snapshot).length,
+    });
 
     return result;
   }

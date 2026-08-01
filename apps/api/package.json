@@ -16,10 +16,13 @@
     "test:int": "vitest run -c vitest.int.config.ts",
     "test:int:watch": "vitest -c vitest.int.config.ts",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "bench:netcode": "tsx src/bench/run.ts",
+    "bench:server": "tsx src/bench/standalone.ts"
   },
   "dependencies": {
     "@fitzzero/quickdraw-core": "^4.0.0",
+    "@project/bench": "workspace:*",
     "@project/db": "workspace:*",
     "@project/shared": "workspace:*",
     "cookie-parser": "^1.4.7",

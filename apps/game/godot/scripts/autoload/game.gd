@@ -112,6 +112,8 @@ func _wire_events() -> void:
 	_events_wired = true
 	Net.client.on_event("game:snapshot", func(data: Variant) -> void:
 		if data is Dictionary:
+			if Bench.enabled:
+				Bench.on_snapshot(int((data as Dictionary).get("tick", 0)))
 			snapshot_received.emit(data as Dictionary))
 	Net.client.on_event("game:playerJoined", func(data: Variant) -> void:
 		if data is Dictionary:
@@ -130,6 +132,8 @@ func _wire_events() -> void:
 func send_input(seq: int, dir: Vector2, boost: bool) -> void:
 	if not is_in_world:
 		return
+	if Bench.enabled:
+		Bench.on_input(seq)
 	Net.client.send_channel("gameService", "input", {
 		"seq": seq,
 		"dx": dir.x,

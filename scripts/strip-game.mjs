@@ -50,6 +50,15 @@ const DELETE_PATHS = [
   "packages/shared/src/types/game.ts",
   "packages/shared/src/types/channels.ts",
   "packages/shared/src/types/definition.ts",
+  "packages/shared/src/game",
+  "packages/bench",
+  "apps/api/src/bench",
+  "apps/bench-web",
+  "bench-baselines",
+  "bench-results",
+  "docs/netcode-bench.md",
+  "docs/netcode-rd",
+  ".claude/skills/netcode-rd",
   ".claude/rules/game-patterns.md",
 ];
 
@@ -131,6 +140,18 @@ editJson("apps/web/src/messages/en.json", (data) => {
 
 editJson("apps/web/package.json", (data) => {
   delete data.dependencies?.["@discord/embedded-app-sdk"];
+});
+
+editJson("package.json", (data) => {
+  delete data.scripts?.["bench:netcode"];
+  delete data.scripts?.["bench:server"];
+  delete data.scripts?.["bench:compare"];
+});
+
+editJson("apps/api/package.json", (data) => {
+  delete data.scripts?.["bench:netcode"];
+  delete data.scripts?.["bench:server"];
+  delete data.dependencies?.["@project/bench"];
 });
 
 editJson(".oxlintrc.json", (data) => {

@@ -47,6 +47,11 @@ bun run db:studio     # Open Prisma Studio (from packages/db)
 
 # Full quality check before committing
 bun run check && bun run test
+
+# Netcode benchmarks (see docs/netcode-bench.md)
+bun run bench:netcode                      # headless Tier-1 scorecard (default scenario)
+bun run bench:netcode -- --all --runs 3    # full sweep, median-of-3
+bun run bench:compare <baseline> <candidate>
 ```
 
 First-time setup: `docker-compose up -d` (postgres) → `bun install` →

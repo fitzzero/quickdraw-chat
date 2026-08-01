@@ -21,7 +21,7 @@ import type {
   PlayerSnap,
   WorldSnapshot,
 } from "@project/shared";
-import { GAME_TICK_RATE, NPC_ID_PREFIX } from "@project/shared";
+import { GAME_TICK_RATE, NPC_ID_PREFIX, stepMovement } from "@project/shared";
 import { NpcController } from "./npc.js";
 
 export interface GameTunables {
@@ -349,35 +349,15 @@ export class GameWorldSim {
   private moveSnake(snake: SnakeState): void {
     const t = this.tunables;
 
-    // Turn toward targetDir, clamped by turnRate
-    const current = Math.atan2(snake.dir.y, snake.dir.x);
-    const target = Math.atan2(snake.targetDir.y, snake.targetDir.x);
-    let delta = target - current;
-    while (delta > Math.PI) delta -= Math.PI * 2;
-    while (delta < -Math.PI) delta += Math.PI * 2;
-    const maxTurn = t.turnRate * this.dt;
-    const angle = current + Math.max(-maxTurn, Math.min(maxTurn, delta));
-    snake.dir = { x: Math.cos(angle), y: Math.sin(angle) };
-
-    // Boost costs length; below minLength it degrades to normal speed
-    const boosting = snake.boost && snake.len > t.minLength;
-    if (boosting) {
-      snake.len = Math.max(t.minLength, snake.len - t.boostBurnPerSecond * this.dt);
-    }
-    const speed = boosting ? t.boostSpeed : t.baseSpeed;
-
-    snake.head = {
-      x: this.clamp(
-        snake.head.x + snake.dir.x * speed * this.dt,
-        t.headRadius,
-        t.worldWidth - t.headRadius,
-      ),
-      y: this.clamp(
-        snake.head.y + snake.dir.y * speed * this.dt,
-        t.headRadius,
-        t.worldHeight - t.headRadius,
-      ),
-    };
+    const next = stepMovement(
+      { x: snake.head.x, y: snake.head.y, dirX: snake.dir.x, dirY: snake.dir.y, len: snake.len },
+      { targetDx: snake.targetDir.x, targetDy: snake.targetDir.y, boost: snake.boost },
+      t,
+      this.dt,
+    );
+    snake.dir = { x: next.dirX, y: next.dirY };
+    snake.len = next.len;
+    snake.head = { x: next.x, y: next.y };
 
     // Record path samples at fixed spacing; trim to the arc length the body needs
     const last = snake.path.at(-1) ?? snake.head;
@@ -540,9 +520,5 @@ export class GameWorldSim {
   /** Test/debug helper: current length (fractional). */
   public getLength(id: string): number | null {
     return this.players.get(id)?.len ?? null;
-  }
-
-  private clamp(v: number, min: number, max: number): number {
-    return Math.max(min, Math.min(max, v));
   }
 }
