@@ -215,7 +215,7 @@ export class BotClient {
         this.interpolators.delete(id);
         continue;
       }
-      const pos = renderTick === null ? null : interp.renderFrame(renderTick);
+      const pos = renderTick === null ? null : interp.renderFrame(renderTick, deltaS);
       if (pos) entities[id] = pos;
     }
 
