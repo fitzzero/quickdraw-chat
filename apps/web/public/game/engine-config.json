@@ -5,7 +5,7 @@
   "ensureCrossOriginIsolationHeaders": false,
   "executable": "index",
   "experimentalVK": false,
-  "fileSizes": { "index.pck": 35864, "index.wasm": 39509339 },
+  "fileSizes": { "index.pck": 38056, "index.wasm": 39509339 },
   "focusCanvas": true,
   "gdextensionLibs": [],
   "godotPoolSize": 4

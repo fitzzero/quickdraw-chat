@@ -28,6 +28,83 @@ var my_id := ""
 var bounds := Vector2(2400, 2400)
 var is_in_world := false
 
+## ── World clock — shared server-timeline estimate ─────────────────────────
+## Port of the bench harness's WorldClock (apps/api/src/bench/bot/
+## world-clock.ts): anchors on a rolling min of (arrival − send) using the
+## snapshot's `t` stamp, free-runs on the local clock between snapshots,
+## slew-limited corrections. Replaces remote_snake.gd's per-entity
+## estimators; falls back to a frame-rate-independent nudge when the server
+## sends no timestamp. Keep the two implementations in lockstep.
+
+const CLOCK_TAU_S := 0.3
+const CLOCK_WINDOW_S := 4.0
+const CLOCK_MAX_SLEW_TICKS_PER_S := 2.0
+const INTERP_DELAY_TICKS := 2.5
+
+var _clock_est := 0.0
+var _clock_latest := 0.0
+var _clock_has_est := false
+## Parallel arrays (PackedFloat64 — Vector2 is float32 and would quantize
+## epoch-ms deltas to ~131s!): local arrival ms / (arrival − send) delay ms
+var _clock_arrivals := PackedFloat64Array()
+var _clock_delays := PackedFloat64Array()
+var _clock_last_tick := 0.0
+var _clock_last_send_t := 0.0
+var _clock_has_timestamps := false
+
+
+func clock_observe(tick: int, send_t: float) -> void:
+	_clock_latest = maxf(_clock_latest, float(tick))
+	if not _clock_has_est:
+		_clock_est = float(tick)
+		_clock_has_est = true
+	if send_t <= 0.0:
+		return
+	var arrival := float(Time.get_ticks_msec())
+	_clock_has_timestamps = true
+	if float(tick) >= _clock_last_tick:
+		_clock_last_tick = float(tick)
+		_clock_last_send_t = send_t
+	_clock_arrivals.append(arrival)
+	_clock_delays.append(arrival - send_t)
+	var cutoff := arrival - CLOCK_WINDOW_S * 1000.0
+	while not _clock_arrivals.is_empty() and _clock_arrivals[0] < cutoff:
+		_clock_arrivals.remove_at(0)
+		_clock_delays.remove_at(0)
+
+
+func _process(delta: float) -> void:
+	if not _clock_has_est:
+		return
+	if not _clock_has_timestamps:
+		# Fallback: frame-rate-independent nudge toward the freshest tick
+		_clock_est += delta * GameConfig.TICK_RATE
+		var k := 1.0 - exp(-delta / CLOCK_TAU_S)
+		_clock_est += (_clock_latest - _clock_est) * k
+		return
+	var min_delay := INF
+	for delay in _clock_delays:
+		min_delay = minf(min_delay, delay)
+	if min_delay == INF:
+		return
+	var target := (
+		_clock_last_tick
+		+ (float(Time.get_ticks_msec()) - min_delay - _clock_last_send_t)
+		* GameConfig.TICK_RATE / 1000.0
+	)
+	_clock_est += delta * GameConfig.TICK_RATE
+	var err := target - _clock_est
+	var max_step := CLOCK_MAX_SLEW_TICKS_PER_S * delta
+	_clock_est += clampf(err, -max_step, max_step)
+
+
+func has_render_tick() -> bool:
+	return _clock_has_est
+
+
+func render_tick() -> float:
+	return _clock_est - INTERP_DELAY_TICKS
+
 
 func _ready() -> void:
 	Net.ready_to_join.connect(_on_ready_to_join)
@@ -112,9 +189,11 @@ func _wire_events() -> void:
 	_events_wired = true
 	Net.client.on_event("game:snapshot", func(data: Variant) -> void:
 		if data is Dictionary:
+			var snap_dict := data as Dictionary
+			clock_observe(int(snap_dict.get("tick", 0)), float(snap_dict.get("t", 0.0)))
 			if Bench.enabled:
-				Bench.on_snapshot(int((data as Dictionary).get("tick", 0)))
-			snapshot_received.emit(data as Dictionary))
+				Bench.on_snapshot(int(snap_dict.get("tick", 0)))
+			snapshot_received.emit(snap_dict))
 	Net.client.on_event("game:playerJoined", func(data: Variant) -> void:
 		if data is Dictionary:
 			player_joined.emit(data as Dictionary))
