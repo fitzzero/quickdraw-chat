@@ -85,8 +85,11 @@ export function registerGuestRoutes(app: Express, deps: GuestAuthDeps = {}): voi
           },
         });
 
+        // Cookie for browsers; the body token serves cookie-less clients
+        // (native apps, Discord-style embeds) as socket auth.token — same
+        // pattern as discord-activity.ts.
         setSessionCookie(res, token, { maxAgeMs: SESSION_MAX_AGE_MS });
-        res.json({ userId: user.id, name: user.name });
+        res.json({ userId: user.id, name: user.name, token });
       } catch (error) {
         logger.warn("Guest session creation failed", {
           error: error instanceof Error ? error.message : String(error),
