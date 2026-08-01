@@ -76,6 +76,9 @@ export class GameLoop {
     const t0 = this.deps.onTick ? performance.now() : 0;
     const result = this.deps.sim.step();
     const tickDurMs = this.deps.onTick ? performance.now() - t0 : 0;
+    // Send-time stamp for client clock sync (H2); the sim itself stays
+    // wall-clock-free — timing belongs to the transport boundary.
+    result.snapshot.t = Math.round(performance.timeOrigin + performance.now());
     this.deps.emitVolatile(GAME_EVENTS.snapshot, result.snapshot);
 
     for (const death of result.deaths) {

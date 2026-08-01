@@ -73,6 +73,13 @@ export interface FoodDTO {
 /** Broadcast every tick (volatile). Food is delta-encoded; players are full. */
 export interface WorldSnapshot {
   tick: number;
+  /**
+   * Server send time (epoch ms, stamped by the loop at emit — the sim stays
+   * pure). Lets clients estimate clock offset + one-way delay instead of
+   * inferring the timeline from arrival cadence. Optional/additive so older
+   * clients ignore it.
+   */
+  t?: number;
   players: PlayerSnap[];
   foodSpawned?: FoodDTO[];
   foodEaten?: string[];

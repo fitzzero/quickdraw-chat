@@ -208,14 +208,14 @@ export class BotClient {
       entities[this.opts.userId] = this.predictor.getRenderedPos();
     }
 
-    this.worldClock.advance(deltaS);
+    this.worldClock.advance(deltaS, tWall);
     const renderTick = this.worldClock.renderTick();
     for (const [id, interp] of this.interpolators) {
       if (this.latestTick - interp.lastSeenTick > PRUNE_AFTER_TICKS) {
         this.interpolators.delete(id);
         continue;
       }
-      const pos = renderTick === null ? null : interp.renderFrame(renderTick);
+      const pos = renderTick === null ? null : interp.renderFrame(renderTick, deltaS);
       if (pos) entities[id] = pos;
     }
 
@@ -236,7 +236,7 @@ export class BotClient {
     const tWall = now();
     this.trace.snapshots.push({ tWall, tick: snapshot.tick });
     this.latestTick = snapshot.tick;
-    this.worldClock.observe(snapshot.tick);
+    this.worldClock.observe(snapshot.tick, snapshot.t, tWall);
 
     for (const snap of snapshot.players) {
       if (snap.id === this.opts.userId && this.predictor) {
