@@ -35,6 +35,13 @@
       "rules": {
         "project/no-prisma-in-routes": "error"
       }
+    },
+    {
+      "files": ["**/src/bench/**", "**/apps/bench-web/**"],
+      "rules": {
+        "no-console": "off",
+        "import/max-dependencies": "off"
+      }
     }
   ],
   "ignorePatterns": [
