@@ -122,6 +122,33 @@ export const SCENARIOS: Record<string, Scenario> = {
       { name: "bot-c", behavior: { kind: "cross" }, net: symmetric(wobble(50, 5)) },
     ],
   },
+  "fps-varying-3p": {
+    ...BASE,
+    name: "fps-varying-3p",
+    description:
+      "Baseline latency but client frame rates oscillate 30-90fps out of phase " +
+      "(browsers under varying load) — exposes frame-rate-dependent netcode.",
+    clients: [
+      {
+        name: "bot-a",
+        behavior: { kind: "wander" },
+        net: symmetric(wobble(50, 5)),
+        render: { minFps: 30, maxFps: 90, periodS: 7 },
+      },
+      {
+        name: "bot-b",
+        behavior: { kind: "wander" },
+        net: symmetric(wobble(50, 5)),
+        render: { minFps: 30, maxFps: 90, periodS: 7, phaseS: 2.3 },
+      },
+      {
+        name: "bot-c",
+        behavior: { kind: "wander" },
+        net: symmetric(wobble(50, 5)),
+        render: { minFps: 30, maxFps: 90, periodS: 7, phaseS: 4.6 },
+      },
+    ],
+  },
   "spectator-plus-2p": {
     ...BASE,
     name: "spectator-plus-2p",
