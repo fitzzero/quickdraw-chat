@@ -114,6 +114,11 @@ export async function startBenchServer(scenario: Scenario): Promise<BenchServer>
     port: 0,
     services,
     logger: silentLogger,
+    // Tier 2 connects real browsers (pages served from the web dev server)
+    cors: {
+      origin: [process.env.CLIENT_URL ?? "http://localhost:3000"],
+      credentials: true,
+    },
     auth: createSocketAuth({
       prisma: testPrisma,
       getServiceNames: () => Object.keys(services),
