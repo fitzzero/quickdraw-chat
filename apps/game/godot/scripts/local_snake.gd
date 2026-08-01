@@ -100,6 +100,8 @@ func on_server_snap(snap: Dictionary) -> void:
 		rl = r["len"]
 
 	var error: Vector2 = rp - sim_pos
+	if Bench.enabled:
+		Bench.on_correction(error.length(), error.length() > HARD_SNAP_DIST)
 	if error.length() > HARD_SNAP_DIST:
 		# Lag spike or respawn: teleport rather than smear across the world
 		sim_pos = rp

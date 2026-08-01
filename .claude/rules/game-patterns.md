@@ -57,6 +57,15 @@ running.
   uses the deterministic id `GLOBAL_WORLD_ID` from `@project/shared` so boot,
   seed, and tests converge on the same row (`ensureGlobalWorld`).
 
+## Netcode benchmarking
+
+Netcode changes are judged by scorecards, not eyeballs: `bun run
+bench:netcode` runs headless bot clients (TS ports of the Godot netcode in
+`apps/api/src/bench/bot/` — keep them in lockstep with `local_snake.gd` /
+`remote_snake.gd`) through a latency proxy against a live-loop server. See
+`docs/netcode-bench.md`, baselines in `bench-baselines/`, and the
+`/netcode-rd` skill for the hypothesis loop.
+
 ## Scaling note
 
 The sim is single-process in-memory: production deploys must pin the API to

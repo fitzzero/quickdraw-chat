@@ -12,7 +12,7 @@ import { GAME_EVENTS, GLOBAL_WORLD_ID, GAME_TICK_RATE, serviceRoom } from "@proj
 import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 import { z } from "zod";
 import { GameWorldSim, isNpcId, type GameTunables } from "./world.js";
-import { GameLoop } from "./loop.js";
+import { GameLoop, type GameLoopDeps } from "./loop.js";
 
 // Zod schemas for validation
 const worldScopedSchema = z.object({
@@ -73,7 +73,12 @@ export class GameService extends BaseService<
 
   constructor(
     prisma: PrismaClient,
-    options?: { simSeed?: number; tunables?: Partial<GameTunables> },
+    options?: {
+      simSeed?: number;
+      tunables?: Partial<GameTunables>;
+      /** Bench/observability hook — see GameLoopDeps.onTick. */
+      onTick?: GameLoopDeps["onTick"];
+    },
   ) {
     super({ serviceName: "gameService", hasEntryACL: false });
     this.prisma = prisma;
@@ -88,6 +93,7 @@ export class GameService extends BaseService<
       onDeath: (death) => this.persistScore(death),
       // Spectators (pre-game dialog) keep the NPC world alive
       hasAudience: () => (this.subscribers.get(GLOBAL_WORLD_ID)?.size ?? 0) > 0,
+      ...(options?.onTick ? { onTick: options.onTick } : {}),
     });
 
     this.initMethods();

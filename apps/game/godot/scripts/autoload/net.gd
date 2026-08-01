@@ -65,6 +65,17 @@ func _resolve_web_config() -> void:
 		auth = {"token": str(host.authToken)}
 	else:
 		auth = {}
+
+	# Benchmark harness (dev-gated page sets QuickdrawBenchConfig): dev-
+	# credential auth through the latency proxy + self-spawn (no React
+	# dialog drives joinGame in headless bench runs). The server only
+	# accepts userId handshakes with ENABLE_DEV_CREDENTIALS=true.
+	var bench_cfg: JavaScriptObject = JavaScriptBridge.get_interface("QuickdrawBenchConfig")
+	if bench_cfg != null:
+		if bench_cfg.devUserId:
+			auth = {"userId": str(bench_cfg.devUserId)}
+		if bench_cfg.autoSpawn:
+			auto_spawn = true
 	config_ok = true
 
 

@@ -7,4 +7,5 @@ export { serviceRoom, collectionRoom, userRoom } from "./room-helpers.js";
 // Value exports (consts + schemas) — the type-only barrel above strips values
 export * from "./types/game.js";
 export * from "./types/definition.js";
+export * from "./game/movement.js";
 // ── quickdraw-game:end ──
