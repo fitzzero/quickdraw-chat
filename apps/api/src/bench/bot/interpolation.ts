@@ -1,20 +1,25 @@
 /**
- * RemoteInterpolator — 1:1 TS port of the Godot client's remote-snake
- * netcode (apps/game/godot/scripts/remote_snake.gd): per-entity snapshot
- * jitter buffer, wall-clock tick estimator nudged toward the freshest
- * snapshot, rendering INTERP_DELAY_TICKS in the past with bounded
- * dead-reckoning on buffer underrun.
+ * Remote-entity interpolation (netcode variant: GLOBAL WORLD CLOCK).
  *
- * Known quirks faithfully preserved (they are netcode R&D targets):
- * - the tick estimator is per-entity, not a shared world clock;
- * - the 5% nudge is applied per render frame, making convergence
- *   frame-rate dependent.
+ * Baseline (remote_snake.gd) keeps a per-entity tick estimator nudged 5%
+ * per render frame toward that entity's freshest snapshot — so two remotes
+ * on one screen can render at slightly different world times, and the
+ * convergence rate depends on the client's frame rate.
+ *
+ * This variant (HYPOTHESES.md #1) replaces them with ONE WorldClock per
+ * client, fed by every snapshot arrival, advanced with a frame-rate-
+ * independent exponential nudge (time-constant form). All interpolators
+ * render at the same `clock − INTERP_DELAY_TICKS` timeline. τ = 0.3s is
+ * chosen to match the baseline's convergence speed at 60fps, isolating
+ * "shared + frame-rate independent" as the only change.
+ *
+ * GDScript port (if kept): move the estimator into game.gd (or a small
+ * WorldClock autoload) and pass render_tick into RemoteSnake._render_at.
  */
 
 import type { PlayerSnap } from "@project/shared";
 
-// Constants pinned to remote_snake.gd:12-14
-const INTERP_DELAY_TICKS = 2.5;
+// Pinned to remote_snake.gd:12-14
 const MAX_EXTRAPOLATION_TICKS = 2.0;
 const BUFFER_LIMIT = 40;
 
@@ -37,15 +42,13 @@ export class RemoteInterpolator {
   public lastSeenTick = 0;
 
   private readonly buffer: BufferedSnap[] = [];
-  private tickEst = 0;
-  private hasEst = false;
 
   constructor(
     private readonly tunables: InterpolationTunables,
     private readonly tickRate: number,
   ) {}
 
-  /** remote_snake.gd push_snap */
+  /** remote_snake.gd push_snap (buffer only — the clock lives in WorldClock) */
   public pushSnap(tick: number, snap: PlayerSnap): void {
     this.lastSeenTick = tick;
     this.buffer.push({
@@ -58,24 +61,12 @@ export class RemoteInterpolator {
       boost: snap.boost,
     });
     while (this.buffer.length > BUFFER_LIMIT) this.buffer.shift();
-
-    if (!this.hasEst) {
-      this.tickEst = tick;
-      this.hasEst = true;
-    }
   }
 
-  /** remote_snake.gd _process → _render_at. Null until a snapshot arrives. */
-  public renderFrame(deltaS: number): { x: number; y: number } | null {
-    const latest = this.buffer[this.buffer.length - 1];
-    if (!latest || !this.hasEst) return null;
-
-    // Advance the server-clock estimate by wall time, gently nudged toward
-    // the freshest snapshot so drift never accumulates.
-    this.tickEst += deltaS * this.tickRate;
-    this.tickEst += (latest.tick - this.tickEst) * 0.05;
-
-    return this.renderAt(this.tickEst - INTERP_DELAY_TICKS);
+  /** Render on the shared timeline. Null until a snapshot arrives. */
+  public renderFrame(renderTick: number): { x: number; y: number } | null {
+    if (this.buffer.length === 0) return null;
+    return this.renderAt(renderTick);
   }
 
   private renderAt(renderTick: number): { x: number; y: number } {
