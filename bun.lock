@@ -6,6 +6,7 @@
       "name": "quickdraw-chat",
       "devDependencies": {
         "@fitzzero/quickdraw-core": "^4.1.0",
+        "@rallycry/conveyor-skills": "^0.1.0",
         "@types/node": "^20.10.0",
         "@typescript/native-preview": "^7.0.0-dev",
         "dotenv-cli": "^11.0.0",
@@ -563,6 +564,8 @@
     "@project/shared": ["@project/shared@workspace:packages/shared"],
 
     "@project/web": ["@project/web@workspace:apps/web"],
+
+    "@rallycry/conveyor-skills": ["@rallycry/conveyor-skills@0.1.0", "", { "bin": { "conveyor-skills": "bin/cli.mjs" } }, "sha512-QahUqZOMiErK9XFQngNlW8/ivFtOP/wSmL7azTXmmEgNsDJBsnT0wsIxESC6L5GDgrUj8ivfvrjTVni84/OLzw=="],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.0-rc.3", "", {}, "sha512-eybk3TjzzzV97Dlj5c+XrBFW57eTNhzod66y9HrBlzJ6NsCrWCp/2kaPS3K9wJmurBC0Tdw4yPjXKZqlznim3Q=="],
 

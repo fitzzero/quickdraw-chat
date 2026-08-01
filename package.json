@@ -33,10 +33,11 @@
     "build:prod": "NODE_ENV=production turbo build",
     "db:migrate:deploy": "cd packages/db && bun run db:migrate:deploy",
     "precommit": "turbo lint typecheck test",
-    "prepare": "husky"
+    "prepare": "husky && conveyor-skills link"
   },
   "devDependencies": {
     "@fitzzero/quickdraw-core": "^4.1.0",
+    "@rallycry/conveyor-skills": "^0.1.0",
     "@types/node": "^20.10.0",
     "@typescript/native-preview": "^7.0.0-dev",
     "dotenv-cli": "^11.0.0",
