@@ -74,6 +74,12 @@ export interface BotSpec {
   behavior: { kind: BehaviorKind; params?: Record<string, number> };
   /** omit for a direct (unproxied) connection */
   net?: NetProfile;
+  /**
+   * Render-clock profile: frame rate oscillates sinusoidally between
+   * minFps and maxFps with the given period (like a browser under varying
+   * load). Omit for a steady 60fps. Deterministic — no randomness.
+   */
+  render?: { minFps: number; maxFps: number; periodS: number; phaseS?: number };
 }
 
 export interface Scenario {

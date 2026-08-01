@@ -1,22 +1,39 @@
 /**
- * RemoteInterpolator — 1:1 TS port of the Godot client's remote-snake
- * netcode (apps/game/godot/scripts/remote_snake.gd): per-entity snapshot
- * jitter buffer, wall-clock tick estimator nudged toward the freshest
- * snapshot, rendering INTERP_DELAY_TICKS in the past with bounded
- * dead-reckoning on buffer underrun.
+ * Remote-entity interpolation (netcode variant: GLOBAL WORLD CLOCK).
  *
- * Known quirks faithfully preserved (they are netcode R&D targets):
- * - the tick estimator is per-entity, not a shared world clock;
- * - the 5% nudge is applied per render frame, making convergence
- *   frame-rate dependent.
+ * Baseline (remote_snake.gd) keeps a per-entity tick estimator nudged 5%
+ * per render frame toward that entity's freshest snapshot — so two remotes
+ * on one screen can render at slightly different world times, and the
+ * convergence rate depends on the client's frame rate.
+ *
+ * This variant (HYPOTHESES.md #1) replaces them with ONE WorldClock per
+ * client, fed by every snapshot arrival, advanced with a frame-rate-
+ * independent exponential nudge (time-constant form). All interpolators
+ * render at the same `clock − INTERP_DELAY_TICKS` timeline. τ = 0.3s is
+ * chosen to match the baseline's convergence speed at 60fps, isolating
+ * "shared + frame-rate independent" as the only change.
+ *
+ * GDScript port (if kept): move the estimator into game.gd (or a small
+ * WorldClock autoload) and pass render_tick into RemoteSnake._render_at.
  */
 
 import type { PlayerSnap } from "@project/shared";
 
-// Constants pinned to remote_snake.gd:12-14
-const INTERP_DELAY_TICKS = 2.5;
+// Pinned to remote_snake.gd:12-14
 const MAX_EXTRAPOLATION_TICKS = 2.0;
 const BUFFER_LIMIT = 40;
+
+// H3b: graceful stall recovery. Past the linear extrapolation budget the
+// snake COASTS to a stop over SOFT_STOP_TICKS instead of freezing; when
+// data resumes (buffer refill after a stall), the raw render target jumps —
+// the discontinuity is folded into a fast-decaying render offset (the same
+// visual-offset trick local_snake.gd uses for reconciliation) so remotes
+// glide back onto the true path instead of teleporting. Delay stays the
+// uniform 2.5 ticks, preserving cross-client timeline alignment.
+const SOFT_STOP_TICKS = 3.0;
+const GLIDE_HALF_LIFE_S = 0.1;
+/** Fold jumps below this into the glide; beyond it, snap (respawn-scale). */
+const MAX_GLIDE_PX = 200;
 
 interface BufferedSnap {
   tick: number;
@@ -37,15 +54,16 @@ export class RemoteInterpolator {
   public lastSeenTick = 0;
 
   private readonly buffer: BufferedSnap[] = [];
-  private tickEst = 0;
-  private hasEst = false;
+  private prevTarget: { x: number; y: number } | null = null;
+  private offsetX = 0;
+  private offsetY = 0;
 
   constructor(
     private readonly tunables: InterpolationTunables,
     private readonly tickRate: number,
   ) {}
 
-  /** remote_snake.gd push_snap */
+  /** remote_snake.gd push_snap (buffer only — the clock lives in WorldClock) */
   public pushSnap(tick: number, snap: PlayerSnap): void {
     this.lastSeenTick = tick;
     this.buffer.push({
@@ -58,24 +76,35 @@ export class RemoteInterpolator {
       boost: snap.boost,
     });
     while (this.buffer.length > BUFFER_LIMIT) this.buffer.shift();
-
-    if (!this.hasEst) {
-      this.tickEst = tick;
-      this.hasEst = true;
-    }
   }
 
-  /** remote_snake.gd _process → _render_at. Null until a snapshot arrives. */
-  public renderFrame(deltaS: number): { x: number; y: number } | null {
-    const latest = this.buffer[this.buffer.length - 1];
-    if (!latest || !this.hasEst) return null;
+  /** Render on the shared timeline. Null until a snapshot arrives. */
+  public renderFrame(renderTick: number, deltaS: number): { x: number; y: number } | null {
+    if (this.buffer.length === 0) return null;
+    const target = this.renderAt(renderTick);
 
-    // Advance the server-clock estimate by wall time, gently nudged toward
-    // the freshest snapshot so drift never accumulates.
-    this.tickEst += deltaS * this.tickRate;
-    this.tickEst += (latest.tick - this.tickEst) * 0.05;
+    // Fold target discontinuities (stall-recovery jumps) into a decaying
+    // glide offset; the threshold scales with frame time so ordinary motion
+    // (≤ boost speed) never triggers it.
+    if (this.prevTarget) {
+      const jumpX = target.x - this.prevTarget.x;
+      const jumpY = target.y - this.prevTarget.y;
+      const jump = Math.hypot(jumpX, jumpY);
+      const plausible = 2.5 * this.tunables.boostSpeed * Math.max(deltaS, 1 / 250);
+      if (jump > plausible && jump < MAX_GLIDE_PX) {
+        this.offsetX -= jumpX;
+        this.offsetY -= jumpY;
+      } else if (jump >= MAX_GLIDE_PX) {
+        this.offsetX = 0;
+        this.offsetY = 0;
+      }
+    }
+    this.prevTarget = target;
 
-    return this.renderAt(this.tickEst - INTERP_DELAY_TICKS);
+    const decay = Math.pow(0.5, deltaS / GLIDE_HALF_LIFE_S);
+    this.offsetX *= decay;
+    this.offsetY *= decay;
+    return { x: target.x + this.offsetX, y: target.y + this.offsetY };
   }
 
   private renderAt(renderTick: number): { x: number; y: number } {
@@ -91,13 +120,22 @@ export class RemoteInterpolator {
     if (!before) return { x: 0, y: 0 };
 
     if (!after) {
-      // Underrun: extrapolate along last velocity, capped, then freeze
-      const over = Math.min(renderTick - before.tick, MAX_EXTRAPOLATION_TICKS);
+      // Underrun: linear extrapolation for the budget, then coast to a stop
+      // over SOFT_STOP_TICKS (velocity ramps to zero — no hard freeze)
+      const overRaw = renderTick - before.tick;
       const speed = before.boost ? this.tunables.boostSpeed : this.tunables.baseSpeed;
       const fixedDt = 1 / this.tickRate;
+      let distanceTicks: number;
+      if (overRaw <= MAX_EXTRAPOLATION_TICKS) {
+        distanceTicks = overRaw;
+      } else {
+        const coast = Math.min(overRaw - MAX_EXTRAPOLATION_TICKS, SOFT_STOP_TICKS);
+        // Integrated distance of a linear speed ramp from 1 → 0
+        distanceTicks = MAX_EXTRAPOLATION_TICKS + coast - (coast * coast) / (2 * SOFT_STOP_TICKS);
+      }
       return {
-        x: before.x + before.dx * speed * fixedDt * over,
-        y: before.y + before.dy * speed * fixedDt * over,
+        x: before.x + before.dx * speed * fixedDt * distanceTicks,
+        y: before.y + before.dy * speed * fixedDt * distanceTicks,
       };
     }
 
