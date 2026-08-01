@@ -44,7 +44,7 @@ describe("Guest auth", () => {
     const response = await createGuest("Wandering Snek");
     expect(response.status).toBe(200);
 
-    const body = (await response.json()) as { userId: string; name: string };
+    const body = (await response.json()) as { userId: string; name: string; token: string };
     expect(body.name).toBe("Wandering Snek");
     expect(response.headers.get("set-cookie")).toContain("session=");
 
@@ -55,8 +55,11 @@ describe("Guest auth", () => {
     expect(user?.isGuest).toBe(true);
     expect(user?.email).toMatch(/@guest\.local$/);
 
+    // Body token serves cookie-less clients (native apps) as socket
+    // auth.token — must be the same JWT the Session row stores.
     const session = await testPrisma.session.findFirst({ where: { userId: body.userId } });
     expect(session).toBeTruthy();
+    expect(body.token).toBe(session?.token);
   });
 
   it("uniquifies colliding names with a numeric tag", async () => {
