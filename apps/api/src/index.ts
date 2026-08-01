@@ -27,6 +27,8 @@ import { UserService } from "./services/user/index.js";
 import { ChatService } from "./services/chat/index.js";
 import { MessageService } from "./services/message/index.js";
 import { DocumentService } from "./services/document/index.js";
+import { PushService } from "./services/push-subscription/index.js";
+import { registerPushRoutes } from "./services/push-subscription/rest.js";
 // ── quickdraw-game:start ──
 import { CHANNEL_EVENT_PREFIX } from "@fitzzero/quickdraw-core";
 import { DEFINITION_TYPES, SNAKE_TUNABLES_KEY } from "@project/shared";
@@ -151,7 +153,19 @@ serviceRegistry.registerService("userService", userService);
 const chatService = new ChatService(prisma);
 serviceRegistry.registerService("chatService", chatService);
 
-const messageService = new MessageService(prisma, chatService);
+// Push service - Web Push subscriptions for the PWA. Chat pushes skip
+// members with any live socket (their user room is non-empty).
+const pushService = new PushService(prisma, {
+  isUserOnline: async (userId) => (await io.in(userRoom(userId)).fetchSockets()).length > 0,
+});
+serviceRegistry.registerService("pushService", pushService);
+
+// Service-worker resubscribe endpoint (REST: SWs have no socket) — rare,
+// authenticated traffic, so the auth limiter budget fits
+app.use("/api/push", createAuthLimiter());
+registerPushRoutes(app, pushService);
+
+const messageService = new MessageService(prisma, chatService, pushService);
 serviceRegistry.registerService("messageService", messageService);
 
 // Document service - demonstrates simpler JSON ACL pattern (no membership table)

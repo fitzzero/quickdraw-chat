@@ -13,6 +13,7 @@ type ServiceRoomName =
   | "chatService"
   | "messageService"
   | "documentService"
+  | "pushService"
   // ── quickdraw-game:start ──
   | "gameService"
   | "definitionService";

@@ -19,8 +19,8 @@ import SecurityIcon from "@mui/icons-material/Security";
 import LogoutIcon from "@mui/icons-material/Logout";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useTranslations } from "next-intl";
-import { useSocket } from "../../providers";
-import { useSubscription } from "../../hooks";
+import { useSocket, useToast } from "../../providers";
+import { usePushNotifications, useService, useSubscription } from "../../hooks";
 import { ConfirmDialog } from "../../components/feedback";
 import { logoutAllDevices } from "../../lib/auth";
 
@@ -29,6 +29,14 @@ export default function AccountPage(): React.ReactElement {
   const tCommon = useTranslations("Common");
   const { userId } = useSocket();
   const { data: user } = useSubscription("userService", userId ?? "");
+  const { showToast } = useToast();
+
+  const push = usePushNotifications();
+  const sendTestPush = useService("pushService", "sendTestPush", {
+    onSuccess: (data) => {
+      showToast(t(data.sent > 0 ? "testNotificationSent" : "testNotificationNone"), "info");
+    },
+  });
 
   const [showSignOutAllDialog, setShowSignOutAllDialog] = React.useState(false);
   const [isSigningOut, setIsSigningOut] = React.useState(false);
@@ -88,9 +96,32 @@ export default function AccountPage(): React.ReactElement {
             <ListItemIcon>
               <NotificationsIcon />
             </ListItemIcon>
-            <ListItemText primary={t("notifications")} secondary={t("notificationsDesc")} />
-            <Switch disabled />
+            <ListItemText
+              primary={t("notifications")}
+              secondary={
+                push.permission === "denied" ? t("notificationsBlocked") : t("notificationsDesc")
+              }
+            />
+            <Switch
+              checked={push.isSubscribed}
+              disabled={!push.supported || push.permission === "denied" || push.isBusy}
+              onChange={() => void (push.isSubscribed ? push.unsubscribe() : push.subscribe())}
+              slotProps={{ input: { "aria-label": t("notifications") } }}
+            />
           </ListItem>
+          {push.isSubscribed && (
+            <ListItem>
+              <ListItemText inset primary={t("testNotification")} />
+              <Button
+                variant="outlined"
+                size="small"
+                disabled={sendTestPush.isPending}
+                onClick={() => sendTestPush.mutate({})}
+              >
+                {t("sendTestNotification")}
+              </Button>
+            </ListItem>
+          )}
           <ListItem>
             <ListItemIcon>
               <DarkModeIcon />

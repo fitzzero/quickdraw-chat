@@ -2,6 +2,7 @@ import type { UserDTO, UserServiceMethods } from "./user.js";
 import type { ChatDTO, ChatServiceMethods } from "./chat.js";
 import type { MessageServiceMethods } from "./message.js";
 import type { DocumentDTO, DocumentServiceMethods } from "./document.js";
+import type { PushServiceMethods } from "./push.js";
 // ── quickdraw-game:start ──
 import type { GameServiceMethods } from "./game.js";
 import type { DefinitionDTO, DefinitionServiceMethods } from "./definition.js";
@@ -16,6 +17,7 @@ export interface ServiceMethodsMap {
   chatService: ChatServiceMethods;
   messageService: MessageServiceMethods;
   documentService: DocumentServiceMethods;
+  pushService: PushServiceMethods;
   // ── quickdraw-game:start ──
   gameService: GameServiceMethods;
   definitionService: DefinitionServiceMethods;

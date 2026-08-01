@@ -13,6 +13,7 @@ export type * from "./user.js";
 export type * from "./chat.js";
 export type * from "./message.js";
 export type * from "./document.js";
+export type * from "./push.js";
 export type * from "./service-methods.js";
 export type * from "./admin.js";
 // ── quickdraw-game:start ──

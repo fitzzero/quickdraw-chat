@@ -11,6 +11,9 @@ import { afterAll, beforeAll, beforeEach } from "vitest";
 process.env.NODE_ENV = "test";
 process.env.LOG_LEVEL = "error";
 process.env.ENABLE_DEV_CREDENTIALS = "true";
+// core's createRequireAuth has no dev fallback secret — set one so REST auth
+// tests can sign and verify with the same key (CI's real value wins via ??=)
+process.env.JWT_SECRET ??= "test-jwt-secret";
 
 // Set default service access for tests (matches production behavior)
 // userService:Read allows any authenticated user to view profiles
