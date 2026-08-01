@@ -21,7 +21,7 @@
     "bench:server": "tsx src/bench/standalone.ts"
   },
   "dependencies": {
-    "@fitzzero/quickdraw-core": "^4.0.0",
+    "@fitzzero/quickdraw-core": "^4.1.0",
     "@project/bench": "workspace:*",
     "@project/db": "workspace:*",
     "@project/shared": "workspace:*",
