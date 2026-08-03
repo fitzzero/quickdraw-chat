@@ -14,6 +14,14 @@
       "groupSlug": "all-minor-patch"
     },
     {
+      "description": "Shared Claude skills should always track latest — immediate PR, automerged when CI passes",
+      "matchPackageNames": ["@rallycry/conveyor-skills"],
+      "groupName": "conveyor-skills",
+      "schedule": ["at any time"],
+      "prPriority": 10,
+      "automerge": true
+    },
+    {
       "description": "Framework updates get their own PR for visibility",
       "matchPackageNames": ["@fitzzero/quickdraw-core"],
       "groupName": "quickdraw-core",
