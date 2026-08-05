@@ -18,21 +18,37 @@ snapshot of a prebaked devcontainer is the fastest boot.
 
 ## What Conveyor generates vs what you configure
 
-**Conveyor generates** (do not hand-edit — regenerated and re-committed
-whenever bake configuration drifts):
+**Conveyor generates** (regenerated and re-committed whenever bake
+configuration drifts):
 
-- `.github/workflows/conveyor-prebake.yml` — the bake workflow. A checked-in
-  reference copy lives at [`docs/examples/conveyor-prebake.yml`](examples/conveyor-prebake.yml)
-  so you can see the shape; the live one Conveyor commits has your repo's
-  owner/name baked in. The `run-name` carries a content hash Conveyor uses to
-  match the run to its pending build record — renaming the workflow or the
-  run-name breaks completion detection.
-- `.devcontainer/conveyor/` — the devcontainer itself, in whichever flavor
-  matches the bake state.
+- `.github/workflows/conveyor-prebake.yml` — the bake workflow, committed to
+  your **default branch the moment you save the settings** (no card or merge
+  needed — GitHub only registers workflows from the default branch, so that is
+  where it has to live). If the Conveyor GitHub App is missing the Workflows
+  permission, you get an in-app alert naming the exact grant instead of a
+  silent failure. A checked-in reference copy lives at
+  [`docs/examples/conveyor-prebake.yml`](examples/conveyor-prebake.yml); the
+  live one has your repo's owner/name baked in. The `run-name` carries a
+  content hash Conveyor uses to match the run to its pending build record —
+  renaming the workflow or the run-name breaks completion detection.
+- `.devcontainer/conveyor/devcontainer.json` — the devcontainer, in whichever
+  flavor matches the bake state. **Your own keys in this file survive
+  regeneration**: `features`, extra `forwardPorts`/`portsAttributes`,
+  `customizations`, `containerEnv`, and extra `onCreateCommand`/
+  `postStartCommand` hooks are preserved through every re-commit (this
+  template ships exactly that shape — its bun + postgres features, app ports,
+  and the `.devcontainer/setup.sh` / `.devcontainer/start.sh` hooks all ride
+  inside the generated file). Conveyor-owned keys (`name`, `image`, the
+  generated portions of the lifecycle commands) are restamped each time.
 
 **You configure** (Conveyor project settings → Compute, with the provider set
 to GitHub Codespaces):
 
+- **Machine Size** — the codespace VM. This is the sizing authority; do NOT
+  add `hostRequirements` to the devcontainer (a repo-declared value only acts
+  as a minimum floor and can conflict with the requested machine).
+- **Sidecar Services** — e.g. PostgreSQL. On the prebaked lane these become
+  compose services with their images mirrored to GHCR by the bake.
 - **Image Bake Runner** → `GitHub Actions`.
 - **Actions Runner Label** (optional) — the workflow's `runs-on`. Empty means
   `ubuntu-latest` (GitHub-hosted). Set `self-hosted` to target your own
@@ -64,9 +80,13 @@ of the `docker` group).
 
 ## Flow, end to end
 
-1. You save the settings above; Conveyor commits the workflow + devcontainer.
+1. You save the settings above; Conveyor commits the workflow to your default
+   branch right then (and refreshes the devcontainer on task branches at each
+   kickoff).
 2. When bake content drifts (setup command, deps, template changes), Conveyor
-   dispatches the workflow with a content hash.
+   dispatches the workflow with a content hash — and if the workflow is ever
+   missing, the dispatch delivers it to the default branch and retries once
+   on its own.
 3. The run builds the agent image, pushes to GHCR, and mirrors any declared
    sidecar images (e.g. postgres).
 4. Conveyor's webhook sees the run complete and records the images; the next

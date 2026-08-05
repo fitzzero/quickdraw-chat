@@ -3,7 +3,7 @@ set -euo pipefail
 
 # onCreateCommand — runs during prebuild; the filesystem is cached afterwards.
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 # Idempotency — skip if already completed (rm sentinel to force re-run)

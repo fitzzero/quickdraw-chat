@@ -1,22 +1,14 @@
 {
-  "name": "Quickdraw Chat Agent",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
-  "features": {
-    "ghcr.io/shyim/devcontainers-features/bun:0": {},
-    "ghcr.io/itsmechlark/features/postgresql:1": {
-      "version": "16"
-    }
-  },
-  "hostRequirements": {
-    "memory": "8gb",
-    "cpus": 4,
-    "storage": "16gb"
-  },
-  "onCreateCommand": ".devcontainer/conveyor/setup.sh",
-  "postStartCommand": ".devcontainer/conveyor/start.sh",
-  "forwardPorts": [4000, 3000],
+  "name": "Conveyor Agent",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "forwardPorts": [7090, 3050, 4000, 3000],
   "portsAttributes": {
     "3000": {
+      "label": "Web",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    },
+    "3050": {
       "label": "Web",
       "onAutoForward": "openBrowser",
       "visibility": "public"
@@ -25,6 +17,19 @@
       "label": "API",
       "onAutoForward": "openBrowser",
       "visibility": "public"
+    },
+    "7090": {
+      "label": "API",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    }
+  },
+  "onCreateCommand": "echo \"[conveyor] Installing agent toolchain\"; npm install -g @rallycry/conveyor-agent@latest @anthropic-ai/claude-code@latest || echo \"[conveyor] Toolchain install failed, postStart will retry\"; { .devcontainer/setup.sh ; } || echo \"[conveyor] onCreate hook failed (continuing)\"",
+  "postStartCommand": "{ .devcontainer/start.sh ; } || echo \"[conveyor] postStart hook failed (continuing)\"; if ! command -v claude >/dev/null 2>&1; then echo \"[conveyor] Installing Claude Code CLI\"; npm install -g @anthropic-ai/claude-code@latest; fi; INSTALLED=$(conveyor-agent --version 2>/dev/null || echo \"0.0.0\"); LATEST=$(npm view @rallycry/conveyor-agent version 2>/dev/null || echo \"$INSTALLED\"); if [ \"$INSTALLED\" != \"$LATEST\" ]; then echo \"[conveyor] Updating agent $INSTALLED -> $LATEST\"; npm install -g @rallycry/conveyor-agent@latest; else echo \"[conveyor] Agent runner v$INSTALLED is current\"; fi; until conveyor-agent; do echo '[conveyor] agent exited, retrying in 10s...'; sleep 10; done",
+  "features": {
+    "ghcr.io/shyim/devcontainers-features/bun:0": {},
+    "ghcr.io/itsmechlark/features/postgresql:1": {
+      "version": "16"
     }
   },
   "customizations": {
