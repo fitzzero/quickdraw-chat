@@ -31,7 +31,21 @@ jobs:
           LABEL org.opencontainers.image.source=https://github.com/fitzzero/quickdraw-chat
           ENV CONVEYOR_PREBAKED=1
           RUN npm install -g @rallycry/conveyor-agent@latest @anthropic-ai/claude-code@latest
-          COPY . /workspaces/quickdraw-chat
+          # The generated devcontainer.json runs as `conveyor` — create it here the
+          # way Dockerfile.toolchain does. No uid is pinned: the base image's own
+          # `node` user already holds uid 1000, so useradd takes the next free id.
+          RUN id -u conveyor >/dev/null 2>&1 || useradd -m -s /bin/bash conveyor && \
+              echo "conveyor ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/conveyor && \
+              mkdir -p /workspaces && \
+              chown -R conveyor:conveyor /home/conveyor /workspaces
+          ENV HOME=/home/conveyor
+          # Everything below is the runtime user's: the checkout lands
+          # conveyor-owned, and the setup command's caches land under
+          # /home/conveyor where the agent can actually read them.
+          USER conveyor
+          RUN git config --global user.name "Conveyor" && \
+              git config --global user.email "conveyor@noreply.github.com"
+          COPY --chown=conveyor:conveyor . /workspaces/quickdraw-chat
           RUN cd /workspaces/quickdraw-chat && bash -lc 'bun install'
           CONVEYOR_DOCKERFILE
           docker build -f /tmp/conveyor-prebake.Dockerfile -t ghcr.io/fitzzero/quickdraw-chat/conveyor/agent:current .
