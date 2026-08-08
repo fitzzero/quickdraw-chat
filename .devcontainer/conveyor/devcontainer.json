@@ -1,6 +1,6 @@
 {
   "name": "Quickdraw Chat Agent",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:24",
   "features": {
     "ghcr.io/shyim/devcontainers-features/bun:0": {},
     "ghcr.io/itsmechlark/features/postgresql:1": {
