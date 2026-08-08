@@ -1,5 +1,5 @@
 # Multi-stage build for quickdraw-chat Web (Next.js)
-FROM node:20-alpine AS base
+FROM node:24-alpine AS base
 
 # Install bun
 RUN npm install -g bun@1.3.10

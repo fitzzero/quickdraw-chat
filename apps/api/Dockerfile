@@ -1,5 +1,5 @@
 # Multi-stage build for quickdraw-chat API
-FROM node:20-alpine AS base
+FROM node:24-alpine AS base
 
 # Install bun (kept in sync with package.json "packageManager")
 RUN npm install -g bun@1.3.10
