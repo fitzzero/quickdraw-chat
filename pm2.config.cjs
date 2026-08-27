@@ -36,7 +36,9 @@ module.exports = {
       script: "apps/api/dist/index.js",
       env: {
         ...devEnv,
-        NODE_ENV: "production",
+        // Non-production at runtime: the core env guard refuses mock-auth
+        // flows under NODE_ENV=production, and this IS the dev instance.
+        NODE_ENV: devEnv.NODE_ENV || "development",
         DOTENV_CONFIG_PATH: path.join(__dirname, ".env.dev"),
       },
       max_memory_restart: "1G",
