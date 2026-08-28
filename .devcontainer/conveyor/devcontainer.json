@@ -1,12 +1,7 @@
 {
   "name": "Conveyor Agent",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
-  "forwardPorts": [
-    7090,
-    3050,
-    4000,
-    3000
-  ],
+  "forwardPorts": [7090, 3050, 4000, 3000],
   "portsAttributes": {
     "3000": {
       "label": "Web",

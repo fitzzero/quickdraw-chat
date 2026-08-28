@@ -95,7 +95,7 @@ jobs:
           # Stable platform toolchain image. Content-addressed by the full Dockerfile
           # SHA-256 and reused by thin agent runtime images across agent releases.
           FROM node:22-slim
-          
+
           # Single RUN to keep layer count + apt/npm cache footprint minimal.
           #
           # node-gyp toolchain (python3 make g++): @rallycry/conveyor-agent depends on
@@ -178,10 +178,10 @@ jobs:
               ln -sf /home/conveyor/.bun/bin/bunx /usr/local/bin/bunx && \
               printf 'claudespace\n' > /etc/claudespace-pod && \
               chown -R conveyor:conveyor /home/conveyor /workspaces
-          
+
           ENV HOME=/home/conveyor
           ENV PATH="/home/conveyor/.bun/bin:${PATH}"
-          
+
           # Playwright CLI + the headless shell browser + system deps, baked at the BASE
           # layer so every project's pods can run browser e2e without a per-bake/per-pod
           # install.
@@ -230,7 +230,7 @@ jobs:
               # size win silently regressed and every pod pays for a browser it cannot use.
               test -d /home/conveyor/.cache/ms-playwright/chromium_headless_shell-1234 && \
               test ! -d /home/conveyor/.cache/ms-playwright/chromium-1234
-          
+
           # gh — GitHub CLI. Pod agents repeatedly reached for `gh pr checks` / `gh api`
           # for read-only PR + CI state and hit "command not found" (2026-07-10 transcript
           # audit), then hand-rolled curl against api.github.com instead. Auth comes from
@@ -246,7 +246,7 @@ jobs:
               apt-get install -y -qq --no-install-recommends gh && \
               apt-get clean && \
               rm -rf /var/lib/apt/lists/* /var/cache/apt/*
-          
+
           # graphify — Python code-intelligence CLI. Queries the shared graph bundle
           # ($CONVEYOR_GRAPHIFY_GRAPH, bound into graphify-out by the agent entrypoint)
           # so pods can answer "how does X work?" against the repo graph. Installed
@@ -273,7 +273,7 @@ jobs:
               uv tool install graphifyy && \
               chmod -R a+rX /opt/uv && \
               rm -rf /root/.cache/uv /root/.config/uv /tmp/*
-          
+
           # Pre-warm the opencode ChatGPT codex-auth plugin (version pinned — bump
           # deliberately: it affects the base image content hash and MUST match
           # OPENCODE_CODEX_PLUGIN in
@@ -302,7 +302,7 @@ jobs:
               (cd /tmp && timeout 180 opencode plugin opencode-openai-codex-auth@4.4.0 && rm -rf /tmp/.opencode) && \
               test -n "$(find /home/conveyor -type d -name '*opencode-openai-codex-auth*' -print -quit)"
           USER root
-          
+
           ARG CONVEYOR_REPO
           LABEL org.opencontainers.image.source=https://github.com/$CONVEYOR_REPO
           ENV CONVEYOR_PREBAKED=1
