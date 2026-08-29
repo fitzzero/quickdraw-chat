@@ -9,3 +9,26 @@ services:
       - "infinity"
     volumes:
       - "../../..:/workspaces:cached"
+    environment:
+      DATABASE_URL: "postgresql://postgres@postgresql:5432/conveyor"
+      TEST_DATABASE_URL: "postgresql://postgres@postgresql:5432/conveyor_test"
+    depends_on:
+      postgresql:
+        condition: "service_healthy"
+  postgresql:
+    image: "ghcr.io/fitzzero/quickdraw-chat/conveyor/postgresql:current"
+    command:
+      - "sh"
+      - "-c"
+      - "if [ ! -s /var/lib/postgresql/data/PG_VERSION ] && [ -d /var/lib/postgresql/pod-data ]; then cp -a /var/lib/postgresql/pod-data/. /var/lib/postgresql/data/; fi; chown -R postgres:postgres /var/lib/postgresql/data; docker-entrypoint.sh postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off & PID=$$!; for i in $$(seq 1 30); do pg_isready -U postgres && break; sleep 1; done; createdb -U postgres conveyor_test 2>/dev/null || true; wait $$PID"
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: "trust"
+      POSTGRES_DB: "conveyor"
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "pg_isready -U postgres"
+      interval: "2s"
+      timeout: "5s"
+      retries: 15
+    restart: "unless-stopped"
