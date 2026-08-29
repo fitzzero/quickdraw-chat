@@ -19,7 +19,7 @@ permissions:
   packages: write
 jobs:
   prebake:
-    runs-on: self-hostedd
+    runs-on: self-hosted
     timeout-minutes: 90
     steps:
       - name: Show runner
