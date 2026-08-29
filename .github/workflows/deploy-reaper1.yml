@@ -1,0 +1,51 @@
+name: Deploy reaper1
+
+# Push-triggered deploy of the hosted DEV instance to the home server via the
+# reaper1 self-hosted runner (farseer/foundation pattern). Deliberately no
+# actions/checkout: the job operates on the deploy-managed clone on reaper1
+# (/home/app-quickdraw-chat/apps/quickdraw-chat-dev, branch dev) — telariel's
+# run-deploy.sh resets that clone to origin/dev before invoking the deploy, so
+# this workflow only starts the systemd unit. Prod is NOT deployed here — it
+# ships to GCP Cloud Run + Vercel via deploy.yml. If the runner is offline,
+# runs queue harmlessly.
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: reaper1-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-dev:
+    name: Deploy Dev (reaper1)
+    runs-on: [self-hosted, reaper1]
+    environment:
+      name: dev
+      url: https://quickdraw-dev.techtree.gg
+    timeout-minutes: 20
+    steps:
+      # Deploys go through telariel's systemd deploy units: run-deploy.sh
+      # resets the app-quickdraw-chat-owned clone and runs the deploy as
+      # app-quickdraw-chat. The runner has NoNewPrivileges (sudo is dead);
+      # polkit (50-telariel-deploys.rules) allows it to start exactly these
+      # units. systemctl start blocks until the oneshot finishes and
+      # propagates failure, so this step fails correctly on a bad deploy.
+      # The runner cannot read the system journal or the app's pm2 logs
+      # (by design), so on failure debug on the box:
+      #   ssh reaper1 'sudo journalctl -u quickdraw-chat-dev-deploy.service -n 100'
+      - name: Deploy
+        run: systemctl start quickdraw-chat-dev-deploy.service
+
+      # The deploy already reloaded pm2 locally; this gate covers the public
+      # path through cloudflared (Access bypasses for the home IP, which is
+      # also where this runner egresses from).
+      - name: Public health gate
+        run: |
+          for i in $(seq 1 18); do
+            curl -fsS https://quickdraw-io-dev.techtree.gg/health && exit 0
+            echo "waiting for dev API ($i/18)…"; sleep 10
+          done
+          echo "dev API never reachable through the tunnel" >&2; exit 1
