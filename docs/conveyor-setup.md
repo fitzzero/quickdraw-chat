@@ -166,9 +166,21 @@ belongs in a file Conveyor does not own.
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for the human-facing version.
 
+## 8. Set up the tag glossary
+
+Conveyor tags are the project's glossary: a tag carries a description, an
+overview, and the repo paths that belong to the term. Tagging a card hands an
+agent that context automatically.
+
+[docs/conveyor-tags.md](conveyor-tags.md) is this project's tag set, with the
+repo file each overview is sourced from. Recreate it in your own project from
+that table. Keep every overview sourced from a repo file rather than pasted
+into the tag, so editing the file is what updates the glossary.
+
 ## Related docs
 
 - [docs/conveyor-prebake.md](conveyor-prebake.md) — image baking in depth
+- [docs/conveyor-tags.md](conveyor-tags.md) — the tag glossary and its paths
 - [CONTRIBUTING.md](../CONTRIBUTING.md) — branch contract and pre-push gates
 - [CLAUDE.md](../CLAUDE.md) — project context for Claude sessions
 - [DEPLOYMENT.md](../DEPLOYMENT.md) — production deploys
