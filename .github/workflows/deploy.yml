@@ -111,6 +111,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
       - name: Restore dependencies cache
         uses: actions/cache@v5
         with:
@@ -231,6 +233,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
       - uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
@@ -244,12 +248,12 @@ jobs:
             packages/*/node_modules
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'package.json', 'apps/**/package.json', 'packages/**/package.json') }}
       - run: bun install --frozen-lockfile --ignore-scripts
-      - name: Generate Prisma client
-        run: bun run db:generate
-        env:
-          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+      # vercel build runs next outside turbo, so the workspace dependencies must
+      # be built here. @project/db#build runs prisma generate for us.
       - name: Build dependencies
         run: bunx turbo build --filter='@project/web^...'
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
       - name: Pull Vercel config
         run: bunx vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
         env:

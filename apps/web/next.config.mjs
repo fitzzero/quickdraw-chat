@@ -55,7 +55,7 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ["shared"],
+  transpilePackages: ["@project/shared"],
   output: "standalone",
   // Monorepo: pin the workspace root explicitly — inference fails under
   // `vercel build` (bun symlink layout) and standalone tracing needs it.

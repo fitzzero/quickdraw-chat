@@ -19,8 +19,7 @@
     "test:unit": "turbo test:unit",
     "test:int": "turbo test:int",
     "test:watch": "turbo test:watch",
-    "test:coverage": "turbo test -- --coverage",
-    "clean": "turbo clean",
+    "test:coverage": "turbo test:coverage",
     "reset:dev": "bash scripts/reset-dev.sh",
     "db:generate": "turbo db:generate",
     "db:push": "turbo db:push",
@@ -32,7 +31,6 @@
     "bench:compare": "tsx packages/bench/src/cli/compare.ts",
     "build:prod": "NODE_ENV=production turbo build",
     "db:migrate:deploy": "cd packages/db && bun run db:migrate:deploy",
-    "precommit": "turbo lint typecheck test",
     "prepare": "husky && conveyor-skills link"
   },
   "devDependencies": {
@@ -47,7 +45,7 @@
     "tsx": "^4.7.0",
     "turbo": "^2.0.0",
     "typescript": "^5.3.0",
-    "vitest": "^1.3.0"
+    "vitest": "^4.0.17"
   },
   "engines": {
     "node": ">=24"
