@@ -145,12 +145,17 @@ and refreshed on every install via the `prepare` script), and a
 conveyor-ready devcontainer (`.devcontainer/conveyor/`) so the repo passes
 conveyor's project readiness checks immediately.
 
+**Connecting a fork to Conveyor:**
+[docs/conveyor-setup.md](docs/conveyor-setup.md) is the end-to-end journey —
+project creation, the two Compute commands, MCP hookup for a local Claude
+session, prebake, and the branch contract.
+
 **Faster agent boots (optional):** Conveyor can prebake the agent image via a
 GitHub Actions workflow it generates and commits for you — no GCP account
 needed, and it can run on your own self-hosted runner. Nothing to implement in
 this repo: flip it on in Conveyor's project settings when you want it. See
 [docs/conveyor-prebake.md](docs/conveyor-prebake.md) for what gets generated
-vs configured, plus a checked-in reference copy of the workflow.
+vs configured, plus a minimal shape illustration of the workflow.
 
 ## Project Structure
 

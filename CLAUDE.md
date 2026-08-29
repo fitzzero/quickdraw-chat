@@ -63,7 +63,9 @@ First-time setup: `docker-compose up -d` (postgres) → `bun install` →
 → sign in via "Continue as demo user".
 
 Claudespace/Conveyor pods boot via `scripts/claudespace-start.sh` — see the
-"Claudespace pods" section of `docs/conveyor-prebake.md`.
+"Claudespace pods" section of `docs/conveyor-prebake.md`. To connect a fork to
+Conveyor from scratch, see `docs/conveyor-setup.md`; the branch contract (PRs
+target `dev`, `main` deploys) is in `CONTRIBUTING.md`.
 
 ## Domain-Specific Context
 

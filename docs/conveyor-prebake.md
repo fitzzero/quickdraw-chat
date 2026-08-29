@@ -1,5 +1,9 @@
 # Conveyor Prebake (GitHub Actions, no GCP)
 
+> For the full fork-connection journey — project creation, Compute commands,
+> MCP hookup, branch contract — see
+> [conveyor-setup.md](conveyor-setup.md). This page covers image baking only.
+
 Conveyor can "prebake" a project's agent image so codespaces boot with the
 toolchain (conveyor-agent + Claude Code CLI) and your dependencies already
 installed, instead of npm-installing them on every start. There are two bake
@@ -21,9 +25,9 @@ snapshot of a prebaked devcontainer is the fastest boot.
 **Conveyor generates** (do not hand-edit — regenerated and re-committed
 whenever bake configuration drifts):
 
-- `.github/workflows/conveyor-prebake.yml` — the bake workflow. A checked-in
-  reference copy lives at [`docs/examples/conveyor-prebake.yml`](examples/conveyor-prebake.yml)
-  so you can see the shape; the live one Conveyor commits has your repo's
+- `.github/workflows/conveyor-prebake.yml` — the bake workflow. A minimal
+  shape illustration lives at [`docs/examples/conveyor-prebake.yml`](examples/conveyor-prebake.yml);
+  the live workflow Conveyor commits is much larger and has your repo's
   owner/name baked in. The `run-name` carries a content hash Conveyor uses to
   match the run to its pending build record — renaming the workflow or the
   run-name breaks completion detection.
