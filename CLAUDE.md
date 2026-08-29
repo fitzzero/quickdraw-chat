@@ -15,13 +15,17 @@ infrastructure, CI/CD, and conveyor-ready devcontainer config are all wired up.
 quickdraw-chat/
 ├── apps/
 │   ├── api/          # Express + Socket.IO backend
-│   ├── web/          # Next.js frontend (MUI)
+<!-- ── quickdraw-game:start ── -->
 │   ├── game/         # Godot client for the demo snake world
-│   └── bench-web/    # Browser viewer for netcode benchmark runs
+│   ├── bench-web/    # Browser viewer for netcode benchmark runs
+<!-- ── quickdraw-game:end ── -->
+│   └── web/          # Next.js frontend (MUI)
 ├── packages/
 │   ├── db/           # Prisma schema + client (@project/db)
-│   ├── shared/       # Shared TypeScript types (@project/shared)
-│   └── bench/        # Netcode benchmark scenarios + scoring (@project/bench)
+<!-- ── quickdraw-game:start ── -->
+│   ├── bench/        # Netcode benchmark scenarios + scoring (@project/bench)
+<!-- ── quickdraw-game:end ── -->
+│   └── shared/       # Shared TypeScript types (@project/shared)
 └── eslint-plugin-project/   # Repo-local lint rules
 ```
 
@@ -52,10 +56,12 @@ bun run db:studio     # Open Prisma Studio (from packages/db)
 # Full quality check before committing
 bun run check && bun run test
 
+# ── quickdraw-game:start ──
 # Netcode benchmarks (see docs/netcode-bench.md)
 bun run bench:netcode                      # headless Tier-1 scorecard (default scenario)
 bun run bench:netcode -- --all --runs 3    # full sweep, median-of-3
 bun run bench:compare <baseline> <candidate>
+# ── quickdraw-game:end ──
 ```
 
 First-time setup: `docker-compose up -d` (postgres) → `bun install` →

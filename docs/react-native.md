@@ -4,8 +4,14 @@ Findings from the 2026-08 spike on maintaining a native iOS/Android app
 alongside this web template. **Verdict: very feasible.** The data layer
 (core client hooks, project hook wrappers, `@project/shared`) is
 runtime-agnostic; only the view layer needs rewriting, and the genuinely
-portable surface (chat) is ~1,000 lines of MUI JSX. Landing, admin, and the
-Godot canvas would not ship on mobile as-is.
+portable surface (chat) is ~1,000 lines of MUI JSX. Landing and admin would
+not ship on mobile as-is.
+
+<!-- ── quickdraw-game:start ── -->
+
+Neither would the Godot canvas.
+
+<!-- ── quickdraw-game:end ── -->
 
 Requires `@fitzzero/quickdraw-core` **≥ 4.1.0** (non-DOM guard in
 `useSubscription`, `transports` prop).
@@ -29,26 +35,33 @@ Does not share:
   `<Box sx>` → `<View style>` translation; the theme tokens in
   `apps/web/src/theme/index.ts` lift cleanly.
 - `next/navigation` (16 files) → Expo Router, near 1:1 mapping.
+<!-- ── quickdraw-game:start ── -->
 - The Godot web embed (see below).
+<!-- ── quickdraw-game:end ── -->
 
 ## Auth: token-in-handshake, already first-class
 
 The server's auth contract is `handshake.auth.token = <session JWT>`, with
 the httpOnly cookie as a browser convenience — the token wins when both are
-present (`apps/api/src/auth/middleware.ts`). Three production consumers
-prove the cookie-less path: the Discord Activity, the Godot client, and the
-bench bots.
+present (`apps/api/src/auth/middleware.ts`). The cookie-less path is already
+proven in production.
 
-An RN client follows `DiscordActivityShell.tsx` exactly:
+<!-- ── quickdraw-game:start ── -->
+
+Three consumers use it: the Discord Activity, the Godot client, and the bench
+bots. `DiscordActivityShell.tsx` is the closest reference implementation.
+
+<!-- ── quickdraw-game:end ── -->
+
+An RN client follows three steps:
 
 1. Obtain a session JWT:
    - **Guest**: `POST /auth/guest` returns `{ userId, name, token }` — the
      token is in the body precisely for cookie-less clients.
    - **OAuth**: run the existing `/auth/<provider>` flow in
-     `expo-auth-session` / an in-app browser. (If native OAuth is pursued,
-     add a token-returning completion mirroring
-     `auth/discord-activity.ts` — the current callback is cookie+redirect
-     only.)
+     `expo-auth-session` / an in-app browser. The current callback is
+     cookie-and-redirect only, so native OAuth needs a token-returning
+     completion added.
 2. Store it in `expo-secure-store`.
 3. Pass it to `<QuickdrawProvider serverUrl={...} authToken={token}
 transports={["websocket"]} autoConnect>`.
@@ -69,6 +82,8 @@ transports={["websocket"]} autoConnect>`.
   half-day de-risk spike: scaffold Expo, install core + shared, connect to
   the dev API with a token, render one `useCollection` list. That proves
   the entire shared stack.
+
+<!-- ── quickdraw-game:start ── -->
 
 ## The game on mobile
 
@@ -91,6 +106,8 @@ Options, best-first:
    (`quickdraw-game` markers + `scripts/strip-game.mjs`). Game _state_
    (join/leaderboard) flows over ordinary typed service methods, so a
    native leaderboard needs no engine at all.
+
+<!-- ── quickdraw-game:end ── -->
 
 ## Recommended v1 scope
 

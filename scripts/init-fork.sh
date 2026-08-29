@@ -159,10 +159,11 @@ bun run format >/dev/null 2>&1 || true
 
 # ── 6. --without-game sanity: a broken seam must fail HERE, loudly ───
 if [ -n "$WITHOUT_GAME" ]; then
-  echo "Verifying the carve-out (db:generate + build + check)..."
+  echo "Verifying the carve-out (db:generate + build + check + test)..."
   bun run db:generate >/dev/null
   bun run build >/dev/null
   bun run check
+  bun run test
 fi
 
 echo ""

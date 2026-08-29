@@ -155,7 +155,10 @@ const services = buildServices(prisma, {
   game: { tunables: await loadSnakeTunables(prisma) },
   // ── quickdraw-game:end ──
 });
-const { pushService, definitionService, gameService } = services;
+const { pushService } = services;
+// ── quickdraw-game:start ──
+const { definitionService, gameService } = services;
+// ── quickdraw-game:end ──
 
 for (const [name, service] of Object.entries(services)) {
   serviceRegistry.registerService(name, service);

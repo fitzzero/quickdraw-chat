@@ -7,8 +7,8 @@
  * lands in every root at once. Each root still decides which of the returned
  * services it registers.
  *
- * Construction is cheap and side-effect free: the game loop only runs after
- * `gameService.startLoop()`, and PushService is a no-op without VAPID keys.
+ * Construction is cheap and side-effect free: nothing here starts a timer or
+ * opens a connection, and PushService is a no-op without VAPID keys.
  */
 
 import type { PrismaClient } from "@project/db";

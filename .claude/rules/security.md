@@ -21,7 +21,10 @@ going to production.
 - **Rate limits (HTTP)**: OAuth + guest routes 20/15min; logout routes
   60/15min.
 - **Web**: security headers + Report-Only CSP in `apps/web/next.config.mjs`;
-  enforced `frame-ancestors` allowing only self + Discord Activity contexts.
+  enforced `frame-ancestors`.
+  <!-- ── quickdraw-game:start ── -->
+  It allows self plus the Discord Activity contexts, nothing else.
+  <!-- ── quickdraw-game:end ── -->
 - **CI/CD**: TruffleHog secret scan (blocking) + `bun audit` (advisory) in
   CI; TruffleHog also gates deploys; Renovate with vulnerability alerts.
 
@@ -45,15 +48,28 @@ going to production.
 
 The CSP ships Report-Only so nothing breaks silently. To enforce it: watch
 the devtools console for `Content-Security-Policy-Report-Only` violations
-across `/`, `/game`, and the Discord Activity; pin `img-src` to your actual
-avatar CDNs; then merge the report-only directives into the enforced
-`Content-Security-Policy` header (keep its `frame-ancestors` line). Forks
-without the game/Discord Activity can drop `wasm-unsafe-eval`, the
-`worker-src`/`media-src` blob entries, and the Discord `frame-ancestors`.
+across every route; pin `img-src` to your actual avatar CDNs; then merge the
+report-only directives into the enforced `Content-Security-Policy` header
+(keep its `frame-ancestors` line).
+
+<!-- ── quickdraw-game:start ── -->
+
+The game routes (`/game`, the Discord Activity) are the ones most likely to
+report violations. `./scripts/init-fork.sh --without-game` already drops
+`wasm-unsafe-eval`, the `worker-src`/`media-src` blob entries, the `img-src`
+`blob:` token and the Discord `frame-ancestors` — those directives live in
+marker-wrapped arrays in `apps/web/next.config.mjs`.
+
+<!-- ── quickdraw-game:end ── -->
 
 ## Scaling caveat
 
 All rate limiters (HTTP and socket) are in-memory per-instance: behind N
 instances the effective limit is N×. Move to a shared store (core ships a
-redis adapter — `setupRedisAdapter`) before scaling out; the game sim also
-requires a single instance (see game-patterns.md).
+redis adapter — `setupRedisAdapter`) before scaling out.
+
+<!-- ── quickdraw-game:start ── -->
+
+The game sim also requires a single instance (see game-patterns.md).
+
+<!-- ── quickdraw-game:end ── -->

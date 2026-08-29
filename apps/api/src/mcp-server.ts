@@ -41,11 +41,16 @@ const mcpRegistry = new McpRegistry({
   },
 });
 
+const services = buildServices(prisma);
+const mcpServices: Record<string, (typeof services)[keyof typeof services]> = { ...services };
+
+// ── quickdraw-game:start ──
 // gameService is deliberately NOT registered. McpRegistry.invoke() has no
 // socket, but every game method binds to one: joinGame and respawn mutate
 // live sim presence, watchWorld grants world-room membership by socket id,
 // and there is no sim loop in this process. See .claude/rules/api-conventions.md.
-const { gameService: _gameService, ...mcpServices } = buildServices(prisma);
+delete mcpServices["gameService"];
+// ── quickdraw-game:end ──
 
 for (const [name, service] of Object.entries(mcpServices)) {
   mcpRegistry.registerService(name, service);

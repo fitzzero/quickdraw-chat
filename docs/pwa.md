@@ -60,8 +60,13 @@ Manager for the Cloud Run deploy); the public key and subject are non-secret
 
 ## Fork notes
 
+<!-- ── quickdraw-game:start ── -->
+
 - All PWA/push files survive `./scripts/init-fork.sh --without-game`
-  untouched; brand strings in `site.webmanifest` / `layout.tsx` are
-  rewritten by the fork script like the rest of the app.
+untouched; brand strings in `site.webmanifest` / `layout.tsx` are
+rewritten by the fork script like the rest of the app.
+<!-- ── quickdraw-game:end ── -->
+- Brand strings in `site.webmanifest` / `layout.tsx` are rewritten by
+  `init-fork.sh` like the rest of the app.
 - Generate a **fresh** VAPID keypair per deployment — never reuse another
   deploy's keys.
