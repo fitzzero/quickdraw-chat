@@ -18,16 +18,3 @@ export function requireAuth(
     throw new Error("Authentication required");
   }
 }
-
-/**
- * Assert a lookup found something and narrow away null/undefined.
- * Throwing here surfaces as a failed ack with the given message.
- */
-export function requireEntity<T>(
-  entity: T | null | undefined,
-  message = "Not found",
-): asserts entity is T {
-  if (entity === null || entity === undefined) {
-    throw new Error(message);
-  }
-}
