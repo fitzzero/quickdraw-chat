@@ -1,7 +1,7 @@
 # Quickdraw Chat — Project Context
 
 Quickdraw Chat is a real-time chat application template built on
-`@fitzzero/quickdraw-core` 4.0 (framework for typed real-time Socket.IO
+`@fitzzero/quickdraw-core` 4.1 (framework for typed real-time Socket.IO
 services). It is the reference demo for core's collection subscriptions —
 live lists via `defineCollection`/`useCollection` (both scope shapes:
 chat-scoped `byChat`, user-scoped fan-out `myChats`). It is meant to be
@@ -15,10 +15,14 @@ infrastructure, CI/CD, and conveyor-ready devcontainer config are all wired up.
 quickdraw-chat/
 ├── apps/
 │   ├── api/          # Express + Socket.IO backend
-│   └── web/          # Next.js frontend (MUI)
-└── packages/
-    ├── db/           # Prisma schema + client (@project/db)
-    └── shared/       # Shared TypeScript types (@project/shared)
+│   ├── web/          # Next.js frontend (MUI)
+│   ├── game/         # Godot client for the demo snake world
+│   └── bench-web/    # Browser viewer for netcode benchmark runs
+├── packages/
+│   ├── db/           # Prisma schema + client (@project/db)
+│   ├── shared/       # Shared TypeScript types (@project/shared)
+│   └── bench/        # Netcode benchmark scenarios + scoring (@project/bench)
+└── eslint-plugin-project/   # Repo-local lint rules
 ```
 
 ## Development Commands

@@ -14,48 +14,86 @@
 
 - **Access Level:** `Read`
 - **Socket Event:** `documentService:createDocument`
-- **Validation:** None (consider adding Zod schema)
+- **Validation:** Zod schema (`createDocumentSchema`)
+
+**Payload Schema:**
+
+```typescript
+{
+  title: z.string().min(1).max(200),
+  content: z.string().max(100000).optional(),
+}
+```
 
 ### getDocument
 
 - **Access Level:** `Read`
 - **Socket Event:** `documentService:getDocument`
 - **Entry-scoped:** Yes (requires access to specific entry)
-- **Validation:** None (consider adding Zod schema)
+- **Validation:** Zod schema (`byIdSchema`)
 
 ### updateDocument
 
 - **Access Level:** `Moderate`
 - **Socket Event:** `documentService:updateDocument`
 - **Entry-scoped:** Yes (requires access to specific entry)
-- **Validation:** None (consider adding Zod schema)
+- **Validation:** Zod schema (`updateDocumentSchema`)
+
+**Payload Schema:**
+
+```typescript
+{
+  id: cuidSchema("document ID"),
+  title: z.string().min(1).max(200).optional(),
+  content: z.string().max(100000).optional(),
+}
+```
 
 ### deleteDocument
 
 - **Access Level:** `Admin`
 - **Socket Event:** `documentService:deleteDocument`
 - **Entry-scoped:** Yes (requires access to specific entry)
-- **Validation:** None (consider adding Zod schema)
+- **Validation:** Zod schema (`byIdSchema`)
 
 ### listMyDocuments
 
 - **Access Level:** `Read`
 - **Socket Event:** `documentService:listMyDocuments`
-- **Validation:** None (consider adding Zod schema)
+- **Validation:** Zod schema (`paginationSchema`)
 
 ### shareDocument
 
 - **Access Level:** `Admin`
 - **Socket Event:** `documentService:shareDocument`
 - **Entry-scoped:** Yes (requires access to specific entry)
-- **Validation:** None (consider adding Zod schema)
+- **Validation:** Zod schema (`shareDocumentSchema`)
+
+**Payload Schema:**
+
+```typescript
+{
+  id: cuidSchema("document ID"),
+  userId: cuidSchema("user ID"),
+  level: z.enum(["Public", "Read", "Moderate", "Admin"]),
+}
+```
 
 ### unshareDocument
 
 - **Access Level:** `Admin`
 - **Socket Event:** `documentService:unshareDocument`
 - **Entry-scoped:** Yes (requires access to specific entry)
-- **Validation:** None (consider adding Zod schema)
+- **Validation:** Zod schema (`unshareDocumentSchema`)
+
+**Payload Schema:**
+
+```typescript
+{
+  id: cuidSchema("document ID"),
+  userId: cuidSchema("user ID"),
+}
+```
 
 ---
 

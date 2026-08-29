@@ -20,25 +20,12 @@
 
 ```typescript
 {
-  chatId: z.string().cuid("Invalid chat ID"),
-  content: z.string().min(1, "Content is required").max(10000, "Content must be 10000 characters or less"),
+  chatId: cuidSchema("chat ID"),
+  content: z
+  .string()
+  .min(1, "Content is required")
+  .max(10000, "Content must be 10000 characters or less"),
   role: z.enum(["user", "assistant", "system"]).optional(),
-}
-```
-
-### listMessages
-
-- **Access Level:** `Read`
-- **Socket Event:** `messageService:listMessages`
-- **Validation:** Zod schema (`listMessagesSchema`)
-
-**Payload Schema:**
-
-```typescript
-{
-  chatId: z.string().cuid("Invalid chat ID"),
-  limit: z.number().int().min(1).max(100).optional(),
-  before: z.string().cuid().optional(),
 }
 ```
 
@@ -47,15 +34,7 @@
 - **Access Level:** `Admin`
 - **Socket Event:** `messageService:deleteMessage`
 - **Entry-scoped:** Yes (requires access to specific entry)
-- **Validation:** Zod schema (`deleteMessageSchema`)
-
-**Payload Schema:**
-
-```typescript
-{
-  id: z.string().cuid("Invalid message ID"),
-}
-```
+- **Validation:** Zod schema (`byIdSchema`)
 
 ---
 

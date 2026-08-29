@@ -5,21 +5,20 @@ real devices. Each entry names the change, where it lives, what scorecard
 movement would confirm it, and its wire-format impact. Work top-down; the
 loop (`/netcode-rd`) picks the first hypothesis not yet in the LEDGER.
 
-## 1. Global world clock (shared tick estimator)
+## 1. Global world clock (shared tick estimator) — SHIPPED
 
-Every `RemoteSnake` keeps its OWN `_tick_est`, nudged 5% per render frame
-toward its freshest snapshot (`remote_snake.gd:47-48`). Two remotes on one
-screen can render at slightly different world times, and the nudge factor is
-frame-rate dependent (5%/frame ≈ different time constants at 30 vs 144fps).
+Resolved 2026-08-01 and recorded KEPT in `LEDGER.md`. Kept here for the
+record; do not pick it up again.
 
-- Change: one world-clock estimator per client, fed by every snapshot
-  arrival; all interpolators render at `worldClock − delay`. Use the
-  frame-rate-independent form `est += (target − est) * (1 − exp(−dt/τ))`.
-- Files: `apps/api/src/bench/bot/interpolation.ts` (+ a shared clock owned by
-  the bot client), then `remote_snake.gd`/`main.gd`.
-- Confirm: `remoteVsRemotePx` ↓ (esp. jitter-heavy), `jerkRms` ↓, no
-  `renderLatencyMs` increase.
-- Wire: none.
+Every `RemoteSnake` used to keep its own `_tick_est`, nudged 5% per render
+frame toward its freshest snapshot, so two remotes on one screen could render
+at slightly different world times and the nudge factor was frame-rate
+dependent. Every snake now reads one shared clock
+(`remote_snake.gd` calls `Game.render_tick()`), using the frame-rate
+independent form `est += (target − est) * (1 − exp(−dt/τ))` with τ=0.3s.
+
+- Result: `jerkRms` 1293→1129 (−12.7%) on fps-varying-3p; other scenarios
+  sub-floor. See the 2026-08-01 LEDGER entry.
 
 ## 2. Snapshot send-timestamp + offset estimation
 

@@ -3,9 +3,11 @@
 This guide covers deploying quickdraw-chat to production.
 
 The recommended path is the **Deploy workflow** (`.github/workflows/deploy.yml`):
-TruffleHog secret scan → Prisma migrations against Cloud SQL → Docker image to
-Artifact Registry → Cloud Run (API) → Vercel (Web). Docker Compose self-hosting
-is documented as an alternative.
+TruffleHog secret scan → Prisma migrations against your database → Docker image
+to Artifact Registry → Cloud Run (API) → Vercel (Web). The workflow defaults to
+hosted Postgres over a direct TCP URL; Cloud SQL needs the blocks marked
+`Cloud SQL only` in `deploy.yml` re-enabled. Docker Compose self-hosting is
+documented as an alternative.
 
 ## Table of Contents
 
@@ -73,8 +75,10 @@ LOG_LEVEL=info  # debug, info, warn, error
 
 ## Option 1: Deploy Workflow
 
-One-time setup, then deploys are a `workflow_dispatch` away (or uncomment the
-`push: branches: [main]` trigger for deploy-on-merge).
+Deploy-on-merge is already live: every push to `main` runs the workflow. You
+can also start it by hand from the Actions tab (`workflow_dispatch`), which is
+what the inputs below are for. Deploys run from `main` only — `dev` is the
+integration branch and has no deploy target.
 
 ### 0. Pick a database
 
@@ -194,8 +198,9 @@ gcloud secrets add-iam-policy-binding JWT_SECRET \
 
 ### 5. Deploy
 
-Run the **Deploy** workflow from the Actions tab (or merge to `main`). Inputs
-let you run migrations only, skip the scan, or deploy a single side.
+Merge to `main` and the workflow runs itself. To deploy without a merge, start
+the **Deploy** workflow from the Actions tab; its inputs let you run migrations
+only, skip the scan, or deploy a single side.
 
 ### 6. Custom domains (recommended)
 

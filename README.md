@@ -168,13 +168,16 @@ vs configured, plus a checked-in reference copy of the workflow.
 │   │       ├── components/   # React components (landing, chat, game overlays)
 │   │       ├── hooks/        # Typed wrappers for quickdraw-core hooks
 │   │       └── providers/    # QuickdrawProvider, ThemeProvider
-│   └── game/             # Godot 4 project (exports into apps/web/public/game)
+│   ├── game/             # Godot 4 project (exports into apps/web/public/game)
+│   └── bench-web/        # Browser viewer for netcode benchmark runs
 ├── packages/
 │   ├── db/               # Prisma schema, migrations, client, seed
-│   └── shared/           # Shared types (ServiceMethodsMap), room helpers
+│   ├── shared/           # Shared types (ServiceMethodsMap), room helpers
+│   └── bench/            # Netcode benchmark scenarios + scoring
+├── docs/                 # Deployment, PWA, netcode, Conveyor guides
 ├── .claude/              # Claude Code rules + hooks
 ├── .devcontainer/conveyor/ # Conveyor agent devcontainer (codespace-ready)
-└── .github/workflows/    # ci.yml + parameterized deploy.yml
+└── .github/workflows/    # ci.yml, parameterized deploy.yml, conveyor-prebake.yml
 ```
 
 ## Services

@@ -1,5 +1,10 @@
 # Core 4.0 follow-up — friction found while making quickdraw-chat the collections demo
 
+> **Status: point-in-time feedback, written 2026-07-28 against core 4.0.**
+> This repo now runs core 4.1.x, so some items may already be resolved
+> upstream. Check the current core release notes before acting on anything
+> here.
+
 Feedback for `@fitzzero/quickdraw-core` from the 4.0 migration + RFC 0001
 Phase 3 work (2026-07-28). Everything below has a working workaround in this
 repo; file references point at the demonstration sites.
