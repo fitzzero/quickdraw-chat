@@ -9,6 +9,7 @@
   "forwardPorts": [
     7090,
     3050,
+    5432,
     4000,
     3000
   ],
@@ -27,6 +28,11 @@
       "label": "API",
       "onAutoForward": "openBrowser",
       "visibility": "public"
+    },
+    "5432": {
+      "label": "postgresql",
+      "onAutoForward": "silent",
+      "visibility": "private"
     },
     "7090": {
       "label": "API",
