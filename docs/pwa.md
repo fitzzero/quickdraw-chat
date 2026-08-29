@@ -14,8 +14,8 @@ turns the notification features on.
 | Apple/standalone metadata                                             | `apps/web/src/app/layout.tsx` (`appleWebApp`, `manifest`)                      |
 | `sw.js` no-cache header (new versions roll out without hard refresh)  | `apps/web/next.config.mjs`                                                     |
 | Push opt-in toggle + test-notification button                         | `apps/web/src/app/account/page.tsx` via `usePushNotifications`                 |
-| `pushService`: `subscribePush` / `unsubscribePush` / `sendTestPush`   | `apps/api/src/services/push/index.ts`                                          |
-| REST `POST /api/push/resubscribe` (SW renewal — SWs have no socket)   | `apps/api/src/services/push/rest.ts`                                           |
+| `pushService`: `subscribePush` / `unsubscribePush` / `sendTestPush`   | `apps/api/src/services/push-subscription/index.ts`                             |
+| REST `POST /api/push/resubscribe` (SW renewal — SWs have no socket)   | `apps/api/src/services/push-subscription/rest.ts`                              |
 | New-message pushes to offline chat members                            | `MessageService.afterCreate` → `pushService.notifyNewMessage`                  |
 | `PushSubscription` rows (endpoint-unique, pruned on 410/404)          | `packages/db/prisma/schema.prisma`                                             |
 
@@ -60,8 +60,13 @@ Manager for the Cloud Run deploy); the public key and subject are non-secret
 
 ## Fork notes
 
+<!-- ── quickdraw-game:start ── -->
+
 - All PWA/push files survive `./scripts/init-fork.sh --without-game`
-  untouched; brand strings in `site.webmanifest` / `layout.tsx` are
-  rewritten by the fork script like the rest of the app.
+untouched; brand strings in `site.webmanifest` / `layout.tsx` are
+rewritten by the fork script like the rest of the app.
+<!-- ── quickdraw-game:end ── -->
+- Brand strings in `site.webmanifest` / `layout.tsx` are rewritten by
+  `init-fork.sh` like the rest of the app.
 - Generate a **fresh** VAPID keypair per deployment — never reuse another
   deploy's keys.

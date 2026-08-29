@@ -1,5 +1,9 @@
 # Conveyor Prebake (GitHub Actions, no GCP)
 
+> For the full fork-connection journey — project creation, Compute commands,
+> MCP hookup, branch contract — see
+> [conveyor-setup.md](conveyor-setup.md). This page covers image baking only.
+
 Conveyor can "prebake" a project's agent image so codespaces boot with the
 toolchain (conveyor-agent + Claude Code CLI) and your dependencies already
 installed, instead of npm-installing them on every start. There are two bake
@@ -21,9 +25,9 @@ snapshot of a prebaked devcontainer is the fastest boot.
 **Conveyor generates** (do not hand-edit — regenerated and re-committed
 whenever bake configuration drifts):
 
-- `.github/workflows/conveyor-prebake.yml` — the bake workflow. A checked-in
-  reference copy lives at [`docs/examples/conveyor-prebake.yml`](examples/conveyor-prebake.yml)
-  so you can see the shape; the live one Conveyor commits has your repo's
+- `.github/workflows/conveyor-prebake.yml` — the bake workflow. A minimal
+  shape illustration lives at [`docs/examples/conveyor-prebake.yml`](examples/conveyor-prebake.yml);
+  the live workflow Conveyor commits is much larger and has your repo's
   owner/name baked in. The `run-name` carries a content hash Conveyor uses to
   match the run to its pending build record — renaming the workflow or the
   run-name breaks completion detection.
@@ -75,3 +79,32 @@ of the `docker` group).
 
 Until a first bake lands, the v1 devcontainer keeps working as-is (it installs
 the toolchain at boot), so enabling this is safe at any point.
+
+## Claudespace pods (Kubernetes provider)
+
+Pods boot differently from codespaces, and the difference is why a pod used to
+spawn broken: pod boot **re-clones the repo fresh** over the baked checkout and
+runs **none** of the devcontainer lifecycle hooks. Only home-directory
+artifacts survive from the bake (`~/.bun` and bun's warm install cache) — so
+`node_modules`, the `.claude/skills/conveyor-*` symlinks (they point into
+`node_modules`), the database, and the dev stack all start absent.
+
+The two Compute commands split the work:
+
+- **Setup Command** → `bash scripts/bake-setup.sh` — runs at image-bake time
+  (no database exists there): installs bun, `bun install`, Prisma generate.
+- **Start Command** → `bash scripts/claudespace-start.sh` — runs at pod boot,
+  after the clone: `bun install` (postinstall re-links the conveyor skills),
+  database via `scripts/ensure-dev-db.sh`, migrate + seed, best-effort code
+  graph, then backgrounds `bun run dev` (API :4000, web :3000).
+
+`scripts/ensure-dev-db.sh` is shared with `.devcontainer/conveyor/start.sh`
+and picks its mode from env: an injected `DATABASE_URL` with a non-localhost
+host (the declared **PostgreSQL 16 sidecar** — the recommended setup) means
+wait-for-ready only; otherwise it apt-installs and provisions a local server.
+Every step is idempotent and there is no sentinel file — a sentinel written
+during a bake run would freeze into the image and skip setup on every boot.
+
+Pods set `CONVEYOR_CONTAINER_ROLE` (and bakes `CONVEYOR_POD_IMAGE_BUILD` /
+`CONVEYOR_PREBAKED`); `scripts/load-env.sh` treats these as container contexts
+so pods load `.env.infra.codespaces` and bind `0.0.0.0`.

@@ -112,30 +112,8 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       console.error("Error caught by boundary:", error, errorInfo);
     }
 
-    // TODO: Add error logging service integration
-    // Example integrations:
-    //
-    // Sentry:
-    // import * as Sentry from "@sentry/nextjs";
-    // Sentry.captureException(error, {
-    //   contexts: { react: { componentStack: errorInfo.componentStack } },
-    // });
-    //
-    // LogRocket:
-    // import LogRocket from "logrocket";
-    // LogRocket.captureException(error, {
-    //   extra: { componentStack: errorInfo.componentStack },
-    // });
-    //
-    // Custom logging:
-    // fetch("/api/log-error", {
-    //   method: "POST",
-    //   body: JSON.stringify({
-    //     error: error.message,
-    //     stack: error.stack,
-    //     componentStack: errorInfo.componentStack,
-    //   }),
-    // });
+    // Report to an error service here (Sentry, LogRocket, your own
+    // endpoint). Each provider's Next.js guide covers the wiring.
   }
 
   private handleReset = (): void => {

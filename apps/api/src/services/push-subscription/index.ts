@@ -5,20 +5,11 @@ import webpush from "web-push";
 import { z } from "zod";
 import { createServiceLogger, errorMeta } from "../../utils/logger.js";
 import { requireAuth } from "../shared/index.js";
+import { endpointSchema, pushSubscriptionSchema } from "./schemas.js";
 
 const logger = createServiceLogger("pushService");
 
 // Zod schemas for validation
-const endpointSchema = z.string().url().max(2048);
-
-const subscribePushSchema = z.object({
-  endpoint: endpointSchema,
-  keys: z.object({
-    p256dh: z.string().min(1).max(512),
-    auth: z.string().min(1).max(512),
-  }),
-});
-
 const unsubscribePushSchema = z.object({
   endpoint: endpointSchema,
 });
@@ -221,7 +212,7 @@ export class PushService extends BaseService<
         logger.info("Push subscription registered", { userId: ctx.userId });
         return { success: true as const };
       },
-      { schema: subscribePushSchema },
+      { schema: pushSubscriptionSchema },
     );
 
     // Remove this browser's push endpoint (only the owner may remove it)

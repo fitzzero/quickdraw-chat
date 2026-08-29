@@ -1,0 +1,6 @@
+# Read by oxfmt (format / format:check) as its ignore file.
+# Conveyor-generated files — the bot regenerates and re-commits these without
+# running this repo's formatter, so checking them fails every human commit.
+.devcontainer/conveyor/
+.github/workflows/conveyor-prebake.yml
+docs/examples/conveyor-prebake.yml

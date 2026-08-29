@@ -1,7 +1,7 @@
 // Cross-service helpers (guards, pagination, schema builders).
 // Candidates for upstreaming into quickdraw-core (RFC 0002 §3.4) — until
 // core ships them, every quickdraw app re-writes these.
-export { requireAuth, requireEntity } from "./guards.js";
+export { requireAuth } from "./guards.js";
 export {
   parsePagination,
   cursorPageArgs,

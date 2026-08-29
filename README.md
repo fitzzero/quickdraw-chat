@@ -6,7 +6,10 @@
 
 <p align="center">
   <strong>The realtime fullstack starter for <a href="https://github.com/fitzzero/quickdraw">@fitzzero/quickdraw-core</a></strong><br />
-  Typed Socket.IO services, two-tier ACL, a full auth suite, and a multiplayer game foundation — already wired together.
+  Typed Socket.IO services, two-tier ACL, and a full auth suite — already wired together.
+<!-- ── quickdraw-game:start ── -->
+  Plus a multiplayer game foundation.
+<!-- ── quickdraw-game:end ── -->
 </p>
 
 <p align="center">
@@ -25,7 +28,11 @@ This repo is three things at once:
 
 1. **A production-ready template** — fork it, run one script, and start on the interesting part of your app.
 2. **The reference implementation** for quickdraw-core's patterns: services, ACL, subscriptions, **collections**, channels, auth.
-3. **A working demo** — a realtime chat app _and_ a multiplayer Godot snake game sharing one typed API. [Play it.](https://quickdraw.techtree.gg/game)
+3. **A working demo** — a realtime chat app on one typed API. [See it live.](https://quickdraw.techtree.gg)
+   <!-- ── quickdraw-game:start ── -->
+   The demo also ships a multiplayer Godot snake game on that same API.
+   [Play it.](https://quickdraw.techtree.gg/game)
+   <!-- ── quickdraw-game:end ── -->
 
 ## Live lists in one declaration
 
@@ -66,9 +73,17 @@ The template demonstrates both scope shapes end to end:
 - **Typed realtime services** — `BaseService` + `defineMethod()`: request/response over Socket.IO, zod-validated, ACL-gated, consumed through typed React hooks (`useServiceQuery`, `useService`, `useSubscription`) with TanStack Query caching. Services declare wire DTOs (`TDto` + `toDto`).
 - **Live collections** — `defineCollection` + `useCollection` power the chat sidebar and message history (see above), plus write lifecycle hooks and typed room events (`QuickdrawEventMap`).
 - **Two-tier access control** — service-level roles (`Public/Read/Moderate/Admin`) plus per-entry ACLs, shown in both flavors: membership table (`ChatService`) and JSON ACL (`DocumentService`). Enforced server-side on every method, subscription, collection, and channel.
+<!-- ── quickdraw-game:start ── -->
 - **A multiplayer game foundation** _(optional — carve it out in one command)_ — Godot 4 client with a first-party GDScript Socket.IO client, 20Hz fire-and-forget input channels, client-side prediction + reconciliation, snapshot interpolation, server-side NPC AI, guest play, live leaderboards, and React overlays (pre-game dialog, HUD, chat) driving the same typed API as the game engine.
-- **Auth, all of it** — Google + Discord OAuth, revocable DB sessions in httpOnly cookies, **mock OAuth** for zero-credential local dev, **guest sessions** for anonymous play, a **Discord Activity** embed, and dev-credential flows for the Godot editor. Dev flags hard-block production boot. Socket auth is shaped as core's `createQuickdrawServer` hooks.
-- **Generic admin dashboard** — every service gets a CRUD surface at `/admin` for free; the game's tunables (`DefinitionService`) are edited live in the browser.
+<!-- ── quickdraw-game:end ── -->
+- **Auth, all of it** — Google + Discord OAuth, revocable DB sessions in httpOnly cookies, **mock OAuth** for zero-credential local dev, and dev-credential flows for tests. Dev flags hard-block production boot. Socket auth is shaped as core's `createQuickdrawServer` hooks.
+  <!-- ── quickdraw-game:start ── -->
+  It also ships **guest sessions** for anonymous play, a **Discord Activity** embed, and dev-credential sign-in for the Godot editor.
+  <!-- ── quickdraw-game:end ── -->
+- **Generic admin dashboard** — every service gets a CRUD surface at `/admin` for free.
+  <!-- ── quickdraw-game:start ── -->
+  The game's tunables (`DefinitionService`) are edited live in the browser this way.
+  <!-- ── quickdraw-game:end ── -->
 - **MCP server** — every service method exposed as an MCP tool over stdio (`.mcp.json` wired for Claude Code).
 - **Dual-mode testing** — the same integration suite runs on in-memory PGlite locally (no PostgreSQL, seconds) and real PostgreSQL in CI, with seeded users, factories, and socket test helpers.
 - **CI/CD included** — migration drift checks, cached lint/typecheck/build, sharded tests, and a parameterized deploy workflow (TruffleHog → migrate → Cloud Run → Vercel).
@@ -117,9 +132,13 @@ bun run dev
 The script only rewrites app identity — framework references
 (`@fitzzero/quickdraw-core`, `QuickdrawProvider`, …) are untouched.
 
+<!-- ── quickdraw-game:start ── -->
+
 **Not building a game?** `--without-game` removes the entire game foundation
 (Godot app, GameService, DefinitionService, Discord Activity, guest auth,
 scores) along marked seams, then verifies the carve-out builds clean.
+
+<!-- ── quickdraw-game:end ── -->
 
 ### Set up without Conveyor compute
 
@@ -145,12 +164,17 @@ and refreshed on every install via the `prepare` script), and a
 conveyor-ready devcontainer (`.devcontainer/conveyor/`) so the repo passes
 conveyor's project readiness checks immediately.
 
+**Connecting a fork to Conveyor:**
+[docs/conveyor-setup.md](docs/conveyor-setup.md) is the end-to-end journey —
+project creation, the two Compute commands, MCP hookup for a local Claude
+session, prebake, and the branch contract.
+
 **Faster agent boots (optional):** Conveyor can prebake the agent image via a
 GitHub Actions workflow it generates and commits for you — no GCP account
 needed, and it can run on your own self-hosted runner. Nothing to implement in
 this repo: flip it on in Conveyor's project settings when you want it. See
 [docs/conveyor-prebake.md](docs/conveyor-prebake.md) for what gets generated
-vs configured, plus a checked-in reference copy of the workflow.
+vs configured, plus a minimal shape illustration of the workflow.
 
 ## Project Structure
 
@@ -159,22 +183,29 @@ vs configured, plus a checked-in reference copy of the workflow.
 ├── apps/
 │   ├── api/              # Express + Socket.io server
 │   │   └── src/
-│   │       ├── services/     # User, Chat, Message, Document, Game, Definition
-│   │       ├── auth/         # OAuth (google/discord/mock), guest, JWT, middleware
+│   │       ├── services/     # One directory per service
+│   │       ├── auth/         # OAuth (google/discord/mock), JWT, middleware
 │   │       └── __tests__/    # Integration tests + factories
-│   ├── web/              # Next.js frontend (MUI, dark-tokyo theme)
-│   │   └── src/
-│   │       ├── app/          # App router: landing, chats, game, scores, admin
-│   │       ├── components/   # React components (landing, chat, game overlays)
-│   │       ├── hooks/        # Typed wrappers for quickdraw-core hooks
-│   │       └── providers/    # QuickdrawProvider, ThemeProvider
-│   └── game/             # Godot 4 project (exports into apps/web/public/game)
+<!-- ── quickdraw-game:start ── -->
+│   ├── game/             # Godot 4 project (exports into apps/web/public/game)
+│   ├── bench-web/        # Browser viewer for netcode benchmark runs
+<!-- ── quickdraw-game:end ── -->
+│   └── web/              # Next.js frontend (MUI, dark-tokyo theme)
+│       └── src/
+│           ├── app/          # App router pages
+│           ├── components/   # React components, grouped by feature
+│           ├── hooks/        # Typed wrappers for quickdraw-core hooks
+│           └── providers/    # QuickdrawProvider, ThemeProvider
 ├── packages/
 │   ├── db/               # Prisma schema, migrations, client, seed
+<!-- ── quickdraw-game:start ── -->
+│   ├── bench/            # Netcode benchmark scenarios + scoring
+<!-- ── quickdraw-game:end ── -->
 │   └── shared/           # Shared types (ServiceMethodsMap), room helpers
+├── docs/                 # Deployment, PWA, and Conveyor guides
 ├── .claude/              # Claude Code rules + hooks
 ├── .devcontainer/conveyor/ # Conveyor agent devcontainer (codespace-ready)
-└── .github/workflows/    # ci.yml + parameterized deploy.yml
+└── .github/workflows/    # ci.yml, parameterized deploy.yml, conveyor-prebake.yml
 ```
 
 ## Services
@@ -233,7 +264,7 @@ removes all of it (or run `node scripts/strip-game.mjs` standalone).
 ```bash
 # Development
 bun run dev           # Start all apps in dev mode
-bun run reset:dev     # Clean slate: ff-only update to origin/main, clear build caches, reinstall, rebuild, migrate + seed
+bun run reset:dev     # Clean slate: ff-only update to origin/dev (RESET_BRANCH overrides), clear build caches, reinstall, rebuild, migrate + seed
 
 # Building
 bun run build         # Build all packages

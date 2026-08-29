@@ -1,11 +1,25 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "envMode": "loose",
+  "globalDependencies": ["bun.lock", "tsconfig.json"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["src/**", "package.json", "tsconfig.json"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": ["NEXT_PUBLIC_*"]
+    },
+    "@project/web#build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "package.json",
+        "tsconfig.json",
+        "next.config.mjs",
+        "next-env.d.ts",
+        "public/**"
+      ],
+      "outputs": [".next/**", "!.next/cache/**"],
       "env": ["NEXT_PUBLIC_*"]
     },
     "dev": {
@@ -37,8 +51,14 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "**/*.test.ts", "**/*.test.tsx", "vitest.config.ts"],
-      "outputs": ["coverage/**"],
+      "inputs": [
+        "src/**",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "vitest.config.ts",
+        "vitest.int.config.ts"
+      ],
+      "outputs": [],
       "cache": true,
       "env": ["DATABASE_URL", "TEST_DATABASE_URL"]
     },
@@ -59,8 +79,11 @@
       "cache": false,
       "env": ["DATABASE_URL", "TEST_DATABASE_URL", "JWT_SECRET"]
     },
-    "clean": {
-      "cache": false
+    "test:coverage": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "cache": false,
+      "env": ["DATABASE_URL", "TEST_DATABASE_URL", "JWT_SECRET"]
     },
     "db:generate": {
       "cache": false,

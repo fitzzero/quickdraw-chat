@@ -133,10 +133,9 @@ async function findOrCreateUser(
 
 /**
  * Provider-agnostic session mint: find-or-create the user + account, then
- * create a JWT + Session row (token revocation support). Used by both the
- * redirect OAuth flows (cookie + redirect) and token-returning flows like
- * the Discord Activity endpoint, where third-party cookie restrictions make
- * the token-in-handshake path primary.
+ * create a JWT + Session row (token revocation support). Used by the redirect
+ * OAuth flows (cookie + redirect) and by token-returning flows, where
+ * third-party cookie restrictions make the token-in-handshake path primary.
  */
 export async function createSessionForProfile(
   profile: OAuthProfile,

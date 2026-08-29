@@ -16,12 +16,8 @@ import { createPrismaTestGlobalSetup } from "@fitzzero/quickdraw-core/server/tes
 import { createQuickdrawServer } from "@fitzzero/quickdraw-core/server";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { UserService } from "../services/user/index.js";
-import { ChatService } from "../services/chat/index.js";
-import { MessageService } from "../services/message/index.js";
-import { DocumentService } from "../services/document/index.js";
-import { GameService } from "../services/game/index.js";
-import { DefinitionService } from "../services/definition/index.js";
+import { buildServices } from "../services/build-services.js";
+import type { GameService } from "../services/game/index.js";
 import { ensureGlobalWorld } from "../services/game/bootstrap.js";
 import { createSocketAuth } from "../auth/middleware.js";
 import { createGroundTruthRecorder, type GroundTruthRecorder } from "./ground-truth.js";
@@ -83,20 +79,14 @@ export async function startBenchServer(scenario: Scenario): Promise<BenchServer>
   }
 
   const recorder = createGroundTruthRecorder();
-  const chatService = new ChatService(testPrisma);
-  const gameService = new GameService(testPrisma, {
-    simSeed: scenario.seed,
-    tunables: scenario.tunables ?? {},
-    onTick: recorder.onTick,
+  const services = buildServices(testPrisma, {
+    game: {
+      simSeed: scenario.seed,
+      tunables: scenario.tunables ?? {},
+      onTick: recorder.onTick,
+    },
   });
-  const services = {
-    userService: new UserService(testPrisma),
-    chatService,
-    messageService: new MessageService(testPrisma, chatService),
-    documentService: new DocumentService(testPrisma),
-    gameService,
-    definitionService: new DefinitionService(testPrisma),
-  };
+  const { gameService } = services;
 
   // Benchmarks measure timing — keep the hot path free of console I/O
   const silent = () => {

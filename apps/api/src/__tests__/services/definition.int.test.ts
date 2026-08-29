@@ -111,6 +111,40 @@ describe("DefinitionService Integration", () => {
     regularClient.close();
   });
 
+  it("subscribe payloads go through toDto (ISO updatedAt, not a Date)", async () => {
+    // subscribe checks the service-level ACL, unlike the Public read methods.
+    const reader = await createTestUser({ serviceAccess: { definitionService: "Read" } });
+    const client = await connectAsUser(port, reader.id);
+
+    const row = await testPrisma.definition.findUniqueOrThrow({
+      where: { type_key: { type: "tunables", key: "snake" } },
+      select: { id: true },
+    });
+
+    const snapshot = await emitWithAck<{ entryId: string }, Partial<DefinitionDTO>>(
+      client,
+      "definitionService:subscribe",
+      { entryId: row.id },
+    );
+
+    // Socket.IO serializes a Date to an ISO string on the wire, so the type
+    // alone proves nothing. The DTO shape is what distinguishes them: toDto
+    // drops createdAt and maps `data` to a plain record.
+    expect(typeof snapshot.updatedAt).toBe("string");
+    expect(snapshot).not.toHaveProperty("createdAt");
+    expect(Object.keys(snapshot).sort()).toEqual([
+      "data",
+      "enabled",
+      "id",
+      "key",
+      "type",
+      "updatedAt",
+      "version",
+    ]);
+
+    client.close();
+  });
+
   it("admin edits hot-reload the game sim tunables via onChanged", async () => {
     // Wire a fresh service pair directly (unit-ish, no sockets needed)
     const { DefinitionService } = await import("../../services/definition/index.js");

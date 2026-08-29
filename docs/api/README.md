@@ -5,8 +5,11 @@ Auto-generated documentation for all services.
 ## Services
 
 - [ChatService](./ChatService.md)
+- [DefinitionService](./DefinitionService.md)
 - [DocumentService](./DocumentService.md)
+- [GameService](./GameService.md)
 - [MessageService](./MessageService.md)
+- [PushService](./PushService.md)
 - [UserService](./UserService.md)
 
 ---

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
+import { SITE_TAGLINE } from "../lib/site";
 
 // Social share card (1200x630), rendered by Next's built-in ImageResponse —
 // no design tooling needed, the card is code like everything else here.
@@ -34,8 +35,7 @@ export default async function OpengraphImage(): Promise<ImageResponse> {
           Quickdraw
         </div>
         <div style={{ fontSize: 34, color: "#9aa5ce", lineHeight: 1.4, marginTop: 12 }}>
-          Realtime fullstack starter — typed Socket.IO services, ACL, auth, and a multiplayer game
-          foundation.
+          {SITE_TAGLINE}
         </div>
       </div>
     </div>,

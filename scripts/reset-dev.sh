@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # One-command clean slate (`bun run reset:dev`):
-#   1. Return to `main` and fast-forward to origin/main.
+#   1. Return to `dev` (override with RESET_BRANCH) and fast-forward to its
+#      origin counterpart.
 #   2. Wipe the on-disk build caches (Next/Turbopack .next, .turbo,
 #      node_modules/.cache) that balloon the web dev server's memory and
 #      cause stale-build weirdness.
@@ -14,7 +15,7 @@
 # PGlite test templates need no step here: they are fingerprint-cached on
 # migration contents and rebuild themselves.
 #
-# Refuses to discard work: if the tree is dirty or `main` has unpushed
+# Refuses to discard work: if the tree is dirty or the branch has unpushed
 # commits, it stops and tells you, rather than silently resetting.
 
 set -euo pipefail
@@ -22,7 +23,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# --- git: get onto a clean, up-to-date main --------------------------------
+BRANCH="${RESET_BRANCH:-dev}"
+
+# --- git: get onto a clean, up-to-date $BRANCH -----------------------------
 # next-env.d.ts is generated and churns between `next dev` and `next build`
 # (.next/types vs .next/dev/types) — discard that noise before the dirty check.
 git checkout --quiet -- apps/web/next-env.d.ts 2>/dev/null || true
@@ -33,15 +36,15 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
-echo "reset:dev: fetching origin/main…"
-git fetch origin main
+echo "reset:dev: fetching origin/$BRANCH…"
+git fetch origin "$BRANCH"
 
-git checkout main
+git checkout "$BRANCH"
 
-# Fast-forward only — never rewrites local commits. If main has diverged
-# (e.g. unpushed work committed straight to main), this fails loudly.
-if ! git merge --ff-only origin/main; then
-  echo "reset:dev: local 'main' has diverged from origin/main — move those commits to a branch, then re-run." >&2
+# Fast-forward only — never rewrites local commits. If the branch has diverged
+# (e.g. unpushed work committed straight to it), this fails loudly.
+if ! git merge --ff-only "origin/$BRANCH"; then
+  echo "reset:dev: local '$BRANCH' has diverged from origin/$BRANCH — move those commits to a branch, then re-run." >&2
   exit 1
 fi
 
