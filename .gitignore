@@ -46,6 +46,9 @@ logs/
 # Testing
 coverage/
 
+# Code graph (rebuilt per-machine, e.g. by the claudespace boot script)
+graphify-out/
+
 # Misc
 *.tsbuildinfo
 .yalc/

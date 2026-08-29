@@ -58,6 +58,9 @@ First-time setup: `docker-compose up -d` (postgres) → `bun install` →
 `bun run db:generate && bun run db:migrate && bun run db:seed` → `bun run dev`
 → sign in via "Continue as demo user".
 
+Claudespace/Conveyor pods boot via `scripts/claudespace-start.sh` — see the
+"Claudespace pods" section of `docs/conveyor-prebake.md`.
+
 ## Domain-Specific Context
 
 Detailed patterns for services, API conventions, database, testing, client,
