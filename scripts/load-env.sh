@@ -16,8 +16,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # 1. Infra config (defaults — pre-existing env vars take precedence, e.g. CI)
+# Container detection includes Conveyor contexts: CONVEYOR_CONTAINER_ROLE is set
+# in claudespace pods (which have no /.dockerenv), CONVEYOR_PREBAKED /
+# CONVEYOR_POD_IMAGE_BUILD cover bake-time runs where BuildKit hides it too.
 _infra_file="$ROOT/.env.infra"
-if [ "${CODESPACES:-}" = "true" ] || [ -n "${REMOTE_CONTAINERS:-}" ] || [ -f /.dockerenv ]; then
+if [ "${CODESPACES:-}" = "true" ] || [ -n "${REMOTE_CONTAINERS:-}" ] || [ -f /.dockerenv ] \
+  || [ -n "${CONVEYOR_CONTAINER_ROLE:-}" ] || [ -n "${CONVEYOR_PREBAKED:-}" ] \
+  || [ -n "${CONVEYOR_POD_IMAGE_BUILD:-}" ]; then
   [ -f "$ROOT/.env.infra.codespaces" ] && _infra_file="$ROOT/.env.infra.codespaces"
 fi
 if [ -f "$_infra_file" ]; then
