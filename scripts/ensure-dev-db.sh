@@ -15,8 +15,10 @@
 #               start a service, never run the local role/db bootstrap.
 #   local-DB  — no DATABASE_URL, or it points at localhost: ensure a local
 #               server exists (apt fallback — pods ship only client tools),
-#               start it, and create the dev role + database if this machine's
-#               cluster is ours to manage.
+#               start it, and create the dev role + databases whenever the
+#               postgres superuser is reachable. Conveyor's postgres sidecar
+#               lands here too: it shares the pod's localhost, so it needs the
+#               role/db bootstrap even though we did not install it.
 #
 # Idempotent by step, deliberately WITHOUT a sentinel file: a sentinel written
 # during any bake-time execution is frozen into the image and every later boot
@@ -60,16 +62,35 @@ ensure_dev_db() {
     done
   fi
 
-  # Role + database — only when this machine's cluster is ours to administer
-  # (the postgres superuser is reachable via sudo). An externally provisioned
-  # localhost server (e.g. the docker-compose postgres on a dev box) already
-  # has both, courtesy of scripts/postgres-init.sql.
+  # Role + database — only when the postgres superuser is reachable, either
+  # through sudo (a cluster we installed on this machine) or over TCP (a
+  # sidecar container sharing our localhost). An externally provisioned
+  # localhost server whose superuser is neither — e.g. the docker-compose
+  # postgres on a dev box, whose superuser is `dev` — already has both,
+  # courtesy of scripts/postgres-init.sql.
   if sudo -n -u postgres psql -c '' &>/dev/null; then
     echo ">> ensure-dev-db: ensuring dev role + database…"
     sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='dev'" | grep -q 1 \
       || sudo -u postgres psql -c "CREATE ROLE dev LOGIN PASSWORD 'dev' SUPERUSER;"
     sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='quickdraw_chat'" | grep -q 1 \
       || sudo -u postgres createdb -O dev quickdraw_chat
+  elif PGPASSWORD="${PGPASSWORD:-postgres}" psql -h localhost -p "$port" -U postgres -c '' &>/dev/null; then
+    # Conveyor's postgres sidecar: the server listens on the pod's localhost
+    # but runs in its own container, so there is no local `postgres` OS user
+    # to sudo to. Its superuser answers over TCP instead (trust auth), which
+    # is the only administrative path a pod has.
+    local -x PGPASSWORD="${PGPASSWORD:-postgres}"
+    local db
+    echo ">> ensure-dev-db: ensuring dev role + databases (superuser over TCP)…"
+    psql -h localhost -p "$port" -U postgres -tc "SELECT 1 FROM pg_roles WHERE rolname='dev'" | grep -q 1 \
+      || psql -h localhost -p "$port" -U postgres -c "CREATE ROLE dev LOGIN PASSWORD 'dev' SUPERUSER;"
+    # Same three databases scripts/postgres-init.sql creates on a compose dev
+    # box: the shadow database is required by `prisma migrate dev`, the test
+    # database by TEST_DATABASE_URL integration runs.
+    for db in quickdraw_chat quickdraw_chat_shadow quickdraw_chat_test; do
+      psql -h localhost -p "$port" -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1 \
+        || createdb -h localhost -p "$port" -U postgres -O dev "$db"
+    done
   else
     echo ">> ensure-dev-db: local server not sudo-administered — assuming role/db provisioned"
   fi
