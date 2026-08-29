@@ -10,7 +10,13 @@ import { serviceRoom } from "@project/shared";
 import { BaseService } from "@fitzzero/quickdraw-core/server";
 import type { CollectionSnapshotPage } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
-import { byIdSchema, cursorPageArgs, requireAuth, sliceCursorPage } from "../shared/index.js";
+import {
+  byIdSchema,
+  cuidSchema,
+  cursorPageArgs,
+  requireAuth,
+  sliceCursorPage,
+} from "../shared/index.js";
 
 // Zod schemas for validation
 const createChatSchema = z.object({
@@ -18,7 +24,7 @@ const createChatSchema = z.object({
   members: z
     .array(
       z.object({
-        userId: z.string().cuid("Invalid user ID"),
+        userId: cuidSchema("user ID"),
         level: z.enum(["Read", "Moderate", "Admin"]),
       }),
     )
@@ -26,27 +32,27 @@ const createChatSchema = z.object({
 });
 
 const updateTitleSchema = z.object({
-  id: z.string().cuid("Invalid chat ID"),
+  id: cuidSchema("chat ID"),
   title: z.string().min(1, "Title is required").max(100, "Title must be 100 characters or less"),
 });
 
 const getChatMembersSchema = z.object({
-  chatId: z.string().cuid("Invalid chat ID"),
+  chatId: cuidSchema("chat ID"),
 });
 
 const inviteUserSchema = z.object({
-  id: z.string().cuid("Invalid chat ID"),
-  userId: z.string().cuid("Invalid user ID"),
+  id: cuidSchema("chat ID"),
+  userId: cuidSchema("user ID"),
   level: z.enum(["Read", "Moderate", "Admin"]),
 });
 
 const removeUserSchema = z.object({
-  id: z.string().cuid("Invalid chat ID"),
-  userId: z.string().cuid("Invalid user ID"),
+  id: cuidSchema("chat ID"),
+  userId: cuidSchema("user ID"),
 });
 
 const inviteByNameSchema = z.object({
-  chatId: z.string().cuid("Invalid chat ID"),
+  chatId: cuidSchema("chat ID"),
   userName: z.string().min(1, "Username is required"),
   level: z.enum(["Read", "Moderate", "Admin"]),
 });

@@ -38,7 +38,9 @@ export class DefinitionService extends BaseService<
   Definition,
   Prisma.DefinitionCreateInput,
   Prisma.DefinitionUpdateInput,
-  DefinitionServiceMethods
+  DefinitionServiceMethods,
+  Record<string, never>,
+  DefinitionDTO
 > {
   private readonly prisma: PrismaClient;
   private readonly changedListeners: DefinitionChangedListener[] = [];
@@ -57,7 +59,7 @@ export class DefinitionService extends BaseService<
   }
 
   private notifyChanged(definition: Definition): void {
-    const dto = this.toDTO(definition);
+    const dto = this.toDto(definition);
     for (const listener of this.changedListeners) {
       try {
         listener(dto);
@@ -67,7 +69,10 @@ export class DefinitionService extends BaseService<
     }
   }
 
-  private toDTO(definition: Definition): DefinitionDTO {
+  // Wire shape: dates as ISO strings (what SubscriptionDataMap advertises).
+  // This overrides the base hook, so subscribe payloads and emitUpdate use it
+  // too -- a private helper named toDTO did not, and leaked raw Prisma rows.
+  protected override toDto(definition: Definition): DefinitionDTO {
     return {
       id: definition.id,
       type: definition.type,
@@ -90,7 +95,7 @@ export class DefinitionService extends BaseService<
           where: { enabled: true, ...(payload.type ? { type: payload.type } : {}) },
           orderBy: [{ type: "asc" }, { key: "asc" }],
         });
-        return rows.map((row) => this.toDTO(row));
+        return rows.map((row) => this.toDto(row));
       },
       { schema: listDefinitionsSchema },
     );
@@ -102,10 +107,12 @@ export class DefinitionService extends BaseService<
         const row = await this.prisma.definition.findUnique({
           where: { type_key: { type: payload.type, key: payload.key } },
         });
-        return row && row.enabled ? this.toDTO(row) : null;
+        return row && row.enabled ? this.toDto(row) : null;
       },
       { schema: getDefinitionSchema },
     );
+
+    this.verifyAllMethods(["listDefinitions", "getDefinition"]);
   }
 
   // Admin writes flow through the generic admin surface; hook them so

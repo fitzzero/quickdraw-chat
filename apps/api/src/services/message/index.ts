@@ -10,11 +10,17 @@ import type { CollectionSnapshotPage } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
 import type { ChatService } from "../chat/index.js";
 import type { PushService } from "../push-subscription/index.js";
-import { byIdSchema, cursorPageArgs, requireAuth, sliceCursorPage } from "../shared/index.js";
+import {
+  byIdSchema,
+  cuidSchema,
+  cursorPageArgs,
+  requireAuth,
+  sliceCursorPage,
+} from "../shared/index.js";
 
 // Zod schemas for validation
 const postMessageSchema = z.object({
-  chatId: z.string().cuid("Invalid chat ID"),
+  chatId: cuidSchema("chat ID"),
   content: z
     .string()
     .min(1, "Content is required")

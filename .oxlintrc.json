@@ -25,7 +25,7 @@
       }
     },
     {
-      "files": ["apps/api/src/index.ts", "apps/api/src/auth/middleware.ts"],
+      "files": ["apps/api/src/index.ts", "apps/api/src/auth/middleware.ts", "apps/web/**"],
       "rules": {
         "quickdraw/no-raw-service-room-string": "error"
       }
