@@ -2,28 +2,13 @@
 
 import { useService as useQuickdrawService } from "@fitzzero/quickdraw-core/client";
 import type { ServiceMethodsMap } from "@project/shared";
+import type { GetPayload, GetResponse } from "./service-types";
 
 interface UseServiceOptions<TResponse> {
   onSuccess?: (data: TResponse) => void;
   onError?: (error: string) => void;
   timeout?: number;
 }
-
-/**
- * Extract payload type from a service method definition.
- */
-type GetPayload<
-  TService extends keyof ServiceMethodsMap,
-  TMethod extends keyof ServiceMethodsMap[TService],
-> = ServiceMethodsMap[TService][TMethod] extends { payload: infer P } ? P : never;
-
-/**
- * Extract response type from a service method definition.
- */
-type GetResponse<
-  TService extends keyof ServiceMethodsMap,
-  TMethod extends keyof ServiceMethodsMap[TService],
-> = ServiceMethodsMap[TService][TMethod] extends { response: infer R } ? R : never;
 
 /**
  * Typed wrapper around quickdraw-core's useService hook.

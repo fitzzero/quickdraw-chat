@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Providers } from "../providers";
 import { ErrorBoundary } from "../components/common/ErrorBoundary";
+import { SITE_TAGLINE_LONG } from "../lib/site";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
-const TAGLINE =
-  "Realtime fullstack starter — typed Socket.IO services, ACL, auth, and a multiplayer game foundation. Fork it and build.";
+const TAGLINE = SITE_TAGLINE_LONG;
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://quickdraw.techtree.gg"),

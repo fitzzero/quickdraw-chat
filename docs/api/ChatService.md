@@ -21,10 +21,14 @@
 ```typescript
 {
   title: z.string().min(1, "Title is required").max(100, "Title must be 100 characters or less"),
-  members: z.array(z.object({
-  userId: z.string().cuid("Invalid user ID"),
+  members: z
+  .array(
+  z.object({
+  userId: cuidSchema("user ID"),
   level: z.enum(["Read", "Moderate", "Admin"]),
-  })).optional(),
+  }),
+  )
+  .optional(),
 }
 ```
 
@@ -39,10 +43,17 @@
 
 ```typescript
 {
-  id: z.string().cuid("Invalid chat ID"),
+  id: cuidSchema("chat ID"),
   title: z.string().min(1, "Title is required").max(100, "Title must be 100 characters or less"),
 }
 ```
+
+### deleteChat
+
+- **Access Level:** `Admin`
+- **Socket Event:** `chatService:deleteChat`
+- **Entry-scoped:** Yes (requires access to specific entry)
+- **Validation:** Zod schema (`byIdSchema`)
 
 ### getChatMembers
 
@@ -55,7 +66,7 @@
 
 ```typescript
 {
-  chatId: z.string().cuid("Invalid chat ID"),
+  chatId: cuidSchema("chat ID"),
 }
 ```
 
@@ -70,8 +81,8 @@
 
 ```typescript
 {
-  id: z.string().cuid("Invalid chat ID"),
-  userId: z.string().cuid("Invalid user ID"),
+  id: cuidSchema("chat ID"),
+  userId: cuidSchema("user ID"),
   level: z.enum(["Read", "Moderate", "Admin"]),
 }
 ```
@@ -87,7 +98,7 @@
 
 ```typescript
 {
-  chatId: z.string().cuid("Invalid chat ID"),
+  chatId: cuidSchema("chat ID"),
   userName: z.string().min(1, "Username is required"),
   level: z.enum(["Read", "Moderate", "Admin"]),
 }
@@ -104,8 +115,8 @@
 
 ```typescript
 {
-  id: z.string().cuid("Invalid chat ID"),
-  userId: z.string().cuid("Invalid user ID"),
+  id: cuidSchema("chat ID"),
+  userId: cuidSchema("user ID"),
 }
 ```
 
@@ -114,45 +125,7 @@
 - **Access Level:** `Read`
 - **Socket Event:** `chatService:leaveChat`
 - **Entry-scoped:** Yes (requires access to specific entry)
-- **Validation:** Zod schema (`leaveSchema`)
-
-**Payload Schema:**
-
-```typescript
-{
-  id: z.string().cuid("Invalid chat ID"),
-}
-```
-
-### listMyChats
-
-- **Access Level:** `Read`
-- **Socket Event:** `chatService:listMyChats`
-- **Validation:** Zod schema (`listMyChatsSchema`)
-
-**Payload Schema:**
-
-```typescript
-{
-  page: z.number().int().min(1).optional(),
-  pageSize: z.number().int().min(1).max(100).optional(),
-}
-```
-
-### deleteChat
-
-- **Access Level:** `Admin`
-- **Socket Event:** `chatService:deleteChat`
-- **Entry-scoped:** Yes (requires access to specific entry)
-- **Validation:** Zod schema (`deleteChatSchema`)
-
-**Payload Schema:**
-
-```typescript
-{
-  id: z.string().cuid("Invalid chat ID"),
-}
-```
+- **Validation:** Zod schema (`byIdSchema`)
 
 ---
 

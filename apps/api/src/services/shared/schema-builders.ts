@@ -7,7 +7,7 @@ export function cuidSchema(label: string): z.ZodString {
 
 /** Payload of every by-id method: `{ id }`. */
 export const byIdSchema = z.object({
-  id: z.string().cuid("Invalid ID"),
+  id: cuidSchema("ID"),
 });
 
 /** Standard page/pageSize payload — pair with `parsePagination`. */

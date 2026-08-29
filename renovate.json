@@ -37,8 +37,18 @@
         "@electric-sql/pglite"
       ],
       "groupName": "prisma"
+    },
+    {
+      "description": "Toolchain packages are declared in several workspaces. Group them so one PR moves every workspace at once and the versions cannot split across majors.",
+      "matchPackageNames": ["vitest", "@vitest/coverage-v8", "typescript", "zod", "@types/node"],
+      "groupName": "toolchain",
+      "groupSlug": "toolchain"
     }
   ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
   "vulnerabilityAlerts": {
     "labels": ["security"]
   }

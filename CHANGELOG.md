@@ -1,5 +1,50 @@
 # Changelog
 
+## August 2026 — netcode R&D, PWA, and the move to a `dev` integration branch (2026-08-29)
+
+### Added
+
+- **PWA support** — installable web app plus web push. A `pushService`
+  (`apps/api/src/services/push-subscription/`) stores endpoints, a service
+  worker at `apps/web/public/sw.js` handles install, push, notification
+  clicks and subscription renewal, and `MessageService.afterCreate` pushes
+  new chat messages to members with no live socket. Push is a soft feature:
+  without VAPID keys the API boots normally and every send is a no-op. See
+  `docs/pwa.md`.
+- **Netcode benchmark harness** — headless bot clients through a latency
+  proxy produce Tier-1 scorecards (`bun run bench:netcode`), with a Tier-2
+  browser run driving the real Godot client. Baselines live in
+  `bench-baselines/`, comparison gating in `bun run bench:compare`, and the
+  `/netcode-rd` skill runs the hypothesis loop. See `docs/netcode-bench.md`.
+- **Netcode R&D results** — H1 (global world clock), H2 (snapshot
+  send-timestamps with min-delay clock sync) and H3b (graceful stall
+  recovery) all shipped and were ported to GDScript. H2+H3b cut cross-client
+  divergence by 91-99%; H1 cut `jerkRms` 12.7% under varying frame rates.
+  Verdicts are recorded in `docs/netcode-rd/LEDGER.md`.
+- **`bun run reset:dev`** — one command for a clean slate: fast-forward to
+  `origin/dev`, clear caches, reinstall, rebuild, migrate and seed.
+- **Conveyor prebake** — `scripts/bake-setup.sh` and a reference workflow so
+  agent pods start from a warm image. See `docs/conveyor-prebake.md`.
+- **`@rallycry/conveyor-skills`** — shared Claude skills, kept current by
+  Renovate.
+
+### Changed
+
+- **`dev` is the integration branch.** Feature branches merge into `dev`;
+  `main` is the deploy branch. `reset:dev` fast-forwards `dev` rather than
+  `main`.
+- **Node 20 → 24** across the devcontainer, CI, Dockerfiles and `.nvmrc`.
+- **`@fitzzero/quickdraw-core` → ^4.1.0** in every workspace.
+- **`/auth/guest` returns the session token in the response body**, which a
+  React Native client needs (no cookie jar). The web client keeps using the
+  cookie. The port path is written up in `docs/react-native.md`.
+
+### Fixed
+
+- Claudespace pods boot into a working dev environment: the dev role and
+  databases are provisioned by a sidecar superuser over TCP, and the
+  dev-hosted API runs non-production so mock auth stays available.
+
 ## quickdraw-core 4.0 migration + collections demo (2026-07-28)
 
 Migrated to `@fitzzero/quickdraw-core` ^4.0.0 and made the template the

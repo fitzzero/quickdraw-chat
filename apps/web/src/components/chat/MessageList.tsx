@@ -28,10 +28,9 @@ export function MessageList({
   const listRef = React.useRef<HTMLDivElement>(null);
 
   // Scroll the list container directly — scrollIntoView would also scroll
-  // every scrollable ancestor (it shifts the whole game surface when the
-  // chat overlay is open inside the full-bleed game page). Follow the
-  // conversation only when the *newest* message changes — paging older
-  // history in at the top must not yank the scroll down.
+  // every scrollable ancestor, which shifts the page behind an overlaid
+  // chat. Follow the conversation only when the *newest* message changes —
+  // paging older history in at the top must not yank the scroll down.
   const lastMessageId = messages.length > 0 ? messages[messages.length - 1]?.id : undefined;
   React.useEffect(() => {
     const list = listRef.current;

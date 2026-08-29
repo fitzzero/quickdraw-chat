@@ -364,6 +364,16 @@ export class GameService extends BaseService<
       },
       { schema: highScoresSchema },
     );
+
+    this.verifyAllMethods([
+      "joinGame",
+      "watchWorld",
+      "respawn",
+      "leaveGame",
+      "getWorld",
+      "getMyBest",
+      "getHighScores",
+    ]);
   }
 
   private initChannels(): void {

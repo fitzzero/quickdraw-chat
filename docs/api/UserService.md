@@ -25,7 +25,7 @@
 
 ```typescript
 {
-  id: z.string().cuid("Invalid user ID"),
+  id: cuidSchema("user ID"),
   data: z.object({
   name: z.string().min(1).max(50).optional(),
   image: z.string().url("Invalid image URL").optional(),

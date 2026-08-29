@@ -14,3 +14,6 @@ paths:
 - Rate limiting: OAuth routes are wrapped with `createAuthLimiter()`; new public REST surfaces get `createPublicApiLimiter()` / `createWebhookLimiter()` from `@fitzzero/quickdraw-core/server/express`. The socket limiter's `excludeEvents` is exact-match — subscription exemptions are built per registered service in `src/index.ts` (subscribe/batchSubscribe/unsubscribe/collection:subscribe/collection:unsubscribe)
 - New OAuth providers: mirror `auth/google.ts` — core provider + `issueOAuthState`/`validateOAuthState` + `completeOAuthLogin` from `auth/oauth-callback.ts`
 - MCP: `apps/api/src/mcp-server.ts` exposes every service method as an MCP tool over stdio (core's `McpRegistry`). Root `.mcp.json` wires it for Claude Code; run `bun run build` first, then `bun run mcp` from `apps/api` to run it manually
+<!-- ── quickdraw-game:start ── -->
+- MCP has one deliberate exception: `gameService` is not registered, because `McpRegistry.invoke()` carries no socket and every game method binds to one (live sim presence, `ctx.socketId` room grants) in a process that runs no sim loop
+<!-- ── quickdraw-game:end ── -->

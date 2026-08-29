@@ -2,10 +2,11 @@ import type { User, Prisma, PrismaClient } from "@project/db";
 import type { UserDTO, UserServiceMethods, AccessLevel } from "@project/shared";
 import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
 import { z } from "zod";
+import { cuidSchema } from "../shared/index.js";
 
 // Zod schemas for validation
 const updateUserSchema = z.object({
-  id: z.string().cuid("Invalid user ID"),
+  id: cuidSchema("user ID"),
   data: z.object({
     name: z.string().min(1).max(50).optional(),
     image: z.string().url("Invalid image URL").optional(),

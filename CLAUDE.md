@@ -1,7 +1,7 @@
 # Quickdraw Chat — Project Context
 
 Quickdraw Chat is a real-time chat application template built on
-`@fitzzero/quickdraw-core` 4.0 (framework for typed real-time Socket.IO
+`@fitzzero/quickdraw-core` 4.1 (framework for typed real-time Socket.IO
 services). It is the reference demo for core's collection subscriptions —
 live lists via `defineCollection`/`useCollection` (both scope shapes:
 chat-scoped `byChat`, user-scoped fan-out `myChats`). It is meant to be
@@ -15,10 +15,18 @@ infrastructure, CI/CD, and conveyor-ready devcontainer config are all wired up.
 quickdraw-chat/
 ├── apps/
 │   ├── api/          # Express + Socket.IO backend
+<!-- ── quickdraw-game:start ── -->
+│   ├── game/         # Godot client for the demo snake world
+│   ├── bench-web/    # Browser viewer for netcode benchmark runs
+<!-- ── quickdraw-game:end ── -->
 │   └── web/          # Next.js frontend (MUI)
-└── packages/
-    ├── db/           # Prisma schema + client (@project/db)
-    └── shared/       # Shared TypeScript types (@project/shared)
+├── packages/
+│   ├── db/           # Prisma schema + client (@project/db)
+<!-- ── quickdraw-game:start ── -->
+│   ├── bench/        # Netcode benchmark scenarios + scoring (@project/bench)
+<!-- ── quickdraw-game:end ── -->
+│   └── shared/       # Shared TypeScript types (@project/shared)
+└── eslint-plugin-project/   # Repo-local lint rules
 ```
 
 ## Development Commands
@@ -48,10 +56,12 @@ bun run db:studio     # Open Prisma Studio (from packages/db)
 # Full quality check before committing
 bun run check && bun run test
 
+# ── quickdraw-game:start ──
 # Netcode benchmarks (see docs/netcode-bench.md)
 bun run bench:netcode                      # headless Tier-1 scorecard (default scenario)
 bun run bench:netcode -- --all --runs 3    # full sweep, median-of-3
 bun run bench:compare <baseline> <candidate>
+# ── quickdraw-game:end ──
 ```
 
 First-time setup: `docker-compose up -d` (postgres) → `bun install` →
@@ -59,7 +69,9 @@ First-time setup: `docker-compose up -d` (postgres) → `bun install` →
 → sign in via "Continue as demo user".
 
 Claudespace/Conveyor pods boot via `scripts/claudespace-start.sh` — see the
-"Claudespace pods" section of `docs/conveyor-prebake.md`.
+"Claudespace pods" section of `docs/conveyor-prebake.md`. To connect a fork to
+Conveyor from scratch, see `docs/conveyor-setup.md`; the branch contract (PRs
+target `dev`, `main` deploys) is in `CONTRIBUTING.md`.
 
 ## Domain-Specific Context
 

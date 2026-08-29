@@ -12,35 +12,66 @@ const isDev = process.env.NODE_ENV !== "production";
 // Report-Only CSP: violations log to the browser devtools console without
 // blocking anything. Forks tighten it and move it to enforced — see
 // .claude/rules/security.md.
+// Optional CSP pieces. Each array empties when `init-fork.sh --without-game`
+// strips its marker block, which drops those tokens from the policy (see
+// scripts/strip-game.mjs). The markers can only DELETE lines, so the
+// removable parts live in their own arrays rather than in alternative
+// versions of each directive.
+const gameScriptSrc = [
+  // ── quickdraw-game:start ──
+  // The Godot 4 engine (/game/index.wasm) compiles WebAssembly.
+  "'wasm-unsafe-eval'",
+  // ── quickdraw-game:end ──
+];
+const gameImgSrc = [
+  // ── quickdraw-game:start ──
+  // Godot's boot splash is a blob: URL.
+  "blob:",
+  // ── quickdraw-game:end ──
+];
+const gameDirectives = [
+  // ── quickdraw-game:start ──
+  // Godot audio worklets
+  "worker-src 'self' blob:",
+  "media-src 'self' blob:",
+  // ── quickdraw-game:end ──
+];
+const gameFrameAncestors = [
+  // ── quickdraw-game:start ──
+  // The app runs inside Discord's Activity iframe.
+  "https://discord.com",
+  "https://*.discord.com",
+  "https://*.discordsays.com",
+  // ── quickdraw-game:end ──
+];
+
+/** Join directive tokens, skipping the ones that are absent. */
+const directive = (...parts) => parts.filter(Boolean).join(" ");
+
 const cspReportOnly = [
   "default-src 'self'",
-  // 'wasm-unsafe-eval': the Godot 4 engine (/game/index.wasm).
   // 'unsafe-inline': Next.js App Router bootstrap scripts (no nonce infra).
   // dev adds 'unsafe-eval' for react-refresh.
-  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ""}`,
+  directive("script-src 'self' 'unsafe-inline'", ...gameScriptSrc, isDev ? "'unsafe-eval'" : ""),
   // MUI/emotion inject inline <style> tags
   "style-src 'self' 'unsafe-inline'",
   // Same-origin assets + the API (REST + Socket.IO websocket)
   `connect-src 'self' ${apiOrigin} ${apiWsOrigin}`,
-  // blob:: Godot's boot splash. OAuth avatars come from provider CDNs
-  // (Google/Discord) — forks should pin https: to their actual avatar hosts
-  "img-src 'self' data: blob: https:",
+  // OAuth avatars come from provider CDNs (Google/Discord) — forks should pin
+  // https: to their actual avatar hosts
+  directive("img-src 'self' data:", ...gameImgSrc, "https:"),
   "font-src 'self' data:",
-  // Godot audio worklets
-  "worker-src 'self' blob:",
-  "media-src 'self' blob:",
+  ...gameDirectives,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
 ].join("; ");
 
 // frame-ancestors is ignored in Report-Only mode (per spec), so this one
-// directive ships enforced. Deliberately NO X-Frame-Options: the app runs
-// inside Discord's Activity iframe, so DENY/SAMEORIGIN would break it —
-// this allows exactly the Discord embedding contexts and nothing else.
-// Forks without the Discord Activity can trim this to 'self'.
-const cspEnforced =
-  "frame-ancestors 'self' https://discord.com https://*.discord.com https://*.discordsays.com";
+// directive ships enforced. Deliberately NO X-Frame-Options: DENY/SAMEORIGIN
+// would override frame-ancestors in older browsers and block the embedding
+// contexts below.
+const cspEnforced = directive("frame-ancestors 'self'", ...gameFrameAncestors);
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -55,7 +86,7 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ["shared"],
+  transpilePackages: ["@project/shared"],
   output: "standalone",
   // Monorepo: pin the workspace root explicitly — inference fails under
   // `vercel build` (bun symlink layout) and standalone tracing needs it.

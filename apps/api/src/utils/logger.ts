@@ -43,28 +43,6 @@ export function createServiceLogger(serviceName: string): winston.Logger {
   return logger.child({ service: serviceName });
 }
 
-/**
- * Create a logger that downgrades `info` → `debug` while preserving other levels.
- * Useful for passing to noisy libraries (e.g. quickdraw-core ServiceRegistry)
- * so their method-call logs only appear at LOG_LEVEL=debug.
- */
-export function createDowngradedLogger(): {
-  info: (msg: string, meta?: Record<string, unknown>) => void;
-  warn: (msg: string, meta?: Record<string, unknown>) => void;
-  error: (msg: string, meta?: Record<string, unknown>) => void;
-  debug: (msg: string, meta?: Record<string, unknown>) => void;
-  child: (options: Record<string, unknown>) => ReturnType<typeof createDowngradedLogger>;
-} {
-  const downgraded = {
-    info: (msg: string, meta?: Record<string, unknown>) => logger.debug(msg, meta),
-    warn: (msg: string, meta?: Record<string, unknown>) => logger.warn(msg, meta),
-    error: (msg: string, meta?: Record<string, unknown>) => logger.error(msg, meta),
-    debug: (msg: string, meta?: Record<string, unknown>) => logger.debug(msg, meta),
-    child: () => downgraded,
-  };
-  return downgraded;
-}
-
 /** Extract structured error metadata from an unknown error value. */
 export function errorMeta(error: unknown): { message: string; stack?: string; code?: string } {
   if (error instanceof Error) {
@@ -76,5 +54,3 @@ export function errorMeta(error: unknown): { message: string; stack?: string; co
   }
   return { message: String(error) };
 }
-
-export default logger;
