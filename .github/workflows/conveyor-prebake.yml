@@ -327,6 +327,7 @@ jobs:
           # sees no repo, then its fallback clone dies on the non-empty directory. Fail
           # the bake here instead.
           RUN test -d /workspaces/repo/.git || { echo "ERROR: /workspaces/repo/.git missing — dockerignore stripped .git from the bake context" >&2; exit 1; }
+          RUN cd /workspaces/repo && CONVEYOR_POD_IMAGE_BUILD=1 bash -lc 'bash scripts/bake-setup.sh'
           CONVEYOR_DOCKERFILE
           docker build \
             --cache-from ghcr.io/fitzzero/quickdraw-chat/conveyor/agent:current \
