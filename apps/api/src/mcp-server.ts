@@ -23,12 +23,7 @@ config({ path: envFile });
 config({ path: path.join(projectRoot, ".env") });
 
 const { prisma } = await import("@project/db");
-const { UserService } = await import("./services/user/index.js");
-const { ChatService } = await import("./services/chat/index.js");
-const { MessageService } = await import("./services/message/index.js");
-const { DocumentService } = await import("./services/document/index.js");
-const { PushService } = await import("./services/push-subscription/index.js");
-const { DefinitionService } = await import("./services/definition/index.js");
+const { buildServices } = await import("./services/build-services.js");
 
 const mcpRegistry = new McpRegistry({
   hydrateUserContext: async (userId: string) => {
@@ -46,18 +41,15 @@ const mcpRegistry = new McpRegistry({
   },
 });
 
-const chatService = new ChatService(prisma);
-mcpRegistry.registerService("userService", new UserService(prisma));
-mcpRegistry.registerService("chatService", chatService);
-mcpRegistry.registerService("messageService", new MessageService(prisma, chatService));
-mcpRegistry.registerService("documentService", new DocumentService(prisma));
-mcpRegistry.registerService("pushService", new PushService(prisma));
-mcpRegistry.registerService("definitionService", new DefinitionService(prisma));
-
 // gameService is deliberately NOT registered. McpRegistry.invoke() has no
 // socket, but every game method binds to one: joinGame and respawn mutate
 // live sim presence, watchWorld grants world-room membership by socket id,
 // and there is no sim loop in this process. See .claude/rules/api-conventions.md.
+const { gameService: _gameService, ...mcpServices } = buildServices(prisma);
+
+for (const [name, service] of Object.entries(mcpServices)) {
+  mcpRegistry.registerService(name, service);
+}
 
 createMcpStdioServer({
   name: "quickdraw-chat-mcp",

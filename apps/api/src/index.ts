@@ -23,18 +23,12 @@ import {
 import { createAuthLimiter } from "@fitzzero/quickdraw-core/server/express";
 import { userRoom } from "@project/shared";
 import { prisma } from "@project/db";
-import { UserService } from "./services/user/index.js";
-import { ChatService } from "./services/chat/index.js";
-import { MessageService } from "./services/message/index.js";
-import { DocumentService } from "./services/document/index.js";
-import { PushService } from "./services/push-subscription/index.js";
+import { buildServices } from "./services/build-services.js";
 import { registerPushRoutes } from "./services/push-subscription/rest.js";
 // ── quickdraw-game:start ──
 import { CHANNEL_EVENT_PREFIX } from "@fitzzero/quickdraw-core";
 import { DEFINITION_TYPES, SNAKE_TUNABLES_KEY } from "@project/shared";
-import { GameService } from "./services/game/index.js";
 import { ensureGlobalWorld, loadSnakeTunables } from "./services/game/bootstrap.js";
-import { DefinitionService } from "./services/definition/index.js";
 import { registerDiscordActivityRoutes } from "./auth/discord-activity.js";
 import { registerGuestRoutes } from "./auth/guest.js";
 // ── quickdraw-game:end ──
@@ -146,42 +140,35 @@ const io = new SocketIOServer(httpServer, {
 // Initialize service registry
 const serviceRegistry = new ServiceRegistry(io, { logger });
 
-// Register services
-const userService = new UserService(prisma);
-serviceRegistry.registerService("userService", userService);
-
-const chatService = new ChatService(prisma);
-serviceRegistry.registerService("chatService", chatService);
-
-// Push service - Web Push subscriptions for the PWA. Chat pushes skip
-// members with any live socket (their user room is non-empty).
-const pushService = new PushService(prisma, {
-  isUserOnline: async (userId) => (await io.in(userRoom(userId)).fetchSockets()).length > 0,
+// Register services. The graph is built by buildServices() so every
+// composition root (this one, the test server, the bench server, the MCP
+// server) wires the same constructors.
+// ── quickdraw-game:start ──
+await ensureGlobalWorld(prisma);
+// ── quickdraw-game:end ──
+const services = buildServices(prisma, {
+  // Chat pushes skip members with any live socket (their user room is non-empty).
+  push: {
+    isUserOnline: async (userId) => (await io.in(userRoom(userId)).fetchSockets()).length > 0,
+  },
+  // ── quickdraw-game:start ──
+  game: { tunables: await loadSnakeTunables(prisma) },
+  // ── quickdraw-game:end ──
 });
-serviceRegistry.registerService("pushService", pushService);
+const { pushService, definitionService, gameService } = services;
+
+for (const [name, service] of Object.entries(services)) {
+  serviceRegistry.registerService(name, service);
+}
 
 // Service-worker resubscribe endpoint (REST: SWs have no socket) — rare,
 // authenticated traffic, so the auth limiter budget fits
 app.use("/api/push", createAuthLimiter());
 registerPushRoutes(app, pushService);
 
-const messageService = new MessageService(prisma, chatService, pushService);
-serviceRegistry.registerService("messageService", messageService);
-
-// Document service - demonstrates simpler JSON ACL pattern (no membership table)
-const documentService = new DocumentService(prisma);
-serviceRegistry.registerService("documentService", documentService);
-
 // ── quickdraw-game:start ──
-// Definition service - data-driven game content (public read, admin write)
-const definitionService = new DefinitionService(prisma);
-serviceRegistry.registerService("definitionService", definitionService);
-
-// Game service - authoritative snake sim; commands are methods, input is a
-// channel, snapshots broadcast volatile at tick rate to the world room
-await ensureGlobalWorld(prisma);
-const gameService = new GameService(prisma, { tunables: await loadSnakeTunables(prisma) });
-serviceRegistry.registerService("gameService", gameService);
+// The authoritative snake sim: commands are methods, input is a channel,
+// snapshots broadcast volatile at tick rate to the world room.
 gameService.startLoop();
 process.on("SIGTERM", () => gameService.stopLoop());
 

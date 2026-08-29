@@ -13,16 +13,9 @@ import type { Express, Request, Response } from "express";
 import type { PrismaClient } from "@project/db";
 import { createRestRequireAuth } from "../../auth/rest-middleware.js";
 import { logger } from "../../utils/logger.js";
-import { validateRequest, z } from "../../utils/validate-request.js";
+import { validateRequest } from "../../utils/validate-request.js";
+import { pushSubscriptionSchema } from "./schemas.js";
 import type { PushService } from "./index.js";
-
-const resubscribeBodySchema = z.object({
-  endpoint: z.string().url().max(2048),
-  keys: z.object({
-    p256dh: z.string().min(1).max(512),
-    auth: z.string().min(1).max(512),
-  }),
-});
 
 export interface PushRestDeps {
   /** Database client override (tests pass testPrisma). */
@@ -44,7 +37,7 @@ export function registerPushRoutes(
         return;
       }
 
-      const body = validateRequest(resubscribeBodySchema, req.body, res);
+      const body = validateRequest(pushSubscriptionSchema, req.body, res);
       if (!body) return;
 
       try {

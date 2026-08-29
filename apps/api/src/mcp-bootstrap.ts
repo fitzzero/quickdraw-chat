@@ -10,4 +10,7 @@
 
 import { bootstrapMcpServer } from "@fitzzero/quickdraw-core/server";
 
-bootstrapMcpServer("./mcp-server.js");
+// Absolute URL, not "./mcp-server.js": bootstrapMcpServer resolves the
+// specifier from inside quickdraw-core's own dist, so a relative path looks
+// for the file next to core rather than next to this bundle.
+bootstrapMcpServer(new URL("./mcp-server.js", import.meta.url).href);

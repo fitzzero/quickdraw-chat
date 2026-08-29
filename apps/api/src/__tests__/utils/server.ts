@@ -1,14 +1,10 @@
 import type { Server as SocketIOServer } from "socket.io";
 import { createQuickdrawServer } from "@fitzzero/quickdraw-core/server";
 import { testPrisma } from "@project/db/testing";
-import { UserService } from "../../services/user/index.js";
-import { ChatService } from "../../services/chat/index.js";
-import { MessageService } from "../../services/message/index.js";
-import { DocumentService } from "../../services/document/index.js";
-import { PushService, type PushServiceOptions } from "../../services/push-subscription/index.js";
+import { buildServices } from "../../services/build-services.js";
+import type { PushService, PushServiceOptions } from "../../services/push-subscription/index.js";
 // ── quickdraw-game:start ──
-import { GameService } from "../../services/game/index.js";
-import { DefinitionService } from "../../services/definition/index.js";
+import type { GameService } from "../../services/game/index.js";
 // ── quickdraw-game:end ──
 import { createSocketAuth } from "../../auth/middleware.js";
 
@@ -39,24 +35,18 @@ interface TestServerOptions {
  * exercise the production auth path end to end.
  */
 export async function startTestServer(options: TestServerOptions = {}): Promise<TestServer> {
-  const chatService = new ChatService(testPrisma);
-  const pushService = new PushService(testPrisma, options.push);
-  // ── quickdraw-game:start ──
-  // Fixed seed for deterministic spawns; NPCs off (tests assert exact
-  // player sets); loop intentionally not started
-  const gameService = new GameService(testPrisma, { simSeed: 42, tunables: { npcCount: 0 } });
-  // ── quickdraw-game:end ──
-  const services = {
-    userService: new UserService(testPrisma),
-    chatService,
-    messageService: new MessageService(testPrisma, chatService, pushService),
-    documentService: new DocumentService(testPrisma),
-    pushService,
+  const services = buildServices(testPrisma, {
+    push: options.push,
     // ── quickdraw-game:start ──
-    gameService,
-    definitionService: new DefinitionService(testPrisma),
+    // Fixed seed for deterministic spawns; NPCs off (tests assert exact
+    // player sets); loop intentionally not started
+    game: { simSeed: 42, tunables: { npcCount: 0 } },
     // ── quickdraw-game:end ──
-  };
+  });
+  const { pushService } = services;
+  // ── quickdraw-game:start ──
+  const { gameService } = services;
+  // ── quickdraw-game:end ──
 
   const { io, httpServer } = createQuickdrawServer({
     // Port 0: the OS assigns an ephemeral port, so parallel workers never collide
