@@ -27,44 +27,48 @@ below.
 | `dev-auth`             | Mock OAuth, dev credentials, and env layering.                   | `.claude/rules/dev-auth.md`             | `auth` |
 | `security`             | What the template protects, and the fork checklist.              | `.claude/rules/security.md`             | —      |
 | `linting`              | oxlint config, the custom rule plugin, and formatting.           | `.claude/rules/linting.md`              | —      |
+| `pwa-push`             | Installable web app and web push notifications.                  | `docs/pwa.md`                           | —      |
+| `deployment`           | Cloud Run and Vercel deploys, plus CI.                           | `DEPLOYMENT.md`                         | —      |
+| `conveyor-setup`       | Connecting a fork to Conveyor end to end.                        | `docs/conveyor-setup.md`                | —      |
 
 <!-- ── quickdraw-game:start ── -->
 
-| `game` | The game foundation: GameService, channels, the Godot client. | `.claude/rules/game-patterns.md` | — |
-| `netcode-bench` | The benchmark harness and the R&D hypothesis loop. | `docs/netcode-bench.md` | `game` |
+### Game tags
+
+The game foundation is optional, so its tags live in their own table.
+`init-fork.sh --without-game` strips this section along with the files it
+points at.
+
+| Tag             | Description                                                   | overviewPath                     | Parent |
+| --------------- | ------------------------------------------------------------- | -------------------------------- | ------ |
+| `game`          | The game foundation: GameService, channels, the Godot client. | `.claude/rules/game-patterns.md` | —      |
+| `netcode-bench` | The benchmark harness and the R&D hypothesis loop.            | `docs/netcode-bench.md`          | `game` |
+
+| Tag             | Context paths                                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `game`          | `apps/api/src/services/game` (folder), `apps/game` (folder), `.claude/rules/game-patterns.md` (rule)                |
+| `netcode-bench` | `packages/bench` (folder), `apps/api/src/bench` (folder), `bench-baselines` (folder), `docs/netcode-bench.md` (doc) |
 
 <!-- ── quickdraw-game:end ── -->
-
-| `pwa-push` | Installable web app and web push notifications. | `docs/pwa.md` | — |
-| `deployment` | Cloud Run and Vercel deploys, plus CI. | `DEPLOYMENT.md` | — |
-| `conveyor-setup` | Connecting a fork to Conveyor end to end. | `docs/conveyor-setup.md` | — |
 
 `external-pr` already exists and is unrelated to this set. Leave it alone.
 
 ## Context paths
 
-| Tag                    | Context paths                                                                                                         |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `service-architecture` | `apps/api/src/services` (folder), `apps/api/src/index.ts` (file), `.claude/rules/service-architecture.md` (rule)      |
-| `api-conventions`      | `apps/api/src` (folder), `apps/api/src/mcp-server.ts` (file), `.claude/rules/api-conventions.md` (rule)               |
-| `client-patterns`      | `apps/web/src` (folder), `apps/web/src/hooks` (folder), `.claude/rules/client-patterns.md` (rule)                     |
-| `database`             | `packages/db` (folder), `packages/db/prisma/schema.prisma` (file), `.claude/rules/database-patterns.md` (rule)        |
-| `testing`              | `apps/api/src/__tests__` (folder), `apps/api/vitest.int.config.ts` (file), `.claude/rules/testing-patterns.md` (rule) |
-| `auth`                 | `apps/api/src/auth` (folder), `.claude/rules/auth.md` (rule)                                                          |
-| `dev-auth`             | `apps/api/src/auth/mock.ts` (file), `scripts/load-env.sh` (file), `.claude/rules/dev-auth.md` (rule)                  |
-| `security`             | `apps/web/next.config.mjs` (file), `apps/api/src/auth/middleware.ts` (file), `.claude/rules/security.md` (rule)       |
-| `linting`              | `.oxlintrc.json` (file), `eslint-plugin-project` (folder), `.claude/rules/linting.md` (rule)                          |
-
-<!-- ── quickdraw-game:start ── -->
-
-| `game` | `apps/api/src/services/game` (folder), `apps/game` (folder), `.claude/rules/game-patterns.md` (rule) |
-| `netcode-bench` | `packages/bench` (folder), `apps/api/src/bench` (folder), `bench-baselines` (folder), `docs/netcode-bench.md` (doc) |
-
-<!-- ── quickdraw-game:end ── -->
-
-| `pwa-push` | `apps/web/public/sw.js` (file), `apps/api/src/services/push-subscription` (folder), `docs/pwa.md` (doc) |
-| `deployment` | `.github/workflows` (folder), `apps/api/Dockerfile` (file), `DEPLOYMENT.md` (doc) |
-| `conveyor-setup` | `.devcontainer/conveyor` (folder), `scripts/bake-setup.sh` (file), `scripts/claudespace-start.sh` (file), `docs/conveyor-setup.md` (doc) |
+| Tag                    | Context paths                                                                                                                            |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `service-architecture` | `apps/api/src/services` (folder), `apps/api/src/index.ts` (file), `.claude/rules/service-architecture.md` (rule)                         |
+| `api-conventions`      | `apps/api/src` (folder), `apps/api/src/mcp-server.ts` (file), `.claude/rules/api-conventions.md` (rule)                                  |
+| `client-patterns`      | `apps/web/src` (folder), `apps/web/src/hooks` (folder), `.claude/rules/client-patterns.md` (rule)                                        |
+| `database`             | `packages/db` (folder), `packages/db/prisma/schema.prisma` (file), `.claude/rules/database-patterns.md` (rule)                           |
+| `testing`              | `apps/api/src/__tests__` (folder), `apps/api/vitest.int.config.ts` (file), `.claude/rules/testing-patterns.md` (rule)                    |
+| `auth`                 | `apps/api/src/auth` (folder), `.claude/rules/auth.md` (rule)                                                                             |
+| `dev-auth`             | `apps/api/src/auth/mock.ts` (file), `scripts/load-env.sh` (file), `.claude/rules/dev-auth.md` (rule)                                     |
+| `security`             | `apps/web/next.config.mjs` (file), `apps/api/src/auth/middleware.ts` (file), `.claude/rules/security.md` (rule)                          |
+| `linting`              | `.oxlintrc.json` (file), `eslint-plugin-project` (folder), `.claude/rules/linting.md` (rule)                                             |
+| `pwa-push`             | `apps/web/public/sw.js` (file), `apps/api/src/services/push-subscription` (folder), `docs/pwa.md` (doc)                                  |
+| `deployment`           | `.github/workflows` (folder), `apps/api/Dockerfile` (file), `DEPLOYMENT.md` (doc)                                                        |
+| `conveyor-setup`       | `.devcontainer/conveyor` (folder), `scripts/bake-setup.sh` (file), `scripts/claudespace-start.sh` (file), `docs/conveyor-setup.md` (doc) |
 
 ## Rules for maintaining it
 
