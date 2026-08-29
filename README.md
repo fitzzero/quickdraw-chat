@@ -233,7 +233,7 @@ removes all of it (or run `node scripts/strip-game.mjs` standalone).
 ```bash
 # Development
 bun run dev           # Start all apps in dev mode
-bun run reset:dev     # Clean slate: ff-only update to origin/main, clear build caches, reinstall, rebuild, migrate + seed
+bun run reset:dev     # Clean slate: ff-only update to origin/dev (RESET_BRANCH overrides), clear build caches, reinstall, rebuild, migrate + seed
 
 # Building
 bun run build         # Build all packages

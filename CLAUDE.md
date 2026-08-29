@@ -30,7 +30,7 @@ quickdraw-chat/
 ```bash
 # Run (from root)
 bun run dev           # API (4000) + web (3000) dev servers, env via load-env.sh
-bun run reset:dev     # Clean slate: ff-only to origin/main, clear caches, reinstall, rebuild, migrate + seed
+bun run reset:dev     # Clean slate: ff-only to origin/dev (RESET_BRANCH overrides), clear caches, reinstall, rebuild, migrate + seed
 bun run build         # Build all packages
 bun run test          # All tests (unit + integration)
 bun run test:unit     # Unit tests only (no database)
