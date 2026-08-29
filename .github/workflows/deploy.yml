@@ -7,7 +7,13 @@ name: Deploy
 #   1. Rename SERVICE_NAME below and the Artifact Registry path to your app.
 #   2. Create the GitHub Secrets listed here.
 #   3. Create the GCP Secret Manager secrets consumed by deploy-api.
-#   4. Uncomment the `push: branches: [main]` trigger for deploy-on-merge.
+#   4. Deploy-on-merge is already live: the `push: branches: [main]` trigger
+#      below deploys every merge into main. Remove it if you want manual-only
+#      deploys through `workflow_dispatch`.
+#
+# This workflow deploys from `main` only. CI (.github/workflows/ci.yml) runs on
+# both `main` and `dev`; `dev` is the integration branch and has no deploy
+# target.
 #
 # Required GitHub Secrets:
 #   GCP_PROJECT_ID                    - Google Cloud project ID

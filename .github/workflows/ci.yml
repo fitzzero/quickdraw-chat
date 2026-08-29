@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -172,11 +173,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - shard: 1
-            int_files: "chat,message,collections,guest-auth,discord-activity"
-          - shard: 2
-            int_files: "user,document,session-cleanup,game,definition,push"
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v6
 
@@ -213,16 +210,29 @@ jobs:
           JWT_SECRET: test-secret-for-ci
           TEST_DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
 
-      - name: Test API (integration — ${{ matrix.int_files }})
+      # Shards are discovered at run time, so a new *.int.test.ts file needs no
+      # workflow edit. Files are split round-robin over SHARD_TOTAL shards.
+      - name: Test API (integration — shard ${{ matrix.shard }}/2)
         run: |
           cd apps/api
-          IFS=',' read -ra FILES <<< "${{ matrix.int_files }}"
-          PATTERNS=""
-          for f in "${FILES[@]}"; do
-            PATTERNS="$PATTERNS src/__tests__/services/${f}.int.test.ts"
+          shopt -s nullglob
+          ALL=(src/__tests__/services/*.int.test.ts)
+          FILES=()
+          for i in "${!ALL[@]}"; do
+            if [ $(( i % SHARD_TOTAL + 1 )) -eq "$SHARD_INDEX" ]; then
+              FILES+=("${ALL[$i]}")
+            fi
           done
-          bunx vitest run --config vitest.int.config.ts --silent=true $PATTERNS
+          echo "Discovered ${#ALL[@]} integration test files; shard $SHARD_INDEX/$SHARD_TOTAL runs ${#FILES[@]}."
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "Nothing to run in this shard."
+            exit 0
+          fi
+          printf '  %s\n' "${FILES[@]}"
+          bunx vitest run --config vitest.int.config.ts --silent=true "${FILES[@]}"
         env:
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_TOTAL: "2"
           JWT_SECRET: test-secret-for-ci
           TEST_DATABASE_URL: postgresql://dev:dev@localhost:5432/quickdraw_chat_test
 
