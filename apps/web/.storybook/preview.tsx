@@ -31,9 +31,13 @@ const preview: Preview = {
         date: /Date$/i,
       },
     },
+    // SB10 keys options by id; the pre-9 `values: [...]` array is ignored
     backgrounds: {
       default: "app",
-      values: [{ name: "app", value: theme.palette.background.default }],
+      options: {
+        app: { name: "App", value: theme.palette.background.default },
+        paper: { name: "Paper", value: theme.palette.background.paper },
+      },
     },
   },
   tags: ["autodocs"],
