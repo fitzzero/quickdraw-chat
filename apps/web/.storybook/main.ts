@@ -20,6 +20,8 @@ const config: StorybookConfig = {
     options: {},
   },
   staticDirs: ["../public"],
+  // Forks inherit this CI gate; keep the build free of network calls
+  core: { disableTelemetry: true },
   viteFinal: (viteConfig) => {
     // bun installs workspace deps as symlinks outside apps/web; widen the
     // dev-server file allowlist to the repo root so they can be served

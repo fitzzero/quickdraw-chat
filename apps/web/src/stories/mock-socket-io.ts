@@ -38,6 +38,7 @@ type Listener = (...args: unknown[]) => void;
 export function io(url?: unknown, _opts?: unknown) {
   const behavior = behaviors.get(String(url)) ?? {};
   const listeners = new Map<string, Set<Listener>>();
+  let disposed = false;
   const fire = (event: string, ...args: unknown[]): void => {
     listeners.get(event)?.forEach((listener) => {
       listener(...args);
@@ -69,6 +70,7 @@ export function io(url?: unknown, _opts?: unknown) {
       return socket;
     },
     disconnect() {
+      disposed = true;
       socket.connected = false;
       fire("disconnect", "io client disconnect");
       return socket;
@@ -78,7 +80,8 @@ export function io(url?: unknown, _opts?: unknown) {
   // The provider registers its listeners synchronously after io() returns;
   // handshake on the next tick so none of them miss the events.
   setTimeout(() => {
-    if (behavior.connected === false || socket.connected) return;
+    // disposed: the provider tore this socket down before the handshake tick
+    if (disposed || behavior.connected === false || socket.connected) return;
     socket.connected = true;
     fire("connect");
     fire("auth:info", {

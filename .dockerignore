@@ -5,6 +5,9 @@
 **/.turbo
 **/coverage
 packages/db/prisma/generated
+# ── quickdraw-storybook:start ──
+**/storybook-static
+# ── quickdraw-storybook:end ──
 
 # VCS / tooling
 .git
