@@ -191,6 +191,9 @@ vs configured, plus a minimal shape illustration of the workflow.
 │   ├── bench-web/        # Browser viewer for netcode benchmark runs
 <!-- ── quickdraw-game:end ── -->
 │   └── web/              # Next.js frontend (MUI, dark-tokyo theme)
+<!-- ── quickdraw-storybook:start ── -->
+│       ├── .storybook/   # Component catalog config (bun run storybook, port 6106)
+<!-- ── quickdraw-storybook:end ── -->
 │       └── src/
 │           ├── app/          # App router pages
 │           ├── components/   # React components, grouped by feature
@@ -269,6 +272,12 @@ bun run reset:dev     # Clean slate: ff-only update to origin/dev (RESET_BRANCH 
 # Building
 bun run build         # Build all packages
 bun run typecheck     # tsgo type check all packages
+
+# ── quickdraw-storybook:start ──
+# Component catalog (see docs/storybook.md)
+bun run storybook        # Storybook on http://localhost:6106
+bun run build-storybook  # Static build (also a CI gate)
+# ── quickdraw-storybook:end ──
 
 # Linting and formatting
 bun run lint          # oxlint across all packages (extends quickdraw-core's base config)
