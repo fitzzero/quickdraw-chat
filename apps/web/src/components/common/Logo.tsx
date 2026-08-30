@@ -1,7 +1,7 @@
 import * as React from "react";
 import Image from "next/image";
 
-interface LogoProps {
+export interface LogoProps {
   /** Rendered width/height in px (the source asset is 256x256). */
   size?: number;
 }

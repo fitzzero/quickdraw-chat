@@ -27,6 +27,21 @@ const config: StorybookConfig = {
       ...viteConfig.server,
       fs: { ...viteConfig.server?.fs, allow: [repoRoot] },
     };
+    // Socket-tier stories: the real QuickdrawProvider runs over a fake socket
+    // (see src/stories/mock-socket-io.ts) instead of a live server. The core
+    // client must stay out of dep pre-bundling or esbuild resolves the real
+    // socket.io-client before the alias can apply.
+    viteConfig.resolve = {
+      ...viteConfig.resolve,
+      alias: {
+        ...viteConfig.resolve?.alias,
+        "socket.io-client": resolve(repoRoot, "apps/web/src/stories/mock-socket-io.ts"),
+      },
+    };
+    viteConfig.optimizeDeps = {
+      ...viteConfig.optimizeDeps,
+      exclude: [...(viteConfig.optimizeDeps?.exclude ?? []), "@fitzzero/quickdraw-core"],
+    };
     return viteConfig;
   },
 };

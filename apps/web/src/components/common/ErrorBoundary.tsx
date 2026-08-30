@@ -4,7 +4,7 @@ import * as React from "react";
 import { Box, Typography, Button, Alert } from "@mui/material";
 import { useTranslations } from "next-intl";
 
-interface ErrorBoundaryProps {
+export interface ErrorBoundaryProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }

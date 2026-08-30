@@ -1,7 +1,8 @@
 import * as React from "react";
-import { createMockQueryClient, createTestWrapper } from "@fitzzero/quickdraw-core/client/testing";
+import { QuickdrawProvider } from "@fitzzero/quickdraw-core/client";
 import type { Decorator } from "@storybook/nextjs-vite";
 import { LayoutProvider } from "../providers/LayoutProvider";
+import { setMockSocketBehavior, type MockSocketBehavior } from "./mock-socket-io";
 
 /**
  * Wraps a story in LayoutProvider for components that call useLayout()
@@ -14,21 +15,35 @@ export const withLayoutProvider: Decorator = (Story) => (
 );
 
 /**
- * Wraps a story in a mocked quickdraw socket + query context so
- * socket-coupled components render without a server.
+ * Wraps a story in the REAL QuickdrawProvider running over the mock socket
+ * (Storybook aliases `socket.io-client` to ./mock-socket-io.ts), so
+ * useSubscription / useCollection / useService behave exactly as in the app.
  *
- * Stories customize the socket via `parameters.socketContext`, typically
- * built with `createMockSocket` / `mockSuccessEmit` from
- * `@fitzzero/quickdraw-core/client/testing`.
+ * Configure responses per story:
+ *
+ * ```tsx
+ * export const Default: Story = {
+ *   parameters: {
+ *     mockSocket: {
+ *       userId: "user-1",
+ *       emit: mockSuccessEmit({ "user-1": userFixture }),
+ *     } satisfies MockSocketBehavior,
+ *   },
+ * };
+ * ```
+ *
+ * `mockSuccessEmit` / `mockErrorEmit` come from
+ * `@fitzzero/quickdraw-core/client/testing`; an event-aware handler
+ * `(event, payload, callback) => ...` covers stories that answer different
+ * emits differently. Omit `emit` to leave requests pending (loading states);
+ * set `connected: false` for disconnected states.
  */
 export const withMockSocket: Decorator = (Story, ctx) => {
-  const Wrapper = createTestWrapper({
-    socketContext: ctx.parameters.socketContext,
-    queryClient: createMockQueryClient(),
-  });
+  setMockSocketBehavior(ctx.parameters.mockSocket as MockSocketBehavior | undefined);
   return (
-    <Wrapper>
+    // key forces a fresh provider (and mock socket) per story
+    <QuickdrawProvider key={ctx.id} serverUrl="http://storybook.invalid" autoConnect>
       <Story />
-    </Wrapper>
+    </QuickdrawProvider>
   );
 };
