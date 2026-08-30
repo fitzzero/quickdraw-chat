@@ -5,7 +5,7 @@ import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import { useTranslations } from "next-intl";
 import { FeedbackPanel } from "./FeedbackPanel";
 
-interface LoginRequiredProps {
+export interface LoginRequiredProps {
   message?: string;
 }
 

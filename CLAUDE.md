@@ -47,6 +47,11 @@ bun run lint          # Lint all packages (oxlint, strict; extends quickdraw-cor
 bun run typecheck     # Type-check all packages (tsgo)
 bun run check         # lint + typecheck
 
+# ── quickdraw-storybook:start ──
+bun run storybook     # Component catalog on http://localhost:6106 (see docs/storybook.md)
+bun run build-storybook # Static Storybook build (also a CI gate)
+# ── quickdraw-storybook:end ──
+
 # Database (from root)
 bun run db:generate   # Regenerate Prisma client after schema changes
 bun run db:migrate    # Create + apply a migration (required for schema changes)

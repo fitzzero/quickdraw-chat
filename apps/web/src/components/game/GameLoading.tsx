@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { useSlowLoadHint } from "../../hooks";
 import type { GodotLoadState } from "./GodotCanvas";
 
-interface GameLoadingProps {
+export interface GameLoadingProps {
   state: GodotLoadState;
 }
 

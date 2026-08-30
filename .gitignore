@@ -62,4 +62,8 @@ apps/game/godot/.godot/
 # Netcode benchmark output (scorecards + raw traces)
 bench-results/
 # ── quickdraw-game:end ──
+
+# ── quickdraw-storybook:start ──
+storybook-static/
+# ── quickdraw-storybook:end ──
 .playwright-mcp/

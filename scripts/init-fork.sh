@@ -3,7 +3,7 @@ set -euo pipefail
 
 # One-shot template initializer. Run once after forking/cloning quickdraw-chat:
 #
-#   ./scripts/init-fork.sh <app-name> [backend-port] [--scope @yourscope] [--without-game]
+#   ./scripts/init-fork.sh <app-name> [backend-port] [--scope @yourscope] [--without-game] [--without-storybook]
 #   ./scripts/init-fork.sh acme-books 4010
 #   ./scripts/init-fork.sh acme-books --without-game   # non-game fork
 #
@@ -12,7 +12,9 @@ set -euo pipefail
 # @project/* package scope, refreshes the lockfile, formats, then deletes
 # itself. --without-game removes the entire game foundation first (Godot app,
 # GameService, DefinitionService, Discord Activity — see scripts/strip-game.mjs).
-# Framework references (quickdraw-core, QuickdrawProvider, ...) are untouched.
+# --without-storybook removes the component catalog (see
+# scripts/strip-storybook.mjs). Framework references (quickdraw-core,
+# QuickdrawProvider, ...) are untouched.
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -36,6 +38,7 @@ shift
 PORT=""
 SCOPE=""
 WITHOUT_GAME=""
+WITHOUT_STORYBOOK=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --scope)
@@ -44,6 +47,10 @@ while [ $# -gt 0 ]; do
       ;;
     --without-game)
       WITHOUT_GAME="1"
+      shift
+      ;;
+    --without-storybook)
+      WITHOUT_STORYBOOK="1"
       shift
       ;;
     *)
@@ -72,19 +79,24 @@ echo "Database:     $DB_NAME (+ ${DB_NAME}_test, ${DB_NAME}_shadow)"
 [ -n "$PORT" ] && echo "Backend port: 4000 -> $PORT"
 [ -n "$SCOPE" ] && echo "Pkg scope:    @project -> @$SCOPE"
 [ -n "$WITHOUT_GAME" ] && echo "Game:         removing (Godot app, GameService, definitions, Discord Activity)"
+[ -n "$WITHOUT_STORYBOOK" ] && echo "Storybook:    removing (config, stories, docs, CI step)"
 echo ""
 
-# ── 0. Optional: carve out the game foundation ───────────────────────
+# ── 0. Optional carve-outs (game first: its wholesale folder deletions
+# also remove those folders' co-located stories) ──────────────────────
 if [ -n "$WITHOUT_GAME" ]; then
   node scripts/strip-game.mjs
+fi
+if [ -n "$WITHOUT_STORYBOOK" ]; then
+  node scripts/strip-storybook.mjs
 fi
 
 # Tracked text files only — never touch node_modules/.git or binaries
 # (BSD sed chokes on non-UTF8 bytes). Migration SQL is name-free; the
 # lockfile only carries the workspace name (identity pass).
 FILES=$(git ls-files | grep -vE '^packages/db/prisma/migrations/|\.(wasm|pck|png|ico|jpg|jpeg|gif|webp|woff2?)$')
-# After --without-game, ls-files still lists the deleted paths — drop them
-if [ -n "$WITHOUT_GAME" ]; then
+# After a carve-out, ls-files still lists the deleted paths — drop them
+if [ -n "$WITHOUT_GAME" ] || [ -n "$WITHOUT_STORYBOOK" ]; then
   FILES=$(echo "$FILES" | while read -r f; do [ -f "$f" ] && echo "$f"; done)
 fi
 
@@ -157,8 +169,8 @@ bun install >/dev/null
 echo "Formatting..."
 bun run format >/dev/null 2>&1 || true
 
-# ── 6. --without-game sanity: a broken seam must fail HERE, loudly ───
-if [ -n "$WITHOUT_GAME" ]; then
+# ── 6. Carve-out sanity: a broken seam must fail HERE, loudly ────────
+if [ -n "$WITHOUT_GAME" ] || [ -n "$WITHOUT_STORYBOOK" ]; then
   echo "Verifying the carve-out (db:generate + build + check + test)..."
   bun run db:generate >/dev/null
   bun run build >/dev/null

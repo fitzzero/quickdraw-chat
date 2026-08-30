@@ -5,7 +5,7 @@ import SearchOffIcon from "@mui/icons-material/SearchOff";
 import { useTranslations } from "next-intl";
 import { FeedbackPanel } from "./FeedbackPanel";
 
-interface NotFoundProps {
+export interface NotFoundProps {
   message?: string;
   backHref?: string;
   backLabel?: string;
