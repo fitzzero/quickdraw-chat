@@ -45,7 +45,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const TypeScript: Story = {};
+export const Default: Story = {};
 
 export const Bash: Story = {
   args: { code: BASH_SAMPLE, language: "bash" },

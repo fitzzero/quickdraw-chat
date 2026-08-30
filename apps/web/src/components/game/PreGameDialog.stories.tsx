@@ -29,7 +29,7 @@ const meta = {
   decorators: [
     // The dialog is an absolute overlay above the game canvas
     (Story) => (
-      <Box sx={{ position: "relative", height: "100vh", bgcolor: "#14171e" }}>
+      <Box sx={{ position: "relative", height: "100vh", bgcolor: "background.default" }}>
         <Story />
       </Box>
     ),

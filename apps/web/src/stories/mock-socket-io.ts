@@ -21,17 +21,22 @@ export interface MockSocketBehavior {
   connected?: boolean;
 }
 
-let behavior: MockSocketBehavior = {};
+// Keyed by serverUrl: docs pages mount several stories at once, so each story
+// gets its own URL (withMockSocket derives it from the story id) and io()
+// picks the matching behavior — a single global would leak the last-rendered
+// story's mocks into its siblings.
+const behaviors = new Map<string, MockSocketBehavior>();
 
 /** Called by the withMockSocket decorator before each story mounts. */
-export function setMockSocketBehavior(next: MockSocketBehavior | undefined): void {
-  behavior = next ?? {};
+export function setMockSocketBehavior(url: string, next: MockSocketBehavior | undefined): void {
+  behaviors.set(url, next ?? {});
 }
 
 type Listener = (...args: unknown[]) => void;
 
 /** Drop-in for socket.io-client's io() — only what QuickdrawProvider uses. */
-export function io(_url?: unknown, _opts?: unknown) {
+export function io(url?: unknown, _opts?: unknown) {
+  const behavior = behaviors.get(String(url)) ?? {};
   const listeners = new Map<string, Set<Listener>>();
   const fire = (event: string, ...args: unknown[]): void => {
     listeners.get(event)?.forEach((listener) => {

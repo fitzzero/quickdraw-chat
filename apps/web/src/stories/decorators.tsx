@@ -39,10 +39,13 @@ export const withLayoutProvider: Decorator = (Story) => (
  * set `connected: false` for disconnected states.
  */
 export const withMockSocket: Decorator = (Story, ctx) => {
-  setMockSocketBehavior(ctx.parameters.mockSocket as MockSocketBehavior | undefined);
+  // Per-story URL: docs pages mount sibling stories concurrently, and the
+  // shim resolves behavior by the URL io() receives
+  const serverUrl = `http://storybook.invalid/${ctx.id}`;
+  setMockSocketBehavior(serverUrl, ctx.parameters.mockSocket as MockSocketBehavior | undefined);
   return (
     // key forces a fresh provider (and mock socket) per story
-    <QuickdrawProvider key={ctx.id} serverUrl="http://storybook.invalid" autoConnect>
+    <QuickdrawProvider key={ctx.id} serverUrl={serverUrl} autoConnect>
       <Story />
     </QuickdrawProvider>
   );

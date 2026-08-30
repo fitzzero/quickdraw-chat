@@ -127,5 +127,11 @@ game carve-out.
 `scripts/strip-storybook.mjs` removes the config, every story file,
 `src/stories/`, these docs, the scoped agent rule, the turbo tasks and
 scripts, and the CI step — then verifies no references remain and deletes
-itself. It composes with the game carve-out (the game strips first). It can
-also run standalone: `node scripts/strip-storybook.mjs`.
+itself. It can also run standalone: `node scripts/strip-storybook.mjs`.
+
+<!-- ── quickdraw-game:start ── -->
+
+It composes with the game carve-out: when both flags are passed, the game
+strips first so its wholesale folder deletions cover the game stories.
+
+<!-- ── quickdraw-game:end ── -->
