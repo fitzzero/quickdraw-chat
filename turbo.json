@@ -28,6 +28,25 @@
       "persistent": true,
       "passThroughEnv": ["*"]
     },
+    "storybook": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["*"]
+    },
+    "@project/web#build-storybook": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        ".storybook/**",
+        "package.json",
+        "tsconfig.json",
+        "next.config.mjs",
+        "public/**"
+      ],
+      "outputs": ["storybook-static/**"],
+      "env": ["NEXT_PUBLIC_*"]
+    },
     "lint": {
       "dependsOn": ["^build"],
       "inputs": [
@@ -46,6 +65,12 @@
     "typecheck": {
       "dependsOn": ["^build"],
       "inputs": ["src/**/*.ts", "src/**/*.tsx", "tsconfig.json"],
+      "outputs": [],
+      "cache": true
+    },
+    "@project/web#typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**/*.ts", "src/**/*.tsx", "tsconfig.json", ".storybook/**"],
       "outputs": [],
       "cache": true
     },

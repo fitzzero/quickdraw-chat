@@ -51,6 +51,7 @@
     "**/coverage/**",
     "**/.next/**",
     "**/next-env.d.ts",
+    "**/storybook-static/**",
     "**/seed.ts",
     "scripts/**",
     "**/public/**"

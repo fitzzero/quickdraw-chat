@@ -1,0 +1,16 @@
+<!-- The app loads Inter + JetBrains Mono via next/font (app/layout.tsx), which
+     never runs in Storybook. Load the same faces from Google Fonts and map the
+     CSS variables the theme expects. Offline environments fall back to system
+     fonts. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=JetBrains+Mono:wght@100..800&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --font-inter: "Inter", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+</style>

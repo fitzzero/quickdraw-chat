@@ -156,6 +156,10 @@ jobs:
 
       - run: bun run build
 
+      # ── quickdraw-storybook:start ──
+      - run: bun run build-storybook
+      # ── quickdraw-storybook:end ──
+
   test:
     runs-on: ubuntu-latest
     services:
