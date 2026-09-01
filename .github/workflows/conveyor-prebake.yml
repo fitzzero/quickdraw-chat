@@ -16,7 +16,6 @@ concurrency:
   cancel-in-progress: true
 permissions:
   contents: read
-  packages: write
 jobs:
   prebake:
     runs-on: self-hosted
@@ -68,8 +67,16 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Log in to bake registry
+        env:
+          CONVEYOR_BAKE_REGISTRY_USERNAME: ${{ secrets.CONVEYOR_BAKE_REGISTRY_USERNAME }}
+          CONVEYOR_BAKE_REGISTRY_PASSWORD: ${{ secrets.CONVEYOR_BAKE_REGISTRY_PASSWORD }}
+        run: |
+          if [ -n "$CONVEYOR_BAKE_REGISTRY_USERNAME" ] && [ -n "$CONVEYOR_BAKE_REGISTRY_PASSWORD" ]; then
+            echo "$CONVEYOR_BAKE_REGISTRY_PASSWORD" | docker login 192.168.80.183:5100 -u "$CONVEYOR_BAKE_REGISTRY_USERNAME" --password-stdin
+          else
+            echo "No bake-registry credentials configured; assuming a pre-authenticated runner"
+          fi
       - name: Build agent image
         env:
           CONVEYOR_CONTENT_HASH: ${{ inputs.contentHash }}
@@ -82,7 +89,7 @@ jobs:
             echo "Invalid Conveyor content hash" >&2
             exit 1
           fi
-          docker pull ghcr.io/fitzzero/quickdraw-chat/conveyor/agent:current || echo "No prior agent image; running a cold build"
+          docker pull 192.168.80.183:5100/fitzzero/quickdraw-chat/conveyor/agent:current || echo "No prior agent image; running a cold build"
           # The build context is the tenant repo root, so the tenant's own
           # .dockerignore governs the checkout COPY — and a tenant that
           # ignores .git would bake a gutted /workspaces/repo no pod can boot
@@ -329,13 +336,13 @@ jobs:
           RUN test -d /workspaces/repo/.git || { echo "ERROR: /workspaces/repo/.git missing — dockerignore stripped .git from the bake context" >&2; exit 1; }
           CONVEYOR_DOCKERFILE
           docker build \
-            --cache-from ghcr.io/fitzzero/quickdraw-chat/conveyor/agent:current \
+            --cache-from 192.168.80.183:5100/fitzzero/quickdraw-chat/conveyor/agent:current \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             --build-arg CONVEYOR_REPO='fitzzero/quickdraw-chat' \
             --build-arg CONVEYOR_CONTENT_HASH="$CONVEYOR_CONTENT_HASH" \
-            -f "$RUNNER_TEMP"/conveyor-prebake.Dockerfile -t ghcr.io/fitzzero/quickdraw-chat/conveyor/agent:current-setup-base .
+            -f "$RUNNER_TEMP"/conveyor-prebake.Dockerfile -t 192.168.80.183:5100/fitzzero/quickdraw-chat/conveyor/agent:current-setup-base .
           set -euo pipefail
-          export CONVEYOR_AGENT_BASE_IMAGE="ghcr.io/fitzzero/quickdraw-chat/conveyor/agent:current-setup-base"
+          export CONVEYOR_AGENT_BASE_IMAGE="192.168.80.183:5100/fitzzero/quickdraw-chat/conveyor/agent:current-setup-base"
           runner_arch="$(printf '%s' "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
           export COMPOSE_PROJECT_NAME="conveyor-prebake-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${runner_arch}"
           compose_file="${RUNNER_TEMP}/conveyor-prebake-compose.json"
@@ -359,7 +366,7 @@ jobs:
           docker compose -f "$compose_file" stop
           agent_container="$(docker compose -f "$compose_file" ps --all --quiet agent)"
           test -n "$agent_container"
-          docker commit --change 'ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]' --change 'CMD []' "$agent_container" "ghcr.io/fitzzero/quickdraw-chat/conveyor/agent:current"
+          docker commit --change 'ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]' --change 'CMD []' "$agent_container" "192.168.80.183:5100/fitzzero/quickdraw-chat/conveyor/agent:current"
           postgresql_container="$(docker compose -f "$compose_file" ps --all --quiet postgresql)"
           test -n "$postgresql_container"
           state_dir="${RUNNER_TEMP}/conveyor-prebake-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${runner_arch}"
@@ -368,11 +375,11 @@ jobs:
           mkdir -p "$state_dir"
           docker cp "$postgresql_container:/var/lib/postgresql/data" "$state_dir/pg-pod-data"
           docker cp "$state_dir/pg-pod-data" "$postgresql_container:/var/lib/postgresql/pod-data"
-          docker commit --change 'ENTRYPOINT ["sh", "-c"]' --change 'CMD ["chown -R postgres:postgres /var/lib/postgresql/pod-data && exec su-exec postgres postgres -D /var/lib/postgresql/pod-data"]' "$postgresql_container" "ghcr.io/fitzzero/quickdraw-chat/conveyor/postgresql:current"
+          docker commit --change 'ENTRYPOINT ["sh", "-c"]' --change 'CMD ["chown -R postgres:postgres /var/lib/postgresql/pod-data && exec su-exec postgres postgres -D /var/lib/postgresql/pod-data"]' "$postgresql_container" "192.168.80.183:5100/fitzzero/quickdraw-chat/conveyor/postgresql:current"
           rm -rf -- "$state_dir"
       - name: Push agent image
         run: |
           # shellcheck source=/dev/null
           . "$RUNNER_TEMP"/conveyor-registry.sh
-          conveyor_retry docker push ghcr.io/fitzzero/quickdraw-chat/conveyor/agent:current
-          conveyor_retry docker push ghcr.io/fitzzero/quickdraw-chat/conveyor/postgresql:current
+          conveyor_retry docker push 192.168.80.183:5100/fitzzero/quickdraw-chat/conveyor/agent:current
+          conveyor_retry docker push 192.168.80.183:5100/fitzzero/quickdraw-chat/conveyor/postgresql:current
