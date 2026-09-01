@@ -3,7 +3,7 @@
 # edits are overwritten the next time the generated content changes.
 services:
   agent:
-    image: "ghcr.io/fitzzero/quickdraw-chat/conveyor/agent:current"
+    image: "192.168.80.183:5100/fitzzero/quickdraw-chat/conveyor/agent:current"
     command:
       - "sleep"
       - "infinity"
@@ -16,7 +16,7 @@ services:
       postgresql:
         condition: "service_healthy"
   postgresql:
-    image: "ghcr.io/fitzzero/quickdraw-chat/conveyor/postgresql:current"
+    image: "192.168.80.183:5100/fitzzero/quickdraw-chat/conveyor/postgresql:current"
     command:
       - "sh"
       - "-c"
