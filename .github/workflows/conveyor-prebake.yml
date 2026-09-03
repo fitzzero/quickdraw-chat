@@ -159,7 +159,7 @@ jobs:
               curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14" && \
               npm install -g $NPM_INSTALL_FLAGS turbo@2.9.5 >/dev/null && \
               npm install -g $NPM_INSTALL_FLAGS node-gyp@13.0.1 >/dev/null && \
-              npm install -g $NPM_INSTALL_FLAGS @anthropic-ai/claude-code@2.1.246 >/dev/null && \
+              npm install -g $NPM_INSTALL_FLAGS @anthropic-ai/claude-code@2.1.257 >/dev/null && \
               npm install -g $NPM_INSTALL_FLAGS opencode-ai@1.18.23 >/dev/null && \
               npm --loglevel=error cache clean --force && \
               rm -rf /root/.npm /tmp/* && \
