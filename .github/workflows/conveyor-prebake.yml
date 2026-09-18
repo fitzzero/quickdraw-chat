@@ -118,7 +118,7 @@ jobs:
                 > /etc/apt/sources.list.d/pgdg.list && \
               apt-get update -qq && \
               apt-get install -y -qq --no-install-recommends \
-                ca-certificates git curl jq sudo openssl openssh-client openssh-server procps unzip zstd \
+                ca-certificates git curl jq sudo openssl openssh-client openssh-server procps unzip zstd pigz \
                 postgresql-client-16 gnupg python3 make g++ \
                 `# ripgrep: agent guidance tells agents to prefer rg over grep, but it was` \
                 `# absent in 5 of 50 audited pod sessions (exit 127) — pin it so the` \
@@ -301,11 +301,21 @@ jobs:
               test -n "$(find /home/conveyor -type d -name '*opencode-openai-codex-auth*' -print -quit)"
           USER root
           
+          # State captures can reuse these base-owned trees if setup leaves them intact.
+          # Normalize timestamps only: content, symlinks, modes and ownership must match.
+          RUN bash -o pipefail -ec 'mkdir -p /opt/conveyor; cd /; \
+              for p in home/conveyor/.bun/bin home/conveyor/.cache/ms-playwright/*; do \
+                [ -d "$p" ] || continue; \
+                fingerprint=$(tar --sort=name --mtime=@946684800 --numeric-owner -cf - "$p" | sha256sum) && \
+                printf "%s %s\n" "${fingerprint%% *}" "$p"; \
+              done > /opt/conveyor/base-home.sha256'
+          
           ARG CONVEYOR_REPO
           LABEL org.opencontainers.image.source=https://github.com/$CONVEYOR_REPO
           ENV CONVEYOR_PREBAKED=1
           ARG CONVEYOR_CONTENT_HASH
           LABEL com.rallycry.conveyor.content-hash=$CONVEYOR_CONTENT_HASH
+          RUN mkdir -p /opt/conveyor && printf '%s' "$CONVEYOR_CONTENT_HASH" > /opt/conveyor/base-content-hash
           RUN npm install -g --loglevel=error --no-update-notifier --no-fund --no-audit \
                 @rallycry/conveyor-agent@latest >/dev/null && \
               cp "$(npm root -g)/@rallycry/conveyor-agent/runtime/entrypoint.sh" /usr/local/bin/entrypoint.sh && \
