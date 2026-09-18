@@ -377,16 +377,66 @@ jobs:
           set -euo pipefail
           SUDO=()
           if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then SUDO=(sudo -n); fi
+          # LABEL pins the imported image against kubelet image garbage
+          # collection. nerdctl has no label verb, so that rung imports without
+          # pinning and says so rather than failing the bake.
+          LABEL=()
+          if command -v k3s >/dev/null 2>&1; then
+            IMPORT=(k3s ctr --namespace k8s.io images import -)
+            LABEL=(k3s ctr --namespace k8s.io images label)
+          elif command -v nerdctl >/dev/null 2>&1; then
+            IMPORT=(nerdctl --namespace k8s.io load)
+            echo "Warning: nerdctl cannot label an image, so the imported images are not pinned. Kubelet image garbage collection can delete them before the first pod runs them. Install k3s or ctr on this runner to pin them." >&2
+          elif command -v ctr >/dev/null 2>&1; then
+            IMPORT=(ctr --namespace k8s.io images import -)
+            LABEL=(ctr --namespace k8s.io images label)
+          else
+            echo "No local container runtime found. Install k3s, nerdctl, or ctr on this runner, or turn off the local bake." >&2
+            exit 1
+          fi
+          # A hardened runner (NoNewPrivileges on its unit, or no sudoers grant)
+          # cannot reach root for the import, and a failure from inside the pipe
+          # below reads like a docker error. Ask sudo up front, and name the fix.
+          # Under sudoers' default listpw=any a NOPASSWD grant lists without a
+          # password; a host with "Defaults listpw=always" fails this check even
+          # though the import itself would work — accepted, and named below.
+          # Captures sudo's own refusal into SUDO_REFUSAL rather than discarding
+          # it: "you cannot run this as root" without sudo's reason sends the
+          # operator looking in the wrong place.
+          SUDO_REFUSAL=""
+          can_run_as_root() {
+            SUDO_REFUSAL=""
+            if [ "${#SUDO[@]}" -eq 0 ]; then return 0; fi
+            if SUDO_REFUSAL="$("${SUDO[@]}" -l "$@" 2>&1 >/dev/null)"; then return 0; fi
+            return 1
+          }
+          if ! can_run_as_root "${IMPORT[@]}"; then
+            echo "This runner cannot run '${IMPORT[*]}' as root${SUDO_REFUSAL:+: $SUDO_REFUSAL}" >&2
+            echo "Bake Locally imports the image into the node's container runtime, which needs root. Grant the runner user exactly that command in sudoers and make sure its systemd unit does not set NoNewPrivileges=true (which blocks sudo outright), or turn off Bake Locally in Settings -> Compute -> Pod Image." >&2
+            echo "If this host sets 'Defaults listpw=always', sudo -l asks for a password even for a NOPASSWD command; add 'Defaults:$(id -un) listpw=never' to sudoers." >&2
+            exit 1
+          fi
+          # The label is probed with the SAME argument shape the loop uses,
+          # because sudo matches the whole command line: an "images label *"
+          # grant does not match an argument-less probe, and an exact-args grant
+          # would not match the real call. Probing the wrong shape made every
+          # possible grant fail one side or the other.
+          #
+          # And a missing label grant only WARNS. Pinning strengthens an import
+          # that already works, so failing the bake over it would take every
+          # runner whose sudoers predates the pin from green to red.
+          if [ "${#LABEL[@]}" -gt 0 ] && [ "$#" -gt 0 ] \
+            && ! can_run_as_root "${LABEL[@]}" "$1" io.cri-containerd.pinned=pinned; then
+            echo "Warning: this runner cannot run '${LABEL[*]} <image> io.cri-containerd.pinned=pinned' as root, so the imported images are NOT pinned. Kubelet image garbage collection can delete them before the first pod runs them." >&2
+            echo "To pin them, add this to sudoers: $(id -un) ALL=(root) NOPASSWD: ${LABEL[*]} *" >&2
+            LABEL=()
+          fi
           for image in "$@"; do
-            if command -v k3s >/dev/null 2>&1; then
-              docker save "$image" | "${SUDO[@]}" k3s ctr --namespace k8s.io images import -
-            elif command -v nerdctl >/dev/null 2>&1; then
-              docker save "$image" | "${SUDO[@]}" nerdctl --namespace k8s.io load
-            elif command -v ctr >/dev/null 2>&1; then
-              docker save "$image" | "${SUDO[@]}" ctr --namespace k8s.io images import -
-            else
-              echo "No local container runtime found. Install k3s, nerdctl, or ctr on this runner, or turn off the local bake." >&2
-              exit 1
+            docker save "$image" | "${SUDO[@]}" "${IMPORT[@]}"
+            # Pin AFTER the import: importing the same ref replaces the image
+            # record, so a label set earlier would be gone.
+            if [ "${#LABEL[@]}" -gt 0 ]; then
+              "${SUDO[@]}" "${LABEL[@]}" "$image" io.cri-containerd.pinned=pinned
             fi
           done
           CONVEYOR_IMPORT
