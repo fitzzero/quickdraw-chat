@@ -63,7 +63,7 @@ jobs:
       # "refusing to merge unrelated histories" incident class — see
       # git-prep.ts), and a persisted extraheader token would bake an expired
       # credential into .git/config that shadows the fresh per-boot token.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
