@@ -245,6 +245,54 @@ jobs:
               apt-get clean && \
               rm -rf /var/lib/apt/lists/* /var/cache/apt/*
           
+          # Capture render binaries: FFmpeg with libx264 plus ffprobe, and git-lfs. URC's
+          # capture tool (Ops-queued feature videos) renders on pods and needs all three.
+          # Without them here, its per-project prebake downloaded them into $HOME, the
+          # only place a project bake can put a binary that reaches a pod (URC PR #6270).
+          #
+          # FFmpeg is the pinned johnvansickle static build, NOT Debian's `ffmpeg`. With
+          # --no-install-recommends the apt package still unpacked to 439MB on this base
+          # (measured 2026-09-25: libavcodec's full codec tree, mesa, libva, x265...)
+          # and ships 5.1; the static ffmpeg+ffprobe pair is 152MB on amd64 (97MB arm64)
+          # and ships 7.0.2 with libx264 compiled in. The archive moves from releases/
+          # to old-releases/ once a newer build ships, so both URLs are tried.
+          #
+          # git-lfs is the pinned release binary, NOT Debian's `git-lfs`: that package's
+          # postinst writes a system-wide filter.lfs.* config (checked 2026-09-25), and a
+          # system smudge filter would make every project's pod checkouts download LFS
+          # objects. Projects that want LFS set the filter repo-locally (URC's prebake
+          # runs `git lfs install --local --skip-smudge`), so do NOT add
+          # `git lfs install --system` here; the last guard fails the build if anything
+          # configures one.
+          #
+          # Pinned by version AND checksum per architecture (the Actions producer also
+          # bakes arm64). Bumping a pin changes the content hash; bump deliberately.
+          RUN arch="$(dpkg --print-architecture)" && \
+              case "$arch" in \
+                amd64) ffmpeg_sha=abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67 \
+                       lfs_sha=e455e00f15d9b95661b8d53498ffb0c3367962cf1ec73c31ab7369516cd6ab8d ;; \
+                arm64) ffmpeg_sha=f4149bb2b0784e30e99bdda85471c9b5930d3402014e934a5098b41d0f7201b1 \
+                       lfs_sha=ac9c8efac980bb0505ead384d087e2acb6486fd8498691a2165fa174ec6118c2 ;; \
+                *) echo "no pinned capture render binaries for $arch" >&2; exit 1 ;; \
+              esac && \
+              cd /tmp && \
+              ffmpeg_archive="ffmpeg-7.0.2-${arch}-static.tar.xz" && \
+              { curl -fsSL --retry 3 -o ffmpeg.tar.xz "https://johnvansickle.com/ffmpeg/releases/$ffmpeg_archive" || \
+                curl -fsSL --retry 3 -o ffmpeg.tar.xz "https://johnvansickle.com/ffmpeg/old-releases/$ffmpeg_archive"; } && \
+              echo "$ffmpeg_sha  ffmpeg.tar.xz" | sha256sum -c - && \
+              tar -xJf ffmpeg.tar.xz --strip-components=1 "ffmpeg-7.0.2-${arch}-static/ffmpeg" "ffmpeg-7.0.2-${arch}-static/ffprobe" && \
+              curl -fsSL --retry 3 -o git-lfs.tar.gz "https://github.com/git-lfs/git-lfs/releases/download/v3.8.0/git-lfs-linux-${arch}-v3.8.0.tar.gz" && \
+              echo "$lfs_sha  git-lfs.tar.gz" | sha256sum -c - && \
+              tar -xzf git-lfs.tar.gz --strip-components=1 git-lfs-3.8.0/git-lfs && \
+              install -m 0755 ffmpeg ffprobe git-lfs /usr/local/bin/ && \
+              cd / && rm -rf /tmp/* && \
+              # Loud guards: a build without the H.264 encoder renders nothing, and a
+              # system LFS filter would silently change every project's checkouts.
+              ffmpeg -hide_banner -encoders | grep libx264 >/dev/null && \
+              ffprobe -hide_banner -version >/dev/null && \
+              git lfs version && \
+              test -z "$(git config --system --get filter.lfs.clean)"
+          
           # graphify — Python code-intelligence CLI. Queries the shared graph bundle
           # ($CONVEYOR_GRAPHIFY_GRAPH, bound into graphify-out by the agent entrypoint)
           # so pods can answer "how does X work?" against the repo graph. Installed
@@ -266,9 +314,18 @@ jobs:
           # rc files + an install receipt into $HOME/.config. Left alone, that bakes a
           # root-owned /home/conveyor/.config the non-root entrypoint cannot create the
           # .config/claude symlink in — killing every pod at boot under `set -e`.
+          #
+          # CPython 3.12 is preinstalled into UV_PYTHON_INSTALL_DIR so a non-root pod
+          # can `uv venv --python 3.12` with no download: Debian bookworm's python3 is
+          # 3.11, and /opt/uv is not writable at runtime, so a pod-side `uv python
+          # install` fails. URC's capture render venv needs 3.12. It runs AFTER the
+          # graphify install so graphify keeps the interpreter it resolved before.
+          # `--no-bin` skips the python3.12 shim uv would drop in $HOME/.local/bin (here
+          # /root), which nothing on the pod's PATH reads.
           RUN export HOME=/root UV_NO_MODIFY_PATH=1 && \
               curl -fsSL https://astral.sh/uv/install.sh | sh && \
               uv tool install graphifyy && \
+              uv python install --no-bin 3.12 && \
               chmod -R a+rX /opt/uv && \
               rm -rf /root/.cache/uv /root/.config/uv /tmp/*
           
