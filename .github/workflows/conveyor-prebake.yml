@@ -381,6 +381,15 @@ jobs:
               npm --loglevel=error cache clean --force && \
               rm -rf /root/.npm /home/conveyor/.npm /tmp/*
           USER conveyor
+          # Seed node-gyp's versioned cache from the matching headers already in Node's
+          # base image. Other Node/Electron targets retain their normal header selection.
+          RUN version="$(node --version)" && \
+              mkdir -p "/tmp/local-headers/node-$version/include" && \
+              cp -a /usr/local/include/node "/tmp/local-headers/node-$version/include/node" && \
+              tar -czf /tmp/local-headers.tgz -C /tmp/local-headers "node-$version" && \
+              node-gyp install --ensure --tarball=/tmp/local-headers.tgz && \
+              rm -rf /tmp/local-headers /tmp/local-headers.tgz
+          
           RUN git config --global user.name "Conveyor" && \
               git config --global user.email "conveyor@noreply.github.com"
           WORKDIR /workspaces
