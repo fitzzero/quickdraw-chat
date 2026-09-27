@@ -91,7 +91,7 @@ jobs:
           cat > "$RUNNER_TEMP"/conveyor-prebake.Dockerfile <<'CONVEYOR_DOCKERFILE'
           # Stable platform toolchain image. Content-addressed by the full Dockerfile
           # SHA-256 and reused by thin agent runtime images across agent releases.
-          FROM node:22-slim
+          FROM node:26-slim
           
           # Single RUN to keep layer count + apt/npm cache footprint minimal.
           #
@@ -146,12 +146,12 @@ jobs:
               # only and Fable cards fall back to Sonnet. Bumping this line changes the
               # content hash → cache miss → fresh install of the pinned version.
               NPM_INSTALL_FLAGS="--loglevel=error --no-update-notifier --no-fund --no-audit" && \
-              curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14" && \
-              npm install -g $NPM_INSTALL_FLAGS turbo@2.9.5 >/dev/null && \
-              npm install -g $NPM_INSTALL_FLAGS node-gyp@13.0.1 >/dev/null && \
-              npm install -g $NPM_INSTALL_FLAGS @anthropic-ai/claude-code@2.1.280 >/dev/null && \
-              npm install -g $NPM_INSTALL_FLAGS opencode-ai@1.18.23 >/dev/null && \
-              npm install -g $NPM_INSTALL_FLAGS @openai/codex@0.157.0 >/dev/null && \
+              curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.2" && \
+              npm install -g $NPM_INSTALL_FLAGS turbo@2.11.4 >/dev/null && \
+              npm install -g $NPM_INSTALL_FLAGS node-gyp@13.0.2 >/dev/null && \
+              npm install -g $NPM_INSTALL_FLAGS @anthropic-ai/claude-code@2.1.283 >/dev/null && \
+              npm install -g $NPM_INSTALL_FLAGS opencode-ai@1.18.32 >/dev/null && \
+              npm install -g $NPM_INSTALL_FLAGS @openai/codex@0.157.1 >/dev/null && \
               npm --loglevel=error cache clean --force && \
               rm -rf /root/.npm /tmp/* && \
               mkdir -p /workspaces && \
@@ -192,7 +192,7 @@ jobs:
           # chromium-1232 AND chromium_headless_shell-1232 (651MB for two browsers) while
           # every consuming project re-downloaded a third — urc wanted rev 1223,
           # full-build and conveyor's own web app wanted 1228. Pinning here to stable
-          # 1.62.1 (chromium rev 1234) lets those projects pin the same version and
+          # 1.63.0 (chromium rev 1243) lets those projects pin the same version and
           # actually HIT this cache. Bumping this line is therefore a coordinated change
           # with each repo's playwright pin, not a free upgrade.
           #
@@ -218,7 +218,7 @@ jobs:
           # conveyor-user opencode plugin warm-up below dies with EACCES creating
           # ~/.npm/_cacache (Cloud Build 2e8f0831, 2026-07-12). Same trap class as the
           # uv/.config fix above.
-          RUN npm install -g --loglevel=error --no-update-notifier --no-fund --no-audit playwright@1.62.1 >/dev/null && \
+          RUN npm install -g --loglevel=error --no-update-notifier --no-fund --no-audit playwright@1.63.0 >/dev/null && \
               playwright install --with-deps --only-shell chromium && \
               npm --loglevel=error cache clean --force && rm -rf /root/.npm /home/conveyor/.npm /tmp/* && \
               mkdir -p /home/conveyor/.cache && \
@@ -226,8 +226,8 @@ jobs:
               chown -R conveyor:conveyor /home/conveyor/.cache && \
               # Loud guard: the shell must exist and the full browser must NOT, or the
               # size win silently regressed and every pod pays for a browser it cannot use.
-              test -d /home/conveyor/.cache/ms-playwright/chromium_headless_shell-1234 && \
-              test ! -d /home/conveyor/.cache/ms-playwright/chromium-1234
+              test -d /home/conveyor/.cache/ms-playwright/chromium_headless_shell-1243 && \
+              test ! -d /home/conveyor/.cache/ms-playwright/chromium-1243
           
           # gh — GitHub CLI. Pod agents repeatedly reached for `gh pr checks` / `gh api`
           # for read-only PR + CI state and hit "command not found" (2026-07-10 transcript
