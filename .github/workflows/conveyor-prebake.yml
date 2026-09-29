@@ -451,6 +451,32 @@ jobs:
           cat > "$RUNNER_TEMP"/conveyor-import-image.sh <<'CONVEYOR_IMPORT'
           #!/usr/bin/env bash
           set -euo pipefail
+          VM_CONF='/etc/conveyor-k3/vm-import/fitzzero/quickdraw-chat.conf'
+          if [ -r "$VM_CONF" ]; then
+            VM_USER="$(sed -n 's/^user=//p' "$VM_CONF")"
+            VM_COMMAND="$(sed -n 's/^command=//p' "$VM_CONF")"
+            VM_INSTANCE="$(sed -n 's/^instance=//p' "$VM_CONF")"
+            case "$VM_COMMAND" in /*) ;; *) VM_COMMAND="" ;; esac
+            if [ -z "$VM_USER" ] || [ -z "$VM_COMMAND" ]; then
+              echo "$VM_CONF names no VM import. On this machine, run conveyor-k3 vm runners grant again." >&2
+              exit 1
+            fi
+            if [ "$(id -un)" != "$VM_USER" ] \
+              && ! VM_REFUSAL="$(sudo -n -l -u "$VM_USER" "$VM_COMMAND" 2>&1 >/dev/null)"; then
+              echo "This runner cannot run the VM import as $VM_USER${VM_REFUSAL:+: $VM_REFUSAL}" >&2
+              echo "On this machine, the VM's owner runs: conveyor-k3 vm runners grant${VM_INSTANCE:+ --instance=$VM_INSTANCE} --runner-user=$(id -un) --repo=fitzzero/quickdraw-chat" >&2
+              exit 1
+            fi
+            for image in "$@"; do
+              echo "Importing $image into the managed Personal Compute VM through $VM_COMMAND"
+              if [ "$(id -un)" = "$VM_USER" ]; then
+                docker save "$image" | "$VM_COMMAND"
+              else
+                docker save "$image" | sudo -n -u "$VM_USER" "$VM_COMMAND"
+              fi
+            done
+            exit 0
+          fi
           SUDO=()
           if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then SUDO=(sudo -n); fi
           # LABEL pins the imported image against kubelet image garbage
