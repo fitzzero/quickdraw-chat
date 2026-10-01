@@ -9,7 +9,7 @@ import { useLayout } from "../../providers";
 
 const DRAWER_WIDTH = 300;
 
-interface RightSidebarProps {
+export interface RightSidebarProps {
   /** Height of the AppBar to account for */
   appBarHeight?: number;
 }

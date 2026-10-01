@@ -5,7 +5,7 @@ import { Box, Typography, Button, Paper } from "@mui/material";
 import type { SvgIconComponent } from "@mui/icons-material";
 import Link from "next/link";
 
-interface FeedbackPanelProps {
+export interface FeedbackPanelProps {
   /** Rendered above the title. Sized and coloured by the panel. */
   icon: SvgIconComponent;
   /** Any MUI palette token, e.g. "text.secondary" or "error.main". */

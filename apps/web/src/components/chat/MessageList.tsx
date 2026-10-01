@@ -5,7 +5,7 @@ import { Box, Button, Typography, Avatar, Paper, CircularProgress } from "@mui/m
 import { useTranslations } from "next-intl";
 import type { MessageDTO } from "@project/shared";
 
-interface MessageListProps {
+export interface MessageListProps {
   messages: MessageDTO[];
   isLoading: boolean;
   currentUserId?: string | null;

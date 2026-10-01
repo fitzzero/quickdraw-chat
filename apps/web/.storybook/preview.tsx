@@ -1,0 +1,46 @@
+import * as React from "react";
+import { CssBaseline, ThemeProvider as MuiThemeProvider } from "@mui/material";
+import type { Preview } from "@storybook/nextjs-vite";
+import { IntlProvider } from "../src/providers/IntlProvider";
+import { ToastProvider } from "../src/providers/ToastProvider";
+import { theme } from "../src/theme";
+import "../src/app/globals.css";
+
+// Mounts MUI theme + intl + toasts directly. Deliberately NOT
+// src/providers/ThemeProvider.tsx (useServerInsertedHTML is Next-runtime-only)
+// and NOT src/providers/index.tsx (it drags in the socket layer).
+const preview: Preview = {
+  decorators: [
+    (Story) => (
+      <MuiThemeProvider theme={theme}>
+        <CssBaseline />
+        <IntlProvider>
+          <ToastProvider>
+            <Story />
+          </ToastProvider>
+        </IntlProvider>
+      </MuiThemeProvider>
+    ),
+  ],
+  parameters: {
+    layout: "padded",
+    nextjs: { appDirectory: true },
+    controls: {
+      matchers: {
+        color: /(background|color)$/i,
+        date: /Date$/i,
+      },
+    },
+    // SB10 keys options by id; the pre-9 `values: [...]` array is ignored
+    backgrounds: {
+      default: "app",
+      options: {
+        app: { name: "App", value: theme.palette.background.default },
+        paper: { name: "Paper", value: theme.palette.background.paper },
+      },
+    },
+  },
+  tags: ["autodocs"],
+};
+
+export default preview;

@@ -30,7 +30,7 @@ function toDisplayString(val: unknown): string {
   return "";
 }
 
-interface AdminTableProps {
+export interface AdminTableProps {
   data: Record<string, unknown>[];
   columns: AdminFieldConfig[];
   isLoading: boolean;

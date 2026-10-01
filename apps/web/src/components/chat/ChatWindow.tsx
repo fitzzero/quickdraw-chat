@@ -9,7 +9,7 @@ import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import type { MessageDTO } from "@project/shared";
 
-interface ChatWindowProps {
+export interface ChatWindowProps {
   chatId: string;
 }
 

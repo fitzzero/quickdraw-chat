@@ -4,7 +4,7 @@ import * as React from "react";
 import { Avatar, Skeleton, Tooltip } from "@mui/material";
 import { useSubscription } from "../../hooks";
 
-interface UserAvatarProps {
+export interface UserAvatarProps {
   userId: string;
   size?: number;
   showTooltip?: boolean;

@@ -5,7 +5,7 @@ import BlockIcon from "@mui/icons-material/Block";
 import { useTranslations } from "next-intl";
 import { FeedbackPanel } from "./FeedbackPanel";
 
-interface NoPermissionProps {
+export interface NoPermissionProps {
   message?: string;
 }
 

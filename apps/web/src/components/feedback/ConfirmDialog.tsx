@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 import { useTranslations } from "next-intl";
 
-interface ConfirmDialogProps {
+export interface ConfirmDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void | Promise<void>;

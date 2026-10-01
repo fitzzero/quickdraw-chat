@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "scripts/load-env.sh turbo dev",
     "build": "turbo build",
+    "storybook": "turbo storybook",
+    "build-storybook": "turbo build-storybook",
     "lint": "turbo lint",
     "lint:fix": "turbo lint:fix",
     "format": "oxfmt --write .",
@@ -35,7 +37,7 @@
   },
   "devDependencies": {
     "@fitzzero/quickdraw-core": "^4.1.0",
-    "@rallycry/conveyor-skills": "^1.0.0",
+    "@rallycry/conveyor-skills": "^1.0.4",
     "@types/node": "^24.0.0",
     "@typescript/native-preview": "^7.0.0-dev",
     "dotenv-cli": "^11.0.0",

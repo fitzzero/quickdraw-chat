@@ -6,7 +6,7 @@ import SendIcon from "@mui/icons-material/Send";
 import { useTranslations } from "next-intl";
 import { useService } from "../../hooks";
 
-interface MessageInputProps {
+export interface MessageInputProps {
   chatId: string;
   disabled?: boolean;
 }

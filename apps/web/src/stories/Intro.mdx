@@ -1,0 +1,77 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Intro/Getting Started" />
+
+# Quickdraw Chat — Component Catalog
+
+This Storybook is the component review surface for the template: every UI
+domain in `src/components/<domain>/` has a matching sidebar section, so the
+catalog doubles as a map of the codebase. Start it with `bun run storybook`
+(port 6106) from the repo root; `bun run build-storybook` builds the static
+catalog that CI verifies.
+
+## What lives here vs. the dev server
+
+- **Storybook** — individual components in isolation: props, states,
+  variants, accessibility. The fast path to review a UI change.
+- **Dev server e2e** (`bun run dev` + seeded demo users) — full flows that
+  need real auth, live sockets, and a database: signing in, multi-user chat,
+  presence. Agents drive that surface with Playwright.
+
+If a review only needs to see a component render, use the story. If it needs
+a signed-in journey, use the dev server.
+
+## Story conventions
+
+- Stories are co-located: `src/components/<domain>/Foo.stories.tsx`, with
+  `title: "<Domain>/Foo"` mirroring the folder.
+- First export is `Default`, then state variants (`Loading`, `Empty`,
+  `Disabled`, error states).
+- Text args are realistic English strings. Components resolve their own
+  translations from `src/messages/en.json` via the global intl decorator —
+  never pass raw translation keys as args.
+- Support JSX follows the app's lint rules: no raw strings in `Typography`,
+  `Button`, or `Tooltip`; `sx` theme tokens over hex values.
+
+## Decorator cookbook
+
+The global decorator (`.storybook/preview.tsx`) already provides the MUI
+theme, `CssBaseline`, intl, and toasts. For components with more context
+needs, `src/stories/decorators.tsx` exports:
+
+- `withLayoutProvider` — for components that call `useLayout()`
+  (AppBar, Breadcrumbs, RightSidebar).
+- `withMockSocket` — for socket-coupled components (`useSubscription`,
+  `useCollection`, `useService`). It mounts the REAL `QuickdrawProvider`
+  over a mock socket, so hooks behave exactly as in the app.
+
+## Mock-socket recipe
+
+Storybook aliases `socket.io-client` to `src/stories/mock-socket-io.ts`, and
+stories configure responses through `parameters.mockSocket`:
+
+```tsx
+import { mockSuccessEmit } from "@fitzzero/quickdraw-core/client/testing";
+import { withMockSocket } from "../../stories/decorators";
+
+const meta = {
+  title: "User/UserAvatar",
+  component: UserAvatar,
+  decorators: [withMockSocket],
+  parameters: {
+    // subscriptions resolve via <service>:batchSubscribe → { [id]: entity }
+    mockSocket: { emit: mockSuccessEmit({ "user-1": userFixture }) },
+  },
+} satisfies Meta<typeof UserAvatar>;
+```
+
+- `mockSuccessEmit(data)` / `mockErrorEmit(error)` answer every emit the
+  same way — enough for single-purpose components.
+- An event-aware handler `(event, payload, callback) => ...` covers
+  components that make several calls (see `ChatWindow.stories.tsx`).
+- Omit `emit` to keep requests pending (loading states); set
+  `connected: false` for disconnected states; set `userId` to control who
+  the "signed-in" user is.
+
+See `docs/storybook.md` for the full guide, including how forks strip
+Storybook out entirely.
