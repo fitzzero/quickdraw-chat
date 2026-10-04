@@ -28,8 +28,10 @@ documented as an alternative.
 DATABASE_URL=postgresql://user:password@host:5432/dbname
 
 # Auth
-JWT_SECRET=your-secure-random-secret-here  # Generate with: openssl rand -base64 32
-CLIENT_URL=https://your-domain.com         # Frontend URL — CORS + OAuth redirects depend on it
+JWT_SECRET=your-secure-random-secret-here  # 32+ characters: openssl rand -base64 32
+CLIENT_URL=https://your-domain.com         # Frontend URL — CORS + sign-in returns depend on it
+API_URL=https://api.your-domain.com        # The API's public URL: OAuth callbacks are {API_URL}/auth/{provider}/callback
+ENCRYPTION_KEY=<64-char hex>               # Encrypts stored OAuth tokens at rest: openssl rand -hex 32
 
 # Server
 NODE_ENV=production
@@ -45,20 +47,16 @@ NEXT_PUBLIC_API_URL=https://api.your-domain.com
 ### Optional
 
 ```bash
-# At-rest encryption for stored OAuth tokens (recommended)
-ENCRYPTION_KEY=<64-char hex>   # openssl rand -hex 32
-
 # Database connection pool
 DB_POOL_MAX=20  # Max connections (default: 20)
 DB_POOL_MIN=5   # Min connections (default: 5)
 
-# OAuth (if using)
+# OAuth (if using; a provider without both values is left out). Register
+# {API_URL}/auth/google/callback and {API_URL}/auth/discord/callback with them.
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
-GOOGLE_REDIRECT_URI=https://api.your-domain.com/auth/google/callback
 DISCORD_CLIENT_ID=...
 DISCORD_CLIENT_SECRET=...
-DISCORD_REDIRECT_URI=https://api.your-domain.com/auth/discord/callback
 
 # CORS / cookies
 EXTRA_ALLOWED_ORIGINS=https://staging.your-domain.com  # comma-separated
