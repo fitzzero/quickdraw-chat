@@ -62,8 +62,8 @@ const DELETE_PATHS = [
   "docs/netcode-rd",
   ".claude/skills/netcode-rd",
   ".claude/rules/game-patterns.md",
-  "docs/api/GameService.md",
-  "docs/api/DefinitionService.md",
+  "docs/api/gameService.md",
+  "docs/api/definitionService.md",
 ];
 
 for (const path of DELETE_PATHS) {
@@ -230,14 +230,16 @@ if (existsSync(".quickdraw-lint-baseline.json")) {
   });
 }
 
-// docs/api/README.md is generated (scripts/generate-docs.ts) and indexes the
-// service pages. Drop the two whose pages DELETE_PATHS just removed; a later
-// `bun run docs:generate` rewrites the whole file anyway.
+// docs/api/README.md is generated (`bun run docs:generate`, quickdraw-docs)
+// and indexes the service pages. Drop the rows of the two whose pages
+// DELETE_PATHS just removed; init-fork.sh then generates the whole reference
+// again (run `bun run docs:generate` yourself after running this alone), which
+// also lays the table out for the services left.
 const apiDocsIndex = "docs/api/README.md";
 if (existsSync(apiDocsIndex)) {
   const kept = readFileSync(apiDocsIndex, "utf8")
     .split("\n")
-    .filter((line) => !/^- \[(Game|Definition)Service\]/.test(line))
+    .filter((line) => !/^\| \[(game|definition)Service\]/.test(line))
     .join("\n");
   writeFileSync(apiDocsIndex, kept);
   console.log(`  edited ${apiDocsIndex}`);
