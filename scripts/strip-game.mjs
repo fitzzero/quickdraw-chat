@@ -220,7 +220,8 @@ editJson("apps/api/package.json", (data) => {
   delete data.dependencies?.["@project/bench"];
 });
 
-// Lint allowances recorded for files DELETE_PATHS removed
+// Lint allowances recorded for files DELETE_PATHS removed (a fork that adopted
+// a new rule with `quickdraw-lint baseline` has one)
 if (existsSync(".quickdraw-lint-baseline.json")) {
   editJson(".quickdraw-lint-baseline.json", (data) => {
     for (const file of Object.keys(data.files ?? {})) {
