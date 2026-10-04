@@ -21,6 +21,7 @@ async function seedUsers(): Promise<{ adminId: string; moderatorId: string; user
         chatService: "Admin",
         messageService: "Admin",
         documentService: "Admin",
+        pushService: "Admin",
         // ── quickdraw-game:start ──
         gameService: "Admin",
         definitionService: "Admin",

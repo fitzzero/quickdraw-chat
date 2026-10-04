@@ -217,6 +217,7 @@ function InviteSection({ chatId }: InviteSectionProps): React.ReactElement {
                   disabled={!inviteUsername.trim() || inviteByName.isPending}
                   edge="end"
                   size="small"
+                  aria-label={t("inviteButton")}
                 >
                   {inviteByName.isPending ? <CircularProgress size={20} /> : <PersonAddIcon />}
                 </IconButton>
