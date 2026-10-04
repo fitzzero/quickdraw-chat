@@ -1,88 +1,94 @@
 ---
 paths:
   - "apps/api/src/auth/**/*"
+  - "apps/web/src/lib/auth.ts"
+  - "apps/web/src/app/auth/**/*"
 ---
 
 # Auth
 
-How identity works in production. Dev-only sign-in (mock OAuth, dev
-credentials, env layering) lives in [dev-auth.md](dev-auth.md); the hardening
-inventory lives in [security.md](security.md).
+How identity works in production, on quickdraw's auth routes kit
+(`@fitzzero/quickdraw-core/server/auth`). Development sign-in (the mock
+provider, development credentials, env layering) is in
+[dev-auth.md](dev-auth.md); the hardening inventory in
+[security.md](security.md).
+
+## The pieces
+
+`createAppAuth({ prisma, serviceNames, onRevoke })` in
+`apps/api/src/auth/index.ts` builds everything, once per database, so the
+server, the tests and the netcode bench sign in the same way:
+
+- **Routes** (`createAuthRoutes`, one Express middleware): each provider's
+  `/auth/{provider}/start` and `/callback`, `/auth/me`, `/auth/logout` and
+  `/auth/logout-all` (POST, rate limited by the kit). A sign-in returns to
+  the web app's `/auth/callback`, or to `/auth/login?error=...`.
+  <!-- ── quickdraw-game:start ── -->
+  Plus `POST /auth/guest` (`guest.ts`): a real user marked `isGuest`, so
+  signed-out visitors can play; it answers `{ userId, name }`.
+  <!-- ── quickdraw-game:end ── -->
+- **Providers** (`providersFor`): `google.optional(...)` and
+  `discord.optional(...)` from the environment (nothing without
+  credentials; one of the pair alone refuses to boot), and `mock(...)` for
+  development.
+- **Users** (`users.ts`): `onLogin` → `upsertOAuthUser` finds the user by
+  provider account, links an existing user by email only when the provider
+  verified it, or creates one; provider tokens are stored `encrypt`ed when
+  `ENCRYPTION_KEY` is set; avatars go through `safeImageUrl`.
+- **Sessions** (`sessions.ts`): `prismaSessions(prisma)`, the kit's
+  `SessionStore` over the `Session` table (untracked writes: sessions are
+  not live data). An hourly sweep in `index.ts` deletes expired rows.
+- **Sockets and HTTP calls**: `createServer`'s `auth.authenticate` is
+  `socketAuth(...)` over the same session keys, the allowed origins and
+  the development credentials (`dev-credentials.ts`).
+- **Grants** (`grants.ts`): `createGrantsLoader` is `auth.loadServiceAccess`:
+  the user's `User.serviceAccess` over `SERVICE_DEFAULT_ACCESS`, or Admin on
+  every service for an `ADMIN_EMAILS` user (stored on their row the first
+  time). `auth.serviceAccessSource` names that column, so a tracked write
+  to it (the admin screens' grants editor) reaches the user's open sockets.
+- **Settings** (`config.ts`): `jwtSecretFromEnv`, `apiUrl`, `clientUrl` and
+  `allowedOriginsFromEnv` (CORS, sign-in returns and cookie-authenticated
+  sockets share one list).
 
 ## The one credential
 
-A session is a **JWT paired with a `Session` row**. The JWT proves the claim,
-the row makes it revocable, and the same credential authenticates both REST
-and every socket:
+A session is a JWT naming a `Session` row (`sid`): the JWT proves the claim,
+the row makes it revocable. The same credential authenticates every socket,
+HTTP call and REST route, carried in an httpOnly cookie (`__Host-session`
+over HTTPS, `session` over plain HTTP or when `COOKIE_DOMAIN` shares it with
+subdomains) or as a token (`auth.token` in a handshake, a bearer header).
+No token ever appears in a URL. Signing out revokes the row, and `onRevoke`
+ends that session's sockets (`server.access.disconnectUser`).
 
-- `jwt.ts` — `createJWT` / `verifyJWT`. Payload is `JWTPayload`.
-- `session-store.ts` — `deleteSessionByToken`, `deleteSessionsForUser`,
-  `deleteExpiredSessions` (an hourly sweep runs the last one).
-- `oauth-callback.ts` — `SESSION_EXPIRY_DAYS` = 7. The cookie `maxAge`, the
-  JWT expiry and the `Session` row expiry are all derived from
-  `SESSION_MAX_AGE_MS`. Change one and you change all three; never let them
-  drift apart.
+<!-- ── quickdraw-game:start ── -->
 
-The token reaches the server two ways, and **the token wins when both are
-present**: `handshake.auth.token` for sockets, and an httpOnly cookie for
-browsers. A cookie-less client (a native app, a game client, a bench bot) is
-therefore a first-class case, not a workaround.
+The Discord Activity (`discord-activity.ts`) is the one sign-in outside the
+kit's providers: its page POSTs the Embedded App SDK's code, and the route
+starts a session with `issueSession` and answers its token (the iframe drops
+third-party cookies).
 
-## OAuth providers
+<!-- ── quickdraw-game:end ── -->
 
-Each provider is a thin router over shared machinery. `google.ts` is the
-reference; mirror it for a new one:
+## REST routes
 
-1. `registerXRoutes(router)` mounts the start and callback routes.
-2. `issueOAuthState(res, cookieName)` before the redirect,
-   `validateOAuthState(req, res, cookieName)` on the way back. State cookies
-   are compared timing-safe.
-3. `completeOAuthLogin` / `createSessionForProfile` in `oauth-callback.ts`
-   mints the user, the account, the JWT and the `Session` row.
+An app route that needs a signed-in user takes `requireSession(auth.keys)`
+(see `api-conventions.md`), never a hand-rolled JWT check: it reads the
+cookie and the bearer token by the same rule as the sockets.
 
-**No token ever appears in a redirect URL.** The callback sets the httpOnly
-cookie and redirects. A flow that must hand a token back to a caller returns
-it in a response body instead.
+## The web side
 
-Provider access and refresh tokens are AES-256-GCM encrypted at rest.
+`apps/web/src/lib/auth.ts` builds the sign-in URL
+(`/auth/{provider}/start?returnTo=<origin>`) and POSTs `/auth/logout` and
+`/auth/logout-all`; follow either with a full page navigation so the socket
+reconnects signed out. Use these, not `@fitzzero/quickdraw-core/client`'s
+helpers of the same names, which call routes the kit does not serve (a
+framework finding, marked in that file).
 
-## Sockets
+## Adding a provider
 
-`createSocketAuth({ prisma, getServiceNames })` in `middleware.ts` returns the
-two hooks core's `createQuickdrawServer` expects:
-
-- `authenticate(socket, auth)` — dev auth first (it no-ops outside dev), then
-  token auth.
-- `loadServiceAccess(userId)` — reads `user.serviceAccess`, merges
-  `SERVICE_DEFAULT_ACCESS`, and applies `ADMIN_EMAILS` bootstrap promotion.
-
-Production (`src/index.ts`) runs those hooks inside its own middleware because
-it needs its own Express app for the OAuth routes; the test server passes the
-same hooks straight to `createQuickdrawServer`. **Change auth in the hooks,
-never in either runner** — that is what keeps the test suite exercising the
-real path.
-
-Identity reaches the client as an `auth:info` event
-(`{ userId, serviceAccess, principalType }`), emitted for anonymous sockets
-too.
-
-## REST
-
-REST is only for OAuth flows, health checks and inbound webhooks — never for
-data. Every REST surface authenticates through `createRestRequireAuth(db)` in
-`rest-middleware.ts`, which is cookie-first with a Bearer fallback and sets
-`req.userId`. Use that factory rather than calling core's `createRequireAuth`
-again, so there is one session-lookup path to audit.
-
-`routes.ts` owns session management: `DELETE /auth/logout` revokes the
-current token, `DELETE /auth/sessions` revokes every session for the user.
-Both are rate limited at 60 per 15 minutes; the OAuth and guest routes get the
-tighter 20 per 15 minutes.
-
-## Adding a provider — checklist
-
-1. Copy `google.ts`; register in `routes.ts`.
-2. Reuse `issueOAuthState` / `validateOAuthState` and `completeOAuthLogin`.
-3. Wrap the new routes with `createAuthLimiter()`.
-4. Store provider tokens through `encrypt()`; never write them raw.
-5. Add the client id and secret to `env.example` and the deploy secrets list.
+1. Add it in `providersFor`: the kit's `google`/`discord` builders, or an
+   object implementing `OAuthSignInProvider` (`authorizeUrl`, `profile`).
+2. Register `{API_URL}/auth/{id}/callback` with the provider; add its client
+   id and secret to `env.example` and the deploy secrets.
+3. Add its button to the login page (`apps/web/src/app/auth/login/page.tsx`)
+   with `getOAuthUrl("<id>")`.
