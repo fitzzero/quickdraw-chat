@@ -1,43 +1,23 @@
 import type { Definition } from "@project/db";
 import type { DefinitionDTO } from "@project/shared";
-import { z } from "zod";
 import { qd } from "../../quickdraw.js";
 import { definitionContract } from "@project/shared";
 
-// Zod schemas for validation
-// Admin schema - defines fields available for admin CRUD
-const adminDefinitionSchema = z.object({
-  type: z.string(),
-  key: z.string(),
-  data: z.record(z.string(), z.unknown()),
-  version: z.number(),
-  enabled: z.boolean(),
-});
+// quickdraw-game: the minimal 5.0 port: the public reads run on 5.0; the
+// admin surface (and with it the tunables hot reload) is ported with the game
+// (child 4). Its review markers stay below.
 
 type DefinitionChangedListener = (definition: DefinitionDTO) => void;
 
-// quickdraw-migrate: review [this] 4.x constructor code of DefinitionService: a service object has no constructor; move what still matters to module scope, a job or the server's start-up, then delete this function
-// quickdraw-5.0 finding: the codemod dropped the field changedListeners (initialized to []) that onChanged and notifyChanged read; only those uses are marked
-function setUpDefinitionService(): void {
-  installAdmin();
-}
+/** The most definitions listDefinitions answers. */
+const MAX_LISTED_DEFINITIONS = 500;
+
+/** Who hears about definition edits: 4.x's DefinitionService field, as module state. */
+const changedListeners: DefinitionChangedListener[] = [];
 
 /** Subscribe to admin edits (e.g. the game sim hot-reloads tunables). */
 export function onChanged(listener: DefinitionChangedListener): void {
-  // quickdraw-migrate: review [this] this.changedListeners was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-  this.changedListeners.push(listener);
-}
-
-function notifyChanged(definition: Definition): void {
-  const dto = toDto(definition);
-  // quickdraw-migrate: review [this] this.changedListeners was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-  for (const listener of this.changedListeners) {
-    try {
-      listener(dto);
-    } catch {
-      // Listener errors must never break admin writes
-    }
-  }
+  changedListeners.push(listener);
 }
 
 // Wire shape: dates as ISO strings (what SubscriptionDataMap advertises).
@@ -56,31 +36,24 @@ function toDto(definition: Definition): DefinitionDTO {
   };
 }
 
+/** Tells the listeners about an edited definition; a listener's error never breaks the write. */
+export function notifyChanged(definition: Definition): void {
+  const dto = toDto(definition);
+  for (const listener of changedListeners) {
+    try {
+      listener(dto);
+    } catch {
+      // Listener errors must never break admin writes
+    }
+  }
+}
+
 // Admin writes flow through the generic admin surface; 4.x hooked them so
 // consumers (the game sim) could hot-reload.
 // quickdraw-migrate: review [this] 4.x overrode adminCreate and adminUpdate to call notifyChanged(row) after each admin write, so the game sim hot-reloads tunables: give the admin kit's writes the same hook
-// quickdraw-5.0 finding: the codemod kept those two overrides as module functions calling super.adminCreate(data) and super.adminUpdate(id, data), which does not parse (oxlint stops at the syntax error, and no baseline can hold one); they are removed, and the marker above keeps their item
 
-function installAdmin(): void {
-  // quickdraw-migrate: review [admin] installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, options) in methods)
-  this.installAdminMethods({
-    expose: { list: true, get: true, create: true, update: true, delete: true },
-    access: {
-      list: "Admin",
-      get: "Admin",
-      create: "Admin",
-      update: "Admin",
-      delete: "Admin",
-      setEntryACL: "Admin",
-      getSubscribers: "Admin",
-      reemit: "Admin",
-      unsubscribeAll: "Admin",
-    },
-    schema: adminDefinitionSchema,
-    displayName: "Definitions",
-    tableColumns: ["id", "type", "key", "version", "enabled", "updatedAt"],
-  });
-}
+// quickdraw-migrate: review [admin] installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, options) in methods)
+// (4.x: list, get, create, update and delete of definitions for service Admins, "Definitions")
 
 /**
  * DefinitionService — data-driven game content.
@@ -88,9 +61,9 @@ function installAdmin(): void {
  * The furnace lesson ("make everything resource-driven") applied to a
  * quickdraw backend: instead of baked Godot .tres resources, content lives
  * in Definition rows. Reads are Public (the Godot client fetches tunables
- * at load, pre- or post-auth); writes go through the generic admin UI
- * (installAdminMethods), so balance changes never require re-exporting
- * the game — the server sim also re-reads on change (see onChanged).
+ * at load, pre- or post-auth); writes go through the generic admin UI, so
+ * balance changes never require re-exporting the game — the server sim also
+ * re-reads on change (see onChanged).
  */
 export const definitionService = qd.defineService(definitionContract, {
   model: "definition",
@@ -102,6 +75,8 @@ export const definitionService = qd.defineService(definitionContract, {
         const rows = await db.definition.findMany({
           where: { enabled: true, ...(input.type ? { type: input.type } : {}) },
           orderBy: [{ type: "asc" }, { key: "asc" }],
+          // bounded: 5.0 refuses an unbounded read in development (unbounded-read)
+          take: MAX_LISTED_DEFINITIONS,
         });
         return rows.map((row) => toDto(row));
       },
