@@ -1,10 +1,10 @@
 // The contract of chatService, written by @fitzzero/quickdraw-codemod from
 // ChatServiceMethods and the defineMethod calls of ChatService
 // (apps/api/src/services/chat/index.ts), then completed by hand: real output
-// schemas, the entity, the `listItem` projection, the `myChats` collection
-// and the `memberUpdate` event.
+// schemas, the entity, the `listItem` projection, the `myChats` collection,
+// the `memberUpdate` event and the admin kit.
 
-import { defineContract, mutation, query, via } from "@fitzzero/quickdraw-core";
+import { admin, defineContract, mutation, query, via } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
 import {
   accessLevelSchema,
@@ -139,6 +139,8 @@ export const chatContract = defineContract("chatService", {
       output: idResultSchema,
       describe: "Removes the caller from a chat.",
     }),
+    // The admin screens: every chat, for holders of a service-wide Admin grant
+    ...admin.contract({ entity: chatSchema, sort: ["createdAt", "title", "lastMessageAt"] }),
   },
   collections: {
     // Each chat in the list of every member: the scope is a user id, through
@@ -151,10 +153,17 @@ export const chatContract = defineContract("chatService", {
         ["lastMessageAt", "desc"],
         ["id", "desc"],
       ],
+      // the whole list, small, with the first page: the sidebar knows every
+      // chat (and drops the ones deleted while it was offline) without paging
+      index: ["lastMessageAt", "title", "memberCount"],
     },
   },
   events: {
-    // was the 4.x room event "chat:memberUpdate", sent to the chat's room
-    memberUpdate: { payload: z.object({ members: z.array(chatMemberSchema) }) },
+    // was the 4.x room event "chat:memberUpdate", sent to the chat's room; now
+    // sent to each member (emitToUser) whenever the chat's members change, with
+    // the chat's id so a client showing several chats can tell them apart
+    memberUpdate: {
+      payload: z.object({ chatId: z.string(), members: z.array(chatMemberSchema) }),
+    },
   },
 });

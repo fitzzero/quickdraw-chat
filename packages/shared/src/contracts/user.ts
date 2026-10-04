@@ -1,9 +1,9 @@
 // The contract of userService, written by @fitzzero/quickdraw-codemod from
 // UserServiceMethods and the defineMethod calls of UserService
 // (apps/api/src/services/user/index.ts), then completed by hand: real output
-// schemas, the entity and its field tiers.
+// schemas, the entity and its field tiers, the admin kit and setServiceAccess.
 
-import { defineContract, mutation, nullable, query } from "@fitzzero/quickdraw-core";
+import { admin, defineContract, mutation, nullable, query } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
 import { accessLevelSchema, cuidSchema, isoDateSchema } from "./helpers.js";
 
@@ -13,6 +13,12 @@ const updateUserSchema = z.object({
     name: z.string().min(1).max(50).optional(),
     image: z.string().url("Invalid image URL").optional(),
   }),
+});
+
+const setServiceAccessSchema = z.object({
+  id: cuidSchema("user ID"),
+  /** The user's whole set of service-wide grants, by service name: `{ "chatService": "Admin" }`. */
+  serviceAccess: z.record(z.string(), accessLevelSchema),
 });
 
 /**
@@ -65,5 +71,15 @@ export const userContract = defineContract("userService", {
       describe:
         'Changes a user\'s name or image; answers { error: "name_taken" } when another user has the name.',
     }),
+    // 4.x edited grants through adminUpdate (the field override made
+    // serviceAccess editable); the 5.0 admin kit never writes serviceAccess.
+    setServiceAccess: mutation({
+      input: setServiceAccessSchema,
+      output: "entity",
+      describe:
+        "Replaces a user's service-wide grants (service administrators only); their open sockets get the new grants at once.",
+    }),
+    // The admin screens: every user, for holders of a service-wide Admin grant
+    ...admin.contract({ entity: userSchema, sort: ["createdAt", "name", "email"] }),
   },
 });

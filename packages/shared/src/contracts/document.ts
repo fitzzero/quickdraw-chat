@@ -1,40 +1,24 @@
 // The contract of documentService, written by @fitzzero/quickdraw-codemod from
 // DocumentServiceMethods and the defineMethod calls of DocumentService
-// (apps/api/src/services/document/index.ts), then completed by hand: real output
-// schemas and the entity.
+// (apps/api/src/services/document/index.ts), then completed by hand: the
+// entity and the kits. Documents are the template's JSON access-list example:
+// the read/write kit's methods, the sharing kit's (which edit the list), and
+// the admin kit's, all decided by one policy on the service
+// (`jsonAcl("acl", { owner: "ownerId" })`).
 
-import { defineContract, listOf, mutation, nullable, query } from "@fitzzero/quickdraw-core";
+import { admin, crud, defineContract, sharing } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
-import {
-  aceSchema,
-  byIdSchema,
-  cuidSchema,
-  deletedResultSchema,
-  idResultSchema,
-  isoDateSchema,
-  paginationSchema,
-} from "./helpers.js";
+import { aceSchema, isoDateSchema } from "./helpers.js";
 
-const createDocumentSchema = z.object({
+const newDocumentSchema = z.object({
   title: z.string().min(1).max(200),
   content: z.string().max(100000).optional(),
 });
 
-const updateDocumentSchema = z.object({
-  id: cuidSchema("document ID"),
+/** What `update` may change: every field optional (the kit adds `id`). */
+const documentPatchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   content: z.string().max(100000).optional(),
-});
-
-const shareDocumentSchema = z.object({
-  id: cuidSchema("document ID"),
-  userId: cuidSchema("user ID"),
-  level: z.enum(["Public", "Read", "Moderate", "Admin"]),
-});
-
-const unshareDocumentSchema = z.object({
-  id: cuidSchema("document ID"),
-  userId: cuidSchema("user ID"),
 });
 
 /**
@@ -56,43 +40,25 @@ export const documentSchema = z.object({
 export const documentContract = defineContract("documentService", {
   entity: documentSchema,
   methods: {
-    createDocument: mutation({
-      input: createDocumentSchema,
-      output: idResultSchema,
-      describe: "Creates a document owned by the caller.",
+    // 4.x's createDocument, getDocument, updateDocument, deleteDocument and
+    // listMyDocuments: `list` answers the documents the caller owns or that
+    // are shared with them, a page at a time (cursor), sorted by a declared
+    // field (`{ field: "updatedAt", direction: "desc" }` for the most recent first)
+    ...crud.contract({
+      entity: documentSchema,
+      get: { describe: "Reads one document." },
+      list: { filter: ["ownerId"], sort: ["updatedAt", "title", "createdAt"] },
+      create: { input: newDocumentSchema, describe: "Creates a document owned by the caller." },
+      update: { input: documentPatchSchema, describe: "Changes a document's title or content." },
+      delete: { describe: "Deletes a document." },
     }),
-    getDocument: query({
-      input: byIdSchema,
-      output: nullable("entity"),
-      describe: "Reads one document, or null when there is none with that id.",
-    }),
-    updateDocument: mutation({
-      input: updateDocumentSchema,
-      // The row itself, so an edit shows at once (optimistic); a missing
-      // document is NOT_FOUND where 4.x answered null.
-      output: "entity",
-      describe: "Changes a document's title or content.",
-    }),
-    deleteDocument: mutation({
-      input: byIdSchema,
-      output: deletedResultSchema,
-      describe: "Deletes a document.",
-    }),
-    listMyDocuments: query({
-      input: paginationSchema,
-      output: listOf("entity"),
-      describe:
-        "Lists the documents the caller owns or that are shared with them, most recently updated first.",
-    }),
-    shareDocument: mutation({
-      input: shareDocumentSchema,
-      output: idResultSchema,
-      describe: "Shares a document with a user at a level, replacing any level they had.",
-    }),
-    unshareDocument: mutation({
-      input: unshareDocumentSchema,
-      output: idResultSchema,
-      describe: "Takes a user off a document's access list.",
+    // 4.x's shareDocument and unshareDocument, on the access list the policy reads
+    ...sharing.contract({ mode: "acl", methods: ["share", "unshare", "setLevel", "listShares"] }),
+    // The admin screens: every document, for holders of a service-wide Admin grant
+    ...admin.contract({
+      entity: documentSchema,
+      filter: ["ownerId"],
+      sort: ["updatedAt", "title", "createdAt"],
     }),
   },
 });

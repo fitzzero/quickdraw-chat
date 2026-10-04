@@ -1,9 +1,10 @@
 // The contract of messageService, written by @fitzzero/quickdraw-codemod from
 // MessageServiceMethods and the defineMethod calls of MessageService
 // (apps/api/src/services/message/index.ts), then completed by hand: real output
-// schemas, the entity, the `withAuthor` projection and the `byChat` collection.
+// schemas, the entity, the `withAuthor` projection, the `byChat` collection and
+// the admin kit.
 
-import { defineContract, mutation } from "@fitzzero/quickdraw-core";
+import { admin, defineContract, mutation } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
 import {
   byIdSchema,
@@ -24,11 +25,11 @@ const postMessageSchema = z.object({
 });
 
 /**
- * A message row, as its subscribers receive it. The row's `acl` column (its
- * author holds Admin there, which lets them delete it) is read by the access
- * policy and never sent. `role` is "user", "assistant" or "system", but a
- * string as the column is: handlers return database rows for this entity, and
- * a narrower type than the column's would refuse them.
+ * A message row, as its subscribers receive it. Who may read one is decided by
+ * its chat (members read its messages); its author also holds Admin on it, so
+ * may delete it. `role` is "user", "assistant" or "system", but a string as
+ * the column is: handlers return database rows for this entity, and a
+ * narrower type than the column's would refuse them.
  */
 export const messageSchema = z.object({
   id: z.string(),
@@ -56,8 +57,11 @@ export const messageContract = defineContract("messageService", {
     deleteMessage: mutation({
       input: byIdSchema,
       output: deletedResultSchema,
-      describe: "Deletes a message: its author's, or any with a service-wide Admin grant.",
+      describe:
+        "Deletes a message: its author may, as may its chat's Admins and holders of a service-wide Admin grant.",
     }),
+    // The admin screens: every message, for holders of a service-wide Admin grant
+    ...admin.contract({ entity: messageSchema, filter: ["chatId", "userId"], sort: ["createdAt"] }),
   },
   collections: {
     // A chat's live history. Newest first, so the first page is the latest
