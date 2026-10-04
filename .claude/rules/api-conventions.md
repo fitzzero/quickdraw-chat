@@ -18,7 +18,10 @@ CORS from the auth's allowed origins, cookie-parser, a 100 kB JSON body,
 Every service in `services/index.ts` is served three ways from the same
 dispatcher, access checks and tracked writes:
 
-- **Socket.IO**, protocol 5: the web client and the Godot client.
+- **Socket.IO**, protocol 5: the web client.
+  <!-- ── quickdraw-game:start ── -->
+  The Godot client speaks it too.
+  <!-- ── quickdraw-game:end ── -->
 - **HTTP**: `POST /qd/{service}/{method}`, with the session cookie or a
   bearer token (`http.rateLimit: createCallLimiter()`, since the HTTP
   transport has no limit of its own).

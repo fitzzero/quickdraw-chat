@@ -31,8 +31,10 @@ scripts already run through the loader.
 - **Development credentials** (`ENABLE_DEV_CREDENTIALS=true`): a socket may
   sign in by naming a user in its handshake (`auth: { userId }`, no token),
   through `socketAuth({ devCredentials })` and `auth/dev-credentials.ts`;
-  an unknown user id is refused. The integration tests, load-test bots and
-  the Godot editor use it.
+  an unknown user id is refused. The integration tests use it.
+  <!-- ── quickdraw-game:start ── -->
+  So do the netcode bench's bots and the Godot editor.
+  <!-- ── quickdraw-game:end ── -->
 
 Both are **hard-blocked in production**: the API refuses to boot with either
 flag set when `NODE_ENV=production` (`index.ts`), `devCredentials` answers

@@ -17,8 +17,10 @@ how the web app uses it.
   `qd.chatService.myChats.useCollection(userId)`,
   `qd.messageService.postMessage.useMutation()`. It also re-exports
   `useQuickdraw`: components import both from `../lib/quickdraw`, never from
-  `@fitzzero/quickdraw-core/client`, so Storybook's mock of that one module
-  stands in for both.
+  `@fitzzero/quickdraw-core/client`.
+  <!-- ── quickdraw-storybook:start ── -->
+  Storybook's mock of that one module then stands in for both.
+  <!-- ── quickdraw-storybook:end ── -->
 - `apps/web/src/providers/index.tsx` mounts `QuickdrawProvider` with
   `client={qd}`, the API's URL and no `auth`: the session is the httpOnly
   cookie the handshake carries, and the server's hello names the user.

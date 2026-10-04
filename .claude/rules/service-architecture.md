@@ -35,15 +35,23 @@ to this app.
 
 ## The services as examples
 
-| Service             | Row policy                                   | Shows                                                                                                                     |
-| ------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `userService`       | `anyOf(owner("id"), everyone("Read"))`       | public profiles with tiered `fields` (`email`, `serviceAccess` at Admin); grants edited by the admin kit (`grants: true`) |
-| `chatService`       | `members({ model: "chatMember", ... })`      | a membership table; `myChats` as a `via` collection (`refreshEntry` keeps `memberCount` live); the `memberUpdate` event   |
-| `messageService`    | `anyOf(inherit({ from: chat }), owner(...))` | `byChat` anchored on the chat; `writes: ["chat"]` keeps `Chat.lastMessageAt` (the `myChats` order); a detached push       |
-| `documentService`   | `jsonAcl("acl", { owner: "ownerId" })`       | the read/write, sharing and admin kits only, no hand-written method                                                       |
-| `pushService`       | `owner("userId")`                            | a service a REST route calls in process (`push-subscription/rest.ts`)                                                     |
-| `gameService`       | (game) on `GameWorld`                        | the realtime kit: a channel, a stream, events, app rooms (`game-patterns.md`)                                             |
-| `definitionService` | (game) none: public reads, admin kit writes  | content edited in the admin screens, applied to the running sim (`onChanged`)                                             |
+| Service           | Row policy                                   | Shows                                                                                                                     |
+| ----------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `userService`     | `anyOf(owner("id"), everyone("Read"))`       | public profiles with tiered `fields` (`email`, `serviceAccess` at Admin); grants edited by the admin kit (`grants: true`) |
+| `chatService`     | `members({ model: "chatMember", ... })`      | a membership table; `myChats` as a `via` collection (`refreshEntry` keeps `memberCount` live); the `memberUpdate` event   |
+| `messageService`  | `anyOf(inherit({ from: chat }), owner(...))` | `byChat` anchored on the chat; `writes: ["chat"]` keeps `Chat.lastMessageAt` (the `myChats` order); a detached push       |
+| `documentService` | `jsonAcl("acl", { owner: "ownerId" })`       | the read/write, sharing and admin kits only, no hand-written method                                                       |
+| `pushService`     | `owner("userId")`                            | a service a REST route calls in process (`push-subscription/rest.ts`)                                                     |
+
+<!-- ── quickdraw-game:start ── -->
+
+The game's two services: `gameService` (on `GameWorld`, `everyone("Read")`)
+shows the realtime kit, with a channel, a stream, events and app rooms
+(`game-patterns.md`); `definitionService` (no row policy: public reads,
+admin kit writes) holds content edited in the admin screens and applied to
+the running sim (`onChanged`).
+
+<!-- ── quickdraw-game:end ── -->
 
 ## Conventions here
 
