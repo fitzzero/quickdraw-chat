@@ -25,7 +25,8 @@ server, the tests and the netcode bench sign in the same way:
   the web app's `/auth/callback`, or to `/auth/login?error=...`.
   <!-- ── quickdraw-game:start ── -->
   Plus `POST /auth/guest` (`guest.ts`): a real user marked `isGuest`, so
-  signed-out visitors can play; it answers `{ userId, name }`.
+  signed-out visitors can play; it answers `{ userId, name, token }` (the
+  token for clients without cookies; the web uses the cookie).
   <!-- ── quickdraw-game:end ── -->
 - **Providers** (`providersFor`): `google.optional(...)` and
   `discord.optional(...)` from the environment (nothing without

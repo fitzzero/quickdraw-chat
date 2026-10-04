@@ -55,7 +55,7 @@ describe("Guest auth", () => {
   it("creates a guest user and signs it in with a session cookie", async () => {
     const response = await createGuest("Wandering Snek");
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { userId: string; name: string };
+    const body = (await response.json()) as { userId: string; name: string; token: string };
     expect(body.name).toBe("Wandering Snek");
 
     const user = await testPrisma.user.findUniqueOrThrow({
@@ -70,6 +70,9 @@ describe("Guest auth", () => {
     expect(session?.userId).toBe(body.userId);
     const stored = await testPrisma.session.findUniqueOrThrow({ where: { id: session?.id ?? "" } });
     expect(stored.provider).toBe("guest");
+
+    // The body carries the same session's token, for clients without cookies
+    expect((await liveSession(auth.keys, body.token))?.id).toBe(session?.id);
   });
 
   it("uniquifies colliding names with a numeric tag", async () => {
