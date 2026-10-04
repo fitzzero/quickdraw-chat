@@ -33,7 +33,7 @@
     "bench:compare": "tsx packages/bench/src/cli/compare.ts",
     "build:prod": "NODE_ENV=production turbo build",
     "db:migrate:deploy": "cd packages/db && bun run db:migrate:deploy",
-    "prepare": "husky && conveyor-skills link"
+    "prepare": "husky && conveyor-skills link && quickdraw-skills link"
   },
   "devDependencies": {
     "@fitzzero/quickdraw-codemod": "5.0.0-rc.1",

@@ -2,20 +2,23 @@
 
 Project-local lint rules, loaded by the root `.oxlintrc.json` via `jsPlugins`
 under the `project` namespace. Framework-wide rules live upstream in
-`@fitzzero/quickdraw-core/eslint-plugin` (wired by the shared base config);
-this plugin is for patterns specific to _this_ codebase — it survives
-`scripts/init-fork.sh` unchanged, so forks keep and extend it.
+`@fitzzero/quickdraw-lint` (its `oxlint.base.jsonc` and
+`oxlint.template.jsonc`, which the root config extends); this plugin is for
+patterns specific to _this_ codebase — it survives `scripts/init-fork.sh`
+unchanged, so forks keep and extend it.
 
 ## Rules
 
-- `project/no-prisma-in-routes` — bans direct `prisma.<model>.<method>()`
-  calls in `routes.ts` files. REST route handlers stay thin; database access
-  belongs in service methods (or a small helper module the route calls).
+None at the moment. Its one rule, `project/no-prisma-in-routes`, moved
+upstream as `quickdraw/no-prisma-in-routes`, which the base config turns on
+for `**/routes/**` and `**/routes.*` (the local copy only checked files named
+`routes.ts`).
 
 ## Adding your own rule
 
 1. Write the rule as an ESLint-compatible module in `rules/<rule-name>.mjs`
-   (copy `rules/no-prisma-in-routes.mjs` as a starting point).
+   (the rules in `node_modules/@fitzzero/quickdraw-lint/plugin/rules/` are
+   good starting points; `no-prisma-in-routes.mjs` is the one that lived here).
 2. Register it in `index.mjs` under `rules`.
 3. Enable it in the root `.oxlintrc.json` — either in `rules` or scoped to a
    glob in `overrides`:

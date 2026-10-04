@@ -3,7 +3,7 @@ import { prisma, type PrismaClient } from "@project/db";
 /**
  * Session persistence helpers for the auth REST routes.
  * Route handlers stay free of direct Prisma access (see
- * project/no-prisma-in-routes).
+ * quickdraw/no-prisma-in-routes).
  */
 
 /** Delete the session matching a specific token. Returns deleted count. */
