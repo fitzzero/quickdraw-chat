@@ -1,5 +1,44 @@
 # Changelog
 
+## quickdraw 5.0 (2026-10-04)
+
+The whole template moved from `@fitzzero/quickdraw-core` 4.1 to the 5.0
+release candidate (`5.0.0-rc.3`): the server, the web app, the game and its
+Godot client, the tests, CI and the docs. Everyone signs in once more
+(session tokens now name their session).
+
+### Changed
+
+- **Contracts and services.** Each service is a contract in
+  `packages/shared/src/contracts/` and a `qd.defineService` object in
+  `apps/api`: declared access on every method, a row policy per service
+  (`owner`, `jsonAcl`, `members`, `inherit`, `everyone`), tracked Prisma
+  writes instead of hand-sent events, and the read/write, sharing and admin
+  kits (documents are kits only; grants are edited through the admin kit).
+- **Live lists** are contract collections: `byChat` (anchored on the chat)
+  and `myChats` (through the `ChatMember` table, `refreshEntry` for its
+  member counts), ordered by a maintained `Chat.lastMessageAt` column.
+- **The server** is `qd.createServer` on the app's Express app (Socket.IO
+  protocol 5, HTTP calls and MCP from one dispatcher) with the default
+  socket rate limit; sign-in is the auth routes kit over the `Session`
+  table, with `requireSession` for the app's REST routes.
+- **The web app** reads through the typed client (`qd.<service>.<member>`):
+  the wrapper hooks are gone, the admin screens are generic over the admin
+  kit, and Storybook renders components on the mock client.
+- **The game** runs on the realtime kit (an input channel gated on the
+  world's room, a volatile snapshot stream, room events), and the Godot
+  client speaks protocol 5; `bun run check:godot` plays two headless
+  clients through an API restart.
+- **Tests** run on quickdraw's test app: an access matrix per service,
+  live-delta tests over real sockets, component tests against the real
+  server, and committed query budgets for the chat list, a message send, a
+  document share and the game's join.
+- **Tooling.** Lint extends `@fitzzero/quickdraw-lint`'s template config;
+  quickdraw's agent rules and skills are linked into `.claude/` by
+  `@fitzzero/quickdraw-skills`, and this app's own rules were rewritten for
+  5.0; `docs/api` is generated from the contracts by `quickdraw-docs`
+  (`bun run docs:generate`, checked in CI).
+
 ## August 2026 — netcode R&D, PWA, and the move to a `dev` integration branch (2026-08-29)
 
 ### Added

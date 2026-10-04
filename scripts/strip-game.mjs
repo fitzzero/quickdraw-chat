@@ -178,15 +178,15 @@ editJson("apps/web/src/messages/en.json", (data) => {
     // Copy that names the game needs replacing, not deleting — these keys
     // are rendered on the landing page.
     data.Landing.subtitle =
-      "Typed Socket.IO services, two-tier access control, and a full auth suite — already wired together. Fork it and build the interesting part.";
+      "Typed realtime services, access policies on every row, and a full auth suite — already wired together. Fork it and build the interesting part.";
     data.Landing.featAuthDesc =
       "Google & Discord OAuth, revocable sessions, and a mock OAuth flow so local dev never needs real credentials.";
     data.Landing.featAuthDetail =
-      "Sessions are JWTs paired with revocable database rows, carried only in an httpOnly cookie — the same credential authenticates REST and every socket. The mock OAuth provider runs a genuine code flow against seeded users and hard-blocks production boot.";
+      "quickdraw's auth routes kit: sessions are JWTs naming revocable database rows, carried in an httpOnly cookie — the same credential authenticates every socket, HTTP call and REST route. The mock OAuth provider runs a genuine code flow against seeded users and refuses to run in production.";
     data.Landing.featAdminDesc =
       "Every service gets an admin CRUD surface for free — no per-service admin pages to build.";
     data.Landing.featAdminDetail =
-      "installAdminMethods exposes list/get/create/update/delete with per-action access levels, and the generic /admin UI renders tables and editors from the schema.";
+      "The admin kit adds list/get/create/update/delete to a service in one spread, and the generic /admin UI renders tables and editors from each service's metadata — no per-service admin pages to build. Grants are edited there too.";
     // init-fork.sh self-deletes after it runs, so its copy has to stop
     // describing options the reader no longer has.
     data.Landing.featForkDesc =
