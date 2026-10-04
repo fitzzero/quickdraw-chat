@@ -18,8 +18,7 @@ import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import { useTranslations } from "next-intl";
 import { GLOBAL_WORLD_ID } from "@project/shared";
 import { useSlowLoadHint } from "../../hooks";
-import { qd } from "../../lib/quickdraw";
-import { useSocket } from "../../providers";
+import { qd, useQuickdraw } from "../../lib/quickdraw";
 
 const SCORES_PAYLOAD = { worldId: GLOBAL_WORLD_ID, limit: 25 };
 
@@ -32,7 +31,7 @@ const SCORES_PAYLOAD = { worldId: GLOBAL_WORLD_ID, limit: 25 };
 export default function ScoresPage(): React.ReactElement {
   const t = useTranslations("ScoresPage");
   const tCommon = useTranslations("Common");
-  const { userId, isConnected } = useSocket();
+  const { userId, isConnected } = useQuickdraw();
   const { data: scores, isError } = qd.gameService.getHighScores.useQuery(SCORES_PAYLOAD, {
     staleTime: 0,
   });

@@ -10,7 +10,6 @@ export type * from "./chat.js";
 export type * from "./message.js";
 export type * from "./document.js";
 export type * from "./push.js";
-export type * from "./service-methods.js";
 export type * from "./admin.js";
 // ── quickdraw-game:start ──
 // (value exports for game.js/definition.js live in ../index.ts — this barrel is type-only)

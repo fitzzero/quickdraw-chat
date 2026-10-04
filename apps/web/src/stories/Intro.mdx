@@ -36,42 +36,38 @@ a signed-in journey, use the dev server.
 ## Decorator cookbook
 
 The global decorator (`.storybook/preview.tsx`) already provides the MUI
-theme, `CssBaseline`, intl, and toasts. For components with more context
-needs, `src/stories/decorators.tsx` exports:
+theme, `CssBaseline`, intl, toasts, and the story's quickdraw session. For
+components with more context needs, `src/stories/decorators.tsx` exports:
 
 - `withLayoutProvider` — for components that call `useLayout()`
   (AppBar, Breadcrumbs, RightSidebar).
-- `withMockSocket` — for socket-coupled components (`useSubscription`,
-  `useCollection`, `useService`). It mounts the REAL `QuickdrawProvider`
-  over a mock socket, so hooks behave exactly as in the app.
 
-## Mock-socket recipe
+## Mock-client recipe
 
-Storybook aliases `socket.io-client` to `src/stories/mock-socket-io.ts`, and
-stories configure responses through `parameters.mockSocket`:
+Components on quickdraw render over its mock client: Storybook aliases the
+app's `src/lib/quickdraw.ts` to `src/stories/quickdraw.tsx`, whose `qd` is
+`createMockClient(contracts)`. Stories set what the hooks show:
 
 ```tsx
-import { mockSuccessEmit } from "@fitzzero/quickdraw-core/client/testing";
-import { withMockSocket } from "../../stories/decorators";
+import { qd } from "../../stories/quickdraw";
 
 const meta = {
   title: "User/UserAvatar",
   component: UserAvatar,
-  decorators: [withMockSocket],
-  parameters: {
-    // subscriptions resolve via <service>:batchSubscribe → { [id]: entity }
-    mockSocket: { emit: mockSuccessEmit({ "user-1": userFixture }) },
+  args: { userId: "user-ada" },
+  beforeEach: () => {
+    qd.userService.useEntity.mockRow(ada); // what useEntity shows for user-ada
   },
 } satisfies Meta<typeof UserAvatar>;
 ```
 
-- `mockSuccessEmit(data)` / `mockErrorEmit(error)` answer every emit the
-  same way — enough for single-purpose components.
-- An event-aware handler `(event, payload, callback) => ...` covers
-  components that make several calls (see `ChatWindow.stories.tsx`).
-- Omit `emit` to keep requests pending (loading states); set
-  `connected: false` for disconnected states; set `userId` to control who
-  the "signed-in" user is.
+- `qd.<service>.<collection>.mockScope(scope, items)` for `useCollection`,
+  `qd.<service>.useEntity.mockRow(row)` / `mockError(id, error)` for
+  `useEntity`, `qd.<service>.<method>.mockResolvedValue(output)` for a query.
+- What no story sets stays loading; give each story its own ids, since a
+  docs page renders several stories at once.
+- `parameters: { quickdraw: { session: { userId: null } } }` renders the
+  signed-out state; `connected: false` the state before the server's hello.
 
 See `docs/storybook.md` for the full guide, including how forks strip
 Storybook out entirely.

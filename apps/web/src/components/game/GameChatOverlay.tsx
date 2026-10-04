@@ -6,9 +6,9 @@ import ChatIcon from "@mui/icons-material/Chat";
 import CloseIcon from "@mui/icons-material/ExpandMore";
 import { useTranslations } from "next-intl";
 import type { MessageDTO } from "@project/shared";
-import { useRoomEvents } from "../../hooks";
 import { qd } from "../../lib/quickdraw";
 import { ChatWindow } from "../chat";
+import { useRoomEvents } from "./roomEvents";
 
 interface GameChatOverlayProps {
   /** The world's chat (from gameService.getWorld). */

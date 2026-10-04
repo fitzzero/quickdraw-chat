@@ -18,13 +18,14 @@ import StorageIcon from "@mui/icons-material/Storage";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useAdminServices } from "@fitzzero/quickdraw-core/client";
 import { useIsMobile } from "../../hooks";
-import { useLayout, useSocket } from "../../providers";
+import { useLayout } from "../../providers";
 import { AppBar, APP_BAR_HEIGHT } from "../../components/layout/AppBar";
 import { RightSidebar } from "../../components/layout/RightSidebar";
 import { AuthGate } from "../../components/layout/AuthGate";
-import { useAdminServices } from "../../hooks/useAdminServices";
 import { NoPermission } from "../../components/feedback";
+import { qd, useQuickdraw } from "../../lib/quickdraw";
 
 const DRAWER_WIDTH = 280;
 
@@ -42,8 +43,12 @@ export default function AdminLayout({ children }: AdminLayoutProps): React.React
   const isMobile = useIsMobile();
   const pathname = usePathname();
   const { leftDrawerOpen, setLeftDrawerOpen } = useLayout();
-  const { userId } = useSocket();
-  const { adminServices, isLoading } = useAdminServices();
+  const { userId } = useQuickdraw();
+  // The services whose admin kit answers this user: each one's adminMeta,
+  // asked once and shared with the pages below (their adminMeta queries)
+  const { services: adminServices, isLoading } = useAdminServices(qd, {
+    enabled: userId !== null,
+  });
 
   const handleClose = (): void => {
     setLeftDrawerOpen(false);
@@ -97,12 +102,12 @@ export default function AdminLayout({ children }: AdminLayoutProps): React.React
       <Box sx={{ flex: 1, overflow: "auto", py: 1 }}>
         <List disablePadding>
           {adminServices.map((service) => {
-            const isActive = pathname === `/admin/${service.serviceName}`;
+            const isActive = pathname === `/admin/${service.key}`;
             return (
-              <ListItem key={service.serviceName} disablePadding>
+              <ListItem key={service.key} disablePadding>
                 <ListItemButton
                   component={Link}
-                  href={`/admin/${service.serviceName}`}
+                  href={`/admin/${service.key}`}
                   selected={isActive}
                   onClick={isMobile ? handleClose : undefined}
                   sx={{

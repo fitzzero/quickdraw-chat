@@ -48,67 +48,68 @@ job, so a story that stops compiling fails the pipeline.
 ## Decorators
 
 The global decorator in `apps/web/.storybook/preview.tsx` provides the MUI
-theme, `CssBaseline`, intl, and toasts. It deliberately does NOT use
-`src/providers/ThemeProvider.tsx` (Next-runtime-only) or
-`src/providers/index.tsx` (drags in the socket layer).
+theme, `CssBaseline`, intl, toasts, and the story's quickdraw session (below).
+It deliberately does NOT use `src/providers/ThemeProvider.tsx`
+(Next-runtime-only) or `src/providers/index.tsx` (it mounts the real
+`QuickdrawProvider`).
 
-`src/stories/decorators.tsx` adds two opt-in decorators:
+`src/stories/decorators.tsx` adds one opt-in decorator:
 
 - `withLayoutProvider` — for components that call `useLayout()`.
-- `withMockSocket` — for socket-coupled components (`useSubscription`,
-  `useCollection`, `useService`).
 
 Route-dependent components mock `next/navigation` per story via
 `parameters: { nextjs: { navigation: { pathname: "/chats" } } }`.
 
-## Mocking the socket layer
+## Mocking quickdraw
 
-`withMockSocket` mounts the REAL `QuickdrawProvider` over a fake socket:
-`.storybook/main.ts` aliases `socket.io-client` to
-`src/stories/mock-socket-io.ts` in the Storybook bundle (and excludes the core
-client from dep pre-bundling so the alias applies). Hooks therefore behave
-exactly as in the app — subscription registry, batching, reconnect handling
-included.
-
-Stories configure responses through `parameters.mockSocket`:
+Components read server data through the app's typed client (`qd` from
+`src/lib/quickdraw.ts`) and the connection through `useQuickdraw()`, which
+that module re-exports. In the Storybook bundle, `.storybook/main.ts` points
+every import of that module at `src/stories/quickdraw.tsx`, which exports the
+same names: `qd` is `createMockClient(contracts)` from
+`@fitzzero/quickdraw-core/testing/client` (the typed client's shape, with
+stubs, and no socket or server), and `useQuickdraw()` returns the story's
+session. Stories import `qd` from `src/stories/quickdraw.tsx` (typed as the
+mock) and set what the hooks show in a `beforeEach`:
 
 ```tsx
-import { mockSuccessEmit } from "@fitzzero/quickdraw-core/client/testing";
-import { withMockSocket } from "../../stories/decorators";
+import { qd } from "../../stories/quickdraw";
 
 const meta = {
-  title: "User/UserAvatar",
-  component: UserAvatar,
-  decorators: [withMockSocket],
-  parameters: {
-    // subscriptions resolve via <service>:batchSubscribe → { [id]: entity }
-    mockSocket: { emit: mockSuccessEmit({ "user-1": userFixture }) },
+  title: "Chat/ChatWindow",
+  component: ChatWindow,
+  args: { chatId: "chat-1" },
+  beforeEach: () => {
+    // what useCollection shows for the scope, in the collection's order
+    qd.messageService.byChat.mockScope("chat-1", messages);
+    // what useEntity shows for a row; mockError(id, error) for a refusal
+    qd.userService.useEntity.mockRow(user);
+    // what a query answers; mutations stay pending unless answered
+    qd.chatService.getChatMembers.mockResolvedValue(members);
   },
-} satisfies Meta<typeof UserAvatar>;
+} satisfies Meta<typeof ChatWindow>;
 ```
 
-- `mockSuccessEmit(data)` / `mockErrorEmit(error)` (from
-  `@fitzzero/quickdraw-core/client/testing`) answer every emit the same way.
-- An event-aware handler `(event, payload, callback) => ...` covers
-  components that make several calls — see `ChatWindow.stories.tsx`, which
-  answers the collection subscribe with a message snapshot.
-- Omit `emit` to keep requests pending (loading states); set
-  `connected: false` for disconnected states; set `userId` to control the
-  signed-in user.
-
-Why the alias exists: core 4.1's `createTestWrapper` provides a context object
-that the client hooks never read, so it cannot back browser stories. When core
-ships a fixed wrapper, the shim can be replaced.
+- What a story does not set stays loading (a row, a scope, a query), and a
+  mutation stays pending: an id nobody set is the `Loading` story.
+- The mock is one module for every story, and a docs page renders several
+  stories at once: give each story its own ids (scopes, rows) so their data
+  never meets (see `ChatWindow.stories.tsx`, `UserAvatar.stories.tsx`).
+- `parameters: { quickdraw: { session: { userId, connected, serviceAccess } } }`
+  sets who the story renders as (`userId: null` is signed out,
+  `connected: false` the state before the server's hello); the default is
+  `STORY_USER_ID`, connected, with no grants.
+- The mock shows no optimistic updates.
 
 ## Story tiers
 
-- **Pure components** (feedback, landing, `MessageList`, `AdminTable`): props
-  in, pixels out — global decorator only.
+- **Pure components** (feedback, landing, `MessageList`, `MessageInput`,
+  `AdminTable`): props in, pixels out — global decorator only.
 - **Layout components** (`AppBar`, `Breadcrumbs`, `RightSidebar`):
   `withLayoutProvider` + a mocked pathname.
-- **Socket components** (`UserAvatar`, `MessageInput`, `ChatWindow`):
-  `withMockSocket` exemplars. Keep this tier to pattern-setting examples —
-  exhaustive coverage belongs to tests, not stories.
+- **Live components** (`UserAvatar`, `ChatWindow`): mock-client exemplars.
+  Keep this tier to pattern-setting examples — exhaustive coverage belongs to
+  tests (`apps/web/src/__tests__`, against the real server), not stories.
 
 <!-- ── quickdraw-game:start ── -->
 

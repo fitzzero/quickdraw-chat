@@ -19,19 +19,24 @@ import LoginIcon from "@mui/icons-material/Login";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useSocket } from "../../providers";
-import { useAdminServices, useSlowLoadHint } from "../../hooks";
-import { qd } from "../../lib/quickdraw";
+import { useAdminServices } from "@fitzzero/quickdraw-core/client";
+import { useSlowLoadHint } from "../../hooks";
+import { qd, useQuickdraw } from "../../lib/quickdraw";
 import { logout } from "../../lib/auth";
 
 export function UserMenu(): React.ReactElement {
   const t = useTranslations("UserMenu");
   const tCommon = useTranslations("Common");
   const tAuth = useTranslations("Auth");
-  const { userId, isConnected } = useSocket();
-  const showWarmingHint = useSlowLoadHint(!isConnected);
-  const { data: user } = qd.userService.useEntity(userId ?? "");
-  const { hasAdminAccess } = useAdminServices();
+  // The hello names the user; until it arrives nobody is known yet
+  const { userId, hello } = useQuickdraw();
+  const isKnown = hello !== null;
+  const showWarmingHint = useSlowLoadHint(!isKnown);
+  const { data: user } = qd.userService.useEntity(userId);
+  // The services whose admin screens answer this user (their adminMeta)
+  // quickdraw-5.0 finding: for a user who is admin of nothing this asks all 5 services' adminMeta (5 FORBIDDEN calls) on every page load and again after every reconnect, though the hello's grants already rule them out under the kit's default form
+  const { services: adminServices } = useAdminServices(qd, { enabled: userId !== null });
+  const hasAdminAccess = adminServices.length > 0;
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
 
   const handleOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -50,7 +55,7 @@ export function UserMenu(): React.ReactElement {
   };
 
   // Not connected yet — a long wait is (in production) a cold start
-  if (!isConnected) {
+  if (!isKnown) {
     return (
       <Box sx={{ p: 2, opacity: 0.5 }}>
         <Typography variant="body2" color="text.secondary">

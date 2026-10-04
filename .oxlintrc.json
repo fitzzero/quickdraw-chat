@@ -15,25 +15,6 @@
     "quickdraw": { "baseline": ".quickdraw-lint-baseline.json" }
   },
   "overrides": [
-    // The quickdraw 5.0 migration's leftovers: the codemod keeps each 4.x hook
-    // (toDto, checkAccess, collection and admin options, lifecycle hooks) as an
-    // unused module function or const beside its review marker, and imports
-    // the tracked `db` that handlers' own `db` shadows. These rules warn here
-    // until the markers are worked through; drop a file once it is clean, and
-    // the block once the list is empty.
-    // quickdraw-5.0 finding: `quickdraw-lint baseline` records quickdraw rules only, so the codemod's output fails core rules of the shipped base config (no-unused-vars, no-shadow, no-inline-comments, no-import-type-side-effects) that no baseline can hold
-    {
-      "files": [
-        "**/src/components/admin/UserServiceAccessEditor.tsx",
-        "**/src/hooks/useMyChats.ts"
-      ],
-      "rules": {
-        "no-unused-vars": "warn",
-        "no-shadow": "warn",
-        "no-inline-comments": "warn",
-        "typescript/no-import-type-side-effects": "warn"
-      }
-    },
     {
       "files": ["**/src/bench/**", "**/apps/bench-web/**", "**/packages/bench/src/cli/**"],
       "rules": {

@@ -23,11 +23,12 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { useTranslations } from "next-intl";
-// quickdraw-migrate: review [v4-api] 4.x API useService, useServiceQuery (removed): lint's no-v4-api names each replacement
-import { useService, useServiceQuery } from "@fitzzero/quickdraw-core/client";
 import { ConfirmDialog } from "../feedback";
 import { UserServiceAccessEditor } from "./UserServiceAccessEditor";
-import type { AdminServiceMeta, AdminFieldConfig, AccessLevel } from "@project/shared";
+import { useErrorText } from "../../hooks/useErrorText";
+import { qd } from "../../lib/quickdraw";
+import type { AdminServiceMeta, AdminFieldConfig } from "@project/shared";
+import type { AdminKey, AdminMembers, AdminRow } from "./adminMembers";
 
 /** Safely convert unknown to string for display - avoids no-base-to-string for objects */
 function toDisplayString(val: unknown, pretty = false): string {
@@ -40,246 +41,310 @@ function toDisplayString(val: unknown, pretty = false): string {
   return "";
 }
 
+/** One field's value, read-only. */
+function FieldView({
+  field,
+  value,
+}: {
+  field: AdminFieldConfig;
+  value: unknown;
+}): React.ReactElement {
+  const t = useTranslations("Common");
+  if (value === null || value === undefined) {
+    return <Typography color="text.secondary">{t("notSet")}</Typography>;
+  }
+  switch (field.type) {
+    case "boolean":
+      return <Typography variant="body2">{value ? t("yes") : t("no")}</Typography>;
+    case "date":
+      return (
+        <Typography variant="body2">
+          {typeof value === "string" ? new Date(value).toLocaleString() : toDisplayString(value)}
+        </Typography>
+      );
+    case "json":
+      return (
+        <Typography
+          variant="body2"
+          component="pre"
+          sx={{
+            bgcolor: "action.hover",
+            p: 1,
+            borderRadius: 1,
+            overflow: "auto",
+            maxHeight: 200,
+            fontSize: "0.75rem",
+          }}
+        >
+          {toDisplayString(value, true)}
+        </Typography>
+      );
+    default:
+      return <Typography variant="body2">{toDisplayString(value)}</Typography>;
+  }
+}
+
+/** One field's input, while editing. */
+function FieldInput({
+  field,
+  value,
+  onChange,
+}: {
+  field: AdminFieldConfig;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}): React.ReactElement {
+  switch (field.type) {
+    case "boolean":
+      return (
+        <FormControlLabel
+          control={
+            <Switch
+              checked={Boolean(value)}
+              onChange={(e): void => {
+                onChange(e.target.checked);
+              }}
+            />
+          }
+          label={field.label}
+        />
+      );
+    case "enum":
+      return (
+        <FormControl fullWidth size="small">
+          <InputLabel>{field.label}</InputLabel>
+          <Select
+            value={toDisplayString(value)}
+            label={field.label}
+            onChange={(e): void => {
+              onChange(e.target.value);
+            }}
+          >
+            {field.enumValues?.map((enumVal) => (
+              <MenuItem key={enumVal} value={enumVal}>
+                {enumVal}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      );
+    case "number":
+      return (
+        <TextField
+          fullWidth
+          size="small"
+          type="number"
+          label={field.label}
+          value={toDisplayString(value)}
+          onChange={(e): void => {
+            onChange(Number(e.target.value));
+          }}
+        />
+      );
+    case "json":
+      return (
+        <TextField
+          fullWidth
+          size="small"
+          multiline
+          rows={4}
+          label={field.label}
+          value={typeof value === "string" ? value : JSON.stringify(value, null, 2)}
+          onChange={(e): void => {
+            try {
+              onChange(JSON.parse(e.target.value));
+            } catch {
+              // Keep as string if not valid JSON
+              onChange(e.target.value);
+            }
+          }}
+        />
+      );
+    default:
+      return (
+        <TextField
+          fullWidth
+          size="small"
+          label={field.label}
+          value={toDisplayString(value)}
+          onChange={(e): void => {
+            onChange(e.target.value);
+          }}
+        />
+      );
+  }
+}
+
+interface EditActionsProps {
+  adminUpdate: NonNullable<AdminMembers["adminUpdate"]>;
+  entity: AdminRow;
+  meta: AdminServiceMeta;
+  /** The values being edited; null while viewing. */
+  editedValues: Record<string, unknown> | null;
+  onEdit: () => void;
+  onDone: () => void;
+  onSaved: () => void;
+}
+
+/** Edit, then save the changed fields with adminUpdate (services whose kit exposes it). */
+function EditActions({
+  adminUpdate,
+  entity,
+  meta,
+  editedValues,
+  onEdit,
+  onDone,
+  onSaved,
+}: EditActionsProps): React.ReactElement {
+  const t = useTranslations("Common");
+  const errorText = useErrorText();
+  const update = adminUpdate.useMutation();
+
+  const handleSave = (): void => {
+    if (editedValues === null) return;
+    // Only the editable fields that changed
+    const data: Record<string, unknown> = {};
+    for (const field of meta.fields) {
+      if (field.editable && editedValues[field.name] !== entity[field.name]) {
+        data[field.name] = editedValues[field.name];
+      }
+    }
+    update.mutate({ id: entity.id, data }, { onSuccess: onSaved });
+  };
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+      {update.error !== null && <Alert severity="error">{errorText(update.error)}</Alert>}
+      <Box sx={{ display: "flex", gap: 1 }}>
+        {editedValues === null ? (
+          <Button variant="outlined" startIcon={<EditIcon />} onClick={onEdit} sx={{ flex: 1 }}>
+            {t("edit")}
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="contained"
+              startIcon={update.isPending ? <CircularProgress size={16} /> : <SaveIcon />}
+              onClick={handleSave}
+              disabled={update.isPending}
+              sx={{ flex: 1 }}
+            >
+              {t("save")}
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<CancelIcon />}
+              onClick={(): void => {
+                update.reset();
+                onDone();
+              }}
+              disabled={update.isPending}
+            >
+              {t("cancel")}
+            </Button>
+          </>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+/** Delete the row with adminDelete, after a confirmation. */
+function DeleteAction({
+  adminDelete,
+  id,
+  onDeleted,
+}: {
+  adminDelete: NonNullable<AdminMembers["adminDelete"]>;
+  id: string;
+  onDeleted: () => void;
+}): React.ReactElement {
+  const t = useTranslations("Common");
+  const tAdmin = useTranslations("Admin");
+  const errorText = useErrorText();
+  const remove = adminDelete.useMutation();
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <>
+      {remove.error !== null && <Alert severity="error">{errorText(remove.error)}</Alert>}
+      <Button
+        variant="outlined"
+        color="error"
+        startIcon={<DeleteIcon />}
+        onClick={(): void => {
+          setOpen(true);
+        }}
+      >
+        {t("delete")}
+      </Button>
+      <ConfirmDialog
+        open={open}
+        onClose={(): void => {
+          setOpen(false);
+        }}
+        onConfirm={(): void => {
+          remove.mutate(
+            { id },
+            {
+              onSuccess: onDeleted,
+              onSettled: () => {
+                setOpen(false);
+              },
+            },
+          );
+        }}
+        title={tAdmin("deleteConfirmTitle")}
+        message={tAdmin("deleteConfirmMessage")}
+        confirmLabel={t("delete")}
+        destructive
+        isLoading={remove.isPending}
+      />
+    </>
+  );
+}
+
 interface AdminEntitySidebarProps {
-  serviceName: string;
+  /** The service's admin kit members. */
+  admin: AdminMembers;
+  /** The service's key on the client. */
+  serviceKey: AdminKey;
   entryId: string;
   meta: AdminServiceMeta;
   onClose: () => void;
+  /** The row was changed: the list reads its page again. */
+  onChanged: () => void;
   onDeleted: () => void;
 }
 
 /**
- * Sidebar for viewing and editing a selected entity.
+ * Sidebar for viewing and editing a selected entity, through the service's
+ * admin kit: adminGet reads it as a service administrator sees it,
+ * adminUpdate writes the changed fields, adminDelete removes it.
  */
 export function AdminEntitySidebar({
-  serviceName,
+  admin,
+  serviceKey,
   entryId,
   meta,
   onClose,
+  onChanged,
   onDeleted,
 }: AdminEntitySidebarProps): React.ReactElement {
-  const t = useTranslations("Common");
   const tAdmin = useTranslations("Admin");
+  const errorText = useErrorText();
 
-  const [entity, setEntity] = React.useState<Record<string, unknown> | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
-  const [isEditing, setIsEditing] = React.useState(false);
-  const [editedValues, setEditedValues] = React.useState<Record<string, unknown>>({});
-  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const { data: entity, error, isLoading } = admin.adminGet.useQuery({ id: entryId });
+  // The values being edited (a form draft); null while viewing
+  const [editedValues, setEditedValues] = React.useState<Record<string, unknown> | null>(null);
 
-  // Fetch entity data. The admin protocol uses dynamic event names not present
-  // in ServiceMethodsMap, so the generic quickdraw-core hooks are used here.
-  const getPayload = React.useMemo(() => ({ id: entryId }), [entryId]);
-  // quickdraw-migrate: review [client] this 4.x hook call was not converted: it names the service or method at run time. Call the typed client's member (qd.<service>.<method>) instead
-  const { data: fetchedEntity, error: fetchError } = useServiceQuery<
-    { id: string },
-    Record<string, unknown>
-  >(serviceName, "adminGet", getPayload, {
-    enabled: !!entryId,
-    // Always show fresh data when opening the sidebar
-    staleTime: 0,
-  });
-  const isLoading = fetchedEntity === undefined && !fetchError;
+  const handleSaved = React.useCallback((): void => {
+    setEditedValues(null);
+    // The kit's rows are not live: read this row and the list again
+    qd.invalidate(admin.adminGet, { id: entryId });
+    onChanged();
+  }, [admin, entryId, onChanged]);
 
-  // Sync fetched entity into local state (edits/saves update it locally)
-  React.useEffect(() => {
-    if (fetchedEntity) {
-      setEntity(fetchedEntity);
-      setEditedValues(fetchedEntity);
-      setError(null);
-    }
-  }, [fetchedEntity]);
-
-  React.useEffect(() => {
-    if (fetchError) {
-      setEntity(null);
-      setError(fetchError);
-    }
-  }, [fetchError]);
-
-  // Mutations for the dynamic admin protocol
-  // quickdraw-migrate: review [client] this 4.x hook call was not converted: it names the service or method at run time. Call the typed client's member (qd.<service>.<method>) instead
-  const adminUpdate = useService<
-    { id: string; data: Record<string, unknown> },
-    Record<string, unknown>
-  >(serviceName, "adminUpdate");
-  // quickdraw-migrate: review [client] this 4.x hook call was not converted: it names the service or method at run time. Call the typed client's member (qd.<service>.<method>) instead
-  const adminDelete = useService<{ id: string }, { success: boolean }>(serviceName, "adminDelete");
-  const isSaving = adminUpdate.isPending;
-  const isDeleting = adminDelete.isPending;
-
-  // Handle save
-  const handleSave = React.useCallback(async (): Promise<void> => {
-    if (!entity) return;
-
-    // Build update payload with only changed editable fields
-    const updateData: Record<string, unknown> = {};
-    for (const field of meta.fields) {
-      if (field.editable && editedValues[field.name] !== entity[field.name]) {
-        updateData[field.name] = editedValues[field.name];
-      }
-    }
-
-    try {
-      const updated = await adminUpdate.mutateAsync({ id: entryId, data: updateData });
-      setEntity(updated);
-      setEditedValues(updated ?? {});
-      setIsEditing(false);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, [adminUpdate, entryId, entity, editedValues, meta.fields]);
-
-  // Handle delete
-  const handleDelete = React.useCallback(async (): Promise<void> => {
-    try {
-      await adminDelete.mutateAsync({ id: entryId });
-      setDeleteDialogOpen(false);
-      onDeleted();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, [adminDelete, entryId, onDeleted]);
-
-  // Cancel editing
-  const handleCancelEdit = () => {
-    setEditedValues(entity ?? {});
-    setIsEditing(false);
-  };
-
-  // Update a field value
-  const handleFieldChange = (fieldName: string, value: unknown) => {
-    setEditedValues((prev) => ({ ...prev, [fieldName]: value }));
-  };
-
-  // Render field value in view mode
-  const renderViewValue = (field: AdminFieldConfig, value: unknown): React.ReactNode => {
-    if (value === null || value === undefined) {
-      return <Typography color="text.secondary">{t("notSet")}</Typography>;
-    }
-
-    switch (field.type) {
-      case "boolean":
-        return value ? t("yes") : t("no");
-      case "date":
-        try {
-          return new Date(value as string).toLocaleString();
-        } catch {
-          return toDisplayString(value);
-        }
-      case "json":
-        return (
-          <Typography
-            variant="body2"
-            component="pre"
-            sx={{
-              bgcolor: "action.hover",
-              p: 1,
-              borderRadius: 1,
-              overflow: "auto",
-              maxHeight: 200,
-              fontSize: "0.75rem",
-            }}
-          >
-            {toDisplayString(value, true)}
-          </Typography>
-        );
-      case "enum":
-        return toDisplayString(value);
-      default:
-        return toDisplayString(value);
-    }
-  };
-
-  // Render field input in edit mode
-  const renderEditInput = (field: AdminFieldConfig, value: unknown): React.ReactNode => {
-    switch (field.type) {
-      case "boolean":
-        return (
-          <FormControlLabel
-            control={
-              <Switch
-                checked={Boolean(value)}
-                onChange={(e): void => {
-                  handleFieldChange(field.name, e.target.checked);
-                }}
-              />
-            }
-            label={field.label}
-          />
-        );
-
-      case "enum":
-        return (
-          <FormControl fullWidth size="small">
-            <InputLabel>{field.label}</InputLabel>
-            <Select
-              value={value ?? ""}
-              label={field.label}
-              onChange={(e): void => {
-                handleFieldChange(field.name, e.target.value);
-              }}
-            >
-              {field.enumValues?.map((enumVal) => (
-                <MenuItem key={enumVal} value={enumVal}>
-                  {enumVal}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        );
-
-      case "number":
-        return (
-          <TextField
-            fullWidth
-            size="small"
-            type="number"
-            label={field.label}
-            value={value ?? ""}
-            onChange={(e): void => {
-              handleFieldChange(field.name, Number(e.target.value));
-            }}
-          />
-        );
-
-      case "json":
-        return (
-          <TextField
-            fullWidth
-            size="small"
-            multiline
-            rows={4}
-            label={field.label}
-            value={typeof value === "string" ? value : JSON.stringify(value, null, 2)}
-            onChange={(e): void => {
-              try {
-                handleFieldChange(field.name, JSON.parse(e.target.value));
-              } catch {
-                // Keep as string if not valid JSON
-                handleFieldChange(field.name, e.target.value);
-              }
-            }}
-          />
-        );
-
-      default:
-        return (
-          <TextField
-            fullWidth
-            size="small"
-            label={field.label}
-            value={value ?? ""}
-            onChange={(e): void => {
-              handleFieldChange(field.name, e.target.value);
-            }}
-          />
-        );
-    }
-  };
-
-  // Loading state
   if (isLoading) {
     return (
       <Box sx={{ p: 3, display: "flex", justifyContent: "center" }}>
@@ -288,11 +353,10 @@ export function AdminEntitySidebar({
     );
   }
 
-  // Error state
-  if (error ?? !entity) {
+  if (error !== null || entity === undefined) {
     return (
       <Box sx={{ p: 2 }}>
-        <Alert severity="error">{error ?? "Entity not found"}</Alert>
+        <Alert severity="error">{error === null ? tAdmin("noEntries") : errorText(error)}</Alert>
       </Box>
     );
   }
@@ -332,35 +396,37 @@ export function AdminEntitySidebar({
 
         <Divider sx={{ my: 2 }} />
 
-        {/* Fields */}
+        {/* Fields (the kit leaves out hidden ones: acl, serviceAccess) */}
         {meta.fields
-          .filter((f) => f.name !== "id" && f.name !== "serviceAccess")
+          .filter((f) => f.name !== "id")
           .map((field) => (
             <Box key={field.name} sx={{ mb: 2 }}>
-              {isEditing && field.editable ? (
-                renderEditInput(field, editedValues[field.name])
+              {editedValues !== null && field.editable ? (
+                <FieldInput
+                  field={field}
+                  value={editedValues[field.name]}
+                  onChange={(value): void => {
+                    setEditedValues((prev) => (prev ? { ...prev, [field.name]: value } : prev));
+                  }}
+                />
               ) : (
                 <>
                   <Typography variant="caption" color="text.secondary">
                     {field.label}
                   </Typography>
-                  <Box>{renderViewValue(field, entity[field.name])}</Box>
+                  <Box>
+                    <FieldView field={field} value={entity[field.name]} />
+                  </Box>
                 </>
               )}
             </Box>
           ))}
 
-        {/* User Service Access Editor - only for userService */}
-        {serviceName === "userService" && (
+        {/* The user's service-wide grants: only for userService */}
+        {serviceKey === "userService" && (
           <>
             <Divider sx={{ my: 2 }} />
-            <UserServiceAccessEditor
-              userId={entryId}
-              currentAccess={entity.serviceAccess as Record<string, AccessLevel> | null}
-              onAccessUpdated={(newAccess): void => {
-                setEntity((prev) => (prev ? { ...prev, serviceAccess: newAccess } : null));
-              }}
-            />
+            <UserServiceAccessEditor userId={entryId} />
           </>
         )}
       </Box>
@@ -372,70 +438,29 @@ export function AdminEntitySidebar({
           borderTop: 1,
           borderColor: "divider",
           display: "flex",
+          flexDirection: "column",
           gap: 1,
         }}
       >
-        {isEditing ? (
-          <>
-            <Button
-              variant="contained"
-              startIcon={isSaving ? <CircularProgress size={16} /> : <SaveIcon />}
-              onClick={(): void => {
-                void handleSave();
-              }}
-              disabled={isSaving}
-              sx={{ flex: 1 }}
-            >
-              {t("save")}
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<CancelIcon />}
-              onClick={handleCancelEdit}
-              disabled={isSaving}
-            >
-              {t("cancel")}
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              variant="outlined"
-              startIcon={<EditIcon />}
-              onClick={(): void => {
-                setIsEditing(true);
-              }}
-              sx={{ flex: 1 }}
-            >
-              {t("edit")}
-            </Button>
-            <Button
-              variant="outlined"
-              color="error"
-              startIcon={<DeleteIcon />}
-              onClick={(): void => {
-                setDeleteDialogOpen(true);
-              }}
-            >
-              {t("delete")}
-            </Button>
-          </>
+        {admin.adminUpdate !== undefined && (
+          <EditActions
+            adminUpdate={admin.adminUpdate}
+            entity={entity}
+            meta={meta}
+            editedValues={editedValues}
+            onEdit={(): void => {
+              setEditedValues({ ...entity });
+            }}
+            onDone={(): void => {
+              setEditedValues(null);
+            }}
+            onSaved={handleSaved}
+          />
+        )}
+        {admin.adminDelete !== undefined && (
+          <DeleteAction adminDelete={admin.adminDelete} id={entryId} onDeleted={onDeleted} />
         )}
       </Box>
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        onClose={(): void => {
-          setDeleteDialogOpen(false);
-        }}
-        onConfirm={handleDelete}
-        title={tAdmin("deleteConfirmTitle")}
-        message={tAdmin("deleteConfirmMessage")}
-        confirmLabel={t("delete")}
-        destructive
-        isLoading={isDeleting}
-      />
     </Box>
   );
 }

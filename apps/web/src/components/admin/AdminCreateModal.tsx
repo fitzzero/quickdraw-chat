@@ -19,14 +19,15 @@ import {
   Box,
 } from "@mui/material";
 import { useTranslations } from "next-intl";
-// quickdraw-migrate: review [v4-api] 4.x API useService (removed): lint's no-v4-api names each replacement
-import { useService } from "@fitzzero/quickdraw-core/client";
 import type { AdminServiceMeta, AdminFieldConfig } from "@project/shared";
+import { useErrorText } from "../../hooks/useErrorText";
+import type { AdminMembers } from "./adminMembers";
 
 interface AdminCreateModalProps {
   open: boolean;
   onClose: () => void;
-  serviceName: string;
+  /** The service's adminCreate (the admin kit's member). */
+  adminCreate: NonNullable<AdminMembers["adminCreate"]>;
   meta: AdminServiceMeta;
   onSuccess: () => void;
 }
@@ -56,12 +57,13 @@ function getDefaultValue(field: AdminFieldConfig): unknown {
 export function AdminCreateModal({
   open,
   onClose,
-  serviceName,
+  adminCreate,
   meta,
   onSuccess,
 }: AdminCreateModalProps): React.ReactElement {
   const t = useTranslations("Common");
   const tAdmin = useTranslations("Admin");
+  const errorText = useErrorText();
 
   // Initialize form values with defaults
   const [values, setValues] = React.useState<Record<string, unknown>>(() => {
@@ -74,16 +76,9 @@ export function AdminCreateModal({
     return initial;
   });
 
-  const [error, setError] = React.useState<string | null>(null);
-
-  // The admin protocol uses dynamic event names not present in
-  // ServiceMethodsMap, so use the generic quickdraw-core useService here.
-  // quickdraw-migrate: review [client] this 4.x hook call was not converted: it names the service or method at run time. Call the typed client's member (qd.<service>.<method>) instead
-  const adminCreate = useService<{ data: Record<string, unknown> }, Record<string, unknown>>(
-    serviceName,
-    "adminCreate",
-  );
-  const isSubmitting = adminCreate.isPending;
+  const create = adminCreate.useMutation();
+  const isSubmitting = create.isPending;
+  const { reset } = create;
 
   // Reset form when modal opens
   React.useEffect(() => {
@@ -95,9 +90,9 @@ export function AdminCreateModal({
           initial[field.name] = getDefaultValue(field);
         });
       setValues(initial);
-      setError(null);
+      reset();
     }
-  }, [open, meta.fields]);
+  }, [open, meta.fields, reset]);
 
   // Update a field value
   const handleFieldChange = (fieldName: string, value: unknown) => {
@@ -105,9 +100,7 @@ export function AdminCreateModal({
   };
 
   // Submit form
-  const handleSubmit = React.useCallback(async (): Promise<void> => {
-    setError(null);
-
+  const handleSubmit = (): void => {
     // Filter out empty values for optional fields
     const createData: Record<string, unknown> = {};
     meta.fields
@@ -120,13 +113,8 @@ export function AdminCreateModal({
         }
       });
 
-    try {
-      await adminCreate.mutateAsync({ data: createData });
-      onSuccess();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, [adminCreate, values, meta.fields, onSuccess]);
+    create.mutate({ data: createData }, { onSuccess });
+  };
 
   // Render field input
   const renderInput = (field: AdminFieldConfig): React.ReactNode => {
@@ -229,9 +217,9 @@ export function AdminCreateModal({
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{tAdmin("createTitle")}</DialogTitle>
       <DialogContent>
-        {error && (
+        {create.error !== null && (
           <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
+            {errorText(create.error)}
           </Alert>
         )}
 
@@ -245,13 +233,7 @@ export function AdminCreateModal({
         <Button onClick={onClose} disabled={isSubmitting}>
           {t("cancel")}
         </Button>
-        <Button
-          onClick={(): void => {
-            void handleSubmit();
-          }}
-          variant="contained"
-          disabled={isSubmitting}
-        >
+        <Button onClick={handleSubmit} variant="contained" disabled={isSubmitting}>
           {isSubmitting ? <CircularProgress size={20} /> : t("create")}
         </Button>
       </DialogActions>

@@ -26,6 +26,17 @@
     "details": "Details",
     "viewOnGitHub": "View source on GitHub"
   },
+  "Errors": {
+    "unauthenticated": "Sign in to do that.",
+    "forbidden": "You don't have permission to do that.",
+    "notFound": "That no longer exists.",
+    "conflict": "Someone changed this at the same time. Try again.",
+    "validation": "{detail}",
+    "validationGeneric": "Check what you entered and try again.",
+    "rateLimited": "Too many requests. Wait a moment and try again.",
+    "timeout": "The server took too long. Try again.",
+    "generic": "Something went wrong. Try again."
+  },
   "Nav": {
     "home": "Home",
     "chats": "Chats",
@@ -55,14 +66,21 @@
     "createDialogTitle": "Create New Chat",
     "chatTitleLabel": "Chat Title",
     "selectChat": "Select a chat to start messaging",
-    "chatSettings": "Chat Settings"
+    "chatSettings": "Chat Settings",
+    "noAccess": "You don't have access to this chat",
+    "notFound": "Chat not found",
+    "backToChats": "Back to Chats"
   },
   "MessageInput": {
-    "placeholder": "Type a message..."
+    "placeholder": "Type a message...",
+    "send": "Send message"
   },
   "MessageList": {
     "noMessages": "No messages yet. Start the conversation!",
-    "loadOlder": "Load older messages"
+    "loadOlder": "Load older messages",
+    "sending": "Sending…",
+    "notSent": "Not sent: {reason}",
+    "retry": "Retry"
   },
   "UserMenu": {
     "profile": "Profile",
@@ -199,7 +217,8 @@
     "removeMemberConfirmMessage": "Are you sure you want to remove {name} from this chat?",
     "roleAdmin": "Admin",
     "roleModerate": "Moderator",
-    "roleRead": "Member"
+    "roleRead": "Member",
+    "renameFailed": "Not renamed: {reason}"
   },
   "Admin": {
     "title": "Admin",

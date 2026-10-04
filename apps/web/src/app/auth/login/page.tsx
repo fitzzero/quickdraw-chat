@@ -66,11 +66,13 @@ function LoginContent(): React.ReactElement {
     window.location.href = getOAuthUrl("mock");
   };
 
+  // The auth routes' failed sign-ins land here with ?error=denied (the user
+  // declined at the provider), failed, or state (an expired or replayed attempt)
   const getErrorMessage = (errorCode: string): string => {
     switch (errorCode) {
-      case "no_code":
+      case "denied":
         return t("errorCancelled");
-      case "oauth_failed":
+      case "failed":
         return t("errorFailed");
       default:
         return t("errorGeneric");

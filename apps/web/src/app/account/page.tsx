@@ -19,17 +19,17 @@ import SecurityIcon from "@mui/icons-material/Security";
 import LogoutIcon from "@mui/icons-material/Logout";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useTranslations } from "next-intl";
-import { useSocket, useToast } from "../../providers";
+import { useToast } from "../../providers";
 import { usePushNotifications } from "../../hooks";
 import { ConfirmDialog } from "../../components/feedback";
-import { qd } from "../../lib/quickdraw";
+import { qd, useQuickdraw } from "../../lib/quickdraw";
 import { logoutAllDevices } from "../../lib/auth";
 
 export default function AccountPage(): React.ReactElement {
   const t = useTranslations("AccountPage");
   const tCommon = useTranslations("Common");
-  const { userId } = useSocket();
-  const { data: user } = qd.userService.useEntity(userId ?? "");
+  const { userId } = useQuickdraw();
+  const { data: user } = qd.userService.useEntity(userId);
   const { showToast } = useToast();
 
   const push = usePushNotifications();
@@ -45,6 +45,7 @@ export default function AccountPage(): React.ReactElement {
   const handleSignOutAllDevices = async (): Promise<void> => {
     setIsSigningOut(true);
     try {
+      // Revokes every session of the user; the API ends their open sockets
       await logoutAllDevices();
       // Full page navigation so the socket reconnects unauthenticated
       window.location.assign("/auth/login");
