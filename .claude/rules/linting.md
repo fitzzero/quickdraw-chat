@@ -25,13 +25,12 @@ Two-layer oxlint setup; all packages lint with `oxlint -c ../../.oxlintrc.json`.
 
 `settings.quickdraw.baseline` names `.quickdraw-lint-baseline.json`: the
 quickdraw rules' violations recorded when the rules were adopted (the 5.0
-migration's leftovers in `apps/api` and `apps/web`). A rule reports only
+migration's leftovers, now only the game's in `apps/api`). A rule reports only
 violations the file does not record, and `no-unused-baseline` warns when an
 allowance is no longer used: then run `bunx quickdraw-lint baseline` from the
 repository root so the file shrinks. Never re-run it to make a new violation
-pass. The baseline records quickdraw rules only; the override block at the
-top of `.oxlintrc.json` downgrades the core rules the migration's leftovers
-break, file by file, until those files are done.
+pass. The baseline records quickdraw rules only: a core rule a file breaks
+needs an override in `.oxlintrc.json` (none is left).
 
 ## oxlint extends gotchas
 
