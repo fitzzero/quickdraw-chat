@@ -1,13 +1,11 @@
 // The contract of userService, written by @fitzzero/quickdraw-codemod from
 // UserServiceMethods and the defineMethod calls of UserService
-// (apps/api/src/services/user/index.ts).
-// Every marker below says what to check.
+// (apps/api/src/services/user/index.ts), then completed by hand: real output
+// schemas, the entity and its field tiers.
 
-import { defineContract, mutation, query, todoSchema } from "@fitzzero/quickdraw-core";
+import { defineContract, mutation, nullable, query } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
-import type { AccessLevel } from "../types/access.js";
-import type { UserDTO } from "../types/user.js";
-import { cuidSchema } from "./helpers.js";
+import { accessLevelSchema, cuidSchema, isoDateSchema } from "./helpers.js";
 
 const updateUserSchema = z.object({
   id: cuidSchema("user ID"),
@@ -17,39 +15,54 @@ const updateUserSchema = z.object({
   }),
 });
 
+/**
+ * A user row. Any signed-in user may read a profile; `email` and
+ * `serviceAccess` reach only readers with Admin on the row (`fields` below):
+ * the user themself and holders of a service-wide Admin grant, the readers
+ * 4.x called elevated.
+ */
+export const userSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  name: z.string().nullable(),
+  image: z.string().nullable(),
+  /** Service-wide grants: `{ "chatService": "Admin" }`. */
+  serviceAccess: z.record(z.string(), accessLevelSchema).nullable(),
+  // ── quickdraw-game:start ──
+  /** An anonymous game guest (see apps/api/src/auth/guest.ts). */
+  isGuest: z.boolean(),
+  // ── quickdraw-game:end ──
+  createdAt: isoDateSchema,
+  updatedAt: isoDateSchema,
+});
+
 export const userContract = defineContract("userService", {
-  // quickdraw-migrate: review [contract] the entity is the 4.x DTO UserDTO: give it a real schema. Its keys are the fields subscribers receive, read from model "user": drop any that is not a column, or give it a projection select and map
-  entity: todoSchema<UserDTO>({
-    keys: ["id", "email", "name", "image", "serviceAccess", "isGuest"],
-  }),
+  entity: userSchema,
+  // was getProtectedFields() (["email", "serviceAccess"]) with 4.x's elevated
+  // readers: the user themself or a service-wide Admin grant
+  fields: { email: "Admin", serviceAccess: "Admin" },
   methods: {
-    // quickdraw-migrate: review [contract] query, chosen from its name; output: todoSchema of the 4.x response type
     getMe: query({
       input: z.object({}),
-      output: todoSchema<
-        | { error: "name_taken" }
-        | {
-            id: string;
-            email: string;
-            name: string | null;
-            image: string | null;
-            serviceAccess: Record<string, AccessLevel> | null;
-          }
-        | null
-      >(),
+      // The caller's own row, or null when there is none. Field tiers apply,
+      // so the caller keeps `email` and `serviceAccess` only while the
+      // service's policy gives a user Admin on their own row.
+      output: nullable("entity"),
+      describe: "Reads the caller's own user.",
     }),
-    // quickdraw-migrate: review [contract] mutation, chosen from its name; output: todoSchema of the 4.x response type
     updateUser: mutation({
       input: updateUserSchema,
-      output: todoSchema<
-        | { error: "name_taken" }
-        | {
-            id: string;
-            email: string;
-            name: string | null;
-            image: string | null;
-          }
-      >(),
+      output: z.union([
+        z.object({ error: z.literal("name_taken") }),
+        z.object({
+          id: z.string(),
+          email: z.string(),
+          name: z.string().nullable(),
+          image: z.string().nullable(),
+        }),
+      ]),
+      describe:
+        'Changes a user\'s name or image; answers { error: "name_taken" } when another user has the name.',
     }),
   },
 });

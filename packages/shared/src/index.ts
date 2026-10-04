@@ -1,8 +1,8 @@
-// Shared types for fullstack application
-// These types are used by both server and client
+// Shared contracts and types for the fullstack application: used by both the
+// server and the client. The contracts are the schema source: every method,
+// entity, collection and event is declared in ./contracts.
 
 export type * from "./types.js";
-export { serviceRoom, collectionRoom, userRoom } from "./room-helpers.js";
 // ── quickdraw-game:start ──
 // Value exports (consts + functions) — the type-only barrel above strips values
 export * from "./types/game.js";

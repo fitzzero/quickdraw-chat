@@ -1,19 +1,19 @@
 // The contract of documentService, written by @fitzzero/quickdraw-codemod from
 // DocumentServiceMethods and the defineMethod calls of DocumentService
-// (apps/api/src/services/document/index.ts).
-// Every marker below says what to check.
+// (apps/api/src/services/document/index.ts), then completed by hand: real output
+// schemas and the entity.
 
-import {
-  defineContract,
-  listOf,
-  mutation,
-  nullable,
-  query,
-  todoSchema,
-} from "@fitzzero/quickdraw-core";
+import { defineContract, listOf, mutation, nullable, query } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
-import type { DocumentDTO } from "../types/document.js";
-import { byIdSchema, cuidSchema, paginationSchema } from "./helpers.js";
+import {
+  aceSchema,
+  byIdSchema,
+  cuidSchema,
+  deletedResultSchema,
+  idResultSchema,
+  isoDateSchema,
+  paginationSchema,
+} from "./helpers.js";
 
 const createDocumentSchema = z.object({
   title: z.string().min(1).max(200),
@@ -37,31 +37,61 @@ const unshareDocumentSchema = z.object({
   userId: cuidSchema("user ID"),
 });
 
+/**
+ * A document row: the JSON access-list pattern. Its owner holds Admin, and
+ * `acl` lists everyone else it is shared with (`[{ userId, level }]`); as in
+ * 4.x, whoever may read the document receives the list.
+ */
+export const documentSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  content: z.string(),
+  ownerId: z.string(),
+  acl: z.array(aceSchema).nullable(),
+  createdAt: isoDateSchema,
+  updatedAt: isoDateSchema,
+});
+
 export const documentContract = defineContract("documentService", {
-  // quickdraw-migrate: review [contract] the entity is the 4.x DTO DocumentDTO: give it a real schema. Its keys are the fields subscribers receive, read from model "document": drop any that is not a column, or give it a projection select and map
-  entity: todoSchema<DocumentDTO>({
-    keys: ["id", "title", "content", "ownerId", "acl", "createdAt", "updatedAt"],
-  }),
+  entity: documentSchema,
   methods: {
-    // quickdraw-migrate: review [contract] mutation, chosen from its name; output: todoSchema of the 4.x response type
-    createDocument: mutation({ input: createDocumentSchema, output: todoSchema<{ id: string }>() }),
-    // quickdraw-migrate: review [contract] query, chosen from its name
-    getDocument: query({ input: byIdSchema, output: nullable("entity") }),
-    // quickdraw-migrate: review [contract] mutation, chosen from its name
-    updateDocument: mutation({ input: updateDocumentSchema, output: nullable("entity") }),
-    // quickdraw-migrate: review [contract] mutation, chosen from its name; output: todoSchema of the 4.x response type
+    createDocument: mutation({
+      input: createDocumentSchema,
+      output: idResultSchema,
+      describe: "Creates a document owned by the caller.",
+    }),
+    getDocument: query({
+      input: byIdSchema,
+      output: nullable("entity"),
+      describe: "Reads one document, or null when there is none with that id.",
+    }),
+    updateDocument: mutation({
+      input: updateDocumentSchema,
+      // The row itself, so an edit shows at once (optimistic); a missing
+      // document is NOT_FOUND where 4.x answered null.
+      output: "entity",
+      describe: "Changes a document's title or content.",
+    }),
     deleteDocument: mutation({
       input: byIdSchema,
-      output: todoSchema<{ id: string; deleted: true }>(),
+      output: deletedResultSchema,
+      describe: "Deletes a document.",
     }),
-    // quickdraw-migrate: review [contract] query, chosen from its name
-    listMyDocuments: query({ input: paginationSchema, output: listOf("entity") }),
-    // quickdraw-migrate: review [contract] mutation, chosen from its name; output: todoSchema of the 4.x response type
-    shareDocument: mutation({ input: shareDocumentSchema, output: todoSchema<{ id: string }>() }),
-    // quickdraw-migrate: review [contract] mutation, chosen from its name; output: todoSchema of the 4.x response type
+    listMyDocuments: query({
+      input: paginationSchema,
+      output: listOf("entity"),
+      describe:
+        "Lists the documents the caller owns or that are shared with them, most recently updated first.",
+    }),
+    shareDocument: mutation({
+      input: shareDocumentSchema,
+      output: idResultSchema,
+      describe: "Shares a document with a user at a level, replacing any level they had.",
+    }),
     unshareDocument: mutation({
       input: unshareDocumentSchema,
-      output: todoSchema<{ id: string }>(),
+      output: idResultSchema,
+      describe: "Takes a user off a document's access list.",
     }),
   },
 });

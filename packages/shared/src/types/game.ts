@@ -136,42 +136,6 @@ export interface HighScoreEntry {
   bestLength: number;
 }
 
-export interface GameServiceMethods {
-  joinGame: {
-    payload: { worldId: string };
-    response: GameBootstrap;
-  };
-  watchWorld: {
-    payload: { worldId: string };
-    response: WorldBootstrap;
-  };
-  getMyBest: {
-    payload: { worldId: string };
-    response: { bestLength: number };
-  };
-  getHighScores: {
-    payload: { worldId: string; limit?: number };
-    response: HighScoreEntry[];
-  };
-  respawn: {
-    payload: { worldId: string };
-    response: { ok: true };
-  };
-  leaveGame: {
-    payload: { worldId: string };
-    response: { ok: true };
-  };
-  getWorld: {
-    payload: { slug: string };
-    response: { id: string; name: string; chatId: string | null } | null;
-  };
-}
-
-/** Channel payloads (see ServiceChannelMap in quickdraw-core). */
-export interface GameServiceChannels {
-  input: GameInput;
-}
-
 /**
  * The contract between the web wrapper and the Godot build. The page sets
  * `window.QuickdrawHost` to this shape BEFORE starting the engine; Godot

@@ -1,11 +1,11 @@
 // The contract of pushService, written by @fitzzero/quickdraw-codemod from
 // PushServiceMethods and the defineMethod calls of PushService
-// (apps/api/src/services/push-subscription/index.ts).
-// Every marker below says what to check.
+// (apps/api/src/services/push-subscription/index.ts), then completed by hand:
+// real output schemas and the entity.
 
-import { defineContract, mutation, todoSchema } from "@fitzzero/quickdraw-core";
+import { defineContract, mutation } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
-import { endpointSchema, pushSubscriptionSchema } from "./helpers.js";
+import { endpointSchema, isoDateSchema, pushSubscriptionSchema } from "./helpers.js";
 
 const unsubscribePushSchema = z.object({
   endpoint: endpointSchema,
@@ -13,21 +13,40 @@ const unsubscribePushSchema = z.object({
 
 const sendTestPushSchema = z.object({});
 
+/**
+ * A browser's Web Push registration, one row per endpoint. Browsers mint
+ * them; only the admin screen reads the rows.
+ */
+export const pushSubscriptionRowSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  endpoint: z.string(),
+  p256dh: z.string(),
+  auth: z.string(),
+  createdAt: isoDateSchema,
+  updatedAt: isoDateSchema,
+});
+
+const successSchema = z.object({ success: z.literal(true) });
+
 export const pushContract = defineContract("pushService", {
-  // quickdraw-migrate: review [contract] the 4.x DTO (PushSubscription) is not a type of the shared package: describe the entity, whose keys are the fields subscribers receive
-  entity: todoSchema<{ id: string }>({ keys: ["id"] }),
+  entity: pushSubscriptionRowSchema,
   methods: {
-    // quickdraw-migrate: review [contract] mutation, chosen from its name; output: todoSchema of the 4.x response type
     subscribePush: mutation({
       input: pushSubscriptionSchema,
-      output: todoSchema<{ success: true }>(),
+      output: successSchema,
+      describe: "Registers this browser's push endpoint for the caller.",
     }),
-    // quickdraw-migrate: review [contract] mutation, chosen from its name; output: todoSchema of the 4.x response type
     unsubscribePush: mutation({
       input: unsubscribePushSchema,
-      output: todoSchema<{ success: true }>(),
+      output: successSchema,
+      describe: "Removes one of the caller's push endpoints.",
     }),
-    // quickdraw-migrate: review [contract] mutation, chosen from its name; output: todoSchema of the 4.x response type
-    sendTestPush: mutation({ input: sendTestPushSchema, output: todoSchema<{ sent: number }>() }),
+    sendTestPush: mutation({
+      input: sendTestPushSchema,
+      output: z.object({ sent: z.number().int().nonnegative() }),
+      describe:
+        "Sends a test notification to each of the caller's devices; answers how many took it.",
+    }),
   },
 });

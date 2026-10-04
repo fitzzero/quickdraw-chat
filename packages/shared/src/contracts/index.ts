@@ -3,29 +3,28 @@
 // name so every 4.x call site keeps its name: `qd.projectService.getProject`.
 
 import { chatContract } from "./chat.js";
-import { definitionContract } from "./definition.js";
 import { documentContract } from "./document.js";
-import { gameContract } from "./game.js";
 import { messageContract } from "./message.js";
 import { pushContract } from "./push.js";
 import { userContract } from "./user.js";
+// ── quickdraw-game:start ──
+import { definitionContract } from "./definition.js";
+import { gameContract } from "./game.js";
+// ── quickdraw-game:end ──
 
-export {
-  chatContract,
-  definitionContract,
-  documentContract,
-  gameContract,
-  messageContract,
-  pushContract,
-  userContract,
-};
+export { chatContract, documentContract, messageContract, pushContract, userContract };
+// ── quickdraw-game:start ──
+export { definitionContract, gameContract };
+// ── quickdraw-game:end ──
 
 export const contracts = {
   chatService: chatContract,
-  definitionService: definitionContract,
   documentService: documentContract,
-  gameService: gameContract,
   messageService: messageContract,
   pushService: pushContract,
   userService: userContract,
+  // ── quickdraw-game:start ──
+  definitionService: definitionContract,
+  gameService: gameContract,
+  // ── quickdraw-game:end ──
 };

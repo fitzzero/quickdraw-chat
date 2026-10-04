@@ -1,55 +1,19 @@
-import type { AccessLevel } from "./access.js";
+import type { EntityOf } from "@fitzzero/quickdraw-core";
+import type { userContract } from "../contracts/user.js";
 
 // ============================================================================
-// User Service Types
+// User Service Types: named views of the user contract (contracts/user.ts)
 // ============================================================================
+
+type UserRow = EntityOf<typeof userContract>;
+
+/** The user fields the contract tiers in `fields`: only Admin on the row receives them. */
+type TieredUserField = "email" | "serviceAccess";
 
 /**
- * Wire shape of a user entity (subscription payloads + emitUpdate).
- * `email` and `serviceAccess` are protected fields — stripped for
- * subscribers without elevated access.
+ * A user as a reader receives it. `email` and `serviceAccess` reach only the
+ * user themself and holders of a service-wide Admin grant; everyone else gets
+ * the row without them, so they are optional here.
  */
-export interface UserDTO {
-  id: string;
-  email: string;
-  name: string | null;
-  image: string | null;
-  serviceAccess: Record<string, AccessLevel> | null;
-  // ── quickdraw-game:start ──
-  /** Anonymous game guest session (see apps/api/src/auth/guest.ts) */
-  isGuest?: boolean;
-  // ── quickdraw-game:end ──
-}
-
-export interface UserServiceMethods {
-  updateUser: {
-    payload: {
-      id: string;
-      data: {
-        name?: string | null;
-        image?: string | null;
-      };
-    };
-    response:
-      | { error: "name_taken" }
-      | {
-          id: string;
-          email: string;
-          name: string | null;
-          image: string | null;
-        };
-  };
-  getMe: {
-    payload: Record<string, never>;
-    response:
-      | { error: "name_taken" }
-      | {
-          id: string;
-          email: string;
-          name: string | null;
-          image: string | null;
-          serviceAccess: Record<string, AccessLevel> | null;
-        }
-      | null;
-  };
-}
+// quickdraw-5.0 finding: EntityOf (and useEntity's data) types a `fields`-tiered key as always present, though readers below its level never receive it; this type makes the tiered keys optional by hand
+export type UserDTO = Omit<UserRow, TieredUserField> & Partial<Pick<UserRow, TieredUserField>>;

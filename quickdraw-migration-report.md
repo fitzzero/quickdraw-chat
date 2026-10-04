@@ -2,11 +2,10 @@
 
 Written by `@fitzzero/quickdraw-codemod` from the `// quickdraw-migrate: review` markers in the code; running the codemod again rewrites it from the markers that remain. Work through the sections in order (contracts, access, emits, client), delete each marker once its item is done, and see the migration guide (`MIGRATION.md`, shipped in `@fitzzero/quickdraw-codemod`) for each kind of item. Then run lint (`no-v4-api` names every 4.x API left, `no-todo-schema` every placeholder) and the typecheck.
 
-259 items in 61 files.
+218 items in 51 files.
 
 | Section                                                        | Items |
 | -------------------------------------------------------------- | ----: |
-| Contracts                                                      |    38 |
 | Access                                                         |    16 |
 | Access overrides to turn into a policy                         |    10 |
 | toDto and protected fields to turn into projections and fields |     6 |
@@ -18,50 +17,7 @@ Written by `@fitzzero/quickdraw-codemod` from the `// quickdraw-migrate: review`
 | Methods a kit implements                                       |    11 |
 | Service instance state and the 4.x context                     |    42 |
 | Client                                                         |    24 |
-| Server wiring and other 4.x APIs                               |    85 |
-
-## Contracts
-
-Each method's kind was chosen from its name (get, list, search, find and count read). Inputs and outputs without a 4.x schema are `todoSchema` placeholders, which validate nothing; lint's `no-todo-schema` reports each one.
-
-- [ ] `packages/shared/src/contracts/chat.ts:50` the entity is the 4.x DTO ChatDTO: give it a real schema. Its keys are the fields subscribers receive, read from model "chat": drop any that is not a column, or give it a projection select and map
-- [ ] `packages/shared/src/contracts/chat.ts:53` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/chat.ts:55` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/chat.ts:60` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/chat.ts:65` query, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/chat.ts:67` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/chat.ts:69` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/chat.ts:74` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/chat.ts:76` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/definition.ts:20` the entity is the 4.x DTO DefinitionDTO: give it a real schema. Its keys are the fields subscribers receive, read from model "definition": drop any that is not a column, or give it a projection select and map
-- [ ] `packages/shared/src/contracts/definition.ts:25` query, chosen from its name
-- [ ] `packages/shared/src/contracts/definition.ts:27` query, chosen from its name
-- [ ] `packages/shared/src/contracts/document.ts:41` the entity is the 4.x DTO DocumentDTO: give it a real schema. Its keys are the fields subscribers receive, read from model "document": drop any that is not a column, or give it a projection select and map
-- [ ] `packages/shared/src/contracts/document.ts:46` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/document.ts:48` query, chosen from its name
-- [ ] `packages/shared/src/contracts/document.ts:50` mutation, chosen from its name
-- [ ] `packages/shared/src/contracts/document.ts:52` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/document.ts:57` query, chosen from its name
-- [ ] `packages/shared/src/contracts/document.ts:59` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/document.ts:61` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/game.ts:24` the 4.x DTO (GameWorld) is not a type of the shared package: describe the entity, whose keys are the fields subscribers receive
-- [ ] `packages/shared/src/contracts/game.ts:27` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/game.ts:29` query, since the web app reads it with useServiceQuery (its name reads as a mutation); output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/game.ts:31` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/game.ts:33` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/game.ts:35` query, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/game.ts:40` query, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/game.ts:42` query, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/message.ts:21` the entity is the 4.x DTO MessageDTO: give it a real schema. Its keys are the fields subscribers receive, read from model "message": drop any that is not a column, or give it a projection select and map
-- [ ] `packages/shared/src/contracts/message.ts:26` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/message.ts:28` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/push.ts:17` the 4.x DTO (PushSubscription) is not a type of the shared package: describe the entity, whose keys are the fields subscribers receive
-- [ ] `packages/shared/src/contracts/push.ts:20` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/push.ts:25` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/push.ts:30` mutation, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/user.ts:21` the entity is the 4.x DTO UserDTO: give it a real schema. Its keys are the fields subscribers receive, read from model "user": drop any that is not a column, or give it a projection select and map
-- [ ] `packages/shared/src/contracts/user.ts:26` query, chosen from its name; output: todoSchema of the 4.x response type
-- [ ] `packages/shared/src/contracts/user.ts:41` mutation, chosen from its name; output: todoSchema of the 4.x response type
+| Server wiring and other 4.x APIs                               |    82 |
 
 ## Access
 
@@ -340,6 +296,3 @@ What lint's `no-v4-api` also reports, each with its replacement: the server set-
 - [ ] `apps/web/src/hooks/useAdminMeta.ts:3` 4.x API useServiceQuery (removed): lint's no-v4-api names each replacement
 - [ ] `apps/web/src/hooks/useAdminServices.ts:4` 4.x API useServiceQuery (removed): lint's no-v4-api names each replacement
 - [ ] `apps/web/src/providers/index.tsx:11` 4.x API useQuickdrawSocket (removed): lint's no-v4-api names each replacement
-- [ ] `packages/shared/src/room-helpers.ts:4` 4.x API serviceRoom (removed): lint's no-v4-api names each replacement
-- [ ] `packages/shared/src/types/admin.ts:5` 4.x API AdminMetaPayload, AdminMetaResponse (removed): lint's no-v4-api names each replacement
-- [ ] `packages/shared/src/types/events.ts:12` QuickdrawEventMap typed 4.x room events: declare each event in its contract (events: { name: { payload } }), send it with ctx.rooms.emit and listen with qd.<service>.<event>.useEvent, then delete this augmentation

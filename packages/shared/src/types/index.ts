@@ -1,12 +1,8 @@
-// Service/type modules — one file per concern. When adding a new service,
-// add its DTOs + <Name>ServiceMethods as a new file here and register it in
-// service-methods.ts (ServiceMethodsMap / SubscriptionDataMap). Custom room
-// events go in events.ts (QuickdrawEventMap augmentation).
-
-// Side-effect import: loads the QuickdrawEventMap augmentation into every
-// consumer's type graph.
-// oxlint-disable-next-line import/no-unassigned-import -- module augmentation has no bindings
-import "./events.js";
+// Type modules — one file per concern. A service's methods, entity,
+// projections, collections and events are declared in its contract
+// (../contracts/<service>.ts); the files here give the shapes the apps use a
+// name (`ChatDTO = EntityOf<typeof chatContract>`) and hold the wire types no
+// contract owns.
 
 export type * from "./access.js";
 export type * from "./user.js";
