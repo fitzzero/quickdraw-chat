@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "budgets": {
+    "join the world": {
+      "statements": 3,
+      "bytes": 4851,
+      "calls": [
+        {
+          "call": "gameService.joinGame",
+          "statements": 3,
+          "bytes": 4428
+        }
+      ]
+    }
+  }
+}

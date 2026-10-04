@@ -4,7 +4,7 @@
 // admin kit.
 import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } from "vitest";
 import { QuickdrawError, type EventFrame, type StreamFrame } from "@fitzzero/quickdraw-core";
-import { emitWithAck } from "@fitzzero/quickdraw-core/testing";
+import { emitWithAck, expectBudget } from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import type { GameBootstrap, WorldSnapshot } from "@project/shared";
 import { GLOBAL_WORLD_ID, GLOBAL_WORLD_ROOM, GLOBAL_WORLD_SLUG } from "@project/shared";
@@ -172,6 +172,17 @@ describe("GameService", () => {
     await expect(as(users.regular.id).gameService.joinGame({ worldId: "nope" })).rejects.toEqual(
       new QuickdrawError("NOT_FOUND", "Unknown world"),
     );
+  });
+});
+
+describe("GameService budgets", () => {
+  it("costs a fixed number of statements for a player's first join over a socket", async () => {
+    // a first join pays one-time reads
+    await (await connect(users.moderator.id)).call.gameService.joinGame(WORLD);
+    const player = await connect(users.regular.id);
+
+    await expectBudget(() => player.call.gameService.joinGame(WORLD), { name: "join the world" });
+    expect(gameRuntime(testDb).sim.hasPlayer(users.regular.id)).toBe(true);
   });
 });
 

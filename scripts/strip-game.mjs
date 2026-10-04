@@ -45,6 +45,7 @@ const DELETE_PATHS = [
   "apps/api/src/auth/discord-activity.ts",
   "apps/api/src/auth/guest.ts",
   "apps/api/src/__tests__/services/game.int.test.ts",
+  "apps/api/src/__tests__/services/__budgets__/game.int.test.ts.json",
   "apps/api/src/__tests__/services/definition.int.test.ts",
   "apps/api/src/__tests__/services/discord-activity.int.test.ts",
   "apps/api/src/__tests__/services/guest-auth.int.test.ts",

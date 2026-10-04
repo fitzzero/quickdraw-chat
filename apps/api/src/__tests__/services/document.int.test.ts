@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { QuickdrawError } from "@fitzzero/quickdraw-core";
-import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
+import { describeAccessMatrix, expectBudget } from "@fitzzero/quickdraw-core/testing";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import { documentService } from "../../services/document/index.js";
 import { startTestApp, subscribeEntity, type ApiTestApp } from "../utils/app.js";
@@ -169,7 +169,7 @@ describe("DocumentService (sharing kit on the access list)", () => {
     const editor = await createTestUser();
     await owner.documentService.share({ id: created.id, userId: editor.id, level: "Moderate" });
 
-    // an Admin share is needed to share at all (4.x: { service: "Admin", entry: "Admin" })
+    // an Admin share (or a service-wide Admin grant) is needed to share at all
     expect(
       await codeOf(
         as(editor.id).documentService.share({
@@ -179,6 +179,41 @@ describe("DocumentService (sharing kit on the access list)", () => {
         }),
       ),
     ).toBe("FORBIDDEN");
+  });
+});
+
+describe("DocumentService budgets", () => {
+  it("costs a fixed number of statements to share a document two readers watch", async () => {
+    const owner = as(users.regular.id);
+    const doc = await owner.documentService.create({ title: "Watched" });
+    await owner.documentService.share({ id: doc.id, userId: users.moderator.id, level: "Read" });
+    // the row's live subscribers: its owner and a reader
+    const watchers = await Promise.all(
+      [users.regular.id, users.moderator.id].map((userId) => app.connect({ userId })),
+    );
+    for (const watcher of watchers) {
+      expect(await subscribeEntity(watcher, "documentService", doc.id)).toMatchObject({ ok: true });
+    }
+    // a first share pays one-time reads
+    await owner.documentService.share({ id: doc.id, userId: users.admin.id, level: "Read" });
+    await app.frames.waitFor({ event: "qd:e", userId: users.moderator.id });
+    app.frames.clear();
+    const newcomer = await createTestUser();
+
+    await expectBudget(
+      async () => {
+        await owner.documentService.share({ id: doc.id, userId: newcomer.id, level: "Read" });
+        await Promise.all(
+          [users.regular.id, users.moderator.id].map((userId) =>
+            app.frames.waitFor({ event: "qd:e", userId }),
+          ),
+        );
+      },
+      { name: "share a document with 2 subscribers" },
+    );
+    for (const watcher of watchers) {
+      watcher.close();
+    }
   });
 });
 
