@@ -1,9 +1,11 @@
 # @project/game — Godot client
 
 The Godot 4.7 project for the demo game (slither-style snake against the
-`gameService` world). It talks to the API over the same quickdraw Socket.IO
-protocol as the web app, via the first-party GDScript client in
-`godot/addons/quickdraw/quickdraw_client.gd` (websocket transport only).
+`gameService` world). It talks to the API over quickdraw protocol v5, the
+wire the web app's typed client speaks too (`docs/protocol-v5.md` in
+`@fitzzero/quickdraw-core`), through `godot/addons/quickdraw/quickdraw_client.gd`:
+quickdraw's reference GDScript client (`examples/godot` in the quickdraw
+repo), copied unchanged — WebSocket only, JSON only, no Socket.IO library.
 
 Not a game project? Remove all of this with
 `./scripts/init-fork.sh <name> --without-game`.
@@ -37,15 +39,18 @@ QUICKDRAW_DEV_USER_ID=<id> QUICKDRAW_API_URL=http://localhost:4000 godot godot/p
 
 Start the API first (`bun run dev` at the repo root), then run the game
 (F5 in the editor). Open http://localhost:3000/game in a browser at the same
-time — you'll see both snakes in the shared world.
+time — you'll see both snakes in the shared world. A user id the database
+does not know is refused at the handshake (the client says so and does not
+reconnect).
 
 ## Architecture
 
 ```
-addons/quickdraw/quickdraw_client.gd   Socket.IO v4 client (WS-only): call_method /
-                                       subscribe / send_channel / on_event, reconnect
+addons/quickdraw/quickdraw_client.gd   quickdraw protocol v5 client: call_method, send_channel,
+                                       subscribe_stream, on_event, presence, reconnect + resubscribe
 scripts/autoload/net.gd                Host config (web bridge vs editor dev) + connection
-scripts/autoload/game.gd               subscribe → joinGame → events fan-out (ordering contract)
+scripts/autoload/game.gd               world stream → joinGame/watchWorld → events fan-out
+                                       (ordering contract), the shared world clock
 scripts/game_config.gd                 Movement tunables + shared sim_step — MUST mirror
                                        apps/api/src/services/game/world.ts
 scripts/local_snake.gd                 Client-side prediction + reconciliation (ack replay,
@@ -53,23 +58,49 @@ scripts/local_snake.gd                 Client-side prediction + reconciliation (
 scripts/remote_snake.gd                Snapshot-buffer interpolation (~125ms render delay)
 scripts/snake_body.gd                  Body derived from head-path history (matches server)
 scripts/main.gd                        World bootstrap, snapshot routing, minimal in-canvas UI
+test/session.gd                        The headless two-client check (below); not exported
 ```
 
-The netcode contract lives in `packages/shared/src/types/game.ts` and
-`.claude/rules/game-patterns.md`. Commands (join/respawn/anything gameplay-
-adjacent you add) are ordinary quickdraw methods — a React button and GDScript
-call them identically. Only tick-rate traffic uses channels.
+The netcode contract lives in `packages/shared/src/contracts/game.ts` (the
+channel, the stream and the events), `packages/shared/src/types/game.ts` and
+`.claude/rules/game-patterns.md`. Commands (join/respawn/anything
+gameplay-adjacent you add) are ordinary quickdraw methods — a React button
+and GDScript call them identically. Only tick-rate traffic uses the `input`
+channel (`qd:ch`, never answered) and the `world` stream.
+
+On every connect (`Net.ready_to_join`, after each hello) the game subscribes
+to the world stream once (the client subscribes again by itself after a
+reconnect), then calls joinGame (editor) or watchWorld (web): that call puts
+THIS socket in the world's room, which carries the world's events and is
+what the input channel requires. A reconnected socket is in no room until
+it calls again.
+
+## Checks
+
+```bash
+bun run check:godot     # from the repo root (Godot 4.7 as `godot`, or GODOT=...)
+```
+
+Runs two copies of this project headless (`test/session.gd`) against the
+API's real services (`apps/api/src/bench/godot-session.ts`, PGlite, the game
+loop running): both join, see each other's snakes move, a death and the
+leaderboard reach both, then the API restarts and both reconnect, rejoin and
+see each other again. `QD_TRACE=1` prints every frame each client writes and
+reads.
 
 ## Web export
 
 ```bash
-bun run export        # from apps/game (or ./export-web.sh)
+bun run export        # from apps/game (or ./export-web.sh): engine + game data
+bun run export:pack   # the game data only (index.pck): routine game changes
 ```
 
 Exports into `apps/web/public/game/` (committed): `index.js` (engine loader),
 `index.wasm` (~38MB engine, changes only on Godot upgrades), `index.pck`
 (game data, small), and `engine-config.json` (extracted for the React
-wrapper). The wrapper (`apps/web/src/components/game/GodotCanvas.tsx`)
+wrapper). The full export needs export templates matching the editor's exact
+version; `export:pack` needs none, keeps the committed engine and updates the
+pck's size in `engine-config.json`. The wrapper (`apps/web/src/components/game/GodotCanvas.tsx`)
 direct-embeds the engine into the page — no iframe — so MUI overlays float
 above the canvas and Discord's proxy can rewrite paths.
 
@@ -101,12 +132,15 @@ cross-origin assets need CORP headers; this is why the default is off).
 
 ## Adding gameplay
 
-1. New command → `defineMethod` on GameService + type in
-   `packages/shared/src/types/game.ts` → call from GDScript with
-   `await Net.client.call_method("gameService", "myMethod", {...})` or from
-   React with `useService("gameService", "myMethod")`. Same call, same ACL.
-2. New high-frequency stream → `defineChannel` server-side +
-   `Net.client.send_channel(...)`.
+1. New command → a method in `gameContract` (`packages/shared/src/contracts/game.ts`)
+   and its handler in `gameService` → call from GDScript with
+   `await Net.client.call_method("gameService", "myMethod", {...})` (the
+   reply is `{ok: true, d}` or `{ok: false, e: {code, message}}`) or from
+   React with `qd.gameService.myMethod.useMutation()`. Same call, same access.
+2. New high-frequency input → a channel in the contract (`requires: { room }`)
+   and its handler in `gameService`'s `channels` → `Net.client.send_channel(...)`.
+   Server → client: a contract event sent with `qd.rooms.emit` (reliable), or
+   a stream pushed with `qd.stream(...).push` (volatile, seeded).
 3. Movement/balance changes → update `world.ts` AND `game_config.gd`
    (until the DefinitionService phase makes the server the single source).
 

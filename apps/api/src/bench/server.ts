@@ -70,7 +70,15 @@ async function ensureDatabase(): Promise<void> {
   dbReady = true;
 }
 
-export async function startBenchServer(scenario: Scenario): Promise<BenchServer> {
+export interface BenchServerOptions {
+  /** The port to listen on; default any free one. The Godot check restarts on the same one. */
+  readonly port?: number;
+}
+
+export async function startBenchServer(
+  scenario: Scenario,
+  options: BenchServerOptions = {},
+): Promise<BenchServer> {
   await ensureDatabase();
 
   const users = new Map<string, string>();
@@ -115,7 +123,7 @@ export async function startBenchServer(scenario: Scenario): Promise<BenchServer>
     onTick: recorder.onTick,
   });
   await new Promise<void>((resolvePort) => {
-    server.httpServer.listen(0, () => resolvePort());
+    server.httpServer.listen(options.port ?? 0, () => resolvePort());
   });
   const { port } = server.httpServer.address() as AddressInfo;
 

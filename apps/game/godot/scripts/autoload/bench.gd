@@ -31,8 +31,8 @@ var _last_fps_sample := 0.0
 func _ready() -> void:
 	if OS.get_name() != "Web":
 		return
-	var config: JavaScriptObject = JavaScriptBridge.get_interface("QuickdrawBenchConfig")
-	_sink = JavaScriptBridge.get_interface("QuickdrawBench")
+	var config: JavaScriptObject = Net.js_interface("QuickdrawBenchConfig")
+	_sink = Net.js_interface("QuickdrawBench")
 	if config == null or _sink == null:
 		return
 	_epoch_offset = JavaScriptBridge.eval("Date.now()", true) - Time.get_ticks_msec()

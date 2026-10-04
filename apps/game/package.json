@@ -5,6 +5,7 @@
   "description": "Godot client for the demo game (exports into apps/web/public/game)",
   "scripts": {
     "export": "./export-web.sh",
-    "export:debug": "./export-web.sh --debug"
+    "export:debug": "./export-web.sh --debug",
+    "export:pack": "./export-web.sh --pack-only"
   }
 }

@@ -28,6 +28,12 @@ const CLOCK_TAU_S = 0.3;
 const WINDOW_S = 4;
 /** Max timeline correction rate (ticks per second of wall time). */
 const MAX_SLEW_TICKS_PER_S = 2;
+/**
+ * A tick this far behind the newest one seen is a new world (the server
+ * restarted and its tick counter with it): the clock starts over.
+ * Pinned to game.gd CLOCK_RESET_TICKS.
+ */
+const RESET_BEHIND_TICKS = 40;
 
 interface DelaySample {
   arrival: number;
@@ -48,6 +54,7 @@ export class WorldClock {
   constructor(private readonly tickRate: number) {}
 
   public observe(tick: number, sendT?: number, arrivalMs?: number): void {
+    if (this.hasEst && tick < this.latest - RESET_BEHIND_TICKS) this.reset();
     this.latest = Math.max(this.latest, tick);
     if (!this.hasEst) {
       this.est = tick;
@@ -89,6 +96,17 @@ export class WorldClock {
     const error = target - this.est;
     const maxStep = MAX_SLEW_TICKS_PER_S * deltaS;
     this.est += Math.max(-maxStep, Math.min(maxStep, error));
+  }
+
+  /** Forgets the timeline: the next snapshot anchors it again. */
+  private reset(): void {
+    this.est = 0;
+    this.latest = 0;
+    this.hasEst = false;
+    this.samples.length = 0;
+    this.lastTick = 0;
+    this.lastSendT = 0;
+    this.hasTimestamps = false;
   }
 
   public renderTick(): number | null {

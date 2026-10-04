@@ -1,5 +1,6 @@
 extends Node
-## Net (autoload) — owns the QuickdrawClient and resolves host configuration.
+## Net (autoload) — owns the QuickdrawClient (quickdraw protocol v5) and
+## resolves host configuration.
 ##
 ## Config sources, in order:
 ## 1. Web export: the wrapper page sets `window.QuickdrawHost` BEFORE the
@@ -8,8 +9,11 @@ extends Node
 ##    to the websocket handshake (same-site in dev, SameSite=None in prod).
 ## 2. Editor/desktop: QUICKDRAW_DEV_USER_ID env var or user://dev.json
 ##    ({"api_url": ..., "user_id": ...}) against the local API's dev
-##    credentials (ENABLE_DEV_CREDENTIALS=true, the dev default).
+##    credentials (ENABLE_DEV_CREDENTIALS=true, the dev default). An unknown
+##    user id is refused (no reconnect).
 
+## The server said hello (again after every reconnect): join the world now,
+## since a new socket is in no room until a call joins it.
 signal ready_to_join
 
 var client: QuickdrawClient
@@ -26,6 +30,7 @@ func _ready() -> void:
 	client = QuickdrawClient.new()
 	client.name = "QuickdrawClient"
 	add_child(client)
+	client.trace = OS.get_environment("QUICKDRAW_TRACE") == "1"
 
 	_resolve_config()
 	if not config_ok:
@@ -33,11 +38,16 @@ func _ready() -> void:
 		return
 
 	client.connected.connect(_on_connected)
+	client.refused.connect(_on_refused)
 	client.connect_to(api_url, {"path": socket_path, "auth": auth})
 
 
-func _on_connected() -> void:
+func _on_connected(_hello: Dictionary) -> void:
 	ready_to_join.emit()
+
+
+func _on_refused(code: String, message: String) -> void:
+	push_warning("Net: the server refused the connection (%s): %s" % [code, message])
 
 
 func _resolve_config() -> void:
@@ -70,7 +80,7 @@ func _resolve_web_config() -> void:
 	# credential auth through the latency proxy + self-spawn (no React
 	# dialog drives joinGame in headless bench runs). The server only
 	# accepts userId handshakes with ENABLE_DEV_CREDENTIALS=true.
-	var bench_cfg: JavaScriptObject = JavaScriptBridge.get_interface("QuickdrawBenchConfig")
+	var bench_cfg: JavaScriptObject = js_interface("QuickdrawBenchConfig")
 	if bench_cfg != null:
 		if bench_cfg.devUserId:
 			auth = {"userId": str(bench_cfg.devUserId)}
@@ -98,6 +108,14 @@ func _resolve_dev_config() -> void:
 
 	auth = {"userId": user_id}
 	config_ok = true
+
+
+## The page's `window[name]`, or null when the page set none (asked first:
+## get_interface logs an engine error for a name the page never defined).
+static func js_interface(name: String) -> JavaScriptObject:
+	if not JavaScriptBridge.eval("'%s' in window" % name, true):
+		return null
+	return JavaScriptBridge.get_interface(name)
 
 
 ## Signal the wrapper page that the game booted (drives the loading overlay).
