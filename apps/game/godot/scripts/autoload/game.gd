@@ -46,6 +46,7 @@ const CLOCK_MAX_SLEW_TICKS_PER_S := 2.0
 const INTERP_DELAY_TICKS := 2.5
 ## A tick this far behind the newest one seen is a new world (the server
 ## restarted, and its tick counter with it): the clock starts over.
+# quickdraw-5.0 finding: qd:hello names no server instance, so a client cannot tell a reconnect to a restarted server (a new world, ticks from 0) from a network blip; this clock guesses from ticks going backwards
 const CLOCK_RESET_TICKS := 40.0
 
 var _clock_est := 0.0
@@ -147,6 +148,7 @@ func _on_disconnected(_reason: String) -> void:
 	is_in_world = false
 
 
+# quickdraw-5.0 finding: the GDScript client has no is_subscribed (subscribe_stream again sends a second qd:stream:sub) and no off_event, so the game keeps its own flag and never removes a handler
 var _streaming := false
 var _entering := false
 

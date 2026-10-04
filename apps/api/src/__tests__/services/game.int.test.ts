@@ -98,6 +98,7 @@ async function subscribeWorld(connection: ApiConnection): Promise<WorldSnapshot[
 }
 
 /** Runs one tick of the world; answers the snapshot `connection` received on the world stream. */
+// quickdraw-5.0 finding: app.frames.waitFor is typed by event only for a query object; a predicate (this frame, this tick) gets untyped data, so every realtime test casts StreamFrame/EventFrame by hand
 async function tickTo(connection: ApiConnection): Promise<WorldSnapshot> {
   const tick = must(gameRuntime(testDb).loop.tickOnce()).snapshot.tick;
   const frame = await app.frames.waitFor((recorded) => {

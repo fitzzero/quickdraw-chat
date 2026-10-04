@@ -50,6 +50,7 @@ const worldStream = qd.stream(gameContract, "world");
 
 /** The loop's output, on the wire: the world stream and the world's room. */
 const wire: GameLoopEmits = {
+  // quickdraw-5.0 finding: push checks every item against the schema at the tick rate; measured cheap here (9 µs of a 32 µs push to 8 sockets beside a 243 µs sim step, 24 snakes; event-loop delay p99 1.7 ms at 20 Hz), but a large world has no way to skip it outside development
   snapshot: (snapshot) => {
     worldStream.push(GLOBAL_WORLD_ID, snapshot);
   },

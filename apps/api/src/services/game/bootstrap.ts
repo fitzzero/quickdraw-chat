@@ -27,6 +27,7 @@ export const GLOBAL_WORLD_CHAT_TITLE = "🌍 Game Server";
  * unit of work of its own (`qd.run`), so a server must exist (call it after
  * `createServer`, before listening).
  */
+// quickdraw-5.0 finding: no-untracked-write sends boot-time seeding through the tracked client in qd.run, and qd.run throws without a dispatcher, so the API had to move this after createServer; qd.run with no server yet (nothing subscribed, nothing to flush) could just run
 export async function ensureGlobalWorld(db: Db): Promise<GameWorld> {
   return await qd.run(async () => {
     const world = await db.gameWorld.upsert({
