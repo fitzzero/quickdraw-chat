@@ -6,7 +6,8 @@ import StorageIcon from "@mui/icons-material/Storage";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useAdminServices } from "../../hooks/useAdminServices";
+import { useAdminServices } from "@fitzzero/quickdraw-core/client";
+import { qd } from "../../lib/quickdraw";
 
 /**
  * Admin dashboard page.
@@ -15,14 +16,15 @@ import { useAdminServices } from "../../hooks/useAdminServices";
 export default function AdminPage(): React.ReactElement {
   const t = useTranslations("Admin");
   const router = useRouter();
-  const { adminServices, isLoading } = useAdminServices();
+  const { services: adminServices, isLoading } = useAdminServices(qd);
 
   // Auto-redirect to first service if only one
+  const onlyService = !isLoading && adminServices.length === 1 ? adminServices[0] : undefined;
   React.useEffect(() => {
-    if (!isLoading && adminServices.length === 1) {
-      router.replace(`/admin/${adminServices[0].serviceName}`);
+    if (onlyService !== undefined) {
+      router.replace(`/admin/${onlyService.key}`);
     }
-  }, [isLoading, adminServices, router]);
+  }, [onlyService, router]);
 
   if (isLoading) {
     return (
@@ -54,10 +56,10 @@ export default function AdminPage(): React.ReactElement {
       {/* Service Grid */}
       <Grid container spacing={3}>
         {adminServices.map((service) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={service.serviceName}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={service.key}>
             <Paper
               component={Link}
-              href={`/admin/${service.serviceName}`}
+              href={`/admin/${service.key}`}
               sx={{
                 p: 3,
                 display: "flex",

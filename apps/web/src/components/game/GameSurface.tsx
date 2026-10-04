@@ -11,14 +11,13 @@ import {
   type HighScoreEntry,
   type QuickdrawHostConfig,
 } from "@project/shared";
-import { useRoomEvents } from "../../hooks";
-import { useSocket } from "../../providers";
 import { GodotCanvas, type GodotLoadState } from "./GodotCanvas";
 import { GameLoading } from "./GameLoading";
 import { GameHud } from "./GameHud";
 import { GameChatOverlay } from "./GameChatOverlay";
-import { qd } from "../../lib/quickdraw";
+import { qd, useQuickdraw } from "../../lib/quickdraw";
 import { PreGameDialog } from "./PreGameDialog";
+import { useRoomEvents } from "./roomEvents";
 
 /** Survives the socket cycle (AuthGate remounts the page) and full reloads. */
 const PENDING_START_KEY = "game:pendingStart";
@@ -91,7 +90,7 @@ interface GameSession {
 // oxlint-disable-next-line max-lines-per-function -- one cohesive state machine
 function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession {
   const router = useRouter();
-  const { userId, isConnected, connect, disconnect } = useSocket();
+  const { userId, isConnected, connection } = useQuickdraw();
 
   const [loadState, setLoadState] = React.useState<GodotLoadState>({
     phase: "loading",
@@ -110,16 +109,15 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
 
   // Personal best — refreshed automatically when a death lands
   // quickdraw-migrate: review [client] invalidateOn is gone: give the query a watch in its contract entry (it is fetched again when that collection scope changes), or read a collection
+  // (was invalidateOn: [GAME_EVENTS.death]; the death event is inert until the game's port)
   const { data: myBest } = qd.gameService.getMyBest.useQuery(WORLD_PAYLOAD, {
     enabled: !!userId,
-    invalidateOn: [GAME_EVENTS.death],
   });
 
   // All-time top runs shown inside the dialog (public — works signed-out too)
   // quickdraw-migrate: review [client] invalidateOn is gone: give the query a watch in its contract entry (it is fetched again when that collection scope changes), or read a collection
-  const { data: topScores } = qd.gameService.getHighScores.useQuery(TOP_SCORES_PAYLOAD, {
-    invalidateOn: [GAME_EVENTS.death],
-  });
+  // (was invalidateOn: [GAME_EVENTS.death]; the death event is inert until the game's port)
+  const { data: topScores } = qd.gameService.getHighScores.useQuery(TOP_SCORES_PAYLOAD);
 
   // Death detection on the page socket: world-room membership + the reliable
   // death stream (the same events Godot consumes)
@@ -200,8 +198,9 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
     // remounts the page during the cycle, so the resume flag carries the
     // "start the game" intent across the remount.
     sessionStorage.setItem(PENDING_START_KEY, "1");
-    disconnect();
-    connect();
+    // A fresh handshake carries the new cookie (4.x: disconnect(); connect())
+    connection.close();
+    connection.open();
   }
 
   const handleLogin = (): void => {

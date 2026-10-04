@@ -22,8 +22,7 @@ import AddIcon from "@mui/icons-material/Add";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { qd } from "../../lib/quickdraw";
-import { useMyChats } from "../../hooks";
+import { qd, useQuickdraw } from "../../lib/quickdraw";
 
 export default function ChatsPage(): React.ReactElement {
   const t = useTranslations("ChatsPage");
@@ -34,9 +33,15 @@ export default function ChatsPage(): React.ReactElement {
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [newChatTitle, setNewChatTitle] = React.useState("");
 
-  // Live chat list: the myChats collection pushes added/updated/removed
-  // deltas, so a chat someone else creates with you appears without a refresh
-  const { items: chats, isLoading } = useMyChats();
+  // Live chat list: the myChats collection (scope: the signed-in user) sends
+  // added/updated/removed deltas, so a chat someone else creates with you
+  // appears without a refresh, and a new message moves its chat to the top:
+  // the contract orders the list by lastMessageAt, newest first. Every page
+  // stays loaded (load: "all"); the sidebar holds the same scope.
+  const { userId } = useQuickdraw();
+  const { items: chats, isLoading } = qd.chatService.myChats.useCollection(userId, {
+    load: "all",
+  });
 
   // Create chat mutation — no refetch on success: the collection's `added`
   // delta puts the new chat into the list on its own
@@ -117,7 +122,8 @@ export default function ChatsPage(): React.ReactElement {
                     secondary={
                       <>
                         {tChatList("memberCount", { count: chat.memberCount })}
-                        {chat.lastMessageAt && (
+                        {/* lastMessageAt starts at createdAt: a chat nobody wrote in yet */}
+                        {chat.lastMessageAt !== chat.createdAt && (
                           <>
                             {" "}
                             ·{" "}

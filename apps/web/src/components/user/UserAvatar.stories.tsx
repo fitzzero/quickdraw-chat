@@ -1,26 +1,32 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import type { UserDTO } from "@project/shared";
-// quickdraw-migrate: review [v4-api] "@fitzzero/quickdraw-core/client/testing" was removed in 5.0; lint's no-v4-api names what replaces it
-import { mockErrorEmit, mockSuccessEmit } from "@fitzzero/quickdraw-core/client/testing";
-import { withMockSocket } from "../../stories/decorators";
+import { QuickdrawError } from "@fitzzero/quickdraw-core";
+import type { EntityOf } from "@fitzzero/quickdraw-core";
+import type { userContract } from "@project/shared";
+import { qd } from "../../stories/quickdraw";
 import { UserAvatar } from "./UserAvatar";
 
-const ADA: UserDTO = {
+const ADA: EntityOf<typeof userContract> = {
   id: "user-ada",
   email: "ada@example.com",
   name: "Ada Lovelace",
   image: null,
   serviceAccess: null,
+  isGuest: false,
+  createdAt: "2026-08-01T09:15:00.000Z",
+  updatedAt: "2026-08-01T09:15:00.000Z",
 };
 
 const meta = {
   title: "User/UserAvatar",
   component: UserAvatar,
-  decorators: [withMockSocket],
   args: { userId: ADA.id },
-  parameters: {
-    // useSubscription resolves via userService:batchSubscribe → { [id]: entity }
-    mockSocket: { emit: mockSuccessEmit({ [ADA.id]: ADA }) },
+  // What useEntity shows for each story's user (an id nobody set stays loading)
+  beforeEach: () => {
+    qd.userService.useEntity.mockRow(ADA);
+    qd.userService.useEntity.mockError(
+      "user-hidden",
+      new QuickdrawError("FORBIDDEN", "Access denied"),
+    );
   },
 } satisfies Meta<typeof UserAvatar>;
 
@@ -34,11 +40,11 @@ export const Large: Story = {
 };
 
 export const Loading: Story = {
-  // No emit handler: the subscribe never resolves and the skeleton persists
-  parameters: { mockSocket: {} },
+  // Nobody set this row: the subscription never answers, the skeleton stays
+  args: { userId: "user-loading" },
 };
 
 export const AccessDenied: Story = {
-  // Error responses also render the skeleton — the avatar never leaks errors
-  parameters: { mockSocket: { emit: mockErrorEmit("Access denied", 403) } },
+  // A refused row also renders the skeleton — the avatar never leaks errors
+  args: { userId: "user-hidden" },
 };

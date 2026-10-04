@@ -13,62 +13,47 @@ import {
 } from "@mui/material";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import { useTranslations } from "next-intl";
-import { useAdminServices } from "../../hooks/useAdminServices";
-import { qd } from "../../lib/quickdraw";
+import { useAdminServices } from "@fitzzero/quickdraw-core/client";
 import type { AccessLevel } from "@project/shared";
-
-interface AdminUpdateUserPayload {
-  id: string;
-  data: { serviceAccess: Record<string, AccessLevel> };
-}
+import { useErrorText } from "../../hooks/useErrorText";
+import { qd } from "../../lib/quickdraw";
 
 interface UserServiceAccessEditorProps {
   userId: string;
-  currentAccess: Record<string, AccessLevel> | null;
-  onAccessUpdated: (newAccess: Record<string, AccessLevel>) => void;
 }
 
 /**
  * Component for editing a user's service-level admin access.
  * Displays toggles for each service with Admin on/off.
+ *
+ * The admin kit hides `serviceAccess` from its rows and never writes it, so
+ * the grants come from the user's live row (an administrator reads it at
+ * Admin) and are written by `userService.setServiceAccess`, which is
+ * optimistic: the toggles show the saved grants at once, and the user's
+ * open sockets get them from the server (`qd:access`).
  */
 export function UserServiceAccessEditor({
   userId,
-  currentAccess,
-  onAccessUpdated,
 }: UserServiceAccessEditorProps): React.ReactElement {
   const t = useTranslations("Admin");
-  const { adminServices, isLoading: servicesLoading } = useAdminServices();
+  const errorText = useErrorText();
+  const { services: adminServices, isLoading: servicesLoading } = useAdminServices(qd);
+  const { data: user } = qd.userService.useEntity(userId);
+  const setServiceAccess = qd.userService.setServiceAccess.useMutation();
+  const isSaving = setServiceAccess.isPending;
 
-  const [localAccess, setLocalAccess] = React.useState<Record<string, AccessLevel>>(
-    currentAccess ?? {},
-  );
-  const [error, setError] = React.useState<string | null>(null);
-  const [hasChanges, setHasChanges] = React.useState(false);
-
-  // The admin protocol uses dynamic event names not present in
-  // ServiceMethodsMap, so use the generic quickdraw-core useService here.
-  // quickdraw-migrate: review [client] userService has no method "adminUpdate" in its contract
-  const adminUpdate = qd.userService.adminUpdate.useMutation();
-  const isSaving = adminUpdate.isPending;
-
-  // Sync local state when currentAccess changes
-  React.useEffect(() => {
-    setLocalAccess(currentAccess ?? {});
-    setHasChanges(false);
-  }, [currentAccess]);
+  // The edited grants (a form draft); null while showing the saved ones
+  const [draft, setDraft] = React.useState<Record<string, AccessLevel> | null>(null);
+  const saved = React.useMemo(() => ({ ...user?.serviceAccess }), [user?.serviceAccess]);
+  const localAccess = draft ?? saved;
+  const hasChanges = draft !== null;
 
   // Toggle admin access for a service
   const handleToggle = (serviceName: string, checked: boolean): void => {
-    setLocalAccess((prev) => {
-      if (checked) {
-        return { ...prev, [serviceName]: "Admin" as AccessLevel };
-      }
-      // Remove the key by creating a new object without it
-      const { [serviceName]: _, ...rest } = prev;
-      return rest;
-    });
-    setHasChanges(true);
+    const rest = Object.fromEntries(
+      Object.entries(localAccess).filter(([name]) => name !== serviceName),
+    );
+    setDraft(checked ? { ...rest, [serviceName]: "Admin" } : rest);
   };
 
   // Grant admin to all services
@@ -77,48 +62,40 @@ export function UserServiceAccessEditor({
     for (const service of adminServices) {
       newAccess[service.serviceName] = "Admin";
     }
-    setLocalAccess(newAccess);
-    setHasChanges(true);
+    setDraft(newAccess);
   };
 
   // Revoke admin from all services
   const handleRevokeAll = (): void => {
-    setLocalAccess({});
-    setHasChanges(true);
+    setDraft({});
   };
 
   // Save changes
-  const handleSave = React.useCallback(async (): Promise<void> => {
-    setError(null);
-    const accessToSave = localAccess;
-
-    try {
-      await adminUpdate.mutateAsync({ id: userId, data: { serviceAccess: accessToSave } });
-      onAccessUpdated(accessToSave);
-      setHasChanges(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, [adminUpdate, userId, localAccess, onAccessUpdated]);
+  const handleSave = (): void => {
+    if (draft === null) return;
+    setServiceAccess.mutate(
+      { id: userId, serviceAccess: draft },
+      {
+        onSuccess: () => {
+          setDraft(null);
+        },
+      },
+    );
+  };
 
   // Cancel changes
   const handleCancel = (): void => {
-    setLocalAccess(currentAccess ?? {});
-    setHasChanges(false);
-    setError(null);
+    setDraft(null);
+    setServiceAccess.reset();
   };
 
-  if (servicesLoading) {
+  if (servicesLoading || user === undefined) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
         <CircularProgress size={24} />
       </Box>
     );
   }
-
-  // Get all service names (not just ones user is admin of)
-  // We need to show all services that exist for this editor
-  const allServiceNames = adminServices.map((s) => s.serviceName);
 
   return (
     <Box>
@@ -137,40 +114,33 @@ export function UserServiceAccessEditor({
         </Typography>
       </Box>
 
-      {error && (
+      {setServiceAccess.error !== null && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
+          {errorText(setServiceAccess.error)}
         </Alert>
       )}
 
-      {/* Service toggles */}
+      {/* Service toggles: the services whose admin screens this administrator has */}
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        {allServiceNames.map((serviceName) => {
-          const isAdmin = localAccess[serviceName] === "Admin";
-          const displayName =
-            adminServices.find((s) => s.serviceName === serviceName)?.displayName ??
-            serviceName.replace(/Service$/i, "");
-
-          return (
-            <FormControlLabel
-              key={serviceName}
-              control={
-                <Switch
-                  checked={isAdmin}
-                  onChange={(e): void => {
-                    handleToggle(serviceName, e.target.checked);
-                  }}
-                  size="small"
-                />
-              }
-              label={
-                <Typography variant="body2">
-                  {t("adminAccessFor", { service: displayName })}
-                </Typography>
-              }
-            />
-          );
-        })}
+        {adminServices.map((service) => (
+          <FormControlLabel
+            key={service.key}
+            control={
+              <Switch
+                checked={localAccess[service.serviceName] === "Admin"}
+                onChange={(e): void => {
+                  handleToggle(service.serviceName, e.target.checked);
+                }}
+                size="small"
+              />
+            }
+            label={
+              <Typography variant="body2">
+                {t("adminAccessFor", { service: service.displayName })}
+              </Typography>
+            }
+          />
+        ))}
       </Box>
 
       <Divider sx={{ my: 2 }} />
@@ -194,14 +164,7 @@ export function UserServiceAccessEditor({
       {/* Save/Cancel */}
       {hasChanges && (
         <Box sx={{ display: "flex", gap: 1 }}>
-          <Button
-            variant="contained"
-            size="small"
-            onClick={() => {
-              void handleSave();
-            }}
-            disabled={isSaving}
-          >
+          <Button variant="contained" size="small" onClick={handleSave} disabled={isSaving}>
             {isSaving ? <CircularProgress size={16} /> : t("saveAccess")}
           </Button>
           <Button variant="outlined" size="small" onClick={handleCancel} disabled={isSaving}>

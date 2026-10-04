@@ -4,14 +4,14 @@ import * as React from "react";
 // ── quickdraw-game:start ──
 import { usePathname } from "next/navigation";
 // ── quickdraw-game:end ──
+import { QuickdrawProvider } from "@fitzzero/quickdraw-core/client";
 import { ThemeProvider } from "./ThemeProvider";
 import { LayoutProvider } from "./LayoutProvider";
 import { IntlProvider } from "./IntlProvider";
 import { ToastProvider } from "./ToastProvider";
-// quickdraw-migrate: review [v4-api] 4.x API useQuickdrawSocket (removed): lint's no-v4-api names each replacement
-import { QuickdrawProvider, useQuickdrawSocket } from "@fitzzero/quickdraw-core/client";
 import { ClientShell } from "../components/layout";
 import { useServiceWorker } from "../hooks/useServiceWorker";
+import { qd } from "../lib/quickdraw";
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -40,15 +40,18 @@ export function Providers({ children }: ProvidersProps): React.ReactElement {
   }
   // ── quickdraw-game:end ──
 
-  // Auth is cookie-based: the socket handshake carries the httpOnly session
-  // cookie (QuickdrawProvider defaults withCredentials: true) and the server
-  // answers with auth:info — no client-side token handling required.
-  // quickdraw-migrate: review [client] 4.x QuickdrawProvider props (serverUrl, autoConnect): 5.0 takes client={qd} (lib/quickdraw), url, auth and socketOptions
+  // Auth is cookie-based: the socket's handshake carries the httpOnly session
+  // cookie (the connection sends credentials by default), so there is no
+  // `auth` prop, and the server's hello names the user (useQuickdraw().userId).
+  // A hello naming another user empties everything quickdraw cached, and
+  // after a reconnect the watched and stale queries refetch within the
+  // default reconnectJitterMs (2 s); live rows and collections resume by
+  // revision at once.
   return (
     <ThemeProvider>
       <ToastProvider>
         <IntlProvider>
-          <QuickdrawProvider serverUrl={SERVER_URL} autoConnect>
+          <QuickdrawProvider client={qd} url={SERVER_URL}>
             <LayoutProvider>
               <ClientShell>{children}</ClientShell>
             </LayoutProvider>
@@ -58,9 +61,6 @@ export function Providers({ children }: ProvidersProps): React.ReactElement {
     </ThemeProvider>
   );
 }
-
-// Re-export useQuickdrawSocket as useSocket for backward compatibility
-export { useQuickdrawSocket as useSocket };
 
 // Re-export layout hooks
 export { useLayout, useRightSidebar, usePageTitle } from "./LayoutProvider";

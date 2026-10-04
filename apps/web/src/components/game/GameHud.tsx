@@ -5,9 +5,8 @@ import { Box, Fade, Paper, Typography } from "@mui/material";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import { useTranslations } from "next-intl";
 import { GLOBAL_WORLD_ID, NPC_ID_PREFIX, type LeaderboardEntry } from "@project/shared";
-import { useRoomEvents } from "../../hooks";
-import { qd } from "../../lib/quickdraw";
-import { useSocket } from "../../providers";
+import { qd, useQuickdraw } from "../../lib/quickdraw";
+import { useRoomEvents } from "./roomEvents";
 
 /**
  * DOM leaderboard overlay above the Godot canvas.
@@ -19,7 +18,7 @@ import { useSocket } from "../../providers";
  */
 export function GameHud(): React.ReactElement | null {
   const t = useTranslations("GameHud");
-  const { userId } = useSocket();
+  const { userId } = useQuickdraw();
   const [board, setBoard] = React.useState<LeaderboardEntry[]>([]);
 
   // Room membership for the page socket (ACL: any authenticated user).

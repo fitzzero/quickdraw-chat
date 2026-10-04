@@ -17,7 +17,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { NavItem } from "../../lib/navigation";
-import { useMyChats } from "../../hooks";
+import { qd, useQuickdraw } from "../../lib/quickdraw";
 
 interface NavAccordionProps {
   item: NavItem;
@@ -33,8 +33,12 @@ export function NavAccordion({ item, onNavigate }: NavAccordionProps): React.Rea
   const [expanded, setExpanded] = React.useState(item.defaultExpanded ?? false);
 
   // Dynamic children: the live myChats collection (shared with the /chats
-  // page — one subscription), most recent activity first
-  const { items: chats, isLoading: isLoadingChats } = useMyChats();
+  // page — one subscription), most recent activity first: its first page
+  // holds the latest chats
+  const { userId } = useQuickdraw();
+  const { items: chats, isLoading: isLoadingChats } = qd.chatService.myChats.useCollection(
+    item.dynamicChildren === true && item.id === "chats" ? userId : null,
+  );
 
   // Get translated label for nav items, fall back to original label
   const getLabel = (navItem: NavItem): string => {
