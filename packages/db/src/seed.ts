@@ -92,16 +92,19 @@ async function seedChat(ids: {
     },
   ];
 
+  let lastMessageAt = chat.createdAt;
   for (const message of messages) {
-    await prisma.message.create({
+    const created = await prisma.message.create({
       data: {
         chatId: chat.id,
         userId: message.userId,
         content: message.content,
-        acl: [{ userId: message.userId, level: "Admin" }],
       },
     });
+    lastMessageAt = created.createdAt;
   }
+  // The sidebar orders chats by it (messageService.postMessage keeps it current)
+  await prisma.chat.update({ where: { id: chat.id }, data: { lastMessageAt } });
 }
 
 async function seedDocument(ids: { adminId: string; moderatorId: string }): Promise<void> {
@@ -148,13 +151,16 @@ async function seedGameWorld(ids: { adminId: string }): Promise<void> {
     },
   });
 
-  await prisma.message.create({
+  const welcome = await prisma.message.create({
     data: {
       chatId: chat.id,
       userId: ids.adminId,
       content: "Welcome to the game server chat — everyone who joins the game lands here.",
-      acl: [{ userId: ids.adminId, level: "Admin" }],
     },
+  });
+  await prisma.chat.update({
+    where: { id: chat.id },
+    data: { lastMessageAt: welcome.createdAt },
   });
 }
 

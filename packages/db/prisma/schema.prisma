@@ -66,17 +66,27 @@ model Account {
   @@map("accounts")
 }
 
+// A signed-in session, stored by the auth routes' SessionStore
+// (apps/api/src/auth/sessions.ts). The session cookie carries a JWT naming the
+// user and this row's id (`sid`); revoking the row signs the session out at
+// once, whatever the JWT's own expiry.
 model Session {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")
-  token     String   @unique
+  // How the user signed in: "google", "discord", "mock", "guest", "discord-activity"
+  provider  String
+  // The sign-in request's User-Agent and IP, for a list of where a user is signed in
+  userAgent String?  @map("user_agent")
+  ip        String?
   expiresAt DateTime @map("expires_at")
-  
+
   createdAt DateTime @default(now()) @map("created_at")
-  
+
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([expiresAt])
   @@map("sessions")
 }
 
@@ -93,7 +103,12 @@ model Session {
 model Chat {
   id        String   @id @default(cuid())
   title     String
-  
+
+  // The time of the chat's latest message, or its creation time before the
+  // first one: maintained by messageService.postMessage, so the `myChats`
+  // collection can order by it (a collection's order names columns only).
+  lastMessageAt DateTime @default(now()) @map("last_message_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   
@@ -120,17 +135,15 @@ model ChatMember {
   @@map("chat_members")
 }
 
+// Access to a message is its chat's (messageService inherits it through
+// chatId), plus Admin for its author (owner on userId), who may delete it.
 model Message {
   id        String   @id @default(cuid())
   chatId    String   @map("chat_id")
   userId    String   @map("user_id")
   content   String
   role      String   @default("user") // "user", "assistant", "system"
-  
-  // Entry-level ACL - creator gets Admin access for delete permissions
-  // Format: [{ "userId": "...", "level": "Admin" }]
-  acl       Json?
-  
+
   createdAt DateTime @default(now()) @map("created_at")
   
   // Relations
