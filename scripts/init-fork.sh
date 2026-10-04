@@ -137,13 +137,12 @@ if [ -n "$PORT" ]; then
 
   # `?? 4000` fallbacks only where they mean the backend port — a blanket
   # pass would also hit unrelated numeric defaults (e.g. toast durations)
-  "${SED_I[@]}" "s/?? 4000/?? ${PORT}/g" \
+  "${SED_I[@]}" -e "s/?? 4000/?? ${PORT}/g" -e "s/?? \"4000\"/?? \"${PORT}\"/g" \
     apps/api/src/index.ts \
-    apps/api/src/auth/google.ts \
-    apps/api/src/auth/discord.ts \
-    apps/api/src/auth/mock.ts \
-    apps/web/src/lib/auth.ts \
-    apps/web/src/providers/index.tsx
+    apps/api/src/auth/config.ts \
+    apps/api/src/auth/index.ts
+  # the devcontainer's forwardPorts list, one port a line
+  "${SED_I[@]}" "s/^\([[:space:]]*\)4000,\$/\1${PORT},/" .devcontainer/conveyor/devcontainer.json
 fi
 
 # ── 3. Package scope (optional) ──────────────────────────────────────
@@ -166,6 +165,11 @@ fi
 # ── 5. Refresh lockfile + formatting ─────────────────────────────────
 echo "Installing dependencies (refreshes lockfile)..."
 bun install >/dev/null
+if [ -n "$WITHOUT_GAME" ]; then
+  # The API reference indexes every service: generate it for the ones left
+  echo "Regenerating the API reference (docs/api)..."
+  bun run docs:generate >/dev/null
+fi
 echo "Formatting..."
 bun run format >/dev/null 2>&1 || true
 

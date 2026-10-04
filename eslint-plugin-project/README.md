@@ -2,8 +2,8 @@
 
 Project-local lint rules, loaded by the root `.oxlintrc.json` via `jsPlugins`
 under the `project` namespace. Framework-wide rules live upstream in
-`@fitzzero/quickdraw-lint` (its `oxlint.base.jsonc` and
-`oxlint.template.jsonc`, which the root config extends); this plugin is for
+`@fitzzero/quickdraw-lint` (the root config extends its
+`oxlint.template.jsonc`, which extends `oxlint.base.jsonc`); this plugin is for
 patterns specific to _this_ codebase — it survives `scripts/init-fork.sh`
 unchanged, so forks keep and extend it.
 

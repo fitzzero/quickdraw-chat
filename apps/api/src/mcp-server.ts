@@ -10,7 +10,7 @@
  * tracked client; this process has no sockets, so the API server's
  * subscribers learn about them on their next read, not live.
  *
- * Who the session acts for: MCP_USER_ID (as in 4.x), with the user's grants;
+ * Who the session acts for: MCP_USER_ID, with the user's grants;
  * without it the session is anonymous and may call "public" methods only.
  */
 

@@ -1,46 +1,61 @@
 # Security
 
 What the template protects out of the box, and what a fork must do before
-going to production.
+going to production. Access control itself (forms, row policies, failing
+closed) is the linked `quickdraw-access.md`.
 
 ## Protected out of the box
 
-- **HTTP**: helmet on the API; CORS allowlist (`CLIENT_URL` +
-  `EXTRA_ALLOWED_ORIGINS`, localhost dev-only); explicit 100kb JSON body
-  limit; `trust proxy` scoped to production.
-- **Auth**: httpOnly/secure/SameSite session cookie whose maxAge matches the
-  7-day JWT and Session row (`SESSION_MAX_AGE_MS` in `auth/oauth-callback.ts`);
-  OAuth CSRF state cookies compared timing-safe; tokens never in redirect
-  URLs; DB-backed sessions with revocation (`/auth/logout`, `/auth/sessions`)
-  plus an hourly expired-session sweep; OAuth provider tokens AES-256-GCM
-  encrypted at rest; avatar URLs restricted to https.
-- **Dev auth** (`ENABLE_MOCK_OAUTH`, `ENABLE_DEV_CREDENTIALS`) is triple-gated
-  off in production — keep all three layers intact (see dev-auth.md).
-- **Sockets**: global rate limiter (100/min/socket), per-channel token
-  buckets, zod validation on every method/channel, ACL enforcement pipeline.
-- **Rate limits (HTTP)**: OAuth + guest routes 20/15min; logout routes
-  60/15min.
-- **Web**: security headers + Report-Only CSP in `apps/web/next.config.mjs`;
-  enforced `frame-ancestors`.
+- **HTTP**: helmet on the API; a CORS allowlist (`CLIENT_URL`,
+  `EXTRA_ALLOWED_ORIGINS`, Codespaces, localhost outside production, in
+  `auth/config.ts`); an explicit 100 kB JSON body limit; `trust proxy` in
+  production only.
+- **Auth** (quickdraw's auth routes kit): an httpOnly, Secure, SameSite
+  session cookie (`__Host-session` over HTTPS) holding a JWT that names a
+  revocable `Session` row (7 days); OAuth state cookies compared timing-safe;
+  no token in a redirect URL; sign-out revokes the row and ends its sockets
+  (`/auth/logout`, `/auth/logout-all`), and an hourly sweep deletes expired
+  rows; provider tokens AES-256-GCM encrypted at rest (`ENCRYPTION_KEY`);
+  avatars restricted to https; an email links accounts only when the
+  provider verified it.
+- **Development auth** (`ENABLE_MOCK_OAUTH`, `ENABLE_DEV_CREDENTIALS`) is
+  off in production at every layer; keep them all (see `dev-auth.md`).
+- **Calls**: every method, channel and stream declares its access and fails
+  closed; every input and channel payload is checked against its contract's
+  schema; the socket rate limit (600 events a minute per socket), each
+  channel's token bucket and the HTTP transport's limit
+  (`createCallLimiter()`, 300 calls a minute per IP).
+- **Rate limits on REST**: the kit's sign-in routes 60 per 15 minutes per
+  IP, its session routes 120; the push resubscribe route
+  `createAuthLimiter()`, 20 per 15 minutes.
+  <!-- ── quickdraw-game:start ── -->
+  The guest route counts as a sign-in route; the Discord Activity sign-in
+  takes `createAuthLimiter()` too.
+  <!-- ── quickdraw-game:end ── -->
+- **Web**: security headers and a Report-Only CSP in
+  `apps/web/next.config.mjs`, with an enforced `frame-ancestors`.
   <!-- ── quickdraw-game:start ── -->
   It allows self plus the Discord Activity contexts, nothing else.
   <!-- ── quickdraw-game:end ── -->
-- **CI/CD**: TruffleHog secret scan (blocking) + `bun audit` (advisory) in
-  CI; TruffleHog also gates deploys; Renovate with vulnerability alerts.
+- **CI/CD**: a TruffleHog secret scan (blocking) and `bun audit` (advisory)
+  in CI; TruffleHog also gates deploys; Renovate with vulnerability alerts.
 
-## Required in production (API refuses to boot without them)
+## Required in production (the API refuses to boot without them)
 
-`DATABASE_URL`, `JWT_SECRET`, `CLIENT_URL`, `ENCRYPTION_KEY`.
+`DATABASE_URL`, `JWT_SECRET` (32 characters or more), `CLIENT_URL`,
+`API_URL`, `ENCRYPTION_KEY`.
 
 ## Fork checklist
 
 - Generate fresh secrets: `JWT_SECRET` and `ENCRYPTION_KEY`
-  (`openssl rand -hex 32` each) — never reuse another deploy's values.
+  (`openssl rand -hex 32` each); never reuse another deploy's values.
 - Set `ADMIN_EMAILS`; review `EXTRA_ALLOWED_ORIGINS` and `COOKIE_DOMAIN`.
-- Never ship `ENABLE_MOCK_OAUTH` / `ENABLE_DEV_CREDENTIALS` to prod env.
-- If you store user-pasted API keys: run `sanitizeToken()` then `encrypt()`
+- Never ship `ENABLE_MOCK_OAUTH` or `ENABLE_DEV_CREDENTIALS` to production.
+- If you store user-pasted API keys: `sanitizeToken()` then `encrypt()`
   (`apps/api/src/utils/`); compare shared secrets (webhooks, service tokens)
   with `timingSafeStringEqual()`, never `===`.
+- Give a new service's methods an access matrix (`describeAccessMatrix`)
+  before they ship.
 - Make the CI dependency audit blocking (remove `continue-on-error`) once
   you own the dependency tree.
 
@@ -57,16 +72,17 @@ report-only directives into the enforced `Content-Security-Policy` header
 The game routes (`/game`, the Discord Activity) are the ones most likely to
 report violations. `./scripts/init-fork.sh --without-game` already drops
 `wasm-unsafe-eval`, the `worker-src`/`media-src` blob entries, the `img-src`
-`blob:` token and the Discord `frame-ancestors` — those directives live in
+`blob:` token and the Discord `frame-ancestors`: those directives live in
 marker-wrapped arrays in `apps/web/next.config.mjs`.
 
 <!-- ── quickdraw-game:end ── -->
 
 ## Scaling caveat
 
-All rate limiters (HTTP and socket) are in-memory per-instance: behind N
-instances the effective limit is N×. Move to a shared store (core ships a
-redis adapter — `setupRedisAdapter`) before scaling out.
+The rate limiters (HTTP and socket) count per process: behind N instances
+the effective limit is N times as high. Several nodes run behind one Valkey
+(`setupRedisAdapter`, quickdraw's `docs/deploying.md`); give the HTTP
+limiters a shared store before scaling out.
 
 <!-- ── quickdraw-game:start ── -->
 

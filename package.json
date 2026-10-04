@@ -27,7 +27,8 @@
     "db:push": "turbo db:push",
     "db:migrate": "turbo db:migrate",
     "db:seed": "turbo db:seed",
-    "docs:generate": "tsx scripts/generate-docs.ts",
+    "docs:generate": "bun run --cwd packages/shared docs:generate",
+    "docs:check": "bun run --cwd packages/shared docs:check",
     "bench:netcode": "turbo build --filter=@project/shared --filter=@project/bench && bun run --cwd apps/api bench:netcode",
     "bench:server": "turbo build --filter=@project/shared --filter=@project/bench && bun run --cwd apps/api bench:server",
     "bench:compare": "tsx packages/bench/src/cli/compare.ts",
@@ -37,7 +38,6 @@
     "prepare": "husky && conveyor-skills link && quickdraw-skills link"
   },
   "devDependencies": {
-    "@fitzzero/quickdraw-codemod": "5.0.0-rc.3",
     "@fitzzero/quickdraw-lint": "5.0.0-rc.3",
     "@fitzzero/quickdraw-skills": "5.0.0-rc.3",
     "@rallycry/conveyor-skills": "^1.0.4",

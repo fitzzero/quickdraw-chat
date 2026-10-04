@@ -1,7 +1,7 @@
 import type { GameBootstrap, HighScoreEntry, WorldBootstrap } from "@project/shared";
 import { GLOBAL_WORLD_ID, GLOBAL_WORLD_ROOM, GAME_TICK_RATE, gameContract } from "@project/shared";
 import { QuickdrawError } from "@fitzzero/quickdraw-core";
-import { admin, resolver } from "@fitzzero/quickdraw-core/server";
+import { admin, everyone } from "@fitzzero/quickdraw-core/server";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
 import { activeGameRuntime, gameRuntime, removePlayer, type GameRuntime } from "./runtime.js";
@@ -42,15 +42,11 @@ function buildWorldBootstrap(runtime: GameRuntime, chatId: string | null): World
 }
 
 /**
- * Every signed-in user reads every world (4.x's checkAccess answered true for
- * "Read"): a world is public game content, and the methods that act in one
- * ask `{ entry: "Read" }` of it. Writes need a service-wide grant (the admin
- * kit's Admin).
+ * Every signed-in user reads every world: a world is public game content,
+ * and the methods that act in one ask `{ entry: "Read" }` of it. Writes need
+ * a service-wide grant (the admin kit's Admin).
  */
-const anyWorld = resolver({
-  levelsFor: (_principal, ids) => new Map(ids.map((id) => [id, "Read"])),
-  where: (_principal, level) => Promise.resolve(level === "Read" ? {} : "none"),
-});
+const anyWorld = everyone("Read");
 
 /** `{ entry: "Read" }` on the world the input names: every signed-in user, by the policy above. */
 const IN_WORLD = { entry: "Read", id: "worldId" } as const;
@@ -73,8 +69,8 @@ export const gameService = qd.defineService(gameContract, {
   writes: ["chatMember", "gameScore"],
   methods: {
     joinGame: {
-      // a signed-in user, on a world (4.x: "Read" with no row id, which every
-      // signed-in user passed; the policy gives them all Read on every world)
+      // a signed-in user, on a world (the policy gives every signed-in user
+      // Read on every world)
       access: IN_WORLD,
       handler: async ({ input, ctx, db }): Promise<GameBootstrap> => {
         if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
@@ -116,7 +112,7 @@ export const gameService = qd.defineService(gameContract, {
       },
     },
     respawn: {
-      // a signed-in user, on a world (4.x: "Read" with no row id, as joinGame)
+      // a signed-in user, on a world, as joinGame
       access: IN_WORLD,
       handler: ({ input, ctx, db }) => {
         if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
@@ -125,7 +121,7 @@ export const gameService = qd.defineService(gameContract, {
       },
     },
     leaveGame: {
-      // a signed-in user, on a world (4.x: "Read" with no row id, as joinGame)
+      // a signed-in user, on a world, as joinGame
       access: IN_WORLD,
       handler: ({ input, ctx, db }) => {
         if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
@@ -144,7 +140,7 @@ export const gameService = qd.defineService(gameContract, {
       },
     },
     getMyBest: {
-      // a signed-in user's own score, on a world (4.x: "Read" with no row id)
+      // a signed-in user's own score, on a world
       access: IN_WORLD,
       handler: async ({ input, ctx, db }) => {
         if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();

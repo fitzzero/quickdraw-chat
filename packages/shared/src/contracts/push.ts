@@ -1,7 +1,5 @@
-// The contract of pushService, written by @fitzzero/quickdraw-codemod from
-// PushServiceMethods and the defineMethod calls of PushService
-// (apps/api/src/services/push-subscription/index.ts), then completed by hand:
-// real output schemas and the entity.
+// The contract of pushService: a user's Web Push endpoints (the PWA), and
+// the admin kit.
 
 import { admin, defineContract, mutation } from "@fitzzero/quickdraw-core";
 import { z } from "zod";

@@ -1,9 +1,8 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "extends": [
-    "./node_modules/@fitzzero/quickdraw-lint/oxlint.base.jsonc",
-    "./node_modules/@fitzzero/quickdraw-lint/oxlint.template.jsonc"
-  ],
+  // The template config: quickdraw-lint's base (the strict rule set and the
+  // quickdraw plugin) plus the design-system rules. It updates with the package.
+  "extends": ["./node_modules/@fitzzero/quickdraw-lint/oxlint.template.jsonc"],
   "plugins": ["typescript", "import", "react", "nextjs", "jsx_a11y"],
   "jsPlugins": [
     {
@@ -11,9 +10,6 @@
       "specifier": "./eslint-plugin-project/index.mjs"
     }
   ],
-  "settings": {
-    "quickdraw": { "baseline": ".quickdraw-lint-baseline.json" }
-  },
   "overrides": [
     {
       "files": ["**/src/bench/**", "**/apps/bench-web/**", "**/packages/bench/src/cli/**"],

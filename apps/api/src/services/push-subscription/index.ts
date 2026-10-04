@@ -65,9 +65,9 @@ function createWebPushTransport(): PushTransport | undefined {
 }
 
 /**
- * How pushes go out: 4.x's PushService constructor options, as module state,
- * set once by the server's start-up (`configurePush`). A service object has
- * no constructor, so the transport lives here.
+ * How pushes go out, as module state set once by the server's start-up
+ * (`configurePush`): a service object has no constructor, so the transport
+ * lives here.
  */
 const delivery: {
   transport: PushTransport | undefined;
@@ -174,17 +174,20 @@ async function deliverMessagePush(
 /**
  * Push a new chat message to members who are not the sender and have no
  * live socket. Fire-and-forget from messageService.postMessage, after its
- * write: it never throws into (or slows down) the post.
+ * write: it never throws into (or slows down) the post. It runs in a unit of
+ * work of its own (`detached`), so pruning an endpoint the push service
+ * reports dead flushes when the push is done, long after the post's reply.
  */
 export function notifyNewMessage(
   db: Db,
   message: { chatId: string; userId: string; content: string },
 ): void {
   if (!delivery.transport) return;
-  // quickdraw-5.0 finding: a handler cannot start background work in a unit of work of its own: qd.run called here joins postMessage's unit, whose frame has closed by the time a slow push service answers 410, so pruning that endpoint flushes as an ambient write (with its development warning) instead of in a unit
-  void deliverMessagePush(db, message).catch((error: unknown) => {
-    logger.error("Chat message push failed", { chatId: message.chatId, ...errorMeta(error) });
-  });
+  void qd
+    .run(() => deliverMessagePush(db, message), { detached: true })
+    .catch((error: unknown) => {
+      logger.error("Chat message push failed", { chatId: message.chatId, ...errorMeta(error) });
+    });
 }
 
 /**
@@ -202,7 +205,7 @@ export const pushService = qd.defineService(pushContract, {
   access: owner("userId"),
   methods: {
     subscribePush: {
-      // the caller's own endpoint (4.x: "Read" without a row id)
+      // the caller's own endpoint: names no row by id
       access: "authenticated",
       handler: async ({ input, ctx, db }) => {
         const { userId } = ctx.principal;
@@ -224,7 +227,7 @@ export const pushService = qd.defineService(pushContract, {
       },
     },
     unsubscribePush: {
-      // removes only the caller's own endpoint (4.x: "Read" without a row id)
+      // removes only the caller's own endpoint: names no row by id
       access: "authenticated",
       handler: async ({ input, ctx, db }) => {
         await db.pushSubscription.deleteMany({
@@ -234,7 +237,7 @@ export const pushService = qd.defineService(pushContract, {
       },
     },
     sendTestPush: {
-      // sends to the caller's own devices (4.x: "Read" without a row id)
+      // sends to the caller's own devices: names no row by id
       access: "authenticated",
       handler: async ({ ctx, db }) => {
         const sent = await sendToUsers(db, [ctx.principal.userId], {

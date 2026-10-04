@@ -11,7 +11,7 @@ type DefinitionChangedListener = (definition: Definition) => void;
 /** The most definitions listDefinitions answers. */
 const MAX_LISTED_DEFINITIONS = 500;
 
-/** Who hears about definition edits: 4.x's DefinitionService field, as module state. */
+/** Who hears about definition edits, as module state. */
 const changedListeners: DefinitionChangedListener[] = [];
 
 /** Subscribe to admin edits (e.g. the game sim hot-reloads tunables). */
@@ -38,9 +38,9 @@ function writtenId(row: unknown): string | undefined {
 
 /**
  * An admin kit write that tells the listeners about the row it wrote, read
- * back once the write is done: 4.x's adminCreate and adminUpdate overrides.
+ * back once the write is done (wraps the kit's adminCreate and adminUpdate).
  */
-// quickdraw-5.0 finding: the admin kit has no write hook (the sharing kit has onChange; 4.x apps overrode adminCreate/adminUpdate), so reacting to an admin edit means wrapping the kit's handler by hand, and KitHandler returns Promise<never>, so the wrapper reads the written row's id through unknown and returns its own cast
+// quickdraw-5.0 finding: the admin kit has no write hook (the sharing kit has onChange), so reacting to an admin edit means wrapping the kit's handler by hand, and KitHandler returns Promise<never>, so the wrapper reads the written row's id through unknown and returns its own cast
 function announcing(handler: KitHandler): KitHandler {
   const wrapped = async (args: KitHandlerArgs): Promise<unknown> => {
     const row: unknown = await handler(args);
@@ -54,8 +54,7 @@ function announcing(handler: KitHandler): KitHandler {
 }
 
 // Definitions edited through the generic admin screens: every row, enabled
-// or not, for holders of a service-wide Admin grant (4.x's
-// installAdminMethods, all five writes and reads)
+// or not, for holders of a service-wide Admin grant
 const definitionAdmin = admin.handlers(definitionContract, {
   displayName: "Definitions",
   fieldOverrides: { data: { showInTable: false } },

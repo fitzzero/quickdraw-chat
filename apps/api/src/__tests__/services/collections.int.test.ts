@@ -14,13 +14,7 @@ import type { CollectionDelta, CollectionFrame } from "@fitzzero/quickdraw-core"
 import { expectBudget } from "@fitzzero/quickdraw-core/testing";
 import { resetDatabase, seedTestUsers, testPrisma } from "@project/db/testing";
 import type { ChatListItem, MessageDTO } from "@project/shared";
-import {
-  principalOf,
-  startTestApp,
-  subscribeScope,
-  type ApiConnection,
-  type ApiTestApp,
-} from "../utils/app.js";
+import { startTestApp, subscribeScope, type ApiConnection, type ApiTestApp } from "../utils/app.js";
 import { createTestChat } from "../factories/chat-factory.js";
 
 type Users = Awaited<ReturnType<typeof seedTestUsers>>;
@@ -42,8 +36,8 @@ beforeEach(async () => {
   app.frames.clear();
 });
 
-async function as(userId: string): Promise<ReturnType<ApiTestApp["as"]>> {
-  return app.as(await principalOf(userId));
+function as(userId: string): ReturnType<ApiTestApp["as"]> {
+  return app.as({ userId });
 }
 
 /** A snapshot's items, or a failure for a refused subscription. */
@@ -95,9 +89,7 @@ describe("myChats (each member's list, through the membership table)", () => {
     const member = await app.connect({ userId: users.regular.id });
     await snapshotOf(member, "chatService", "myChats", users.regular.id);
 
-    const chat = await (
-      await as(users.admin.id)
-    ).chatService.createChat({
+    const chat = await as(users.admin.id).chatService.createChat({
       title: "Group Chat",
       members: [{ userId: users.regular.id, level: "Read" }],
     });
@@ -109,7 +101,7 @@ describe("myChats (each member's list, through the membership table)", () => {
   });
 
   it("adds a chat to an invitee's list without a refetch", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "Invite Target" });
     const invitee = await app.connect({ userId: users.regular.id });
     const before = await snapshotOf<ChatListItem>(
@@ -129,7 +121,7 @@ describe("myChats (each member's list, through the membership table)", () => {
   });
 
   it("updates the member count in the other members' lists", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({
       title: "Growing",
       members: [{ userId: users.regular.id, level: "Read" }],
@@ -149,8 +141,33 @@ describe("myChats (each member's list, through the membership table)", () => {
     member.close();
   });
 
+  it("updates the member count in the remaining members' lists when one is removed", async () => {
+    const owner = as(users.admin.id);
+    const chat = await owner.chatService.createChat({
+      title: "Shrinking",
+      members: [
+        { userId: users.regular.id, level: "Read" },
+        { userId: users.moderator.id, level: "Read" },
+      ],
+    });
+    const member = await app.connect({ userId: users.regular.id });
+    await snapshotOf(member, "chatService", "myChats", users.regular.id);
+
+    await owner.chatService.removeUser({ id: chat.id, userId: users.moderator.id });
+
+    // the membership write sends the chat again to every list still holding it
+    const delta = await nextDelta<ChatListItem>(
+      users.regular.id,
+      "myChats",
+      users.regular.id,
+      (candidate) => candidate.t !== "removed" && itemOf(candidate).memberCount === 2,
+    );
+    expect(itemOf(delta)).toMatchObject({ id: chat.id, memberCount: 2 });
+    member.close();
+  });
+
   it("sends a rename to the members' lists", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({
       title: "Old Title",
       members: [{ userId: users.regular.id, level: "Read" }],
@@ -166,7 +183,7 @@ describe("myChats (each member's list, through the membership table)", () => {
   });
 
   it("moves a chat to the top of the sender's and the members' lists when a message is posted", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const quiet = await owner.chatService.createChat({
       title: "Quiet",
       members: [{ userId: users.regular.id, level: "Read" }],
@@ -210,7 +227,7 @@ describe("myChats (each member's list, through the membership table)", () => {
   });
 
   it("removes the chat from a removed member's list", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({
       title: "Kick Chat",
       members: [{ userId: users.regular.id, level: "Read" }],
@@ -231,7 +248,7 @@ describe("myChats (each member's list, through the membership table)", () => {
   });
 
   it("removes a deleted chat from every member's list", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({
       title: "Doomed Chat",
       members: [{ userId: users.regular.id, level: "Read" }],
@@ -252,7 +269,7 @@ describe("myChats (each member's list, through the membership table)", () => {
   });
 
   it("answers a fresh list after a reconnect, without the chats deleted meanwhile", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const kept = await owner.chatService.createChat({
       title: "Kept Chat",
       members: [{ userId: users.regular.id, level: "Read" }],
@@ -324,7 +341,7 @@ describe("myChats (each member's list, through the membership table)", () => {
 
 describe("byChat (a chat's messages, anchored on the chat)", () => {
   it("sends a new message to the chat's subscribers, and nobody else", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({
       title: "Broadcast",
       members: [{ userId: users.regular.id, level: "Read" }],
@@ -357,7 +374,7 @@ describe("byChat (a chat's messages, anchored on the chat)", () => {
   });
 
   it("removes a deleted message from a second client's history", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({
       title: "Deletion Chat",
       members: [{ userId: users.regular.id, level: "Read" }],
@@ -379,7 +396,7 @@ describe("byChat (a chat's messages, anchored on the chat)", () => {
   });
 
   it("costs a fixed number of statements to send a message to three subscribers", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({
       title: "Three Watchers",
       members: [

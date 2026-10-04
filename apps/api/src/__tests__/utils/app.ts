@@ -2,14 +2,13 @@
  * The API's test app: every service on quickdraw's own test server
  * (`createTestApp`), over the worker's database through the tracked client
  * (`testDb`), so writes send the frames production sends. A socket from
- * `app.connect({ userId })` acts for that user and gets their grants from
- * the production loader (User.serviceAccess over SERVICE_DEFAULT_ACCESS, see
- * setup.ts); `principalOf` builds the same principal for `app.as(...)`.
+ * `app.connect({ userId })` and a caller from `app.as({ userId })` act for
+ * that user with their grants from the production loader (User.serviceAccess
+ * over SERVICE_DEFAULT_ACCESS, see setup.ts), read at each call.
  */
 
 import type { Express } from "express";
 import type { CollectionSubscribeReply, EntitySubscribeReply } from "@fitzzero/quickdraw-core";
-import type { Principal } from "@fitzzero/quickdraw-core/server";
 import {
   createTestApp,
   emitWithAck,
@@ -62,11 +61,6 @@ export async function startTestApp(options: StartOptions = {}): Promise<ApiTestA
   });
   // ── quickdraw-game:end ──
   return app;
-}
-
-/** The principal the server builds for a user's socket: their id and grants. */
-export async function principalOf(userId: string): Promise<Principal> {
-  return { userId, kind: "user", serviceAccess: await loadServiceAccess(userId) };
 }
 
 /** Subscribes a socket to one row of a service (`qd:sub`): the row, or why it was refused. */

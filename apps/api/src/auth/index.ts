@@ -57,36 +57,30 @@ export interface AppAuth {
   >;
 }
 
-/** The hosted OAuth providers whose credentials are set; the mock and guest sign-ins. */
-function providersFor(prisma: PrismaClient): AuthProvider[] {
+/**
+ * The sign-ins: Google and Discord when their credentials are set (`optional`
+ * builds nothing without them, and refuses one set without the other), the
+ * development mock, and guests.
+ */
+function providersFor(prisma: PrismaClient): (AuthProvider | undefined)[] {
   const env = process.env;
   const port = env.BACKEND_PORT ?? env.PORT ?? "4000";
-  const providers: AuthProvider[] = [];
-  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
-    providers.push(
-      google({
-        clientId: env.GOOGLE_CLIENT_ID,
-        clientSecret: env.GOOGLE_CLIENT_SECRET,
-        // ask Google for a refresh token, as 4.x did
-        params: { access_type: "offline", prompt: "consent" },
-      }),
-    );
-  }
-  if (env.DISCORD_CLIENT_ID && env.DISCORD_CLIENT_SECRET) {
-    providers.push(
-      discord({ clientId: env.DISCORD_CLIENT_ID, clientSecret: env.DISCORD_CLIENT_SECRET }),
-    );
-  }
-  // Served only while isMockOAuthEnabled(): ENABLE_MOCK_OAUTH=true outside
-  // production. Its token and userinfo requests loop back to this process,
-  // since API_URL may not be reachable from inside a container.
-  providers.push(
+  return [
+    google.optional({
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      // ask Google for a refresh token
+      params: { access_type: "offline", prompt: "consent" },
+    }),
+    discord.optional({ clientId: env.DISCORD_CLIENT_ID, clientSecret: env.DISCORD_CLIENT_SECRET }),
+    // Served only while isMockOAuthEnabled(): ENABLE_MOCK_OAUTH=true outside
+    // production. Its token and userinfo requests loop back to this process,
+    // since API_URL may not be reachable from inside a container.
     mock({ listUsers: () => listMockUsers(prisma), internalUrl: `http://localhost:${port}` }),
-  );
-  // ── quickdraw-game:start ──
-  providers.push(guestProvider(prisma));
-  // ── quickdraw-game:end ──
-  return providers;
+    // ── quickdraw-game:start ──
+    guestProvider(prisma),
+    // ── quickdraw-game:end ──
+  ];
 }
 
 /** The app's sign-in for one database. */
@@ -117,8 +111,8 @@ export function createAppAuth(options: AppAuthOptions): AppAuth {
       // socket naming a user (`auth: { userId }`): a game editor, load-test bots
       authenticate: socketAuth({ ...keys, allowedOrigins, devCredentials: devCredentials(prisma) }),
       loadServiceAccess: createGrantsLoader({ prisma, serviceNames: options.serviceNames }),
-      // a tracked write to User.serviceAccess (setServiceAccess) refreshes the
-      // user's open sockets
+      // a tracked write to User.serviceAccess (the admin kit's grants editor)
+      // refreshes the user's open sockets
       serviceAccessSource: { model: "user", column: "serviceAccess" },
     },
   };

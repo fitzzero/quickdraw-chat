@@ -1,9 +1,8 @@
 /**
- * The running game: the simulation, its loop and who plays — 4.x's
- * GameService fields (`sim`, `loop`, `playingUsers`), which a 5.0 service
- * object cannot hold, as one module-level runtime that the service's
- * handlers, its input channel and each server root (the API, the tests, the
- * netcode bench) share.
+ * The running game: the simulation, its loop and who plays (`sim`, `loop`,
+ * `playingUsers`), which a service object cannot hold, as one module-level
+ * runtime that the service's handlers, its input channel and each server
+ * root (the API, the tests, the netcode bench) share.
  *
  * The loop's output reaches clients through quickdraw's realtime kit, from
  * code that is not a handler: each tick's snapshot goes to the world stream
@@ -147,8 +146,7 @@ export function removePlayer(runtime: GameRuntime, userId: string): void {
  * `createServer`'s `onRoomLeave` for the game: a player stays in the sim
  * while any socket of theirs is in the world's room (the web page and the
  * Godot client are two sockets of one user), and leaves it when the last one
- * leaves or disconnects. 4.x did this in GameService's unsubscribeSocket and
- * unsubscribe overrides.
+ * leaves or disconnects.
  */
 // quickdraw-5.0 finding: onRoomLeave is one createServer option for the whole app, not part of the service that owns the room, so every server root (the API, the test app, the netcode bench) must pass the game's handler by hand, and a root that forgets it leaks players silently
 export const onGameRoomLeave: RoomLeaveHandler = ({ principal, rooms }) => {

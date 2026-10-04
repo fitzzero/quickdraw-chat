@@ -3,7 +3,7 @@ import { QuickdrawError } from "@fitzzero/quickdraw-core";
 import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import { userService } from "../../services/user/index.js";
-import { principalOf, startTestApp, subscribeEntity, type ApiTestApp } from "../utils/app.js";
+import { startTestApp, subscribeEntity, type ApiTestApp } from "../utils/app.js";
 import { createTestUser } from "../factories/user-factory.js";
 
 type Users = Awaited<ReturnType<typeof seedTestUsers>>;
@@ -25,8 +25,8 @@ beforeEach(async () => {
   app.frames.clear();
 });
 
-async function as(userId: string): Promise<ReturnType<ApiTestApp["as"]>> {
-  return app.as(await principalOf(userId));
+function as(userId: string): ReturnType<ApiTestApp["as"]> {
+  return app.as({ userId });
 }
 
 async function codeOf(call: Promise<unknown>): Promise<string> {
@@ -63,7 +63,7 @@ describe("UserService field tiers (email and grants at Admin)", () => {
   });
 
   it("answers getMe with the caller's own row, email and grants included", async () => {
-    const me = await (await as(users.admin.id)).userService.getMe({});
+    const me = await as(users.admin.id).userService.getMe({});
     expect(me).toMatchObject({ id: users.admin.id, email: users.admin.email });
     expect(me?.serviceAccess).toMatchObject({ userService: "Admin" });
   });
@@ -71,7 +71,7 @@ describe("UserService field tiers (email and grants at Admin)", () => {
 
 describe("UserService admin kit", () => {
   it("lists every user, with their emails, for a service-wide Admin", async () => {
-    const page = await (await as(users.admin.id)).userService.adminList({ page: 1, pageSize: 20 });
+    const page = await as(users.admin.id).userService.adminList({ page: 1, pageSize: 20 });
     expect(page.items).toHaveLength(3);
     expect(page).toMatchObject({ total: 3, page: 1, pageSize: 20, totalPages: 1 });
     expect(page.items.map((user) => user.email).sort()).toEqual(
@@ -80,7 +80,7 @@ describe("UserService admin kit", () => {
   });
 
   it("gets a user by id", async () => {
-    const user = await (await as(users.admin.id)).userService.adminGet({ id: users.regular.id });
+    const user = await as(users.admin.id).userService.adminGet({ id: users.regular.id });
     expect(user).toMatchObject({
       id: users.regular.id,
       name: "Regular User",
@@ -89,7 +89,7 @@ describe("UserService admin kit", () => {
   });
 
   it("creates, updates and deletes a user", async () => {
-    const admin = await as(users.admin.id);
+    const admin = as(users.admin.id);
     const created = await admin.userService.adminCreate({
       data: {
         email: "newuser@test.com",
@@ -115,17 +115,21 @@ describe("UserService admin kit", () => {
     expect(await testPrisma.user.findUnique({ where: { id: created.id } })).toBeNull();
   });
 
-  it("describes the user fields, grants left out", async () => {
-    const meta = await (await as(users.admin.id)).userService.adminMeta({});
+  it("describes the user fields, grants included (edited, not shown as a column)", async () => {
+    const meta = await as(users.admin.id).userService.adminMeta({});
     expect(meta.serviceName).toBe("userService");
     expect(meta.displayName).toBe("Users");
     const names = meta.fields.map((field) => field.name);
-    expect(names).toEqual(expect.arrayContaining(["id", "email", "name"]));
-    expect(names).not.toContain("serviceAccess");
+    expect(names).toEqual(expect.arrayContaining(["id", "email", "name", "serviceAccess"]));
+    expect(meta.fields.find((field) => field.name === "serviceAccess")).toMatchObject({
+      type: "json",
+      editable: true,
+      showInTable: false,
+    });
   });
 
   it("refuses everyone without a service-wide Admin grant", async () => {
-    const regular = await as(users.regular.id);
+    const regular = as(users.regular.id);
     expect(await codeOf(regular.userService.adminList({ page: 1, pageSize: 20 }))).toBe(
       "FORBIDDEN",
     );
@@ -151,9 +155,9 @@ describe("UserService admin kit", () => {
   });
 });
 
-describe("UserService updateUser and setServiceAccess", () => {
+describe("UserService updateUser and grants", () => {
   it("answers { error: 'name_taken' } for a taken name", async () => {
-    const regular = await as(users.regular.id);
+    const regular = as(users.regular.id);
     expect(
       await regular.userService.updateUser({ id: users.regular.id, data: { name: "Admin User" } }),
     ).toEqual({ error: "name_taken" });
@@ -164,11 +168,11 @@ describe("UserService updateUser and setServiceAccess", () => {
     expect(ok).toMatchObject({ name: "Fresh Name" });
   });
 
-  it("refuses to update another user (4.x let any userService grant through)", async () => {
+  it("refuses to update another user, whatever userService Read grant the caller has", async () => {
     // SERVICE_DEFAULT_ACCESS gives every user userService: Read (setup.ts)
     expect(
       await codeOf(
-        (await as(users.regular.id)).userService.updateUser({
+        as(users.regular.id).userService.updateUser({
           id: users.moderator.id,
           data: { name: "Hijacked" },
         }),
@@ -176,16 +180,14 @@ describe("UserService updateUser and setServiceAccess", () => {
     ).toBe("FORBIDDEN");
   });
 
-  it("replaces a user's grants and refreshes their open sockets", async () => {
+  it("replaces a user's grants through adminUpdate and refreshes their open sockets", async () => {
     const target = await app.connect({ userId: users.regular.id });
     expect(target.hello.serviceAccess).toEqual({ userService: "Read" });
     app.frames.clear();
 
-    const updated = await (
-      await as(users.admin.id)
-    ).userService.setServiceAccess({
+    const updated = await as(users.admin.id).userService.adminUpdate({
       id: users.regular.id,
-      serviceAccess: { chatService: "Moderate" },
+      data: { serviceAccess: { chatService: "Moderate" } },
     });
     expect(updated.serviceAccess).toEqual({ chatService: "Moderate" });
 
@@ -195,6 +197,32 @@ describe("UserService updateUser and setServiceAccess", () => {
     });
     target.close();
   });
+
+  it("writes grants only for a caller whose own userService grant is Admin", async () => {
+    // Admin on every other service, Moderate on userService: not enough
+    const chatAdmin = await createTestUser({
+      serviceAccess: { chatService: "Admin", userService: "Moderate" },
+    });
+    expect(
+      await codeOf(
+        as(chatAdmin.id).userService.adminUpdate({
+          id: users.regular.id,
+          data: { serviceAccess: { chatService: "Admin" } },
+        }),
+      ),
+    ).toBe("FORBIDDEN");
+    // the user themself holds Admin on their own row, which is not a grant
+    expect(
+      await codeOf(
+        as(users.regular.id).userService.adminUpdate({
+          id: users.regular.id,
+          data: { serviceAccess: { userService: "Admin" } },
+        }),
+      ),
+    ).toBe("FORBIDDEN");
+    const stored = await testPrisma.user.findUniqueOrThrow({ where: { id: users.regular.id } });
+    expect(stored.serviceAccess).toBeNull();
+  });
 });
 
 describe("UserService access matrix", () => {
@@ -203,9 +231,9 @@ describe("UserService access matrix", () => {
     await describeAccessMatrix(app, {
       service: userService,
       principals: {
-        self: await principalOf(self.id),
-        other: await principalOf(other.id),
-        userAdmin: await principalOf(users.admin.id),
+        self: { userId: self.id },
+        other: { userId: other.id },
+        userAdmin: { userId: users.admin.id },
       },
       cases: [
         { method: "getMe", input: {}, allow: ["self", "other", "userAdmin"] },
@@ -215,8 +243,9 @@ describe("UserService access matrix", () => {
           allow: ["self", "userAdmin"],
         },
         {
-          method: "setServiceAccess",
-          input: { id: self.id, serviceAccess: {} },
+          label: "adminUpdate (the user's grants)",
+          method: "adminUpdate",
+          input: { id: self.id, data: { serviceAccess: {} } },
           allow: ["userAdmin"],
         },
         { method: "adminGet", input: { id: self.id }, allow: ["userAdmin"] },

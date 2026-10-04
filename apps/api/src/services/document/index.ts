@@ -21,7 +21,7 @@ export const documentService = qd.defineService(documentContract, {
   methods: {
     ...crud.handlers(documentContract, {
       access: {
-        // the access forms 4.x's methods had, a service grant passing the row check
+        // the row's level, or a service-wide grant at least as high
         get: { service: "Read", entry: "Read" },
         update: { service: "Moderate", entry: "Moderate" },
         delete: { service: "Admin", entry: "Admin" },
@@ -38,9 +38,9 @@ export const documentService = qd.defineService(documentContract, {
         acl: [],
       }),
     }),
-    // 4.x's share and unshare were { service: "Admin", entry: "Admin" }: the
-    // kit's default for a change is { entry: "Admin" }, so the service grant
-    // stays named; lists need Read on the document
+    // The kit's default for a change is { entry: "Admin" }: naming the
+    // service too lets a service-wide Admin grant share any document; lists
+    // need Read on the document
     ...sharing.handlers(documentContract, {
       access: {
         share: { service: "Admin", entry: "Admin" },

@@ -1,7 +1,6 @@
-// The contract of userService, written by @fitzzero/quickdraw-codemod from
-// UserServiceMethods and the defineMethod calls of UserService
-// (apps/api/src/services/user/index.ts), then completed by hand: real output
-// schemas, the entity and its field tiers, the admin kit and setServiceAccess.
+// The contract of userService: the user entity and its field tiers, the
+// caller's own row, the profile update and the admin kit (which edits grants
+// too, `grants: true` in apps/api/src/services/user/index.ts).
 
 import { admin, defineContract, mutation, nullable, query } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
@@ -15,25 +14,18 @@ const updateUserSchema = z.object({
   }),
 });
 
-const setServiceAccessSchema = z.object({
-  id: cuidSchema("user ID"),
-  /** The user's whole set of service-wide grants, by service name: `{ "chatService": "Admin" }`. */
-  serviceAccess: z.record(z.string(), accessLevelSchema),
-});
-
 /**
  * A user row. Any signed-in user may read a profile; `email` and
  * `serviceAccess` reach only readers with Admin on the row (`fields` below):
- * the user themself and holders of a service-wide Admin grant, the readers
- * 4.x called elevated.
+ * the user themself and holders of a service-wide Admin grant. Readers below
+ * that receive the row without them, so the row types make them optional.
  */
 export const userSchema = z.object({
   id: z.string(),
   email: z.string(),
   name: z.string().nullable(),
   image: z.string().nullable(),
-  // quickdraw-5.0 finding: a Json column (JsonValue in the Prisma row) a handler cannot return for this typed map without a cast; see document.ts
-  /** Service-wide grants: `{ "chatService": "Admin" }`. */
+  /** Service-wide grants, by service name: `{ "chatService": "Admin" }`. */
   serviceAccess: z.record(z.string(), accessLevelSchema).nullable(),
   // ── quickdraw-game:start ──
   /** An anonymous game guest (see apps/api/src/auth/guest.ts). */
@@ -45,8 +37,7 @@ export const userSchema = z.object({
 
 export const userContract = defineContract("userService", {
   entity: userSchema,
-  // was getProtectedFields() (["email", "serviceAccess"]) with 4.x's elevated
-  // readers: the user themself or a service-wide Admin grant
+  // only the user themself and a service-wide Admin grant receive these
   fields: { email: "Admin", serviceAccess: "Admin" },
   methods: {
     getMe: query({
@@ -71,15 +62,10 @@ export const userContract = defineContract("userService", {
       describe:
         'Changes a user\'s name or image; answers { error: "name_taken" } when another user has the name.',
     }),
-    // 4.x edited grants through adminUpdate (the field override made
-    // serviceAccess editable); the 5.0 admin kit never writes serviceAccess.
-    setServiceAccess: mutation({
-      input: setServiceAccessSchema,
-      output: "entity",
-      describe:
-        "Replaces a user's service-wide grants (service administrators only); their open sockets get the new grants at once.",
-    }),
-    // The admin screens: every user, for holders of a service-wide Admin grant
+    // The admin screens: every user, for holders of a service-wide Admin
+    // grant; `adminUpdate` also writes `serviceAccess` (the service passes
+    // `grants: true`), which replaces the user's grants and reaches their
+    // open sockets at once
     ...admin.contract({ entity: userSchema, sort: ["createdAt", "name", "email"] }),
   },
 });

@@ -190,7 +190,7 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
     // remounts the page during the cycle, so the resume flag carries the
     // "start the game" intent across the remount.
     sessionStorage.setItem(PENDING_START_KEY, "1");
-    // A fresh handshake carries the new cookie (4.x: disconnect(); connect())
+    // A fresh handshake carries the new cookie
     connection.close();
     connection.open();
   }

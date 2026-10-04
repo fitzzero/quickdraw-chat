@@ -16,7 +16,7 @@ turns the notification features on.
 | Push opt-in toggle + test-notification button                         | `apps/web/src/app/account/page.tsx` via `usePushNotifications`                 |
 | `pushService`: `subscribePush` / `unsubscribePush` / `sendTestPush`   | `apps/api/src/services/push-subscription/index.ts`                             |
 | REST `POST /api/push/resubscribe` (SW renewal — SWs have no socket)   | `apps/api/src/services/push-subscription/rest.ts`                              |
-| New-message pushes to offline chat members                            | `MessageService.afterCreate` → `pushService.notifyNewMessage`                  |
+| New-message pushes to offline chat members                            | `messageService.postMessage` → `notifyNewMessage` (push-subscription)          |
 | `PushSubscription` rows (endpoint-unique, pruned on 410/404)          | `packages/db/prisma/schema.prisma`                                             |
 
 ## Enabling push
@@ -39,16 +39,22 @@ Manager for the Cloud Run deploy); the public key and subject are non-secret
 
 ## Design notes
 
-- **Sends never block writes.** `notifyNewMessage` is fire-and-forget from
-  `MessageService.afterCreate`; failures log and die there.
-- **Online members are skipped.** The composition root passes
-  `isUserOnline` (checks the user's socket room) so pushes only go to
-  members with no live connection. The sender is always skipped.
+- **Sends never block writes.** `postMessage` calls `notifyNewMessage`
+  after its write without awaiting it: the push runs in
+  `qd.run(fn, { detached: true })`, a unit of work of its own, and its
+  failures are logged there.
+- **Online members are skipped.** The default online check is quickdraw's
+  presence (`qd.presence.isOnline`), so pushes only go to members with no
+  live connection. The sender is always skipped.
 - **Stale endpoints self-clean.** A 410/404 from the push service deletes
-  the subscription row.
-- **The transport is injectable** (`PushServiceOptions.transport`), which is
-  how the integration tests capture deliveries without real push services —
-  and how you'd swap in a different delivery channel.
+  the subscription row (a tracked write, in the push's own unit of work).
+- **The transport is injectable** (`configurePush({ transport,
+isUserOnline })`, which the server calls at start-up), which is how the
+  integration tests capture deliveries without real push services — and how
+  you'd swap in a different delivery channel.
+- **The REST route** authenticates with the auth routes kit's
+  `requireSession`, then calls `pushService.subscribePush` in process, so
+  the renewal is validated, checked and written exactly as from a socket.
 - **Payload shape** is `PushNotificationPayload` in `@project/shared`
   (`{ title, body, url, tag }`); the service worker consumes exactly that.
   Push payload budgets are ~4kb — keep it small.

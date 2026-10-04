@@ -1,8 +1,6 @@
-// The contract of gameService, written by @fitzzero/quickdraw-codemod from
-// GameServiceMethods and the defineMethod calls of GameService
-// (apps/api/src/services/game/index.ts), then completed by hand: real output
-// schemas, the entity, the world's realtime half (the input channel, the
-// snapshot stream and the world's events) and the admin kit. Each schema below
+// The contract of gameService: the world entity, the game's commands, the
+// world's realtime half (the input channel, the snapshot stream and the
+// world's events) and the admin kit. Each schema below
 // satisfies the wire type of the same shape in ../types/game.ts, which
 // documents the protocol for the Godot client.
 

@@ -41,8 +41,6 @@ if [ "${CODESPACES:-}" = "true" ] && [ -n "${CODESPACE_NAME:-}" ]; then
   [ -z "${CLIENT_URL+x}" ]           && export CLIENT_URL="$_web"
   [ -z "${API_URL+x}" ]              && export API_URL="$_api"
   [ -z "${NEXT_PUBLIC_API_URL+x}" ]  && export NEXT_PUBLIC_API_URL="$_api"
-  [ -z "${GOOGLE_REDIRECT_URI+x}" ]  && export GOOGLE_REDIRECT_URI="${_api}/auth/google/callback"
-  [ -z "${DISCORD_REDIRECT_URI+x}" ] && export DISCORD_REDIRECT_URI="${_api}/auth/discord/callback"
 
   # Ensure forwarded ports are publicly accessible (devcontainer.json visibility
   # isn't always honored). Runs in background to avoid blocking startup.
