@@ -90,6 +90,7 @@ interface GameSession {
 // oxlint-disable-next-line max-lines-per-function -- one cohesive state machine
 function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession {
   const router = useRouter();
+  // quickdraw-5.0 finding: useQuickdraw() hydrates from the live connection (useSyncExternalStore's server snapshot is getState), so under this page's Suspense boundary, which hydrates after the provider's effects connected, a signed-in user renders the Start button where the server rendered the guest form: "Hydration failed", the tree regenerated on the client
   const { userId, isConnected, connection } = useQuickdraw();
 
   const [loadState, setLoadState] = React.useState<GodotLoadState>({

@@ -72,6 +72,6 @@ Hook calls now go through the typed client (`qd.<service>.<member>`); these need
 
 - [ ] `apps/web/src/components/game/GameChatOverlay.tsx:38` room events: declare them in the contract's events and listen with qd.<service>.<event>.useEvent(handler)
 - [ ] `apps/web/src/components/game/GameHud.tsx:29` room events: declare them in the contract's events and listen with qd.<service>.<event>.useEvent(handler)
-- [ ] `apps/web/src/components/game/GameSurface.tsx:111` invalidateOn is gone: give the query a watch in its contract entry (it is fetched again when that collection scope changes), or read a collection
-- [ ] `apps/web/src/components/game/GameSurface.tsx:118` invalidateOn is gone: give the query a watch in its contract entry (it is fetched again when that collection scope changes), or read a collection
-- [ ] `apps/web/src/components/game/GameSurface.tsx:132` room events: declare them in the contract's events and listen with qd.<service>.<event>.useEvent(handler)
+- [ ] `apps/web/src/components/game/GameSurface.tsx:112` invalidateOn is gone: give the query a watch in its contract entry (it is fetched again when that collection scope changes), or read a collection
+- [ ] `apps/web/src/components/game/GameSurface.tsx:119` invalidateOn is gone: give the query a watch in its contract entry (it is fetched again when that collection scope changes), or read a collection
+- [ ] `apps/web/src/components/game/GameSurface.tsx:133` room events: declare them in the contract's events and listen with qd.<service>.<event>.useEvent(handler)

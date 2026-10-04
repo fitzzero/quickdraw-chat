@@ -34,6 +34,7 @@ export function UserMenu(): React.ReactElement {
   const showWarmingHint = useSlowLoadHint(!isKnown);
   const { data: user } = qd.userService.useEntity(userId);
   // The services whose admin screens answer this user (their adminMeta)
+  // quickdraw-5.0 finding: for a user who is admin of nothing this asks all 5 services' adminMeta (5 FORBIDDEN calls) on every page load and again after every reconnect, though the hello's grants already rule them out under the kit's default form
   const { services: adminServices } = useAdminServices(qd, { enabled: userId !== null });
   const hasAdminAccess = adminServices.length > 0;
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
