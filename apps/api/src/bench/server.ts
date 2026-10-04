@@ -1,31 +1,36 @@
 /**
  * Bench server bootstrap — the integration-test server recipe
- * (__tests__/utils/server.ts + setup.ts) minus vitest, plus a RUNNING game
+ * (__tests__/utils/app.ts + setup.ts) minus vitest, plus a RUNNING game
  * loop and the ground-truth recorder. PGlite by default (the tick path is
  * DB-free; score writes are fire-and-forget), real PostgreSQL when
  * TEST_DATABASE_URL is set.
+ *
+ * quickdraw-game: the minimal 5.0 port. The server is 5.0's; the bots
+ * (`bot/client.ts`) still speak the 4.x wire, which a 5.0 server refuses, so
+ * the netcode bench runs again with the game's port (child 4).
  *
  * IMPORTANT: import this module only AFTER setting the bench env
  * (see setupBenchEnv in run.ts) — services read env at import time.
  */
 
-import { PrismaClient } from "@project/db";
-import { setTestPrisma, testPrisma } from "@project/db/testing";
-import type { Scenario } from "@project/bench";
-import { createPrismaTestGlobalSetup } from "@fitzzero/quickdraw-core/testing/prisma";
-// quickdraw-migrate: review [v4-api] 4.x API createQuickdrawServer (removed): lint's no-v4-api names each replacement
-import { createQuickdrawServer } from "@fitzzero/quickdraw-core/server";
+import type { AddressInfo } from "node:net";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { buildServices } from "../services/build-services.js";
-import type { gameService as gameServiceDef } from "../services/game/index.js";
+import { PrismaClient } from "@project/db";
+import { setTestPrisma, testDb, testPrisma } from "@project/db/testing";
+import type { Scenario } from "@project/bench";
+import { createPrismaTestGlobalSetup } from "@fitzzero/quickdraw-core/testing/prisma";
+import { devCredentialsPrincipal } from "../auth/dev-credentials.js";
+import { createGrantsLoader } from "../auth/grants.js";
+import { qd } from "../quickdraw.js";
+import { serviceNames, services } from "../services/index.js";
 import { ensureGlobalWorld } from "../services/game/bootstrap.js";
-import { createSocketAuth } from "../auth/middleware.js";
+import { createGameRuntime, type GameRuntime } from "../services/game/runtime.js";
 import { createGroundTruthRecorder, type GroundTruthRecorder } from "./ground-truth.js";
 
 export interface BenchServer {
   port: number;
-  gameService: typeof gameServiceDef;
+  game: GameRuntime;
   recorder: GroundTruthRecorder;
   /** bot name → user id, one distinct user per bot (rate limits key by user) */
   users: Map<string, string>;
@@ -80,19 +85,14 @@ export async function startBenchServer(scenario: Scenario): Promise<BenchServer>
   }
 
   const recorder = createGroundTruthRecorder();
-  const services = buildServices(testPrisma, {
-    game: {
-      simSeed: scenario.seed,
-      tunables: scenario.tunables ?? {},
-      onTick: recorder.onTick,
-    },
+  const game = createGameRuntime(testDb, {
+    simSeed: scenario.seed,
+    tunables: scenario.tunables ?? {},
+    onTick: recorder.onTick,
   });
-  const { gameService } = services;
 
   // Benchmarks measure timing — keep the hot path free of console I/O
-  const silent = () => {
-    /* no-op */
-  };
+  const silent = (): void => undefined;
   const silentLogger = {
     info: silent,
     warn: silent,
@@ -101,44 +101,33 @@ export async function startBenchServer(scenario: Scenario): Promise<BenchServer>
     child: () => silentLogger,
   };
 
-  const { io, httpServer } = createQuickdrawServer({
-    port: 0,
+  const server = qd.createServer({
     services,
+    db: testDb,
     logger: silentLogger,
     // Tier 2 connects real browsers (pages served from the web dev server)
-    cors: {
-      origin: [process.env.CLIENT_URL ?? "http://localhost:3000"],
-      credentials: true,
+    cors: { origin: [process.env.CLIENT_URL ?? "http://localhost:3000"], credentials: true },
+    // bots sign in with development credentials (auth.userId)
+    auth: {
+      authenticate: ({ auth }) => devCredentialsPrincipal(testPrisma, auth),
+      loadServiceAccess: createGrantsLoader({ prisma: testPrisma, serviceNames }),
     },
-    auth: createSocketAuth({
-      prisma: testPrisma,
-      getServiceNames: () => Object.keys(services),
-    }),
   });
-
   await new Promise<void>((resolvePort) => {
-    httpServer.once("listening", () => resolvePort());
+    server.httpServer.listen(0, () => resolvePort());
   });
-  const address = httpServer.address();
-  if (!address || typeof address === "string") {
-    throw new Error("bench server failed to bind a port");
-  }
+  const { port } = server.httpServer.address() as AddressInfo;
 
-  // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (startLoop here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
-  gameService.startLoop();
+  game.loop.start();
 
   return {
-    port: address.port,
-    gameService,
+    port,
+    game,
     recorder,
     users,
     stop: async () => {
-      // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (stopLoop here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
-      gameService.stopLoop();
-      await io.close();
-      await new Promise<void>((resolveClose) => {
-        httpServer.close(() => resolveClose());
-      });
+      game.loop.stop();
+      await server.close();
     },
   };
 }

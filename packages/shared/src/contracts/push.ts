@@ -3,7 +3,7 @@
 // (apps/api/src/services/push-subscription/index.ts), then completed by hand:
 // real output schemas and the entity.
 
-import { defineContract, mutation } from "@fitzzero/quickdraw-core";
+import { admin, defineContract, mutation } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
 import { endpointSchema, isoDateSchema, pushSubscriptionSchema } from "./helpers.js";
 
@@ -47,6 +47,20 @@ export const pushContract = defineContract("pushService", {
       output: z.object({ sent: z.number().int().nonnegative() }),
       describe:
         "Sends a test notification to each of the caller's devices; answers how many took it.",
+    }),
+    // The admin screens: read and delete only (browsers mint subscriptions)
+    ...admin.contract({
+      entity: pushSubscriptionRowSchema,
+      filter: ["userId"],
+      sort: ["createdAt"],
+      expose: [
+        "adminList",
+        "adminGet",
+        "adminDelete",
+        "adminMeta",
+        "adminSubscribers",
+        "adminReemit",
+      ],
     }),
   },
 });

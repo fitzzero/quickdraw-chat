@@ -1,27 +1,26 @@
 import type { PushNotificationPayload } from "@project/shared";
+import { admin, owner } from "@fitzzero/quickdraw-core/server";
+import { pushContract } from "@project/shared";
 import webpush from "web-push";
-import { z } from "zod";
+import type { db as appDb } from "../../db.js";
 import { createServiceLogger, errorMeta } from "../../utils/logger.js";
 import { qd } from "../../quickdraw.js";
-import { pushContract } from "@project/shared";
-import { db } from "../../db.js";
+
+type Db = typeof appDb;
 
 const logger = createServiceLogger("pushService");
-
-// Zod schemas for validation
-// Admin schema - defines fields available for admin CRUD
-const adminPushSubscriptionSchema = z.object({
-  userId: z.string(),
-  endpoint: z.string(),
-  p256dh: z.string(),
-  auth: z.string(),
-});
 
 /** How long push services may queue an undelivered notification. */
 const PUSH_TTL_SECONDS = 86400;
 
 /** Body text cap — push payloads are size-limited (~4kb) and previews short. */
 const PUSH_BODY_MAX_CHARS = 140;
+
+/** The most devices of one user a push goes to. */
+const MAX_SUBSCRIPTIONS_PER_USER = 50;
+
+/** The most members of a chat a new-message push considers. */
+const MAX_PUSHED_MEMBERS = 500;
 
 /**
  * Delivers one payload to one endpoint. Injectable so tests capture sends
@@ -36,7 +35,7 @@ export type PushTransport = (
 export interface PushServiceOptions {
   /** Delivery override for tests; omit to use web-push (VAPID env keys). */
   transport?: PushTransport;
-  /** When set, chat pushes skip users with a live socket. */
+  /** When set, chat pushes skip users with a live socket. Default: quickdraw's presence. */
   isUserOnline?: (userId: string) => Promise<boolean>;
 }
 
@@ -65,41 +64,50 @@ function createWebPushTransport(): PushTransport | undefined {
   };
 }
 
-// quickdraw-migrate: review [this] 4.x constructor code of PushService: a service object has no constructor; move what still matters to module scope, a job or the server's start-up, then delete this function
-// quickdraw-5.0 finding: the codemod dropped the constructor's field assignments, transport = options.transport ?? createWebPushTransport() and isUserOnline = options.isUserOnline, so createWebPushTransport is now unused and nothing says where the transport came from
-function setUpPushService(): void {
-  installAdmin();
-}
+/**
+ * How pushes go out: 4.x's PushService constructor options, as module state,
+ * set once by the server's start-up (`configurePush`). A service object has
+ * no constructor, so the transport lives here.
+ */
+const delivery: {
+  transport: PushTransport | undefined;
+  isUserOnline: (userId: string) => Promise<boolean>;
+} = {
+  transport: undefined,
+  isUserOnline: (userId) => qd.presence.isOnline(userId),
+};
 
-/** Upsert a subscription; endpoint is the identity (browser re-subscribes reuse rows). */
-export async function resubscribe(
-  userId: string,
-  endpoint: string,
-  keys: { p256dh: string; auth: string },
-): Promise<void> {
-  await db.pushSubscription.upsert({
-    where: { endpoint },
-    create: { userId, endpoint, p256dh: keys.p256dh, auth: keys.auth },
-    update: { userId, p256dh: keys.p256dh, auth: keys.auth },
-  });
+/**
+ * Sets the push transport (default: web-push from the VAPID env keys, or no
+ * sends without them) and the online check (default: quickdraw's presence).
+ * The server calls it at start-up; tests pass a capturing transport.
+ */
+export function configurePush(options: PushServiceOptions = {}): void {
+  delivery.transport = options.transport ?? createWebPushTransport();
+  delivery.isUserOnline = options.isUserOnline ?? ((userId) => qd.presence.isOnline(userId));
 }
 
 /**
- * Send a payload to every subscription of one user. Endpoints the push
- * service reports gone (410/404) are deleted. Returns delivered count.
+ * Send a payload to every subscription of some users, read in one query.
+ * Endpoints the push service reports gone (410/404) are deleted. Returns the
+ * delivered count.
  */
-export async function sendToUser(
-  userId: string,
+async function sendToUsers(
+  db: Db,
+  userIds: readonly string[],
   payload: PushNotificationPayload,
 ): Promise<number> {
-  // quickdraw-migrate: review [this] this.transport was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-  const transport = this.transport;
-  if (!transport) return 0;
+  const { transport } = delivery;
+  if (!transport || userIds.length === 0) return 0;
 
-  const subscriptions = await db.pushSubscription.findMany({ where: { userId } });
+  const subscriptions = await db.pushSubscription.findMany({
+    where: { userId: { in: [...userIds] } },
+    take: MAX_SUBSCRIPTIONS_PER_USER * userIds.length,
+  });
   if (subscriptions.length === 0) return 0;
 
   const body = JSON.stringify(payload);
+  const gone: string[] = [];
   const results = await Promise.allSettled(
     subscriptions.map(async (sub) => {
       try {
@@ -111,47 +119,33 @@ export async function sendToUser(
         const statusCode = (error as { statusCode?: number }).statusCode;
         if (statusCode === 410 || statusCode === 404) {
           // Expired/revoked endpoint — prune so we stop paying for it
-          await db.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
-          logger.info("Removed stale push subscription", { userId, statusCode });
+          gone.push(sub.id);
+          logger.info("Removing stale push subscription", { userId: sub.userId, statusCode });
         } else {
-          logger.debug("Push send failed", { userId, statusCode, ...errorMeta(error) });
+          logger.debug("Push send failed", { userId: sub.userId, statusCode, ...errorMeta(error) });
         }
         throw error;
       }
     }),
   );
+  if (gone.length > 0) {
+    await db.pushSubscription.deleteMany({ where: { id: { in: gone } } });
+  }
   return results.filter((r) => r.status === "fulfilled").length;
 }
 
-/**
- * Push a new chat message to members who are not the sender and have no
- * live socket. Fire-and-forget: called from MessageService.afterCreate,
- * so it must never throw into (or slow down) the message write path.
- */
-export function notifyNewMessage(message: {
-  chatId: string;
-  userId: string;
-  content: string;
-}): void {
-  // quickdraw-migrate: review [this] this.transport was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-  if (!this.transport) return;
-  void deliverMessagePush(message).catch((error: unknown) => {
-    logger.error("Chat message push failed", { chatId: message.chatId, ...errorMeta(error) });
-  });
-}
-
-async function deliverMessagePush(message: {
-  chatId: string;
-  userId: string;
-  content: string;
-}): Promise<void> {
+async function deliverMessagePush(
+  db: Db,
+  message: { chatId: string; userId: string; content: string },
+): Promise<void> {
   // Read-only lookups on other services' models (mutations stay with them)
   const [chat, sender, members] = await Promise.all([
     db.chat.findUnique({ where: { id: message.chatId }, select: { title: true } }),
     db.user.findUnique({ where: { id: message.userId }, select: { name: true } }),
     db.chatMember.findMany({
-      where: { chatId: message.chatId },
+      where: { chatId: message.chatId, userId: { not: message.userId } },
       select: { userId: true },
+      take: MAX_PUSHED_MEMBERS,
     }),
   ]);
   if (!chat) return;
@@ -168,33 +162,28 @@ async function deliverMessagePush(message: {
     tag: `chat-${message.chatId}`,
   };
 
-  for (const member of members) {
-    if (member.userId === message.userId) continue;
-    // quickdraw-migrate: review [this] this.isUserOnline was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-    if (this.isUserOnline && (await this.isUserOnline(member.userId))) continue;
-    await sendToUser(member.userId, payload);
-  }
+  const online = await Promise.all(members.map((member) => delivery.isUserOnline(member.userId)));
+  const offline = members.filter((_member, index) => online[index] !== true);
+  await sendToUsers(
+    db,
+    offline.map((member) => member.userId),
+    payload,
+  );
 }
 
-function installAdmin(): void {
-  // Read/delete only: subscriptions are browser-minted, never hand-created
-  // quickdraw-migrate: review [admin] installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, options) in methods)
-  this.installAdminMethods({
-    expose: { list: true, get: true, create: false, update: false, delete: true },
-    access: {
-      list: "Admin",
-      get: "Admin",
-      create: "Admin",
-      update: "Admin",
-      delete: "Admin",
-      setEntryACL: "Admin",
-      getSubscribers: "Admin",
-      reemit: "Admin",
-      unsubscribeAll: "Admin",
-    },
-    schema: adminPushSubscriptionSchema,
-    displayName: "Push Subscriptions",
-    tableColumns: ["id", "userId", "endpoint", "createdAt"],
+/**
+ * Push a new chat message to members who are not the sender and have no
+ * live socket. Fire-and-forget from messageService.postMessage, after its
+ * write: it never throws into (or slows down) the post.
+ */
+export function notifyNewMessage(
+  db: Db,
+  message: { chatId: string; userId: string; content: string },
+): void {
+  if (!delivery.transport) return;
+  // quickdraw-5.0 finding: a handler cannot start background work in a unit of work of its own: qd.run called here joins postMessage's unit, whose frame has closed by the time a slow push service answers 410, so pruning that endpoint flushes as an ambient write (with its development warning) instead of in a unit
+  void deliverMessagePush(db, message).catch((error: unknown) => {
+    logger.error("Chat message push failed", { chatId: message.chatId, ...errorMeta(error) });
   });
 }
 
@@ -202,25 +191,40 @@ function installAdmin(): void {
  * PushService — Web Push subscriptions for the PWA.
  *
  * Browsers register their push endpoint here (subscribePush) after the user
- * grants notification permission; `sendToUser` fans a payload out to every
+ * grants notification permission; a send fans a payload out to every
  * endpoint of a user and prunes the ones the push service reports dead
- * (410/404). New chat messages notify offline members via notifyNewMessage
- * (fire-and-forget from MessageService.afterCreate — never in a write path).
+ * (410/404). New chat messages notify offline members via notifyNewMessage.
+ * Each subscription belongs to its user (`owner`); only the admin screens
+ * read other users' rows.
  */
 export const pushService = qd.defineService(pushContract, {
   model: "pushSubscription",
+  access: owner("userId"),
   methods: {
     subscribePush: {
-      // quickdraw-migrate: review [access] "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
+      // the caller's own endpoint (4.x: "Read" without a row id)
       access: "authenticated",
-      handler: async ({ input, ctx }) => {
-        await resubscribe(ctx.principal.userId, input.endpoint, input.keys);
-        logger.info("Push subscription registered", { userId: ctx.principal.userId });
+      handler: async ({ input, ctx, db }) => {
+        const { userId } = ctx.principal;
+        // The endpoint is the identity: a browser re-subscribing reuses its row,
+        // and one that switched accounts moves it to the caller
+        await db.pushSubscription.upsert({
+          where: { endpoint: input.endpoint },
+          create: {
+            userId,
+            endpoint: input.endpoint,
+            p256dh: input.keys.p256dh,
+            auth: input.keys.auth,
+          },
+          update: { userId, p256dh: input.keys.p256dh, auth: input.keys.auth },
+          select: { id: true },
+        });
+        logger.info("Push subscription registered", { userId });
         return { success: true as const };
       },
     },
     unsubscribePush: {
-      // quickdraw-migrate: review [access] "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
+      // removes only the caller's own endpoint (4.x: "Read" without a row id)
       access: "authenticated",
       handler: async ({ input, ctx, db }) => {
         await db.pushSubscription.deleteMany({
@@ -230,10 +234,10 @@ export const pushService = qd.defineService(pushContract, {
       },
     },
     sendTestPush: {
-      // quickdraw-migrate: review [access] "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
+      // sends to the caller's own devices (4.x: "Read" without a row id)
       access: "authenticated",
-      handler: async ({ ctx }) => {
-        const sent = await sendToUser(ctx.principal.userId, {
+      handler: async ({ ctx, db }) => {
+        const sent = await sendToUsers(db, [ctx.principal.userId], {
           title: "Test notification",
           body: "Push notifications are working on this device.",
           url: "/account",
@@ -242,5 +246,6 @@ export const pushService = qd.defineService(pushContract, {
         return { sent };
       },
     },
+    ...admin.handlers(pushContract, { displayName: "Push Subscriptions" }),
   },
 });

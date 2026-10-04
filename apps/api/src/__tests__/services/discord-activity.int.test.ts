@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import express from "express";
 import { createServer, type Server } from "http";
+import { liveSession } from "@fitzzero/quickdraw-core/server/auth";
 import { testPrisma, resetDatabase } from "@project/db/testing";
 import { registerDiscordActivityRoutes } from "../../auth/discord-activity.js";
+import { createTestAuth } from "../utils/auth.js";
 
 /**
  * The Discord token/user endpoints are stubbed via the deps injection —
@@ -12,6 +14,8 @@ import { registerDiscordActivityRoutes } from "../../auth/discord-activity.js";
 describe("Discord Activity auth", () => {
   let server: Server;
   let baseUrl: string;
+  // the session store and secret the auth routes use
+  const { keys } = createTestAuth();
 
   beforeAll(async () => {
     process.env.DISCORD_CLIENT_ID = "test-client-id";
@@ -20,6 +24,7 @@ describe("Discord Activity auth", () => {
     const app = express();
     app.use(express.json());
     registerDiscordActivityRoutes(app, {
+      keys,
       db: testPrisma,
       exchangeCode: async (code) => {
         if (code !== "good-code") throw new Error("bad code");
@@ -80,8 +85,11 @@ describe("Discord Activity auth", () => {
     // identify scope has no email → synthetic address
     expect(user?.email).toBe("discord-user-1@discord.activity");
 
-    const session = await testPrisma.session.findUnique({ where: { token } });
+    // The token names a live session of that user, stored as an Activity sign-in
+    const session = await liveSession(keys, token);
     expect(session?.userId).toBe(user?.id);
+    const stored = await testPrisma.session.findUniqueOrThrow({ where: { id: session?.id ?? "" } });
+    expect(stored.provider).toBe("discord-activity");
   });
 
   it("reuses the same user across repeated activity logins", async () => {
@@ -108,7 +116,7 @@ describe("Discord Activity auth", () => {
 
     const response = await exchange("good-code");
     const { token } = (await response.json()) as { token: string };
-    const session = await testPrisma.session.findUnique({ where: { token } });
+    const session = await liveSession(keys, token);
     expect(session?.userId).toBe(existing.id);
   });
 

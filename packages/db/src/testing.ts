@@ -1,8 +1,10 @@
 import { PrismaClient } from "../prisma/generated/prisma/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { trackPrisma } from "@fitzzero/quickdraw-core/prisma";
 import { resetDatabase as coreResetDatabase } from "@fitzzero/quickdraw-core/testing/prisma";
 
 let _testPrisma: PrismaClient | undefined;
+let _testDb: PrismaClient | undefined;
 
 /**
  * Inject a PrismaClient instance for the current worker.
@@ -10,6 +12,7 @@ let _testPrisma: PrismaClient | undefined;
  */
 export function setTestPrisma(client: PrismaClient): void {
   _testPrisma = client;
+  _testDb = undefined;
 }
 
 function getTestPrisma(): PrismaClient {
@@ -29,6 +32,7 @@ function getTestPrisma(): PrismaClient {
 
 // Lazy proxy: resolves the client on first use so PGlite setup can inject
 // before anything touches the database.
+/** The untracked test client: seed and inspect rows with it (nobody is told about its writes). */
 export const testPrisma: PrismaClient = new Proxy({} as PrismaClient, {
   get(_target, prop) {
     return Reflect.get(getTestPrisma(), prop);
@@ -36,8 +40,20 @@ export const testPrisma: PrismaClient = new Proxy({} as PrismaClient, {
 });
 
 /**
+ * The tracked test client, made exactly as the server's `db` is
+ * (`trackPrisma` over the worker's database): pass it to `createTestApp`, so
+ * the services' writes reach the test server's flush and its subscribers.
+ */
+export const testDb: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    _testDb ??= trackPrisma(getTestPrisma());
+    return Reflect.get(_testDb, prop);
+  },
+});
+
+/**
  * Reset the test database by truncating all public tables (dynamic discovery,
- * deadlock retry — see quickdraw-core/server/testing/prisma).
+ * deadlock retry — see quickdraw-core/testing/prisma).
  */
 export async function resetDatabase(): Promise<void> {
   await coreResetDatabase(testPrisma);
