@@ -13,7 +13,7 @@
  */
 
 import { QuickdrawError } from "@fitzzero/quickdraw-core";
-import { guest, type GuestProvider } from "@fitzzero/quickdraw-core/server/auth";
+import { guest, type GuestProvider, type GuestUser } from "@fitzzero/quickdraw-core/server/auth";
 import type { PrismaClient } from "@project/db";
 import { z } from "zod";
 
@@ -28,7 +28,8 @@ const guestBodySchema = z.object({
     .regex(/^[\p{L}\p{N} _\-'.]+$/u, "Letters, numbers and basic punctuation only"),
 });
 
-async function createGuestUser(prisma: PrismaClient, requestedName: string): Promise<string> {
+/** Creates the guest user: its id, and the name it got (`"Ada#4821"` when "Ada" was taken). */
+async function createGuestUser(prisma: PrismaClient, requestedName: string): Promise<GuestUser> {
   for (let attempt = 0; attempt < NAME_ATTEMPTS; attempt++) {
     // User.name is unique — retry with a numeric tag on collision
     const name =
@@ -38,7 +39,7 @@ async function createGuestUser(prisma: PrismaClient, requestedName: string): Pro
         data: { name, isGuest: true, email: `guest-${crypto.randomUUID()}@guest.local` },
         select: { id: true },
       });
-      return user.id;
+      return { userId: user.id, name };
     } catch (error) {
       if ((error as { code?: string }).code !== "P2002") throw error;
     }
@@ -49,8 +50,8 @@ async function createGuestUser(prisma: PrismaClient, requestedName: string): Pro
 /**
  * The guest sign-in: `POST /auth/guest` with `{ name }` creates a guest user
  * (written untracked: a new user has no subscribers) and signs it in.
- * Answers `{ userId }` with the session cookie; an invalid name is
- * `VALIDATION`, a name taken after three tries `CONFLICT`.
+ * Answers `{ userId, name }` (the name it got) with the session cookie; an
+ * invalid name is `VALIDATION`, a name taken after three tries `CONFLICT`.
  */
 export function guestProvider(prisma: PrismaClient): GuestProvider {
   return guest({

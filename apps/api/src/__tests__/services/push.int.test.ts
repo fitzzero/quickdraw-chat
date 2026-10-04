@@ -8,7 +8,7 @@ import type { PushNotificationPayload } from "@project/shared";
 import { prismaSessions } from "../../auth/sessions.js";
 import { pushService, type PushTransport } from "../../services/push-subscription/index.js";
 import { registerPushRoutes } from "../../services/push-subscription/rest.js";
-import { principalOf, startTestApp, type ApiTestApp } from "../utils/app.js";
+import { startTestApp, type ApiTestApp } from "../utils/app.js";
 import { TEST_JWT_SECRET } from "../utils/auth.js";
 import { createTestChat } from "../factories/chat-factory.js";
 
@@ -61,8 +61,8 @@ beforeEach(async () => {
   deadEndpoints.clear();
 });
 
-async function as(userId: string): Promise<ReturnType<ApiTestApp["as"]>> {
-  return app.as(await principalOf(userId));
+function as(userId: string): ReturnType<ApiTestApp["as"]> {
+  return app.as({ userId });
 }
 
 async function codeOf(call: Promise<unknown>): Promise<string> {
@@ -114,7 +114,7 @@ describe("PushService subscribePush", () => {
   it("refuses non-URL endpoints", async () => {
     expect(
       await codeOf(
-        (await as(users.regular.id)).pushService.subscribePush({
+        as(users.regular.id).pushService.subscribePush({
           endpoint: "not-a-url",
           keys: KEYS,
         }),
@@ -126,9 +126,7 @@ describe("PushService subscribePush", () => {
 describe("PushService unsubscribePush", () => {
   it("removes the caller's endpoint", async () => {
     await subscribe(users.regular.id, "https://push.example.com/regular-1");
-    await (
-      await as(users.regular.id)
-    ).pushService.unsubscribePush({
+    await as(users.regular.id).pushService.unsubscribePush({
       endpoint: "https://push.example.com/regular-1",
     });
     expect(await testPrisma.pushSubscription.count()).toBe(0);
@@ -136,9 +134,7 @@ describe("PushService unsubscribePush", () => {
 
   it("does not remove another user's endpoint", async () => {
     await subscribe(users.regular.id, "https://push.example.com/regular-1");
-    await (
-      await as(users.moderator.id)
-    ).pushService.unsubscribePush({
+    await as(users.moderator.id).pushService.unsubscribePush({
       endpoint: "https://push.example.com/regular-1",
     });
     expect(await testPrisma.pushSubscription.count()).toBe(1);
@@ -150,7 +146,7 @@ describe("PushService sendTestPush", () => {
     await subscribe(users.regular.id, "https://push.example.com/device-1");
     await subscribe(users.regular.id, "https://push.example.com/device-2");
 
-    const result = await (await as(users.regular.id)).pushService.sendTestPush({});
+    const result = await as(users.regular.id).pushService.sendTestPush({});
 
     expect(result.sent).toBe(2);
     expect(sends).toHaveLength(2);
@@ -161,7 +157,7 @@ describe("PushService sendTestPush", () => {
     await subscribe(users.regular.id, "https://push.example.com/expired");
     deadEndpoints.add("https://push.example.com/expired");
 
-    const result = await (await as(users.regular.id)).pushService.sendTestPush({});
+    const result = await as(users.regular.id).pushService.sendTestPush({});
 
     expect(result.sent).toBe(0);
     expect(await testPrisma.pushSubscription.count()).toBe(0);
@@ -183,9 +179,7 @@ describe("PushService new-message pushes", () => {
     await subscribe(users.admin.id, "https://push.example.com/sender");
     onlineUsers.add(users.moderator.id);
 
-    await (
-      await as(users.admin.id)
-    ).messageService.postMessage({
+    await as(users.admin.id).messageService.postMessage({
       chatId: chat.id,
       content: "Hello offline friends",
     });
@@ -209,9 +203,7 @@ describe("PushService new-message pushes", () => {
     });
     await subscribe(users.regular.id, "https://push.example.com/offline-member");
 
-    await (
-      await as(users.admin.id)
-    ).messageService.postMessage({
+    await as(users.admin.id).messageService.postMessage({
       chatId: chat.id,
       content: "x".repeat(500),
     });
@@ -222,6 +214,24 @@ describe("PushService new-message pushes", () => {
     expect(sends[0]?.payload.body.length).toBeLessThanOrEqual(140);
     expect(sends[0]?.payload.body.endsWith("…")).toBe(true);
   });
+
+  it("prunes a member's dead endpoint after the post has answered", async () => {
+    const chat = await createTestChat({
+      title: "Push Chat",
+      members: [{ userId: users.admin.id }, { userId: users.regular.id }],
+    });
+    await subscribe(users.regular.id, "https://push.example.com/expired");
+    deadEndpoints.add("https://push.example.com/expired");
+
+    // the push runs detached (a unit of work of its own): the post answers
+    // first, the endpoint is deleted when the push service has refused it
+    await as(users.admin.id).messageService.postMessage({ chatId: chat.id, content: "Anyone?" });
+
+    await vi.waitFor(async () => {
+      expect(await testPrisma.pushSubscription.count()).toBe(0);
+    });
+    expect(sends).toHaveLength(0);
+  });
 });
 
 describe("PushService access matrix", () => {
@@ -229,7 +239,7 @@ describe("PushService access matrix", () => {
     await describeAccessMatrix(app, {
       service: pushService,
       principals: {
-        user: await principalOf(users.regular.id),
+        user: { userId: users.regular.id },
         pushAdmin: { userId: users.admin.id, serviceAccess: { pushService: "Admin" } },
       },
       cases: [
@@ -273,6 +283,23 @@ describe("Push resubscribe REST", () => {
 
     const row = await testPrisma.pushSubscription.findUnique({
       where: { endpoint: "https://push.example.com/renewed" },
+    });
+    expect(row?.userId).toBe(users.regular.id);
+  });
+
+  it("takes the session cookie the service worker sends", async () => {
+    const { token } = await issueSession(keys, users.regular.id, { provider: "test" });
+
+    const response = await fetch(`${app.url}/api/push/resubscribe`, {
+      method: "POST",
+      // plain HTTP: the cookie is `session` (`__Host-session` over HTTPS)
+      headers: { "Content-Type": "application/json", Cookie: `session=${token}` },
+      body: JSON.stringify({ endpoint: "https://push.example.com/from-cookie", keys: KEYS }),
+    });
+    expect(response.status).toBe(200);
+
+    const row = await testPrisma.pushSubscription.findUnique({
+      where: { endpoint: "https://push.example.com/from-cookie" },
     });
     expect(row?.userId).toBe(users.regular.id);
   });

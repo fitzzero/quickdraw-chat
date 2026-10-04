@@ -7,7 +7,7 @@ import { notifyChanged, onChanged } from "../../services/definition/index.js";
 import { snakeTunablesOf } from "../../services/game/bootstrap.js";
 import { gameRuntime } from "../../services/game/runtime.js";
 import { createTestUser } from "../factories/user-factory.js";
-import { principalOf, startTestApp, type ApiTestApp } from "../utils/app.js";
+import { startTestApp, type ApiTestApp } from "../utils/app.js";
 
 let app: ApiTestApp;
 
@@ -90,7 +90,7 @@ describe("DefinitionService admin kit", () => {
 
   it("service administrators edit definitions through the admin kit; others are refused", async () => {
     const editor = await createTestUser({ serviceAccess: { definitionService: "Admin" } });
-    const asEditor = app.as(await principalOf(editor.id));
+    const asEditor = app.as({ userId: editor.id });
     const id = await snakeId();
 
     // every row, the disabled one too
@@ -110,7 +110,7 @@ describe("DefinitionService admin kit", () => {
     const { regular, admin } = await seedTestUsers();
     for (const userId of [regular.id, admin.id]) {
       await expect(
-        app.as(await principalOf(userId)).definitionService.adminUpdate({
+        app.as({ userId }).definitionService.adminUpdate({
           id,
           data: { data: { baseSpeed: 999 } },
         }),
@@ -127,7 +127,7 @@ describe("DefinitionService admin kit", () => {
     expect(sim.tunables.baseSpeed).not.toBe(275);
     heard.length = 0;
 
-    await app.as(await principalOf(editor.id)).definitionService.adminUpdate({
+    await app.as({ userId: editor.id }).definitionService.adminUpdate({
       id: await snakeId(),
       data: { data: { baseSpeed: 275, turnRate: 5 } },
     });

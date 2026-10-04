@@ -12,7 +12,7 @@ import { testPrisma } from "@project/db/testing";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTestChat } from "../../../api/src/__tests__/factories/chat-factory";
 import { createTestUser } from "../../../api/src/__tests__/factories/user-factory";
-import { principalOf, startTestApp, type ApiTestApp } from "../../../api/src/__tests__/utils/app";
+import { startTestApp, type ApiTestApp } from "../../../api/src/__tests__/utils/app";
 import ChatPage from "../app/chats/[chatId]/page";
 import ChatsPage from "../app/chats/page";
 import { ChatSidebar } from "../components/chat/ChatSidebar";
@@ -51,14 +51,14 @@ afterAll(async () => {
 async function renderAs(userId: string, ui: React.ReactElement): Promise<RenderResult> {
   return await renderWithQuickdraw(ui, {
     app,
-    as: await principalOf(userId),
+    as: { userId },
     client: qd,
     wrapper: AppProviders,
   });
 }
 
-async function as(userId: string): Promise<ReturnType<ApiTestApp["as"]>> {
-  return app.as(await principalOf(userId));
+function as(userId: string): ReturnType<ApiTestApp["as"]> {
+  return app.as({ userId });
 }
 
 /**
@@ -112,15 +112,13 @@ describe("the chat list (myChats)", () => {
     expect(listedTitles(view)).toEqual(["Newer chat", "Older chat"]);
 
     // A message moves its chat to the top (lastMessageAt orders the list)
-    await (await as(bo)).messageService.postMessage({ chatId: older.id, content: "bump" });
+    await as(bo).messageService.postMessage({ chatId: older.id, content: "bump" });
     await waitFor(() => {
       expect(listedTitles(view)).toEqual(["Older chat", "Newer chat"]);
     });
 
     // A chat another user creates with this one appears, on top
-    await (
-      await as(bo)
-    ).chatService.createChat({
+    await as(bo).chatService.createChat({
       title: "From Bo",
       members: [{ userId: ada, level: "Read" }],
     });
@@ -138,7 +136,7 @@ describe("a chat's messages (byChat)", () => {
     const view = await renderAs(ada, <ChatWindow chatId={chat.id} />);
     await view.findByText("No messages yet. Start the conversation!");
 
-    await (await as(bo)).messageService.postMessage({ chatId: chat.id, content: "Hello from Bo" });
+    await as(bo).messageService.postMessage({ chatId: chat.id, content: "Hello from Bo" });
     await view.findByText("Hello from Bo");
   });
 
@@ -240,7 +238,7 @@ describe("the chat page", () => {
     const view = await renderAs(ada, <ChatPage />);
     await view.findByText("No messages yet. Start the conversation!");
 
-    await (await as(bo)).chatService.deleteChat({ id: chat.id });
+    await as(bo).chatService.deleteChat({ id: chat.id });
     await view.findByText("Chat not found");
   });
 });

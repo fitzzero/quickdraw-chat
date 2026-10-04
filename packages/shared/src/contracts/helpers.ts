@@ -1,5 +1,4 @@
-// Schema helpers moved here from the api package by @fitzzero/quickdraw-codemod,
-// for the contracts' schemas. The api package keeps its own copies.
+// Schema helpers shared by the contracts' schemas.
 
 import { z } from "zod";
 import type { AccessLevel } from "../types/access.js";

@@ -4,13 +4,7 @@ import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import type { ChatMemberDTO } from "@project/shared";
 import { chatService } from "../../services/chat/index.js";
-import {
-  principalOf,
-  startTestApp,
-  subscribeEntity,
-  subscribeScope,
-  type ApiTestApp,
-} from "../utils/app.js";
+import { startTestApp, subscribeEntity, subscribeScope, type ApiTestApp } from "../utils/app.js";
 import { createTestUser } from "../factories/user-factory.js";
 
 type Users = Awaited<ReturnType<typeof seedTestUsers>>;
@@ -33,8 +27,8 @@ beforeEach(async () => {
 });
 
 /** An in-process caller acting as the user, with their stored grants. */
-async function as(userId: string): Promise<ReturnType<ApiTestApp["as"]>> {
-  return app.as(await principalOf(userId));
+function as(userId: string): ReturnType<ApiTestApp["as"]> {
+  return app.as({ userId });
 }
 
 async function membership(chatId: string, userId: string): Promise<{ level: string } | null> {
@@ -56,9 +50,7 @@ async function codeOf(call: Promise<unknown>): Promise<string> {
 
 describe("ChatService", () => {
   it("creates a chat with the caller as its Admin", async () => {
-    const result = await (
-      await as(users.regular.id)
-    ).chatService.createChat({ title: "Test Chat" });
+    const result = await as(users.regular.id).chatService.createChat({ title: "Test Chat" });
 
     expect((await membership(result.id, users.regular.id))?.level).toBe("Admin");
     const chat = await testPrisma.chat.findUniqueOrThrow({ where: { id: result.id } });
@@ -67,7 +59,7 @@ describe("ChatService", () => {
   });
 
   it("adds the invited user, whose myChats then lists the chat", async () => {
-    const admin = await as(users.admin.id);
+    const admin = as(users.admin.id);
     const chat = await admin.chatService.createChat({ title: "Admin Chat" });
 
     const invited = await admin.chatService.inviteUser({
@@ -86,7 +78,7 @@ describe("ChatService", () => {
   });
 
   it("refuses a non-member's subscription to the chat", async () => {
-    const chat = await (await as(users.admin.id)).chatService.createChat({ title: "Private" });
+    const chat = await as(users.admin.id).chatService.createChat({ title: "Private" });
 
     // users.regular has no grants and is no member
     const regular = await app.connect({ userId: users.regular.id });
@@ -96,14 +88,12 @@ describe("ChatService", () => {
   });
 
   it("lets a member at Moderate rename the chat", async () => {
-    const owner = await as(users.regular.id);
+    const owner = as(users.regular.id);
     const chat = await owner.chatService.createChat({ title: "Original Title" });
     const editor = await createTestUser();
     await owner.chatService.inviteUser({ id: chat.id, userId: editor.id, level: "Moderate" });
 
-    const updated = await (
-      await as(editor.id)
-    ).chatService.updateTitle({
+    const updated = await as(editor.id).chatService.updateTitle({
       id: chat.id,
       title: "Updated Title",
     });
@@ -111,17 +101,17 @@ describe("ChatService", () => {
   });
 
   it("lets a member leave", async () => {
-    const admin = await as(users.admin.id);
+    const admin = as(users.admin.id);
     const chat = await admin.chatService.createChat({ title: "Test Chat" });
     await admin.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
 
-    const left = await (await as(users.regular.id)).chatService.leaveChat({ id: chat.id });
+    const left = await as(users.regular.id).chatService.leaveChat({ id: chat.id });
     expect(left.id).toBe(chat.id);
     expect(await membership(chat.id, users.regular.id)).toBeNull();
   });
 
   it("deletes a chat for its Admin", async () => {
-    const owner = await as(users.regular.id);
+    const owner = as(users.regular.id);
     const chat = await owner.chatService.createChat({ title: "To Delete" });
 
     const result = await owner.chatService.deleteChat({ id: chat.id });
@@ -130,7 +120,7 @@ describe("ChatService", () => {
   });
 
   it("removes a member", async () => {
-    const admin = await as(users.admin.id);
+    const admin = as(users.admin.id);
     const chat = await admin.chatService.createChat({ title: "Test Chat" });
     await admin.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
     expect(await membership(chat.id, users.regular.id)).not.toBeNull();
@@ -141,7 +131,7 @@ describe("ChatService", () => {
   });
 
   it("refuses an invite above the inviter's own level", async () => {
-    const owner = await as(users.regular.id);
+    const owner = as(users.regular.id);
     const chat = await owner.chatService.createChat({ title: "Levels" });
     const moderatorMember = await createTestUser();
     const newcomer = await createTestUser();
@@ -151,7 +141,7 @@ describe("ChatService", () => {
       level: "Moderate",
     });
 
-    const asModerator = await as(moderatorMember.id);
+    const asModerator = as(moderatorMember.id);
     expect(
       await codeOf(
         asModerator.chatService.inviteUser({ id: chat.id, userId: newcomer.id, level: "Admin" }),
@@ -176,7 +166,7 @@ describe("ChatService", () => {
   });
 
   it("answers user_not_found when inviting an unknown name", async () => {
-    const owner = await as(users.regular.id);
+    const owner = as(users.regular.id);
     const chat = await owner.chatService.createChat({ title: "By Name" });
     const unknown = await owner.chatService.inviteByName({
       chatId: chat.id,
@@ -196,7 +186,7 @@ describe("ChatService", () => {
 
 describe("ChatService live updates", () => {
   it("sends a rename to the chat's subscribed members", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "Original Title" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
     const member = await app.connect({ userId: users.regular.id });
@@ -218,7 +208,7 @@ describe("ChatService live updates", () => {
   });
 
   it("sends a deletion to the chat's subscribed members", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "To Be Deleted" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
     const member = await app.connect({ userId: users.regular.id });
@@ -249,7 +239,7 @@ describe("ChatService member updates (memberUpdate)", () => {
   }
 
   it("tells the members when a user is invited", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "Test Chat" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.moderator.id, level: "Read" });
     const existing = await app.connect({ userId: users.moderator.id });
@@ -269,7 +259,7 @@ describe("ChatService member updates (memberUpdate)", () => {
   });
 
   it("tells the remaining members when a user is removed", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "Test Chat" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.moderator.id, level: "Read" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
@@ -291,14 +281,14 @@ describe("ChatService member updates (memberUpdate)", () => {
   });
 
   it("tells the remaining members when a user leaves", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "Test Chat" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.moderator.id, level: "Read" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
     const remaining = await app.connect({ userId: users.moderator.id });
     app.frames.clear();
 
-    await (await as(users.regular.id)).chatService.leaveChat({ id: chat.id });
+    await as(users.regular.id).chatService.leaveChat({ id: chat.id });
 
     const update = await nextMemberUpdate(users.moderator.id);
     expect(update.members).toHaveLength(2);
@@ -310,10 +300,8 @@ describe("ChatService member updates (memberUpdate)", () => {
 describe("ChatService permission cascade (updateTitle needs Moderate)", () => {
   it("allows a service-wide Moderate grant without membership", async () => {
     // users.moderator holds chatService: Moderate
-    const chat = await (await as(users.admin.id)).chatService.createChat({ title: "Original" });
-    const updated = await (
-      await as(users.moderator.id)
-    ).chatService.updateTitle({
+    const chat = await as(users.admin.id).chatService.createChat({ title: "Original" });
+    const updated = await as(users.moderator.id).chatService.updateTitle({
       id: chat.id,
       title: "Updated by Service Moderate",
     });
@@ -321,16 +309,14 @@ describe("ChatService permission cascade (updateTitle needs Moderate)", () => {
   });
 
   it("allows a member at Moderate", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "Original" });
     await owner.chatService.inviteUser({
       id: chat.id,
       userId: users.regular.id,
       level: "Moderate",
     });
-    const updated = await (
-      await as(users.regular.id)
-    ).chatService.updateTitle({
+    const updated = await as(users.regular.id).chatService.updateTitle({
       id: chat.id,
       title: "Updated by Entry Moderate",
     });
@@ -338,10 +324,8 @@ describe("ChatService permission cascade (updateTitle needs Moderate)", () => {
   });
 
   it("allows a service-wide Admin grant (above Moderate)", async () => {
-    const chat = await (await as(users.regular.id)).chatService.createChat({ title: "Original" });
-    const updated = await (
-      await as(users.admin.id)
-    ).chatService.updateTitle({
+    const chat = await as(users.regular.id).chatService.createChat({ title: "Original" });
+    const updated = await as(users.admin.id).chatService.updateTitle({
       id: chat.id,
       title: "Updated by Service Admin",
     });
@@ -349,11 +333,11 @@ describe("ChatService permission cascade (updateTitle needs Moderate)", () => {
   });
 
   it("refuses a member at Read", async () => {
-    const owner = await as(users.admin.id);
+    const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "Original Title" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
 
-    const reader = await as(users.regular.id);
+    const reader = as(users.regular.id);
     expect(
       await codeOf(reader.chatService.updateTitle({ id: chat.id, title: "Unauthorized" })),
     ).toBe("FORBIDDEN");
@@ -362,10 +346,8 @@ describe("ChatService permission cascade (updateTitle needs Moderate)", () => {
   });
 
   it("refuses a non-member", async () => {
-    const chat = await (
-      await as(users.admin.id)
-    ).chatService.createChat({ title: "Original Title" });
-    const stranger = await as(users.regular.id);
+    const chat = await as(users.admin.id).chatService.createChat({ title: "Original Title" });
+    const stranger = as(users.regular.id);
     expect(
       await codeOf(stranger.chatService.updateTitle({ id: chat.id, title: "Unauthorized" })),
     ).toBe("FORBIDDEN");
@@ -381,13 +363,13 @@ describe("ChatService access matrix", () => {
       createTestUser({ name: "Stranger" }),
       createTestUser({ name: "Extra" }),
     ]);
-    const ownerCaller = await as(owner.id);
+    const ownerCaller = as(owner.id);
     const chat = await ownerCaller.chatService.createChat({ title: "Matrix" });
     await ownerCaller.chatService.inviteUser({ id: chat.id, userId: member.id, level: "Read" });
     const principals = {
-      owner: await principalOf(owner.id),
-      member: await principalOf(member.id),
-      stranger: await principalOf(stranger.id),
+      owner: { userId: owner.id },
+      member: { userId: member.id },
+      stranger: { userId: stranger.id },
     };
 
     await describeAccessMatrix(app, {

@@ -30,6 +30,11 @@ import { qd } from "../../lib/quickdraw";
 import type { AdminServiceMeta, AdminFieldConfig } from "@project/shared";
 import type { AdminKey, AdminMembers, AdminRow } from "./adminMembers";
 
+/** The user's grants field, which `admin.handlers(user, { grants: true })` adds to adminMeta. */
+function isGrants(field: AdminFieldConfig): boolean {
+  return field.name === "serviceAccess";
+}
+
 /** Safely convert unknown to string for display - avoids no-base-to-string for objects */
 function toDisplayString(val: unknown, pretty = false): string {
   if (val === null || val === undefined) return "";
@@ -396,9 +401,10 @@ export function AdminEntitySidebar({
 
         <Divider sx={{ my: 2 }} />
 
-        {/* Fields (the kit leaves out hidden ones: acl, serviceAccess) */}
+        {/* Fields (the kit leaves out hidden ones, such as acl); a user's
+            grants have their own editor below */}
         {meta.fields
-          .filter((f) => f.name !== "id")
+          .filter((f) => f.name !== "id" && !(serviceKey === "userService" && isGrants(f)))
           .map((field) => (
             <Box key={field.name} sx={{ mb: 2 }}>
               {editedValues !== null && field.editable ? (

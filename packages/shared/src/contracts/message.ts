@@ -1,8 +1,6 @@
-// The contract of messageService, written by @fitzzero/quickdraw-codemod from
-// MessageServiceMethods and the defineMethod calls of MessageService
-// (apps/api/src/services/message/index.ts), then completed by hand: real output
-// schemas, the entity, the `withAuthor` projection, the `byChat` collection and
-// the admin kit.
+// The contract of messageService: the message entity, the `withAuthor`
+// projection a chat's history shows, the `byChat` collection and the admin
+// kit.
 
 import { admin, defineContract, mutation } from "@fitzzero/quickdraw-core";
 import { z } from "zod";

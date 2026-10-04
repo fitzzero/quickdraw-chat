@@ -33,24 +33,17 @@ async function listMembers(db: Db, chatId: string): Promise<ChatMemberDTO[]> {
 }
 
 /**
- * A membership write's follow-up: the chat's row is written (its updatedAt),
- * so its `myChats` item (its member count) goes out again to every member,
- * and each member still in the chat gets the new member list
- * (`memberUpdate`, 4.x's "chat:memberUpdate" room event). Who joined or left
- * a member's list, and who lost access to the chat, the tracked membership
- * write itself decides.
+ * A membership write's follow-up: each member still in the chat gets the new
+ * member list (`memberUpdate`). The tracked membership write itself decides
+ * the rest: who joined or left a member's `myChats` list, who lost access to
+ * the chat, and (`refreshEntry` on the collection) the new member count in
+ * the lists that still hold the chat.
  */
 async function membersChanged(
   ctx: Pick<BaseContext, "rooms">,
   db: Db,
   chatId: string,
 ): Promise<void> {
-  // quickdraw-5.0 finding: `affects` hangs off a service's own model only, and ChatMember has no service, so a membership write cannot re-send the chat whose memberCount it changed; and ctx.touch("chat", id), the documented way to say a row changed unseen, makes the via collection drop the `removed` delta for the member a junction delete in the same flush took out (moves.ts viaMove treats a touched entry as having been in no scope). So the chat row is written for real
-  await db.chat.update({
-    where: { id: chatId },
-    data: { updatedAt: new Date() },
-    select: { id: true },
-  });
   const current = await listMembers(db, chatId);
   for (const member of current) {
     ctx.rooms.emitToUser(member.userId, chatContract, "memberUpdate", {
@@ -63,8 +56,8 @@ async function membersChanged(
 /**
  * Refuses a level above the caller's own on the chat: their membership's
  * level, or their service-wide chatService grant when it is higher (a
- * service-wide Admin grant may give any level). The sharing kit's rule, which
- * 4.x lacked: a Moderate could make anyone, themself included, an Admin.
+ * service-wide Admin grant may give any level). The sharing kit's rule:
+ * without it a Moderate could make anyone, themself included, an Admin.
  */
 async function checkGrantable(
   ctx: Pick<BaseContext, "principal">,
@@ -99,22 +92,24 @@ export const chatService = qd.defineService(chatContract, {
   collections: { myChats: { scopeAccess: "self" } },
   project: {
     listItem: {
+      // the members' ids, counted in `map`: a relation `_count` would group
+      // the whole membership table on every read
       select: {
         title: true,
         lastMessageAt: true,
         createdAt: true,
-        _count: { select: { members: true } },
+        members: { select: { id: true } },
       },
       map: (row: {
         id: string;
         title: string;
         lastMessageAt: Date;
         createdAt: Date;
-        _count: { members: number };
+        members: readonly { id: string }[];
       }) => ({
         id: row.id,
         title: row.title,
-        memberCount: row._count.members,
+        memberCount: row.members.length,
         lastMessageAt: row.lastMessageAt.toISOString(),
         createdAt: row.createdAt.toISOString(),
       }),
@@ -123,7 +118,7 @@ export const chatService = qd.defineService(chatContract, {
   methods: {
     // quickdraw: hand-written because it creates the chat together with its memberships (the caller as Admin, plus the members invited with it) in one transaction, where the read/write kit's create writes one row
     createChat: {
-      // any signed-in user may start a chat (4.x: "Read" without a row id)
+      // any signed-in user may start a chat: names no row by id
       access: "authenticated",
       handler: async ({ input, ctx, db }) => {
         const creator = ctx.principal.userId;

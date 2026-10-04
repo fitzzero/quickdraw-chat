@@ -1,6 +1,6 @@
-// The app's contracts, written by @fitzzero/quickdraw-codemod. The web client is
-// built from `contracts` (`createQuickdrawClient(contracts)`), keyed by service
-// name so every 4.x call site keeps its name: `qd.projectService.getProject`.
+// The app's contracts. The web client is built from `contracts`
+// (`createQuickdrawClient(contracts)`), keyed by service name, so a member
+// reads as the server names it: `qd.chatService.createChat`.
 
 import { chatContract } from "./chat.js";
 import { documentContract } from "./document.js";

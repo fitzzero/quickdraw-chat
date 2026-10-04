@@ -11,7 +11,7 @@ import { GLOBAL_WORLD_ID, GLOBAL_WORLD_ROOM, GLOBAL_WORLD_SLUG } from "@project/
 import { ensureGlobalWorld } from "../../services/game/bootstrap.js";
 import { gameRuntime } from "../../services/game/runtime.js";
 import { createTestUser } from "../factories/user-factory.js";
-import { principalOf, startTestApp, type ApiConnection, type ApiTestApp } from "../utils/app.js";
+import { startTestApp, type ApiConnection, type ApiTestApp } from "../utils/app.js";
 
 const WORLD = { worldId: GLOBAL_WORLD_ID };
 
@@ -57,13 +57,13 @@ afterEach(async () => {
   });
 });
 
-async function as(userId: string): Promise<ReturnType<ApiTestApp["as"]>> {
-  return app.as(await principalOf(userId));
+function as(userId: string): ReturnType<ApiTestApp["as"]> {
+  return app.as({ userId });
 }
 
 /** A real protocol 5 socket acting for `userId` (anonymous for `null`). */
 async function connect(userId: string | null): Promise<ApiConnection> {
-  const connection = await app.connect(userId === null ? null : await principalOf(userId));
+  const connection = await app.connect(userId === null ? null : { userId });
   opened.push(connection);
   return connection;
 }
@@ -128,7 +128,7 @@ async function worldEvent<T>(
 
 describe("GameService", () => {
   it("joins: answers the full bootstrap and adds the player to the world chat", async () => {
-    const bootstrap = await (await as(users.regular.id)).gameService.joinGame(WORLD);
+    const bootstrap = await as(users.regular.id).gameService.joinGame(WORLD);
 
     expect(bootstrap.worldId).toBe(GLOBAL_WORLD_ID);
     expect(bootstrap.tickRate).toBe(20);
@@ -146,15 +146,15 @@ describe("GameService", () => {
   });
 
   it("answers the second joiner a bootstrap with both players", async () => {
-    await (await as(users.regular.id)).gameService.joinGame(WORLD);
-    const second = await (await as(users.moderator.id)).gameService.joinGame(WORLD);
+    await as(users.regular.id).gameService.joinGame(WORLD);
+    const second = await as(users.moderator.id).gameService.joinGame(WORLD);
     expect(second.players.map((p) => p.id)).toEqual(
       expect.arrayContaining([users.regular.id, users.moderator.id]),
     );
   });
 
   it("leaveGame takes the player out of the sim", async () => {
-    const player = await as(users.moderator.id);
+    const player = as(users.moderator.id);
     await player.gameService.joinGame(WORLD);
     expect(gameRuntime(testDb).sim.hasPlayer(users.moderator.id)).toBe(true);
 
@@ -169,16 +169,16 @@ describe("GameService", () => {
   });
 
   it("refuses an unknown world with NOT_FOUND", async () => {
-    await expect(
-      (await as(users.regular.id)).gameService.joinGame({ worldId: "nope" }),
-    ).rejects.toEqual(new QuickdrawError("NOT_FOUND", "Unknown world"));
+    await expect(as(users.regular.id).gameService.joinGame({ worldId: "nope" })).rejects.toEqual(
+      new QuickdrawError("NOT_FOUND", "Unknown world"),
+    );
   });
 });
 
 describe("GameService spectating and scores", () => {
   it("watchWorld answers the bootstrap without spawning, and adds the world chat", async () => {
     const before = gameRuntime(testDb).sim.playerCount();
-    const world = await (await as(users.regular.id)).gameService.watchWorld(WORLD);
+    const world = await as(users.regular.id).gameService.watchWorld(WORLD);
 
     expect(gameRuntime(testDb).sim.playerCount()).toBe(before);
     expect(world.snaps.map((s) => s.id)).not.toContain(users.regular.id);
@@ -196,7 +196,7 @@ describe("GameService spectating and scores", () => {
   });
 
   it("getMyBest answers 0 without a score and the stored best with one", async () => {
-    const player = await as(users.regular.id);
+    const player = as(users.regular.id);
     expect(await player.gameService.getMyBest(WORLD)).toEqual({ bestLength: 0 });
 
     await testPrisma.gameScore.create({
@@ -226,7 +226,7 @@ describe("GameService spectating and scores", () => {
     const runtime = gameRuntime(testDb);
     runtime.sim.applyTunables({ npcCount: 3, worldWidth: 450, worldHeight: 450 });
     try {
-      await (await as(users.regular.id)).gameService.joinGame(WORLD);
+      await as(users.regular.id).gameService.joinGame(WORLD);
 
       let sawNpcDeath = false;
       for (let i = 0; i < 3000 && !sawNpcDeath; i++) {
@@ -414,21 +414,19 @@ describe("GameService on the realtime kit", () => {
   it("service administrators list game worlds through the admin kit; others are refused", async () => {
     const gameAdmin = await createTestUser({ serviceAccess: { gameService: "Admin" } });
 
-    const list = await (await as(gameAdmin.id)).gameService.adminList({});
+    const list = await as(gameAdmin.id).gameService.adminList({});
     expect(list.items.map((world) => world.id)).toContain(GLOBAL_WORLD_ID);
-    const renamed = await (
-      await as(gameAdmin.id)
-    ).gameService.adminUpdate({
+    const renamed = await as(gameAdmin.id).gameService.adminUpdate({
       id: GLOBAL_WORLD_ID,
       data: { name: "Snake — Renamed" },
     });
     expect(renamed.name).toBe("Snake — Renamed");
 
-    await expect((await as(users.regular.id)).gameService.adminList({})).rejects.toMatchObject({
+    await expect(as(users.regular.id).gameService.adminList({})).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
     // a chat Admin holds no grant on the game
-    await expect((await as(users.admin.id)).gameService.adminList({})).rejects.toMatchObject({
+    await expect(as(users.admin.id).gameService.adminList({})).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
   });

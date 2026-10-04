@@ -7,8 +7,8 @@ import { notifyNewMessage } from "../push-subscription/index.js";
  * Messages: access inherited from the chat a message belongs to, which is
  * also what opens a chat's `byChat` history (its anchor), so everyone who may
  * read the chat sees every message in it, and nobody else does. The author
- * holds Admin on their own messages on top (4.x stored that in each row's
- * `acl` column), so they may delete them.
+ * holds Admin on their own messages on top (`owner("userId")`), so they may
+ * delete them.
  */
 export const messageService = qd.defineService(messageContract, {
   model: "message",
@@ -47,8 +47,7 @@ export const messageService = qd.defineService(messageContract, {
   },
   methods: {
     postMessage: {
-      // a member of the chat, at Read or above (4.x: any signed-in user, then
-      // an inline membership check)
+      // a member of the chat, at Read or above: the chat's policy decides
       access: { scope: "Read", of: chatContract, id: "chatId" },
       handler: async ({ input, ctx, db }) => {
         const message = await db.$transaction(async (tx) => {
@@ -74,7 +73,7 @@ export const messageService = qd.defineService(messageContract, {
         return { id: message.id };
       },
     },
-    // quickdraw: hand-written because it answers { id, deleted } as callers of 4.x's deleteMessage expect; the read/write kit's delete answers null
+    // quickdraw: hand-written because it answers { id, deleted } as the chat window expects; the read/write kit's delete answers null
     deleteMessage: {
       // its author, the chat's Admins, or a service-wide Admin grant
       access: { service: "Admin", entry: "Admin" },

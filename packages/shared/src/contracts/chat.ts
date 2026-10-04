@@ -1,8 +1,6 @@
-// The contract of chatService, written by @fitzzero/quickdraw-codemod from
-// ChatServiceMethods and the defineMethod calls of ChatService
-// (apps/api/src/services/chat/index.ts), then completed by hand: real output
-// schemas, the entity, the `listItem` projection, the `myChats` collection,
-// the `memberUpdate` event and the admin kit.
+// The contract of chatService: the chat entity, its membership methods, the
+// `listItem` projection, the `myChats` collection, the `memberUpdate` event
+// and the admin kit.
 
 import { admin, defineContract, mutation, query, via } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
@@ -60,8 +58,8 @@ const removeUserSchema = z.object({
  *
  * `lastMessageAt` is a maintained column: the chat's `createdAt` when it is
  * created, then the time of its latest message. It exists so the `myChats`
- * order can name it (an order names columns only), where 4.x sorted the list
- * on the client by `lastMessageAt ?? createdAt`.
+ * order can name it: an order names columns only, so a computed "latest
+ * activity" would have to be sorted on the client.
  */
 export const chatSchema = z.object({
   id: z.string(),
@@ -73,8 +71,8 @@ export const chatSchema = z.object({
 
 /**
  * One item of `myChats`. `memberCount` is computed (the service's projection
- * reads the relation count and maps it), so the item is a projection of its
- * own rather than the entity.
+ * selects the members' ids and counts them in `map`), so the item is a
+ * projection of its own rather than the entity.
  */
 export const chatListItemSchema = z.object({
   id: z.string(),
@@ -103,8 +101,8 @@ export const chatContract = defineContract("chatService", {
     }),
     updateTitle: mutation({
       input: updateTitleSchema,
-      // The row itself, so a rename shows at once (optimistic) where 4.x bound a
-      // SocketTextField; a missing chat is NOT_FOUND where 4.x answered null.
+      // The row itself, so a rename shows at once (an "entity" mutation with
+      // an id is optimistic); a missing chat is NOT_FOUND.
       output: "entity",
       describe: "Renames a chat.",
     }),
@@ -145,8 +143,11 @@ export const chatContract = defineContract("chatService", {
   collections: {
     // Each chat in the list of every member: the scope is a user id, through
     // the membership table, so one chat fans out to all of its members' lists.
+    // The item reads the membership (`memberCount`), so every membership
+    // write sends the chat again to the lists that still hold it
+    // (`refreshEntry`).
     myChats: {
-      scope: via({ model: "chatMember", entry: "chatId", scope: "userId" }),
+      scope: via({ model: "chatMember", entry: "chatId", scope: "userId", refreshEntry: true }),
       item: "listItem",
       // most recent activity first
       order: [
@@ -159,9 +160,8 @@ export const chatContract = defineContract("chatService", {
     },
   },
   events: {
-    // was the 4.x room event "chat:memberUpdate", sent to the chat's room; now
-    // sent to each member (emitToUser) whenever the chat's members change, with
-    // the chat's id so a client showing several chats can tell them apart
+    // Sent to each member (emitToUser) whenever the chat's members change,
+    // with the chat's id so a client showing several chats can tell them apart
     memberUpdate: {
       payload: z.object({ chatId: z.string(), members: z.array(chatMemberSchema) }),
     },

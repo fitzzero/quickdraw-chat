@@ -26,11 +26,12 @@ interface UserServiceAccessEditorProps {
  * Component for editing a user's service-level admin access.
  * Displays toggles for each service with Admin on/off.
  *
- * The admin kit hides `serviceAccess` from its rows and never writes it, so
- * the grants come from the user's live row (an administrator reads it at
- * Admin) and are written by `userService.setServiceAccess`, which is
- * optimistic: the toggles show the saved grants at once, and the user's
- * open sockets get them from the server (`qd:access`).
+ * The grants come from the user's live row (an administrator reads it at
+ * Admin) and are written by the admin kit's `adminUpdate`, which writes
+ * `serviceAccess` for callers whose own userService grant is Admin (the
+ * service passes `grants: true`). The live row shows the saved grants once
+ * the write lands, and the user's open sockets get them from the server
+ * (`qd:access`).
  */
 export function UserServiceAccessEditor({
   userId,
@@ -39,7 +40,7 @@ export function UserServiceAccessEditor({
   const errorText = useErrorText();
   const { services: adminServices, isLoading: servicesLoading } = useAdminServices(qd);
   const { data: user } = qd.userService.useEntity(userId);
-  const setServiceAccess = qd.userService.setServiceAccess.useMutation();
+  const setServiceAccess = qd.userService.admin.adminUpdate.useMutation();
   const isSaving = setServiceAccess.isPending;
 
   // The edited grants (a form draft); null while showing the saved ones
@@ -74,7 +75,7 @@ export function UserServiceAccessEditor({
   const handleSave = (): void => {
     if (draft === null) return;
     setServiceAccess.mutate(
-      { id: userId, serviceAccess: draft },
+      { id: userId, data: { serviceAccess: draft } },
       {
         onSuccess: () => {
           setDraft(null);

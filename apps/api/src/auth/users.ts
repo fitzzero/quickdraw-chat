@@ -30,7 +30,8 @@ export type SignInProfile = Pick<
  * known provider account signs its user in; otherwise an existing user with
  * the profile's email is linked (seeded demo users, a second provider) when
  * the provider verified that email, and the sign-in is refused when it did
- * not (4.x linked unverified emails too); otherwise a user is created. A
+ * not (an unverified email would hand over that user's account); otherwise a
+ * user is created. A
  * profile without an email gets `<id>@<provider>.local`.
  */
 export async function upsertOAuthUser(

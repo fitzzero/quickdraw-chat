@@ -55,7 +55,8 @@ describe("Guest auth", () => {
   it("creates a guest user and signs it in with a session cookie", async () => {
     const response = await createGuest("Wandering Snek");
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { userId: string };
+    const body = (await response.json()) as { userId: string; name: string };
+    expect(body.name).toBe("Wandering Snek");
 
     const user = await testPrisma.user.findUniqueOrThrow({
       where: { id: body.userId },
@@ -75,9 +76,11 @@ describe("Guest auth", () => {
     expect((await createGuest("Snek")).status).toBe(200);
     const second = await createGuest("Snek");
     expect(second.status).toBe(200);
-    const { userId } = (await second.json()) as { userId: string };
+    // the route answers the name the guest got
+    const { userId, name } = (await second.json()) as { userId: string; name: string };
+    expect(name).toMatch(/^Snek#\d{4}$/);
     const user = await testPrisma.user.findUniqueOrThrow({ where: { id: userId } });
-    expect(user.name).toMatch(/^Snek#\d{4}$/);
+    expect(user.name).toBe(name);
   });
 
   it("refuses invalid names with VALIDATION (422)", async () => {

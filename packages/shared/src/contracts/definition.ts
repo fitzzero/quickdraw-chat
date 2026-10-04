@@ -1,7 +1,5 @@
-// The contract of definitionService, written by @fitzzero/quickdraw-codemod from
-// DefinitionServiceMethods and the defineMethod calls of DefinitionService
-// (apps/api/src/services/definition/index.ts), then completed by hand: the
-// entity and the admin kit.
+// The contract of definitionService: data-driven game content, read by
+// anyone (enabled rows) and edited through the admin kit.
 
 import { admin, defineContract, listOf, nullable, query } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
@@ -24,7 +22,6 @@ export const definitionSchema = z.object({
   id: z.string(),
   type: z.string(),
   key: z.string(),
-  // quickdraw-5.0 finding: a Json column (JsonValue in the Prisma row) a handler cannot return for this typed object without a cast; see document.ts
   data: z.record(z.string(), z.unknown()),
   version: z.number().int(),
   enabled: z.boolean(),

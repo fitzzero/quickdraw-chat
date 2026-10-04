@@ -4,7 +4,7 @@ import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import type { MessageDTO } from "@project/shared";
 import { messageService } from "../../services/message/index.js";
-import { principalOf, startTestApp, subscribeScope, type ApiTestApp } from "../utils/app.js";
+import { startTestApp, subscribeScope, type ApiTestApp } from "../utils/app.js";
 import { createTestChat, createTestMessage } from "../factories/chat-factory.js";
 import { createTestUser } from "../factories/user-factory.js";
 
@@ -26,8 +26,8 @@ beforeEach(async () => {
   users = await seedTestUsers();
 });
 
-async function as(userId: string): Promise<ReturnType<ApiTestApp["as"]>> {
-  return app.as(await principalOf(userId));
+function as(userId: string): ReturnType<ApiTestApp["as"]> {
+  return app.as({ userId });
 }
 
 async function codeOf(call: Promise<unknown>): Promise<string> {
@@ -41,7 +41,7 @@ async function codeOf(call: Promise<unknown>): Promise<string> {
 
 describe("MessageService", () => {
   it("posts a message and moves its chat's activity", async () => {
-    const regular = await as(users.regular.id);
+    const regular = as(users.regular.id);
     const chat = await regular.chatService.createChat({ title: "Message Test Chat" });
 
     const result = await regular.messageService.postMessage({
@@ -57,7 +57,7 @@ describe("MessageService", () => {
   });
 
   it("pages a chat's history through byChat, newest first", async () => {
-    const regular = await as(users.regular.id);
+    const regular = as(users.regular.id);
     const chat = await regular.chatService.createChat({ title: "List Test Chat" });
     for (const content of ["First message", "Second message", "Third message"]) {
       await regular.messageService.postMessage({ chatId: chat.id, content });
@@ -83,10 +83,10 @@ describe("MessageService", () => {
   });
 
   it("refuses a post to a chat the caller is no member of", async () => {
-    const chat = await (await as(users.admin.id)).chatService.createChat({ title: "Private" });
+    const chat = await as(users.admin.id).chatService.createChat({ title: "Private" });
     expect(
       await codeOf(
-        (await as(users.regular.id)).messageService.postMessage({
+        as(users.regular.id).messageService.postMessage({
           chatId: chat.id,
           content: "Unauthorized message",
         }),
@@ -95,7 +95,7 @@ describe("MessageService", () => {
   });
 
   it("lets the author delete their own message", async () => {
-    const regular = await as(users.regular.id);
+    const regular = as(users.regular.id);
     const chat = await regular.chatService.createChat({ title: "Delete Test Chat" });
     const message = await regular.messageService.postMessage({
       chatId: chat.id,
@@ -110,7 +110,7 @@ describe("MessageService", () => {
   });
 
   it("lets a service-wide Admin delete any message", async () => {
-    const regular = await as(users.regular.id);
+    const regular = as(users.regular.id);
     const chat = await regular.chatService.createChat({ title: "Service Admin Test" });
     const message = await regular.messageService.postMessage({
       chatId: chat.id,
@@ -118,9 +118,7 @@ describe("MessageService", () => {
     });
 
     // users.admin holds messageService: Admin and is no member of the chat
-    const result = await (
-      await as(users.admin.id)
-    ).messageService.deleteMessage({ id: message.id });
+    const result = await as(users.admin.id).messageService.deleteMessage({ id: message.id });
     expect(result.deleted).toBe(true);
     expect(await testPrisma.message.findUnique({ where: { id: message.id } })).toBeNull();
   });
@@ -134,9 +132,9 @@ describe("MessageService", () => {
     });
     const message = await createTestMessage({ chatId: chat.id, userId: author.id });
 
-    expect(
-      await codeOf((await as(reader.id)).messageService.deleteMessage({ id: message.id })),
-    ).toBe("FORBIDDEN");
+    expect(await codeOf(as(reader.id).messageService.deleteMessage({ id: message.id }))).toBe(
+      "FORBIDDEN",
+    );
     expect(await testPrisma.message.findUnique({ where: { id: message.id } })).not.toBeNull();
   });
 
@@ -149,7 +147,7 @@ describe("MessageService", () => {
     });
     const message = await createTestMessage({ chatId: chat.id, userId: member.id });
 
-    const result = await (await as(chatAdmin.id)).messageService.deleteMessage({ id: message.id });
+    const result = await as(chatAdmin.id).messageService.deleteMessage({ id: message.id });
     expect(result.deleted).toBe(true);
   });
 });
@@ -170,18 +168,21 @@ describe("MessageService access matrix", () => {
         { userId: reader.id, level: "Read" },
       ],
     });
-    const byAuthor = await createTestMessage({ chatId: chat.id, userId: author.id });
-    const byReader = await createTestMessage({ chatId: chat.id, userId: reader.id });
+    // Each delete runs for real, so every cell deletes a fresh message
+    const byAuthor = async (): Promise<{ id: string }> => ({
+      id: (await createTestMessage({ chatId: chat.id, userId: author.id })).id,
+    });
+    const byReader = async (): Promise<{ id: string }> => ({
+      id: (await createTestMessage({ chatId: chat.id, userId: reader.id })).id,
+    });
 
-    // Each delete runs for real: once it ran, the row is gone, which denies
-    // every principal after it (a missing row denies)
     await describeAccessMatrix(app, {
       service: messageService,
       principals: {
-        author: await principalOf(author.id),
-        chatAdmin: await principalOf(chatAdmin.id),
-        reader: await principalOf(reader.id),
-        stranger: await principalOf(stranger.id),
+        author: { userId: author.id },
+        chatAdmin: { userId: chatAdmin.id },
+        reader: { userId: reader.id },
+        stranger: { userId: stranger.id },
       },
       cases: [
         {
@@ -190,16 +191,16 @@ describe("MessageService access matrix", () => {
           allow: ["author", "chatAdmin", "reader"],
         },
         {
-          label: "deleteMessage (its author)",
+          label: "deleteMessage (the author's)",
           method: "deleteMessage",
-          input: { id: byAuthor.id },
-          allow: ["author"],
+          input: byAuthor,
+          allow: ["author", "chatAdmin"],
         },
         {
-          label: "deleteMessage (a member's, by the chat's Admin)",
+          label: "deleteMessage (another member's)",
           method: "deleteMessage",
-          input: { id: byReader.id },
-          allow: ["chatAdmin"],
+          input: byReader,
+          allow: ["chatAdmin", "reader"],
         },
         { method: "adminList", input: {}, allow: [] },
       ],

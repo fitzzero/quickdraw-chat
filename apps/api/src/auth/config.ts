@@ -41,7 +41,7 @@ const LOCALHOST_ORIGIN = /^http:\/\/localhost:\d+$/;
  * The web app's origins, one list for CORS, the sign-in return and the pages
  * that may open a socket with the session cookie: CLIENT_URL first (where a
  * sign-in without `returnTo` lands), then EXTRA_ALLOWED_ORIGINS, Codespaces,
- * and localhost outside production, as 4.x's `validateRedirectOrigin` allowed.
+ * and localhost outside production.
  */
 export function allowedOriginsFromEnv(): AllowedOrigin[] {
   const extra = (process.env.EXTRA_ALLOWED_ORIGINS ?? "")

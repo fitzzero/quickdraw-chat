@@ -2,9 +2,8 @@
  * Every service the API serves, in one list: the server, the MCP server, the
  * tests and the bench all take theirs from here, so a new service lands in
  * every root at once. Each service is an object, defined once when its module
- * loads; what 4.x passed to service constructors (the push transport, the
- * game's seed and tunables) is set up by each root (`configurePush`,
- * `createGameRuntime`).
+ * loads; what a root configures (the push transport, the game's seed and
+ * tunables) it sets up itself (`configurePush`, `createGameRuntime`).
  */
 
 import { chatService } from "./chat/index.js";
