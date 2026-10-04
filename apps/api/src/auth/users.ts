@@ -18,7 +18,7 @@ function maybeEncrypt(value: string | null | undefined): string | null {
   return process.env.ENCRYPTION_KEY ? encrypt(value) : value;
 }
 
-/** A provider's profile, as the routes and the Discord Activity route report it. */
+/** A provider's profile, as the sign-in routes (the kit's and the app's own) report it. */
 export type SignInProfile = Pick<
   AuthProfile,
   "providerAccountId" | "email" | "emailVerified" | "name" | "image" | "tokens"

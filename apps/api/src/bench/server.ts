@@ -3,14 +3,11 @@
  * (__tests__/utils/app.ts + setup.ts) minus vitest, plus a RUNNING game
  * loop and the ground-truth recorder. PGlite by default (the tick path is
  * DB-free; score writes are fire-and-forget), real PostgreSQL when
- * TEST_DATABASE_URL is set.
- *
- * quickdraw-game: the minimal 5.0 port. The server is 5.0's; the bots
- * (`bot/client.ts`) still speak the 4.x wire, which a 5.0 server refuses, so
- * the netcode bench runs again with the game's port (child 4).
+ * TEST_DATABASE_URL is set. The bots sign in as the Godot editor does: the
+ * app's own `authenticate` with development credentials (`auth: { userId }`).
  *
  * IMPORTANT: import this module only AFTER setting the bench env
- * (see setupBenchEnv in run.ts) — services read env at import time.
+ * (see run.ts) — the app's sign-in reads ENABLE_DEV_CREDENTIALS when built.
  */
 
 import type { AddressInfo } from "node:net";
@@ -20,12 +17,16 @@ import { PrismaClient } from "@project/db";
 import { setTestPrisma, testDb, testPrisma } from "@project/db/testing";
 import type { Scenario } from "@project/bench";
 import { createPrismaTestGlobalSetup } from "@fitzzero/quickdraw-core/testing/prisma";
-import { devCredentialsPrincipal } from "../auth/dev-credentials.js";
-import { createGrantsLoader } from "../auth/grants.js";
+import { createAppAuth } from "../auth/index.js";
 import { qd } from "../quickdraw.js";
 import { serviceNames, services } from "../services/index.js";
 import { ensureGlobalWorld } from "../services/game/bootstrap.js";
-import { createGameRuntime, type GameRuntime } from "../services/game/runtime.js";
+import {
+  createGameRuntime,
+  onGameRoomLeave,
+  worldAudience,
+  type GameRuntime,
+} from "../services/game/runtime.js";
 import { createGroundTruthRecorder, type GroundTruthRecorder } from "./ground-truth.js";
 
 export interface BenchServer {
@@ -69,9 +70,16 @@ async function ensureDatabase(): Promise<void> {
   dbReady = true;
 }
 
-export async function startBenchServer(scenario: Scenario): Promise<BenchServer> {
+export interface BenchServerOptions {
+  /** The port to listen on; default any free one. The Godot check restarts on the same one. */
+  readonly port?: number;
+}
+
+export async function startBenchServer(
+  scenario: Scenario,
+  options: BenchServerOptions = {},
+): Promise<BenchServer> {
   await ensureDatabase();
-  await ensureGlobalWorld(testPrisma);
 
   const users = new Map<string, string>();
   for (const spec of scenario.clients) {
@@ -85,11 +93,6 @@ export async function startBenchServer(scenario: Scenario): Promise<BenchServer>
   }
 
   const recorder = createGroundTruthRecorder();
-  const game = createGameRuntime(testDb, {
-    simSeed: scenario.seed,
-    tunables: scenario.tunables ?? {},
-    onTick: recorder.onTick,
-  });
 
   // Benchmarks measure timing — keep the hot path free of console I/O
   const silent = (): void => undefined;
@@ -108,13 +111,19 @@ export async function startBenchServer(scenario: Scenario): Promise<BenchServer>
     // Tier 2 connects real browsers (pages served from the web dev server)
     cors: { origin: [process.env.CLIENT_URL ?? "http://localhost:3000"], credentials: true },
     // bots sign in with development credentials (auth.userId)
-    auth: {
-      authenticate: ({ auth }) => devCredentialsPrincipal(testPrisma, auth),
-      loadServiceAccess: createGrantsLoader({ prisma: testPrisma, serviceNames }),
-    },
+    auth: createAppAuth({ prisma: testPrisma, serviceNames }).server,
+    // a bot whose socket left the world leaves the sim, as a player does
+    onRoomLeave: onGameRoomLeave,
+  });
+  await ensureGlobalWorld(testDb);
+  const game = createGameRuntime(testDb, {
+    simSeed: scenario.seed,
+    tunables: scenario.tunables ?? {},
+    hasAudience: worldAudience(server),
+    onTick: recorder.onTick,
   });
   await new Promise<void>((resolvePort) => {
-    server.httpServer.listen(0, () => resolvePort());
+    server.httpServer.listen(options.port ?? 0, () => resolvePort());
   });
   const { port } = server.httpServer.address() as AddressInfo;
 

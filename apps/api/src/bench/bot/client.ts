@@ -1,9 +1,12 @@
 /**
  * BotClient — a headless stand-in for one real game client. Speaks the
- * exact production wire protocol (subscribe → joinGame → input channel →
- * volatile snapshots) through an optional latency proxy, runs the same
- * netcode as the Godot client (LocalPredictor + RemoteInterpolator), and
- * records a ClientTrace for the metrics pipeline.
+ * production wire, quickdraw protocol v5 as the Godot client does
+ * (handshake → `qd:hello` → `qd:stream:sub` of the world stream →
+ * joinGame/watchWorld, which puts the socket in the world's room → `qd:ch`
+ * input → volatile `qd:stream` snapshots and `qd:event` world events),
+ * through an optional latency proxy, runs the same netcode as the Godot
+ * client (LocalPredictor + RemoteInterpolator), and records a ClientTrace
+ * for the metrics pipeline.
  *
  * The render loop targets 60Hz like a browser; ACTUAL frame times are
  * recorded, so timer wobble shows up in the data instead of being assumed
@@ -12,6 +15,13 @@
  */
 
 import { io as ioClient, type Socket } from "socket.io-client";
+import {
+  PROTOCOL_VERSION,
+  type CallReply,
+  type EventFrame,
+  type StreamFrame,
+  type StreamSubscribeReply,
+} from "@fitzzero/quickdraw-core";
 import type { ClientTrace, Scenario } from "@project/bench";
 import { deriveSeed, mulberry32 } from "@project/bench";
 import type {
@@ -22,7 +32,7 @@ import type {
   WorldBootstrap,
   WorldSnapshot,
 } from "@project/shared";
-import { GAME_EVENTS, GLOBAL_WORLD_ID } from "@project/shared";
+import { GLOBAL_WORLD_ID } from "@project/shared";
 import { LocalPredictor, type PredictionTunables } from "./prediction.js";
 import { RemoteInterpolator } from "./interpolation.js";
 import { WorldClock } from "./world-clock.js";
@@ -32,8 +42,9 @@ const RENDER_FRAME_MS = 1000 / 60;
 /** remote_snake pruning: main.gd PRUNE_AFTER_TICKS */
 const PRUNE_AFTER_TICKS = 60;
 const JOIN_TIMEOUT_MS = 15_000;
-
-const INPUT_EVENT = "channel:gameService:input";
+/** `auth.qd`: the protocol the bots speak, and who they are in the server's logs. */
+const HANDSHAKE = { protocol: PROTOCOL_VERSION, client: "quickdraw-chat-bench/0.0.1" };
+const WORLD = { worldId: GLOBAL_WORLD_ID };
 
 export interface BotOptions {
   /** port to actually connect to (proxy port or the real server port) */
@@ -52,18 +63,34 @@ function now(): number {
   return performance.timeOrigin + performance.now();
 }
 
-function emitWithAck<T>(socket: Socket, event: string, payload: unknown): Promise<T> {
+/** Sends an acknowledged event and resolves with its acknowledgement. */
+function request<T>(socket: Socket, event: string, payload: unknown): Promise<T> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(
       () => reject(new Error(`bot ack timeout: ${event}`)),
       JOIN_TIMEOUT_MS,
     );
-    socket.emit(event, payload, (response: { success: boolean; data?: T; error?: string }) => {
+    socket.emit(event, payload, (reply: T) => {
       clearTimeout(timeout);
-      if (response.success && response.data !== undefined) resolve(response.data);
-      else reject(new Error(response.error ?? `bot ack failed: ${event}`));
+      resolve(reply);
     });
   });
+}
+
+/** `qd:call` of a gameService method: its data, or the call's error. */
+async function callGame<T>(socket: Socket, id: number, method: string, input: unknown): Promise<T> {
+  const reply = await request<CallReply<T>>(socket, "qd:call", {
+    id,
+    s: "gameService",
+    m: method,
+    i: input,
+  });
+  if (reply.ok && "d" in reply) return reply.d;
+  throw new Error(
+    reply.ok
+      ? `bot call ${method}: not modified`
+      : `bot call ${method}: ${reply.e.code} ${reply.e.message}`,
+  );
 }
 
 export class BotClient {
@@ -79,6 +106,7 @@ export class BotClient {
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
   private lastFrameAt = 0;
   private stopped = false;
+  private nextCallId = 0;
 
   private readonly trace: ClientTrace;
   /** inputs awaiting ack, seq-ordered (for input→ack RTT) */
@@ -102,19 +130,22 @@ export class BotClient {
   }
 
   public async start(): Promise<void> {
+    // Development credentials (`auth.userId`), as the Godot editor signs in
     const socket = ioClient(`http://127.0.0.1:${this.opts.port}`, {
-      auth: { userId: this.opts.userId },
+      auth: { userId: this.opts.userId, qd: HANDSHAKE },
       transports: ["websocket"],
+      reconnection: false,
       autoConnect: true,
     });
     this.socket = socket;
 
+    // The server is ready for calls once it said hello
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(
         () => reject(new Error(`bot ${this.opts.name}: connect timeout`)),
         JOIN_TIMEOUT_MS,
       );
-      socket.once("connect", () => {
+      socket.once("qd:hello", () => {
         clearTimeout(timeout);
         resolve();
       });
@@ -124,26 +155,33 @@ export class BotClient {
       });
     });
 
-    socket.on(GAME_EVENTS.snapshot, (snapshot: WorldSnapshot) => this.onSnapshot(snapshot));
-    socket.on(GAME_EVENTS.death, (death: GameDeathEvent) => this.onDeath(death));
-    // Parity with main.gd _on_player_left
-    socket.on(GAME_EVENTS.playerLeft, (event: { id: string }) => {
-      this.interpolators.delete(event.id);
+    socket.on("qd:stream", (frame: StreamFrame) => {
+      if (frame.s === "gameService" && frame.stream === "world") {
+        this.onSnapshot(frame.item as WorldSnapshot);
+      }
+    });
+    socket.on("qd:event", ([service, event, payload]: EventFrame) => {
+      if (service !== "gameService") return;
+      if (event === "death") this.onDeath(payload as GameDeathEvent);
+      // Parity with main.gd _on_player_left
+      if (event === "playerLeft") this.interpolators.delete((payload as { id: string }).id);
     });
 
-    // Ordering contract: subscribe FIRST (room membership gates the input
-    // channel and snapshot delivery), then join/watch.
-    await emitWithAck(socket, "gameService:subscribe", { entryId: GLOBAL_WORLD_ID });
+    // Ordering contract: the world stream FIRST (its snapshots supersede the
+    // bootstrap's after it), then join/watch, which puts this socket in the
+    // world's room: its events, and the input channel's requirement.
+    const subscribed = await request<StreamSubscribeReply>(socket, "qd:stream:sub", {
+      s: "gameService",
+      stream: "world",
+      scope: GLOBAL_WORLD_ID,
+    });
+    if (!subscribed.ok) throw new Error(`bot ${this.opts.name}: ${subscribed.e.message}`);
 
     if (this.opts.behaviorKind === "spectator") {
-      const bootstrap = await emitWithAck<WorldBootstrap>(socket, "gameService:watchWorld", {
-        worldId: GLOBAL_WORLD_ID,
-      });
+      const bootstrap = await callGame<WorldBootstrap>(socket, this.callId(), "watchWorld", WORLD);
       this.bounds = bootstrap.bounds;
     } else {
-      const bootstrap = await emitWithAck<GameBootstrap>(socket, "gameService:joinGame", {
-        worldId: GLOBAL_WORLD_ID,
-      });
+      const bootstrap = await callGame<GameBootstrap>(socket, this.callId(), "joinGame", WORLD);
       this.bounds = bootstrap.bounds;
       const own = bootstrap.snaps.find((s) => s.id === this.opts.userId);
       this.predictor = new LocalPredictor(this.opts.tunables, 1 / this.opts.tickRate);
@@ -154,6 +192,12 @@ export class BotClient {
 
     this.lastFrameAt = performance.now();
     this.scheduleRenderFrame();
+  }
+
+  /** A call id no call in flight on this socket has. */
+  private callId(): number {
+    this.nextCallId += 1;
+    return this.nextCallId;
   }
 
   public stop(): ClientTrace {
@@ -224,7 +268,8 @@ export class BotClient {
   }
 
   private sendInput(frame: GameInput): void {
-    this.socket?.emit(INPUT_EVENT, frame);
+    // `qd:ch`: fire and forget, dropped rather than queued when backed up
+    this.socket?.volatile.emit("qd:ch", ["gameService", "input", frame]);
     const tSent = now();
     this.trace.inputs.push({ seq: frame.seq, tSent });
     this.unacked.push({ seq: frame.seq, tSent });
@@ -289,7 +334,7 @@ export class BotClient {
     this.alive = false;
     setTimeout(() => {
       if (this.stopped || !this.socket) return;
-      emitWithAck(this.socket, "gameService:respawn", { worldId: GLOBAL_WORLD_ID }).catch(() => {
+      callGame(this.socket, this.callId(), "respawn", WORLD).catch(() => {
         // Respawn can race shutdown; the bot just stays dead
       });
     }, this.opts.scenario.respawnDelayMs).unref?.();

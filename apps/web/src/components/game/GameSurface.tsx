@@ -4,7 +4,6 @@ import * as React from "react";
 import { Box } from "@mui/material";
 import { useRouter } from "next/navigation";
 import {
-  GAME_EVENTS,
   GLOBAL_WORLD_ID,
   GLOBAL_WORLD_SLUG,
   type GameDeathEvent,
@@ -17,7 +16,6 @@ import { GameHud } from "./GameHud";
 import { GameChatOverlay } from "./GameChatOverlay";
 import { qd, useQuickdraw } from "../../lib/quickdraw";
 import { PreGameDialog } from "./PreGameDialog";
-import { useRoomEvents } from "./roomEvents";
 
 /** Survives the socket cycle (AuthGate remounts the page) and full reloads. */
 const PENDING_START_KEY = "game:pendingStart";
@@ -108,33 +106,26 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
 
   const { data: world } = qd.gameService.getWorld.useQuery(GET_WORLD_PAYLOAD);
 
-  // Personal best — refreshed automatically when a death lands
-  // quickdraw-migrate: review [client] invalidateOn is gone: give the query a watch in its contract entry (it is fetched again when that collection scope changes), or read a collection
-  // (was invalidateOn: [GAME_EVENTS.death]; the death event is inert until the game's port)
+  // Personal best, and the all-time top runs shown inside the dialog
+  // (public — works signed-out too); both are read again when a stored score
+  // changes (scoreSaved, below)
   const { data: myBest } = qd.gameService.getMyBest.useQuery(WORLD_PAYLOAD, {
     enabled: !!userId,
   });
-
-  // All-time top runs shown inside the dialog (public — works signed-out too)
-  // quickdraw-migrate: review [client] invalidateOn is gone: give the query a watch in its contract entry (it is fetched again when that collection scope changes), or read a collection
-  // (was invalidateOn: [GAME_EVENTS.death]; the death event is inert until the game's port)
   const { data: topScores } = qd.gameService.getHighScores.useQuery(TOP_SCORES_PAYLOAD);
 
-  // Death detection on the page socket: world-room membership + the reliable
-  // death stream (the same events Godot consumes)
-  qd.gameService.useEntity(GLOBAL_WORLD_ID, { enabled: !!userId });
+  // This page's socket in the world's room: the world's events reach the
+  // page (deaths here, the leaderboard in the HUD), and it anchors the player
+  useWorldRoom();
 
-  // Anonymous spectate: subscribe requires auth, but a Public watchWorld
-  // call grants this (page) socket world-room membership so the live
-  // leaderboard streams in behind the guest dialog
-  qd.gameService.watchWorld.useQuery(WORLD_PAYLOAD, {
-    enabled: guestFlow && !userId,
+  // Death detection: the same reliable world events Godot consumes
+  qd.gameService.death.useEvent((event) => {
+    if (event.id === userId) setDeath(event);
   });
-  // quickdraw-migrate: review [client] room events: declare them in the contract's events and listen with qd.<service>.<event>.useEvent(handler)
-  useRoomEvents({
-    [GAME_EVENTS.death]: (event: GameDeathEvent) => {
-      if (event.id === userId) setDeath(event);
-    },
+  // quickdraw-5.0 finding: a query over a model no service owns (GameScore, which gameService only `writes`) can declare no watch: a watch names a collection scope or a service topic, and a write to a `writes` model signals neither, so the server sends its own scoreSaved event and the page invalidates by hand
+  qd.gameService.scoreSaved.useEvent((saved) => {
+    qd.invalidate(qd.gameService.getHighScores);
+    if (saved.userId === userId) qd.invalidate(qd.gameService.getMyBest);
   });
 
   const joinGame = qd.gameService.joinGame.useMutation({
@@ -236,6 +227,22 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
     chatId: ready && userId ? (world?.chatId ?? null) : null,
     dialog,
   };
+}
+
+/**
+ * Puts this page's socket in the world's room (watchWorld, which spectating
+ * needs anyway: public, so signed-out visitors too), on every connection:
+ * after a reconnect the new socket is in no room until a call joins it again.
+ */
+// quickdraw-5.0 finding: the typed client has no way to say "run this joining call on every connection": a room joined through a query is lost on reconnect (the client refetches only watched or stale queries, and the query's cached answer still looks fine), so the page re-calls watchWorld whenever a new hello arrives
+function useWorldRoom(): void {
+  const { hello } = useQuickdraw();
+  React.useEffect(() => {
+    if (hello === null) return;
+    qd.gameService.watchWorld.call(WORLD_PAYLOAD).catch(() => {
+      // The next connection's hello tries again
+    });
+  }, [hello]);
 }
 
 interface DialogInputs {

@@ -11,7 +11,9 @@ const ADA: EntityOf<typeof userContract> = {
   name: "Ada Lovelace",
   image: null,
   serviceAccess: null,
+  // ── quickdraw-game:start ──
   isGuest: false,
+  // ── quickdraw-game:end ──
   createdAt: "2026-08-01T09:15:00.000Z",
   updatedAt: "2026-08-01T09:15:00.000Z",
 };

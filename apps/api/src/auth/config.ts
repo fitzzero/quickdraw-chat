@@ -5,9 +5,10 @@ import type { AllowedOrigin } from "@fitzzero/quickdraw-core/server/auth";
 const DEV_JWT_SECRET = "development-secret-DO-NOT-USE-IN-PRODUCTION";
 
 /**
- * Signs the session JWTs (the auth routes, `socketAuth`, the Discord Activity
- * route): 32 characters or more. Required in production (`index.ts`
- * validates the environment); development falls back to a fixed secret.
+ * Signs the session JWTs (the auth routes, `socketAuth`, and the app's own
+ * routes that issue sessions): 32 characters or more. Required in production
+ * (`index.ts` validates the environment); development falls back to a fixed
+ * secret.
  */
 export function jwtSecretFromEnv(): string {
   const secret = process.env.JWT_SECRET;

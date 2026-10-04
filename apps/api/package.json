@@ -18,10 +18,11 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "bench:netcode": "tsx src/bench/run.ts",
-    "bench:server": "tsx src/bench/standalone.ts"
+    "bench:server": "tsx src/bench/standalone.ts",
+    "check:godot": "tsx src/bench/godot-session.ts"
   },
   "dependencies": {
-    "@fitzzero/quickdraw-core": "5.0.0-rc.1",
+    "@fitzzero/quickdraw-core": "5.0.0-rc.3",
     "@project/bench": "workspace:*",
     "@project/db": "workspace:*",
     "@project/shared": "workspace:*",

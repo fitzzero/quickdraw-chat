@@ -1,34 +1,12 @@
 import type { GameBootstrap, HighScoreEntry, WorldBootstrap } from "@project/shared";
-import { GAME_EVENTS, GLOBAL_WORLD_ID, GAME_TICK_RATE, gameContract } from "@project/shared";
+import { GLOBAL_WORLD_ID, GLOBAL_WORLD_ROOM, GAME_TICK_RATE, gameContract } from "@project/shared";
 import { QuickdrawError } from "@fitzzero/quickdraw-core";
-import { resolver } from "@fitzzero/quickdraw-core/server";
+import { admin, resolver } from "@fitzzero/quickdraw-core/server";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
-import { broadcast, gameRuntime, type GameRuntime } from "./runtime.js";
+import { activeGameRuntime, gameRuntime, removePlayer, type GameRuntime } from "./runtime.js";
 
 type Db = typeof appDb;
-
-// quickdraw-game: the minimal 5.0 port. The methods run on 5.0 and keep the
-// sim in `runtime.ts`; the 4.x wire this service also had (the world room,
-// its input channel and broadcasts, presence-anchored players, spectators,
-// the admin screen) is ported with the game itself (child 4). Its review
-// markers stay below.
-
-// quickdraw-migrate: review [channel] 4.x channel: declare it in the contract's channels ({ payload, ratePerSecond, burst, requires }; requireRoom becomes requires: { room }) and handle it in defineService's channels
-// (4.x: channel "input" at Read, payload { seq, dx, dy, boost }, ratePerSecond
-// GAME_TICK_RATE * 1.5, burst GAME_TICK_RATE * 3, requireRoom: the world's room;
-// handler sim.applyInput(userId, payload))
-
-// quickdraw-migrate: review [admin] installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, options) in methods)
-// (4.x: list, get and update of game worlds for service Admins, "Game Worlds")
-
-// quickdraw-migrate: review [this] 4.x overrode unsubscribeSocket(socket) (a disconnect) and unsubscribe(entryId, socket) (leaving the world's row) to call maybeRemovePlayer(socket.userId) after the base class removed the socket: run it wherever a player's last socket leaves the world
-// (4.x removed a player once no socket of theirs stayed in the world room, and
-// broadcast playerLeft; until the port a player leaves only through leaveGame)
-
-// quickdraw-migrate: review [access-override] 4.x access override: port it to the service's access policy (owner, jsonAcl, members, inherit, anyOf or resolver), then delete this function
-// (4.x checkAccess: any signed-in user had Read on every world, which gated
-// the world room; writes needed a service grant)
 
 function unknownWorld(): never {
   throw new QuickdrawError("NOT_FOUND", "Unknown world");
@@ -64,24 +42,40 @@ function buildWorldBootstrap(runtime: GameRuntime, chatId: string | null): World
 }
 
 /**
+ * Every signed-in user reads every world (4.x's checkAccess answered true for
+ * "Read"): a world is public game content, and the methods that act in one
+ * ask `{ entry: "Read" }` of it. Writes need a service-wide grant (the admin
+ * kit's Admin).
+ */
+const anyWorld = resolver({
+  levelsFor: (_principal, ids) => new Map(ids.map((id) => [id, "Read"])),
+  where: (_principal, level) => Promise.resolve(level === "Read" ? {} : "none"),
+});
+
+/** `{ entry: "Read" }` on the world the input names: every signed-in user, by the policy above. */
+const IN_WORLD = { entry: "Read", id: "worldId" } as const;
+
+/**
  * GameService — the real-time game server for the demo snake world.
  *
  * Commands (join/respawn/leave) are ordinary typed methods, callable
- * identically from React and from the Godot client. The simulation itself
- * (GameWorldSim) is pure and in-memory — the database only sees world/chat
- * bootstrap and throttled score writes, never the tick path. See
- * .claude/rules/game-patterns.md.
+ * identically from React and from the Godot client. watchWorld and joinGame
+ * put the calling socket in the world's room, which carries the world's
+ * events and gates the `input` channel; snapshots go out on the `world`
+ * stream. The simulation itself (GameWorldSim, in runtime.ts) is pure and
+ * in-memory — the database only sees world/chat bootstrap and score writes,
+ * never the tick path. See .claude/rules/game-patterns.md.
  */
 export const gameService = qd.defineService(gameContract, {
   model: "gameWorld",
-  // quickdraw-migrate: review [access-override] 4.x decided row access in checkAccess (now functions in this file): port them to a policy (owner, jsonAcl, members, inherit, anyOf or resolver). Until then this policy grants no row, so only service grants pass
-  access: resolver({ levelsFor: () => ({}) }),
+  access: anyWorld,
   // the world chat's memberships and the high scores
   writes: ["chatMember", "gameScore"],
   methods: {
     joinGame: {
-      // quickdraw-migrate: review [access] "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
-      access: "authenticated",
+      // a signed-in user, on a world (4.x: "Read" with no row id, which every
+      // signed-in user passed; the policy gives them all Read on every world)
+      access: IN_WORLD,
       handler: async ({ input, ctx, db }): Promise<GameBootstrap> => {
         if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
         const runtime = gameRuntime(db);
@@ -89,16 +83,21 @@ export const gameService = qd.defineService(gameContract, {
           db.user.findUnique({ where: { id: ctx.principal.userId }, select: { name: true } }),
           db.gameWorld.findUnique({ where: { id: GLOBAL_WORLD_ID }, select: { chatId: true } }),
         ]);
+        // The calling socket hears the world and may send input; the player
+        // stays while any socket of theirs is in the room (onGameRoomLeave)
+        ctx.rooms.join(GLOBAL_WORLD_ROOM);
         const { meta, isNew } = runtime.sim.addPlayer(ctx.principal.userId, user?.name ?? null);
         runtime.playingUsers.add(ctx.principal.userId);
         await ensureChatMembership(db, world?.chatId, ctx.principal.userId);
         if (isNew) {
-          broadcast(GAME_EVENTS.playerJoined, meta);
+          ctx.rooms.emit(GLOBAL_WORLD_ROOM, gameContract, "playerJoined", meta);
         }
         return { ...buildWorldBootstrap(runtime, world?.chatId ?? null), you: meta };
       },
     },
     watchWorld: {
+      // spectating is open to everyone, signed in or not (the guest dialog
+      // sits over a live world)
       access: "public",
       handler: async ({ input, ctx, db }): Promise<WorldBootstrap> => {
         if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
@@ -109,14 +108,16 @@ export const gameService = qd.defineService(gameContract, {
         if (ctx.principal !== null) {
           await ensureChatMembership(db, world?.chatId, ctx.principal.userId);
         }
-        // quickdraw-migrate: review [context] ctx.socketId was a field of 4.x's method context (userId, socketId, serviceAccess); 5.0's ctx has principal, requestId, log and transport
-        // (4.x joined an anonymous spectator's socket to the world room here: ctx.rooms.join after the port)
+        // The calling socket hears the world's events and counts as its
+        // audience, signed in or not; an anonymous one never sends input
+        // (channels need a principal)
+        ctx.rooms.join(GLOBAL_WORLD_ROOM);
         return buildWorldBootstrap(gameRuntime(db), world?.chatId ?? null);
       },
     },
     respawn: {
-      // quickdraw-migrate: review [access] "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
-      access: "authenticated",
+      // a signed-in user, on a world (4.x: "Read" with no row id, as joinGame)
+      access: IN_WORLD,
       handler: ({ input, ctx, db }) => {
         if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
         gameRuntime(db).sim.respawn(ctx.principal.userId);
@@ -124,15 +125,11 @@ export const gameService = qd.defineService(gameContract, {
       },
     },
     leaveGame: {
-      // quickdraw-migrate: review [access] "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
-      access: "authenticated",
+      // a signed-in user, on a world (4.x: "Read" with no row id, as joinGame)
+      access: IN_WORLD,
       handler: ({ input, ctx, db }) => {
         if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
-        const runtime = gameRuntime(db);
-        runtime.playingUsers.delete(ctx.principal.userId);
-        if (runtime.sim.removePlayer(ctx.principal.userId)) {
-          broadcast(GAME_EVENTS.playerLeft, { id: ctx.principal.userId });
-        }
+        removePlayer(gameRuntime(db), ctx.principal.userId);
         return Promise.resolve({ ok: true as const });
       },
     },
@@ -147,8 +144,8 @@ export const gameService = qd.defineService(gameContract, {
       },
     },
     getMyBest: {
-      // quickdraw-migrate: review [access] "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
-      access: "authenticated",
+      // a signed-in user's own score, on a world (4.x: "Read" with no row id)
+      access: IN_WORLD,
       handler: async ({ input, ctx, db }) => {
         if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
         const score = await db.gameScore.findUnique({
@@ -159,6 +156,7 @@ export const gameService = qd.defineService(gameContract, {
       },
     },
     getHighScores: {
+      // the /scores page and the pre-game dialog, signed in or not
       access: "public",
       handler: async ({ input, db }): Promise<HighScoreEntry[]> => {
         if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
@@ -176,6 +174,18 @@ export const gameService = qd.defineService(gameContract, {
           bestLength: row.bestLength,
         }));
       },
+    },
+    ...admin.handlers(gameContract, {
+      displayName: "Game Worlds",
+      fieldOverrides: { chatId: { showInTable: false }, updatedAt: { showInTable: false } },
+    }),
+  },
+  channels: {
+    // Fire-and-forget at about the tick rate: the contract's token bucket and
+    // room requirement drop what is over the rate or from a socket outside
+    // the world; the next frame supersedes a lost one
+    input: (payload, ctx) => {
+      activeGameRuntime()?.sim.applyInput(ctx.principal.userId, payload);
     },
   },
 });

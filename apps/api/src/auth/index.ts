@@ -2,9 +2,10 @@
 // mock and guests as one Express middleware over the Session table, the
 // `authenticate` that checks those sessions on every handshake and HTTP call
 // (plus development credentials), and the grants loader. One function builds
-// it for a database, so the server and the tests sign in the same way.
+// it for a database, so the server, the tests and the netcode bench sign in
+// the same way.
 
-import type { Principal, ServerAuth } from "@fitzzero/quickdraw-core/server";
+import type { ServerAuth } from "@fitzzero/quickdraw-core/server";
 import {
   createAuthRoutes,
   discord,
@@ -19,7 +20,7 @@ import {
 import type { PrismaClient } from "@project/db";
 import { logger } from "../utils/logger.js";
 import { allowedOriginsFromEnv, apiUrl, jwtSecretFromEnv } from "./config.js";
-import { devCredentialsPrincipal } from "./dev-credentials.js";
+import { devCredentials } from "./dev-credentials.js";
 import { createGrantsLoader } from "./grants.js";
 import { prismaSessions } from "./sessions.js";
 import { listMockUsers, upsertOAuthUser } from "./users.js";
@@ -107,19 +108,14 @@ export function createAppAuth(options: AppAuthOptions): AppAuth {
     onRevoke: options.onRevoke,
     logger,
   });
-  const sessionAuthenticate = socketAuth({ ...keys, allowedOrigins });
   return {
     keys,
     allowedOrigins,
     routes,
     server: {
-      authenticate: async (request): Promise<Principal | null> => {
-        if (request.transport === "socket") {
-          const dev = await devCredentialsPrincipal(prisma, request.auth);
-          if (dev !== null) return dev;
-        }
-        return await sessionAuthenticate(request);
-      },
+      // sessions (a token or the cookie), and with ENABLE_DEV_CREDENTIALS a
+      // socket naming a user (`auth: { userId }`): a game editor, load-test bots
+      authenticate: socketAuth({ ...keys, allowedOrigins, devCredentials: devCredentials(prisma) }),
       loadServiceAccess: createGrantsLoader({ prisma, serviceNames: options.serviceNames }),
       // a tracked write to User.serviceAccess (setServiceAccess) refreshes the
       // user's open sockets

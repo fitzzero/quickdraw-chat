@@ -1,13 +1,12 @@
 import type { Definition } from "@project/db";
-import type { DefinitionDTO } from "@project/shared";
-import { qd } from "../../quickdraw.js";
+import { admin, type KitHandler, type KitHandlerArgs } from "@fitzzero/quickdraw-core/server";
 import { definitionContract } from "@project/shared";
+import type { db as appDb } from "../../db.js";
+import { qd } from "../../quickdraw.js";
 
-// quickdraw-game: the minimal 5.0 port: the public reads run on 5.0; the
-// admin surface (and with it the tunables hot reload) is ported with the game
-// (child 4). Its review markers stay below.
+type Db = typeof appDb;
 
-type DefinitionChangedListener = (definition: DefinitionDTO) => void;
+type DefinitionChangedListener = (definition: Definition) => void;
 
 /** The most definitions listDefinitions answers. */
 const MAX_LISTED_DEFINITIONS = 500;
@@ -20,40 +19,47 @@ export function onChanged(listener: DefinitionChangedListener): void {
   changedListeners.push(listener);
 }
 
-// Wire shape: dates as ISO strings (what SubscriptionDataMap advertises).
-// This overrides the base hook, so subscribe payloads and emitUpdate use it
-// too -- a private helper named toDTO did not, and leaked raw Prisma rows.
-// quickdraw-migrate: review [projection] 4.x toDto: subscribers now receive the contract entity's keys, projected from the row (dates as ISO strings); fold computed fields into a projection's select and map, then delete this function
-function toDto(definition: Definition): DefinitionDTO {
-  return {
-    id: definition.id,
-    type: definition.type,
-    key: definition.key,
-    data: (definition.data ?? {}) as Record<string, unknown>,
-    version: definition.version,
-    enabled: definition.enabled,
-    updatedAt: definition.updatedAt.toISOString(),
-  };
-}
-
 /** Tells the listeners about an edited definition; a listener's error never breaks the write. */
 export function notifyChanged(definition: Definition): void {
-  const dto = toDto(definition);
   for (const listener of changedListeners) {
     try {
-      listener(dto);
+      listener(definition);
     } catch {
       // Listener errors must never break admin writes
     }
   }
 }
 
-// Admin writes flow through the generic admin surface; 4.x hooked them so
-// consumers (the game sim) could hot-reload.
-// quickdraw-migrate: review [this] 4.x overrode adminCreate and adminUpdate to call notifyChanged(row) after each admin write, so the game sim hot-reloads tunables: give the admin kit's writes the same hook
+/** The id of the row an admin write answered. */
+function writtenId(row: unknown): string | undefined {
+  const id: unknown = typeof row === "object" && row !== null ? Reflect.get(row, "id") : undefined;
+  return typeof id === "string" ? id : undefined;
+}
 
-// quickdraw-migrate: review [admin] installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, options) in methods)
-// (4.x: list, get, create, update and delete of definitions for service Admins, "Definitions")
+/**
+ * An admin kit write that tells the listeners about the row it wrote, read
+ * back once the write is done: 4.x's adminCreate and adminUpdate overrides.
+ */
+// quickdraw-5.0 finding: the admin kit has no write hook (the sharing kit has onChange; 4.x apps overrode adminCreate/adminUpdate), so reacting to an admin edit means wrapping the kit's handler by hand, and KitHandler returns Promise<never>, so the wrapper reads the written row's id through unknown and returns its own cast
+function announcing(handler: KitHandler): KitHandler {
+  const wrapped = async (args: KitHandlerArgs): Promise<unknown> => {
+    const row: unknown = await handler(args);
+    const id = writtenId(row);
+    const db = args.db as Db;
+    const written = id === undefined ? null : await db.definition.findUnique({ where: { id } });
+    if (written !== null) notifyChanged(written);
+    return row;
+  };
+  return wrapped as KitHandler;
+}
+
+// Definitions edited through the generic admin screens: every row, enabled
+// or not, for holders of a service-wide Admin grant (4.x's
+// installAdminMethods, all five writes and reads)
+const definitionAdmin = admin.handlers(definitionContract, {
+  displayName: "Definitions",
+  fieldOverrides: { data: { showInTable: false } },
+});
 
 /**
  * DefinitionService — data-driven game content.
@@ -68,28 +74,35 @@ export function notifyChanged(definition: Definition): void {
 export const definitionService = qd.defineService(definitionContract, {
   model: "definition",
   methods: {
-    // quickdraw-migrate: review [kit] listDefinitions has the shape of the read/write kit's list, which checks access on every row it touches, pages and stays live: replace it with crud.handlers (crud.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
+    // quickdraw: hand-written because it lists only the enabled rows, to anyone signed in or not, in (type, key) order, where the read/write kit's list pages every row a policy grants
     listDefinitions: {
       access: "public",
-      handler: async ({ input, db }) => {
-        const rows = await db.definition.findMany({
+      handler: async ({ input, db }) =>
+        await db.definition.findMany({
           where: { enabled: true, ...(input.type ? { type: input.type } : {}) },
           orderBy: [{ type: "asc" }, { key: "asc" }],
           // bounded: 5.0 refuses an unbounded read in development (unbounded-read)
           take: MAX_LISTED_DEFINITIONS,
-        });
-        return rows.map((row) => toDto(row));
-      },
+        }),
     },
-    // quickdraw-migrate: review [kit] getDefinition has the shape of the read/write kit's get, which checks access on every row it touches, pages and stays live: replace it with crud.handlers (crud.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
+    // quickdraw: hand-written because a definition is addressed by (type, key), not by id, and a disabled one reads as null, where the read/write kit's get takes an id
     getDefinition: {
       access: "public",
       handler: async ({ input, db }) => {
         const row = await db.definition.findUnique({
           where: { type_key: { type: input.type, key: input.key } },
         });
-        return row && row.enabled ? toDto(row) : null;
+        return row?.enabled ? row : null;
       },
+    },
+    ...definitionAdmin,
+    adminCreate: {
+      ...definitionAdmin.adminCreate,
+      handler: announcing(definitionAdmin.adminCreate.handler),
+    },
+    adminUpdate: {
+      ...definitionAdmin.adminUpdate,
+      handler: announcing(definitionAdmin.adminUpdate.handler),
     },
   },
 });

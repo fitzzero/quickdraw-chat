@@ -70,27 +70,29 @@ protected override async checkEntryACL(
 
   // ── quickdraw-game:start ──
   featGame: {
-    path: "apps/api/src/services/game/index.ts",
-    lines: [363, 379],
+    path: "packages/shared/src/contracts/game.ts",
+    lines: [194, 216],
     language: "ts",
-    code: `// Client input at ~tick rate. Fire-and-forget: invalid/unauthorized/
-// excess frames are dropped silently; the token bucket replaces the
-// global rate limiter for this event.
-this.defineChannel(
-  "input",
-  "Read",
-  (payload, ctx) => {
-    this.sim.applyInput(ctx.userId, payload);
-  },
-  {
-    schema: gameInputSchema,
+    code: `// The contract: fire-and-forget input, gated on the world's room
+channels: {
+  input: {
+    payload: gameInputSchema,
     ratePerSecond: GAME_TICK_RATE * 1.5,
     burst: GAME_TICK_RATE * 3,
-    requireRoom: () => serviceRoom("gameService", GLOBAL_WORLD_ID),
+    requires: { room: GLOBAL_WORLD_ROOM },
   },
-);
+},
+// Every tick, volatile, seeded with the latest snapshot
+streams: {
+  world: { item: worldSnapshotSchema, scope: "worldId", seed: 1, volatile: true, access: "public" },
+},
 
-// The Godot client speaks the same wire format (GDScript):
+// The service: joinGame/watchWorld put the calling socket in the room
+input: (payload, ctx) => {
+  activeGameRuntime()?.sim.applyInput(ctx.principal.userId, payload);
+},
+
+// The Godot client speaks the same wire (quickdraw protocol v5, GDScript):
 // Net.client.send_channel("gameService", "input", {...})`,
   },
   // ── quickdraw-game:end ──

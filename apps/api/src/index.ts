@@ -20,8 +20,12 @@ import { logger } from "./utils/logger.js";
 import { DEFINITION_TYPES, SNAKE_TUNABLES_KEY } from "@project/shared";
 import { registerDiscordActivityRoutes } from "./auth/discord-activity.js";
 import { onChanged } from "./services/definition/index.js";
-import { ensureGlobalWorld, loadSnakeTunables } from "./services/game/bootstrap.js";
-import { createGameRuntime } from "./services/game/runtime.js";
+import {
+  ensureGlobalWorld,
+  loadSnakeTunables,
+  snakeTunablesOf,
+} from "./services/game/bootstrap.js";
+import { createGameRuntime, onGameRoomLeave, worldAudience } from "./services/game/runtime.js";
 // ── quickdraw-game:end ──
 
 // Load environment variables (scripts/load-env.sh sets them for `bun run dev`;
@@ -119,12 +123,6 @@ registerDiscordActivityRoutes(app, { keys: auth.keys, db: prisma });
 // skip members with a live socket (quickdraw's presence)
 configurePush();
 
-// ── quickdraw-game:start ──
-await ensureGlobalWorld(prisma);
-// The authoritative snake sim, with the stored tunables
-const game = createGameRuntime(db, { tunables: await loadSnakeTunables(prisma) });
-// ── quickdraw-game:end ──
-
 // Every service on Socket.IO (protocol 5) and HTTP (POST /qd/{service}/{method}),
 // on this Express app. The socket rate limiter is the default: 600 events a
 // minute per socket, subscriptions and channels not counted.
@@ -137,6 +135,10 @@ const server = qd.createServer({
   auth: auth.server,
   // the HTTP transport has no limit of its own
   http: { rateLimit: createCallLimiter() },
+  // ── quickdraw-game:start ──
+  // a player whose last socket left the world's room leaves the sim
+  onRoomLeave: onGameRoomLeave,
+  // ── quickdraw-game:end ──
 });
 
 // Service-worker resubscribe endpoint (REST: SWs have no socket) — rare,
@@ -145,13 +147,22 @@ app.use("/api/push", createAuthLimiter());
 registerPushRoutes(app, auth.keys);
 
 // ── quickdraw-game:start ──
-// The game loop ticks the sim; until the game's 5.0 port its broadcasts are inert.
+// The global world and its chat (tracked writes: after createServer)
+await ensureGlobalWorld(db);
+// The authoritative snake sim, with the stored tunables; anyone in the
+// world's room (spectators too) keeps it running
+const game = createGameRuntime(db, {
+  tunables: await loadSnakeTunables(prisma),
+  hasAudience: worldAudience(server),
+});
+// The loop ticks the sim: snapshots on the world stream, deaths and the
+// leaderboard to the world's room
 game.loop.start();
 
 // Admin edits to the snake tunables hot-reload the running sim
 onChanged((definition) => {
   if (definition.type === DEFINITION_TYPES.tunables && definition.key === SNAKE_TUNABLES_KEY) {
-    game.sim.applyTunables(definition.data);
+    game.sim.applyTunables(snakeTunablesOf(definition.data));
     logger.info("Applied updated snake tunables from definition edit");
   }
 });

@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Export the Godot project to the web app's public directory.
 #
-# Usage: ./export-web.sh [--debug]
+# Usage: ./export-web.sh [--debug | --pack-only]
+#
+# --pack-only rewrites only index.pck (the game's scripts and scenes) and its
+# size in engine-config.json, keeping the committed engine (index.js/.wasm):
+# what routine game changes need, and it needs no export templates.
 #
 # Requires the Godot editor binary (4.7+) and matching web export templates:
 #   brew install godot   # macOS
@@ -40,6 +44,22 @@ mkdir -p "$OUT_DIR"
 
 echo "Importing resources…"
 "$GODOT_BIN" --headless --path godot --import >/dev/null 2>&1 || true
+
+if [ "${1:-}" = "--pack-only" ]; then
+  echo "Exporting the game data only (index.pck)…"
+  # The path is the project's own (godot/), as export_presets.cfg's is
+  "$GODOT_BIN" --headless --path godot --export-pack web ../../web/public/game/index.pck
+  node -e '
+    const fs = require("fs");
+    const file = "'"$OUT_DIR"'/engine-config.json";
+    const size = fs.statSync("'"$OUT_DIR"'/index.pck").size;
+    const config = fs.readFileSync(file, "utf8").replace(/"index\.pck": \d+/, `"index.pck": ${size}`);
+    fs.writeFileSync(file, config);
+    console.log(`engine-config.json: index.pck is ${size} bytes`);
+  '
+  echo "Done → $OUT_DIR/index.pck"
+  exit 0
+fi
 
 echo "Exporting web build ($MODE)…"
 "$GODOT_BIN" --headless --path godot "$MODE" web

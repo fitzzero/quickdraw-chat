@@ -1,21 +1,26 @@
 /**
  * The running game: the simulation, its loop and who plays — 4.x's
  * GameService fields (`sim`, `loop`, `playingUsers`), which a 5.0 service
- * object cannot hold, as one module-level runtime the service's handlers and
- * the server's start-up share.
+ * object cannot hold, as one module-level runtime that the service's
+ * handlers, its input channel and each server root (the API, the tests, the
+ * netcode bench) share.
  *
- * quickdraw-game: this is the minimal port that keeps the game compiling on
- * 5.0 until its own port (the realtime kit and the Godot client on protocol
- * v5). Until then the loop's broadcasts go nowhere (`broadcast` below), and a
- * player leaves the sim only through leaveGame.
+ * The loop's output reaches clients through quickdraw's realtime kit, from
+ * code that is not a handler: each tick's snapshot goes to the world stream
+ * (`qd.stream`, volatile, seeded), deaths, the leaderboard and departures to
+ * the world's room (`qd.rooms.emit`). A server root passes `onGameRoomLeave`
+ * to `createServer` (a player whose last socket left the world leaves the
+ * sim) and `worldAudience(server)` to the runtime (anyone in the world's room
+ * keeps it running).
  */
 
 import type { GameDeathEvent } from "@project/shared";
-import { GLOBAL_WORLD_ID } from "@project/shared";
+import { GLOBAL_WORLD_ID, GLOBAL_WORLD_ROOM, gameContract } from "@project/shared";
+import type { RoomLeaveHandler } from "@fitzzero/quickdraw-core/server";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
 import { logger } from "../../utils/logger.js";
-import { GameLoop, type GameLoopDeps } from "./loop.js";
+import { GameLoop, type GameLoopDeps, type GameLoopEmits } from "./loop.js";
 import { GameWorldSim, isNpcId, type GameTunables } from "./world.js";
 
 type Db = typeof appDb;
@@ -23,6 +28,12 @@ type Db = typeof appDb;
 export interface GameRuntimeOptions {
   simSeed?: number;
   tunables?: Partial<GameTunables>;
+  /**
+   * Is anyone in the world's room (`worldAudience(server)`)? Spectators keep
+   * the NPC world running behind the pre-game dialog. Without it only playing
+   * humans do.
+   */
+  hasAudience?: () => boolean;
   /** Bench/observability hook — see GameLoopDeps.onTick. */
   onTick?: GameLoopDeps["onTick"];
 }
@@ -34,34 +45,55 @@ export interface GameRuntime {
   readonly playingUsers: Set<string>;
 }
 
-/**
- * A room broadcast of the 4.x world events (`game:snapshot`, `game:death`,
- * `game:playerJoined`, ...). It sends nothing until the game's port: 5.0
- * sends typed events with `ctx.rooms.emit` from a method, and streams with
- * `qd.stream(...).push` from anywhere, neither of which the contract
- * declares yet.
- */
-// quickdraw-migrate: review [emit] room event: declare it in the contract's events and send it with ctx.rooms.emit(room, contract, event, payload)
-export function broadcast(_event: string, _payload: unknown): void {
-  // quickdraw-game: inert until the game's 5.0 port (child 4)
-}
+/** The world stream, through whichever server was created last. */
+const worldStream = qd.stream(gameContract, "world");
 
-/** Score writes happen off the tick path; failures are logged, never thrown. */
+/** The loop's output, on the wire: the world stream and the world's room. */
+const wire: GameLoopEmits = {
+  // quickdraw-5.0 finding: push checks every item against the schema at the tick rate; measured cheap here (9 µs of a 32 µs push to 8 sockets beside a 243 µs sim step, 24 snakes; event-loop delay p99 1.7 ms at 20 Hz), but a large world has no way to skip it outside development
+  snapshot: (snapshot) => {
+    worldStream.push(GLOBAL_WORLD_ID, snapshot);
+  },
+  death: (death) => {
+    qd.rooms.emit(GLOBAL_WORLD_ROOM, gameContract, "death", death);
+  },
+  leaderboard: (entries) => {
+    qd.rooms.emit(GLOBAL_WORLD_ROOM, gameContract, "leaderboard", entries);
+  },
+};
+
+/**
+ * Score writes happen off the tick path, in a unit of work of their own;
+ * failures are logged, never thrown. When the player's stored best changed
+ * (a first score, or a longer run), the world hears `scoreSaved`, after the
+ * write, so a client that reads the scores again sees it.
+ */
 function persistScore(db: Db, death: GameDeathEvent): void {
   // Bots have no User row and no high scores
   if (isNpcId(death.id)) return;
+  const where = { worldId_userId: { worldId: GLOBAL_WORLD_ID, userId: death.id } };
   void qd
-    .run(async () => {
-      await db.gameScore.upsert({
-        where: { worldId_userId: { worldId: GLOBAL_WORLD_ID, userId: death.id } },
-        update: {},
-        create: { worldId: GLOBAL_WORLD_ID, userId: death.id, bestLength: death.len },
-      });
-      await db.gameScore.updateMany({
-        where: { worldId: GLOBAL_WORLD_ID, userId: death.id, bestLength: { lt: death.len } },
-        data: { bestLength: death.len },
-      });
-    })
+    .run(
+      async () => {
+        const stored = await db.gameScore.upsert({
+          where,
+          update: {},
+          create: { worldId: GLOBAL_WORLD_ID, userId: death.id, bestLength: death.len },
+          select: { bestLength: true },
+        });
+        const { count } = await db.gameScore.updateMany({
+          where: { worldId: GLOBAL_WORLD_ID, userId: death.id, bestLength: { lt: death.len } },
+          data: { bestLength: death.len },
+        });
+        if (count > 0 || stored.bestLength === death.len) {
+          qd.rooms.emit(GLOBAL_WORLD_ROOM, gameContract, "scoreSaved", {
+            userId: death.id,
+            bestLength: death.len,
+          });
+        }
+      },
+      { detached: true },
+    )
     .catch((error: unknown) => {
       logger.warn("Failed to persist game score", {
         userId: death.id,
@@ -83,12 +115,9 @@ export function createGameRuntime(db: Db, options: GameRuntimeOptions = {}): Gam
   const playingUsers = new Set<string>();
   const loop = new GameLoop({
     sim,
-    emitVolatile: broadcast,
-    emitReliable: broadcast,
+    emit: wire,
     onDeath: (death) => persistScore(db, death),
-    // 4.x kept the NPC world alive for the world room's spectators too; who
-    // watches is the room's presence after the port
-    hasAudience: () => playingUsers.size > 0,
+    hasAudience: options.hasAudience ?? (() => false),
     ...(options.onTick ? { onTick: options.onTick } : {}),
   });
   current = { sim, loop, playingUsers };
@@ -99,4 +128,52 @@ export function createGameRuntime(db: Db, options: GameRuntimeOptions = {}): Gam
 export function gameRuntime(db: Db): GameRuntime {
   current ??= createGameRuntime(db);
   return current;
+}
+
+/** The runtime built last, if any (the input channel has no `db` to build one with). */
+export function activeGameRuntime(): GameRuntime | undefined {
+  return current;
+}
+
+/** Takes a player out of the sim; the world hears `playerLeft` when they were in it. */
+export function removePlayer(runtime: GameRuntime, userId: string): void {
+  runtime.playingUsers.delete(userId);
+  if (runtime.sim.removePlayer(userId)) {
+    qd.rooms.emit(GLOBAL_WORLD_ROOM, gameContract, "playerLeft", { id: userId });
+  }
+}
+
+/**
+ * `createServer`'s `onRoomLeave` for the game: a player stays in the sim
+ * while any socket of theirs is in the world's room (the web page and the
+ * Godot client are two sockets of one user), and leaves it when the last one
+ * leaves or disconnects. 4.x did this in GameService's unsubscribeSocket and
+ * unsubscribe overrides.
+ */
+// quickdraw-5.0 finding: onRoomLeave is one createServer option for the whole app, not part of the service that owns the room, so every server root (the API, the test app, the netcode bench) must pass the game's handler by hand, and a root that forgets it leaks players silently
+export const onGameRoomLeave: RoomLeaveHandler = ({ principal, rooms }) => {
+  const runtime = current;
+  if (principal === null || runtime === undefined) return;
+  if (rooms.some(({ room, last }) => room === GLOBAL_WORLD_ROOM && last)) {
+    removePlayer(runtime, principal.userId);
+  }
+};
+
+/** The part of a quickdraw server `worldAudience` reads: its Socket.IO rooms on this process. */
+export interface SocketRooms {
+  readonly io: {
+    readonly sockets: {
+      readonly adapter: { readonly rooms: ReadonlyMap<string, ReadonlySet<string>> };
+    };
+  };
+}
+
+/**
+ * Whether any socket on this process is in the world's room: players and
+ * spectators, signed in or not. The loop asks it every tick, so it must be
+ * synchronous; the game runs on one process (see game-patterns.md).
+ */
+// quickdraw-5.0 finding: presence answers only by promise (count and users may ask every node) and leaves anonymous sockets out, so a tick loop asking "is anyone in this room" 20 times a second has no API: this reads Socket.IO's adapter under the framework
+export function worldAudience(server: SocketRooms): () => boolean {
+  return () => (server.io.sockets.adapter.rooms.get(GLOBAL_WORLD_ROOM)?.size ?? 0) > 0;
 }
