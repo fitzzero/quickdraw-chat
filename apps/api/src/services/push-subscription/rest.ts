@@ -15,7 +15,7 @@ import { createRestRequireAuth } from "../../auth/rest-middleware.js";
 import { logger } from "../../utils/logger.js";
 import { validateRequest } from "../../utils/validate-request.js";
 import { pushSubscriptionSchema } from "./schemas.js";
-import type { PushService } from "./index.js";
+import type { pushService as pushServiceDef } from "./index.js";
 
 export interface PushRestDeps {
   /** Database client override (tests pass testPrisma). */
@@ -24,7 +24,7 @@ export interface PushRestDeps {
 
 export function registerPushRoutes(
   app: Express,
-  pushService: PushService,
+  pushService: typeof pushServiceDef,
   deps: PushRestDeps = {},
 ): void {
   const requireAuth = createRestRequireAuth(deps.db);
@@ -41,6 +41,7 @@ export function registerPushRoutes(
       if (!body) return;
 
       try {
+        // quickdraw-migrate: review [server] pushService is a 4.x PushService instance, whose members (resubscribe here) the service object pushService does not have: call a contract method through qd.caller(principal).pushService.<method>(input), and move other logic into a module of its own
         await pushService.resubscribe(userId, body.endpoint, body.keys);
         res.json({ success: true });
       } catch (error) {

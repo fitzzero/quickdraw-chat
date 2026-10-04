@@ -5,7 +5,8 @@ import { Box, Fade, Paper, Typography } from "@mui/material";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import { useTranslations } from "next-intl";
 import { GLOBAL_WORLD_ID, NPC_ID_PREFIX, type LeaderboardEntry } from "@project/shared";
-import { useRoomEvents, useSubscription } from "../../hooks";
+import { useRoomEvents } from "../../hooks";
+import { qd } from "../../lib/quickdraw";
 import { useSocket } from "../../providers";
 
 /**
@@ -24,8 +25,9 @@ export function GameHud(): React.ReactElement | null {
   // Room membership for the page socket (ACL: any authenticated user).
   // Anonymous spectators already hold membership via the Public watchWorld
   // call in GameSurface — subscribing would just 401.
-  useSubscription("gameService", GLOBAL_WORLD_ID, { enabled: !!userId });
+  qd.gameService.useEntity(GLOBAL_WORLD_ID, { enabled: !!userId });
 
+  // quickdraw-migrate: review [client] room events: declare them in the contract's events and listen with qd.<service>.<event>.useEvent(handler)
   useRoomEvents({
     "game:leaderboard": (entries: LeaderboardEntry[]) => setBoard(entries),
   });

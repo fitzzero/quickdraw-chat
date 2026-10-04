@@ -9,3 +9,4 @@ export * from "./types/game.js";
 export * from "./types/definition.js";
 export * from "./game/movement.js";
 // ── quickdraw-game:end ──
+export * from "./contracts/index.js";

@@ -1,6 +1,7 @@
 import { Box } from "@mui/material";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import type { MessageDTO } from "@project/shared";
+// quickdraw-migrate: review [v4-api] "@fitzzero/quickdraw-core/client/testing" was removed in 5.0; lint's no-v4-api names what replaces it
 import { mockSuccessEmit } from "@fitzzero/quickdraw-core/client/testing";
 import { withMockSocket } from "../../stories/decorators";
 import type { MockEmitHandler } from "../../stories/mock-socket-io";

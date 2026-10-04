@@ -23,11 +23,12 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
+// quickdraw-migrate: review [v4-api] 4.x API SocketTextField (removed): lint's no-v4-api names each replacement
 import { SocketTextField } from "@fitzzero/quickdraw-core/client";
 import { useSocket } from "../../providers";
-import { useService, useServiceQuery, useSubscription } from "../../hooks";
 import { UserAvatar } from "../user";
 import { ConfirmDialog } from "../feedback";
+import { qd } from "../../lib/quickdraw";
 import type { ChatMemberDTO, AccessLevel, SubscriptionDataMap } from "@project/shared";
 
 type ChatEntity = SubscriptionDataMap["chatService"];
@@ -148,7 +149,8 @@ function InviteSection({ chatId }: InviteSectionProps): React.ReactElement {
   const [inviteUsername, setInviteUsername] = React.useState("");
   const [inviteError, setInviteError] = React.useState<string | null>(null);
 
-  const inviteByName = useService("chatService", "inviteByName", {
+  // quickdraw-migrate: review [client] onError receives a QuickdrawError now (4.x passed the message string): read error.message or error.code
+  const inviteByName = qd.chatService.inviteByName.useMutation({
     onSuccess: (result) => {
       if ("error" in result) {
         setInviteError(t("inviteUserNotFound"));
@@ -303,15 +305,14 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
 
   // Chat subscription for title (also keeps the socket in the chat room,
   // which the invalidateOn below relies on)
-  const { data: chat } = useSubscription("chatService", chatId);
+  const { data: chat } = qd.chatService.useEntity(chatId);
 
   // Members roster: a genuinely query-shaped read (joined user profiles),
   // so it stays a query — invalidateOn refetches it whenever the server
   // broadcasts the typed chat:memberUpdate room event. This replaces the
   // old useState + useRoomEvents merge.
-  const { data: queryMembers, isLoading: membersLoading } = useServiceQuery(
-    "chatService",
-    "getChatMembers",
+  // quickdraw-migrate: review [client] invalidateOn is gone: give the query a watch in its contract entry (it is fetched again when that collection scope changes), or read a collection
+  const { data: queryMembers, isLoading: membersLoading } = qd.chatService.getChatMembers.useQuery(
     { chatId },
     { enabled: !!chatId, invalidateOn: ["chat:memberUpdate"] },
   );
@@ -324,9 +325,9 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
   const [memberToRemove, setMemberToRemove] = React.useState<ChatMemberDTO | null>(null);
 
   // Service methods (mutations only)
-  const updateTitle = useService("chatService", "updateTitle");
-  const removeUser = useService("chatService", "removeUser");
-  const deleteChat = useService("chatService", "deleteChat", {
+  const updateTitle = qd.chatService.updateTitle.useMutation();
+  const removeUser = qd.chatService.removeUser.useMutation();
+  const deleteChat = qd.chatService.deleteChat.useMutation({
     onSuccess: () => {
       router.push("/chats");
     },

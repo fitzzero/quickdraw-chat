@@ -19,6 +19,7 @@ import {
   Box,
 } from "@mui/material";
 import { useTranslations } from "next-intl";
+// quickdraw-migrate: review [v4-api] 4.x API useService (removed): lint's no-v4-api names each replacement
 import { useService } from "@fitzzero/quickdraw-core/client";
 import type { AdminServiceMeta, AdminFieldConfig } from "@project/shared";
 
@@ -77,6 +78,7 @@ export function AdminCreateModal({
 
   // The admin protocol uses dynamic event names not present in
   // ServiceMethodsMap, so use the generic quickdraw-core useService here.
+  // quickdraw-migrate: review [client] this 4.x hook call was not converted: it names the service or method at run time. Call the typed client's member (qd.<service>.<method>) instead
   const adminCreate = useService<{ data: Record<string, unknown> }, Record<string, unknown>>(
     serviceName,
     "adminCreate",

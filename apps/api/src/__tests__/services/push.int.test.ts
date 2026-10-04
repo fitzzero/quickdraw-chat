@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import type { PushNotificationPayload } from "@project/shared";
 import type { PushTransport } from "../../services/push-subscription/index.js";
-import { PushService } from "../../services/push-subscription/index.js";
+import { pushService as pushServiceDef } from "../../services/push-subscription/index.js";
 import { registerPushRoutes } from "../../services/push-subscription/rest.js";
 import { createJWT } from "../../auth/jwt.js";
 import { startTestServer } from "../utils/server.js";
@@ -245,7 +245,8 @@ describe("Push resubscribe REST", () => {
   beforeAll(async () => {
     const app = express();
     app.use(express.json());
-    const pushService = new PushService(testPrisma);
+    // quickdraw-migrate: review [server] the 4.x service was constructed here (new PushService(...)): it is the object pushServiceDef now; pass it in qd.createServer({ services: [...] })
+    const pushService = pushServiceDef;
     registerPushRoutes(app, pushService, { db: testPrisma });
 
     server = createServer(app);

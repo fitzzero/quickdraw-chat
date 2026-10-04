@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+// quickdraw-migrate: review [v4-api] 4.x API useServiceQuery (removed): lint's no-v4-api names each replacement
 import { useServiceQuery } from "@fitzzero/quickdraw-core/client";
 import { useSocket } from "../providers";
-import { useSubscription } from "./useSubscription";
+import { qd } from "../lib/quickdraw";
 import type { AdminServiceMeta } from "@project/shared";
 
 /**
@@ -55,7 +56,7 @@ export function useAdminServices(): {
   hasAdminAccess: boolean;
 } {
   const { userId } = useSocket();
-  const { data: user } = useSubscription("userService", userId ?? "");
+  const { data: user } = qd.userService.useEntity(userId ?? "");
   const [servicesMeta, setServicesMeta] = React.useState<Map<string, AdminServiceMeta>>(new Map());
   const [attempted, setAttempted] = React.useState<Set<string>>(new Set());
 
@@ -79,6 +80,7 @@ export function useAdminServices(): {
     });
   }, []);
 
+  // quickdraw-migrate: review [client] this 4.x hook call was not converted: it names the service or method at run time. Call the typed client's member (qd.<service>.<method>) instead
   useServiceQuery<Record<string, never>, AdminServiceMeta>(
     pendingService ?? "",
     "adminMeta",

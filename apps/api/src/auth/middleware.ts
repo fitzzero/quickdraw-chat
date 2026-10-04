@@ -1,3 +1,4 @@
+// quickdraw-migrate: review [v4-api] 4.x API QuickdrawIdentity (removed) and SESSION_COOKIE, QuickdrawSocket (moved): lint's no-v4-api names each replacement
 import {
   SESSION_COOKIE,
   type QuickdrawIdentity,

@@ -108,6 +108,7 @@ export function DiscordActivityShell(): React.ReactElement {
     );
   }
 
+  // quickdraw-migrate: review [client] 4.x QuickdrawProvider props (serverUrl, socketPath, authToken, autoConnect): 5.0 takes client={qd} (lib/quickdraw), url, auth and socketOptions
   return (
     <QuickdrawProvider
       serverUrl={window.location.origin}

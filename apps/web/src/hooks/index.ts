@@ -1,10 +1,7 @@
 // Re-export typed hooks from quickdraw-core
 // These wrap the generic hooks with project-specific types
-
-export { useService } from "./useService";
-export { useServiceQuery } from "./useServiceQuery";
-export { useSubscription } from "./useSubscription";
-export { useCollection, useRoomEvents } from "@fitzzero/quickdraw-core/client";
+// quickdraw-migrate: review [v4-api] 4.x API useRoomEvents (removed): lint's no-v4-api names each replacement
+export { useRoomEvents } from "@fitzzero/quickdraw-core/client";
 export { useIsMobile } from "./useIsMobile";
 export { useMyChats } from "./useMyChats";
 export { useFilteredNavigation } from "./useFilteredNavigation";

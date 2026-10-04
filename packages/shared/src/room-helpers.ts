@@ -1,6 +1,7 @@
 // Thin typed wrappers over core's static room helpers: same wire format,
 // but the service name is constrained to this app's registered services so
 // a typo can't silently target an empty room.
+// quickdraw-migrate: review [v4-api] 4.x API serviceRoom (removed): lint's no-v4-api names each replacement
 import {
   serviceRoom as coreServiceRoom,
   collectionRoom as coreCollectionRoom,

@@ -23,6 +23,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { useTranslations } from "next-intl";
+// quickdraw-migrate: review [v4-api] 4.x API useService, useServiceQuery (removed): lint's no-v4-api names each replacement
 import { useService, useServiceQuery } from "@fitzzero/quickdraw-core/client";
 import { ConfirmDialog } from "../feedback";
 import { UserServiceAccessEditor } from "./UserServiceAccessEditor";
@@ -69,6 +70,7 @@ export function AdminEntitySidebar({
   // Fetch entity data. The admin protocol uses dynamic event names not present
   // in ServiceMethodsMap, so the generic quickdraw-core hooks are used here.
   const getPayload = React.useMemo(() => ({ id: entryId }), [entryId]);
+  // quickdraw-migrate: review [client] this 4.x hook call was not converted: it names the service or method at run time. Call the typed client's member (qd.<service>.<method>) instead
   const { data: fetchedEntity, error: fetchError } = useServiceQuery<
     { id: string },
     Record<string, unknown>
@@ -96,10 +98,12 @@ export function AdminEntitySidebar({
   }, [fetchError]);
 
   // Mutations for the dynamic admin protocol
+  // quickdraw-migrate: review [client] this 4.x hook call was not converted: it names the service or method at run time. Call the typed client's member (qd.<service>.<method>) instead
   const adminUpdate = useService<
     { id: string; data: Record<string, unknown> },
     Record<string, unknown>
   >(serviceName, "adminUpdate");
+  // quickdraw-migrate: review [client] this 4.x hook call was not converted: it names the service or method at run time. Call the typed client's member (qd.<service>.<method>) instead
   const adminDelete = useService<{ id: string }, { success: boolean }>(serviceName, "adminDelete");
   const isSaving = adminUpdate.isPending;
   const isDeleting = adminDelete.isPending;

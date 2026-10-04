@@ -147,17 +147,24 @@ describe("DefinitionService Integration", () => {
 
   it("admin edits hot-reload the game sim tunables via onChanged", async () => {
     // Wire a fresh service pair directly (unit-ish, no sockets needed)
+    // quickdraw-migrate: review [server] DefinitionService is imported dynamically here, and 5.0 has no class: import the service object definitionService (pass it in qd.createServer({ services: [...] })), or call it through qd.caller(principal)
     const { DefinitionService } = await import("../../services/definition/index.js");
+    // quickdraw-migrate: review [server] GameService is imported dynamically here, and 5.0 has no class: import the service object gameService (pass it in qd.createServer({ services: [...] })), or call it through qd.caller(principal)
     const { GameService } = await import("../../services/game/index.js");
+    // quickdraw-migrate: review [server] the 4.x service was constructed here (new DefinitionService(...)): it is the object definitionService now
     const definitionService = new DefinitionService(testPrisma);
+    // quickdraw-migrate: review [server] the 4.x service was constructed here (new GameService(...)): it is the object gameService now
     const gameService = new GameService(testPrisma, { simSeed: 1 });
 
+    // quickdraw-migrate: review [server] definitionService is a 4.x DefinitionService instance, whose members (onChanged here) the service object definitionService does not have: call a contract method through qd.caller(principal).definitionService.<method>(input), and move other logic into a module of its own
     definitionService.onChanged((definition) => {
       if (definition.type === "tunables" && definition.key === "snake") {
+        // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
         gameService.sim.applyTunables(definition.data);
       }
     });
 
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     const before = gameService.sim.tunables.baseSpeed;
     const admin = await createTestUser({ serviceAccess: { definitionService: "Admin" } });
     const adminClient = await connectAsUser(port, admin.id);
@@ -175,6 +182,7 @@ describe("DefinitionService Integration", () => {
     ).adminUpdate(row.id, { data: { baseSpeed: 260 } });
 
     expect(before).not.toBe(260);
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     expect(gameService.sim.tunables.baseSpeed).toBe(260);
 
     adminClient.close();

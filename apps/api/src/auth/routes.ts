@@ -1,4 +1,5 @@
 import { Router } from "express";
+// quickdraw-migrate: review [v4-api] 4.x API clearSessionCookie, extractBearerOrCookieToken (moved): lint's no-v4-api names each replacement
 import { clearSessionCookie, extractBearerOrCookieToken } from "@fitzzero/quickdraw-core/server";
 import { createAuthLimiter } from "@fitzzero/quickdraw-core/server/express";
 import { verifyJWT } from "./jwt.js";

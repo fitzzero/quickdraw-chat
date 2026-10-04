@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { createPrismaTestGlobalSetup } from "@fitzzero/quickdraw-core/server/testing/prisma";
+import { createPrismaTestGlobalSetup } from "@fitzzero/quickdraw-core/testing/prisma";
 
 /**
  * Vitest globalSetup for integration tests. Dual-mode:

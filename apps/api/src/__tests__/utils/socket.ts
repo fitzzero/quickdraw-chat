@@ -7,6 +7,7 @@
 import { io as ioClient, type Socket } from "socket.io-client";
 import type { ServiceResponse } from "@project/shared";
 
+// quickdraw-migrate: review [v4-api] "@fitzzero/quickdraw-core/server/testing" was removed in 5.0; lint's no-v4-api names what replaces it
 export { getAvailablePort } from "@fitzzero/quickdraw-core/server/testing";
 
 /**

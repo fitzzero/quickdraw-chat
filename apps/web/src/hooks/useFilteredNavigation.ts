@@ -4,8 +4,7 @@ import * as React from "react";
 import { useSocket } from "../providers";
 import { siteNavigation, type NavItem } from "../lib/navigation";
 import type { AccessLevel } from "@project/shared";
-import { useSubscription } from "./useSubscription";
-
+import { qd } from "../lib/quickdraw";
 /**
  * Access levels that grant visibility to a service.
  * Read or higher means the user can see the service in navigation.
@@ -54,7 +53,7 @@ export function useFilteredNavigation(): {
 
   // Guest sessions hide `hideForGuests` items. Structural probe so the hook
   // stays generic — the field only exists when the guest-auth feature does.
-  const { data: ownUser } = useSubscription("userService", userId ?? "");
+  const { data: ownUser } = qd.userService.useEntity(userId ?? "");
   const isGuestSession = (ownUser as { isGuest?: boolean } | null)?.isGuest === true;
 
   // Convert to proper type (socket returns it as unknown)

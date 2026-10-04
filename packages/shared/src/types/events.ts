@@ -9,6 +9,7 @@ import type { ChatMemberDTO } from "./chat.js";
 // deltas and `{service}:update:{id}` events do NOT belong here; the framework
 // generates and types those end-to-end.
 
+// quickdraw-migrate: review [v4-api] QuickdrawEventMap typed 4.x room events: declare each event in its contract (events: { name: { payload } }), send it with ctx.rooms.emit and listen with qd.<service>.<event>.useEvent, then delete this augmentation
 declare module "@fitzzero/quickdraw-core" {
   interface QuickdrawEventMap {
     /** Membership roster changed — emitted to the chat's entity room. */

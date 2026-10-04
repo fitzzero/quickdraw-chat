@@ -22,7 +22,8 @@ import AddIcon from "@mui/icons-material/Add";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useMyChats, useService } from "../../hooks";
+import { qd } from "../../lib/quickdraw";
+import { useMyChats } from "../../hooks";
 
 export default function ChatsPage(): React.ReactElement {
   const t = useTranslations("ChatsPage");
@@ -39,7 +40,7 @@ export default function ChatsPage(): React.ReactElement {
 
   // Create chat mutation — no refetch on success: the collection's `added`
   // delta puts the new chat into the list on its own
-  const createChat = useService("chatService", "createChat", {
+  const createChat = qd.chatService.createChat.useMutation({
     onSuccess: (data) => {
       setCreateDialogOpen(false);
       setNewChatTitle("");

@@ -11,12 +11,13 @@ import {
   type HighScoreEntry,
   type QuickdrawHostConfig,
 } from "@project/shared";
-import { useRoomEvents, useService, useServiceQuery, useSubscription } from "../../hooks";
+import { useRoomEvents } from "../../hooks";
 import { useSocket } from "../../providers";
 import { GodotCanvas, type GodotLoadState } from "./GodotCanvas";
 import { GameLoading } from "./GameLoading";
 import { GameHud } from "./GameHud";
 import { GameChatOverlay } from "./GameChatOverlay";
+import { qd } from "../../lib/quickdraw";
 import { PreGameDialog } from "./PreGameDialog";
 
 /** Survives the socket cycle (AuthGate remounts the page) and full reloads. */
@@ -105,43 +106,46 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
   // ride Godot's websocket handshake) — bootCanvas below keys on userId.
   const needsGuest = guestFlow && !userId;
 
-  const { data: world } = useServiceQuery("gameService", "getWorld", GET_WORLD_PAYLOAD);
+  const { data: world } = qd.gameService.getWorld.useQuery(GET_WORLD_PAYLOAD);
 
   // Personal best — refreshed automatically when a death lands
-  const { data: myBest } = useServiceQuery("gameService", "getMyBest", WORLD_PAYLOAD, {
+  // quickdraw-migrate: review [client] invalidateOn is gone: give the query a watch in its contract entry (it is fetched again when that collection scope changes), or read a collection
+  const { data: myBest } = qd.gameService.getMyBest.useQuery(WORLD_PAYLOAD, {
     enabled: !!userId,
     invalidateOn: [GAME_EVENTS.death],
   });
 
   // All-time top runs shown inside the dialog (public — works signed-out too)
-  const { data: topScores } = useServiceQuery("gameService", "getHighScores", TOP_SCORES_PAYLOAD, {
+  // quickdraw-migrate: review [client] invalidateOn is gone: give the query a watch in its contract entry (it is fetched again when that collection scope changes), or read a collection
+  const { data: topScores } = qd.gameService.getHighScores.useQuery(TOP_SCORES_PAYLOAD, {
     invalidateOn: [GAME_EVENTS.death],
   });
 
   // Death detection on the page socket: world-room membership + the reliable
   // death stream (the same events Godot consumes)
-  useSubscription("gameService", GLOBAL_WORLD_ID, { enabled: !!userId });
+  qd.gameService.useEntity(GLOBAL_WORLD_ID, { enabled: !!userId });
 
   // Anonymous spectate: subscribe requires auth, but a Public watchWorld
   // call grants this (page) socket world-room membership so the live
   // leaderboard streams in behind the guest dialog
-  useServiceQuery("gameService", "watchWorld", WORLD_PAYLOAD, {
+  qd.gameService.watchWorld.useQuery(WORLD_PAYLOAD, {
     enabled: guestFlow && !userId,
   });
+  // quickdraw-migrate: review [client] room events: declare them in the contract's events and listen with qd.<service>.<event>.useEvent(handler)
   useRoomEvents({
     [GAME_EVENTS.death]: (event: GameDeathEvent) => {
       if (event.id === userId) setDeath(event);
     },
   });
 
-  const joinGame = useService("gameService", "joinGame", {
+  const joinGame = qd.gameService.joinGame.useMutation({
     onSuccess: () => {
       setHasJoined(true);
       setDeath(null);
       focusCanvas();
     },
   });
-  const respawn = useService("gameService", "respawn", {
+  const respawn = qd.gameService.respawn.useMutation({
     onSuccess: () => {
       setDeath(null);
       focusCanvas();

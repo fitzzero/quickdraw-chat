@@ -12,14 +12,17 @@
  */
 
 import type { PrismaClient } from "@project/db";
-import { UserService } from "./user/index.js";
-import { ChatService } from "./chat/index.js";
-import { MessageService } from "./message/index.js";
-import { DocumentService } from "./document/index.js";
-import { PushService, type PushServiceOptions } from "./push-subscription/index.js";
+import { userService } from "./user/index.js";
+import { chatService as chatServiceDef } from "./chat/index.js";
+import { messageService } from "./message/index.js";
+import { documentService } from "./document/index.js";
+import {
+  pushService as pushServiceDef,
+  type PushServiceOptions,
+} from "./push-subscription/index.js";
 // ── quickdraw-game:start ──
-import { GameService } from "./game/index.js";
-import { DefinitionService } from "./definition/index.js";
+import { gameService } from "./game/index.js";
+import { definitionService } from "./definition/index.js";
 import type { GameTunables } from "./game/world.js";
 import type { GameLoopDeps } from "./game/loop.js";
 // ── quickdraw-game:end ──
@@ -48,14 +51,14 @@ export interface BuildServicesOptions {
  * a type alias carries the implicit index signature that satisfies it.
  */
 export type BuiltServices = {
-  userService: UserService;
-  chatService: ChatService;
-  messageService: MessageService;
-  documentService: DocumentService;
-  pushService: PushService;
+  userService: typeof userService;
+  chatService: typeof chatServiceDef;
+  messageService: typeof messageService;
+  documentService: typeof documentService;
+  pushService: typeof pushServiceDef;
   // ── quickdraw-game:start ──
-  gameService: GameService;
-  definitionService: DefinitionService;
+  gameService: typeof gameService;
+  definitionService: typeof definitionService;
   // ── quickdraw-game:end ──
 };
 
@@ -64,18 +67,25 @@ export function buildServices(
   prisma: PrismaClient,
   options: BuildServicesOptions = {},
 ): BuiltServices {
-  const chatService = new ChatService(prisma);
-  const pushService = new PushService(prisma, options.push);
+  // quickdraw-migrate: review [server] the 4.x service was constructed here (new ChatService(...)): it is the object chatServiceDef now; pass it in qd.createServer({ services: [...] })
+  const chatService = chatServiceDef;
+  // quickdraw-migrate: review [server] the 4.x service was constructed here (new PushService(...)): it is the object pushServiceDef now; pass it in qd.createServer({ services: [...] })
+  const pushService = pushServiceDef;
 
   return {
-    userService: new UserService(prisma),
+    // quickdraw-migrate: review [server] the 4.x service was constructed here (new UserService(...)): it is the object userService now; pass it in qd.createServer({ services: [...] })
+    userService: userService,
     chatService,
-    messageService: new MessageService(prisma, chatService, pushService),
-    documentService: new DocumentService(prisma),
+    // quickdraw-migrate: review [server] the 4.x service was constructed here (new MessageService(...)): it is the object messageService now; pass it in qd.createServer({ services: [...] })
+    messageService: messageService,
+    // quickdraw-migrate: review [server] the 4.x service was constructed here (new DocumentService(...)): it is the object documentService now; pass it in qd.createServer({ services: [...] })
+    documentService: documentService,
     pushService,
     // ── quickdraw-game:start ──
-    gameService: new GameService(prisma, options.game),
-    definitionService: new DefinitionService(prisma),
+    // quickdraw-migrate: review [server] the 4.x service was constructed here (new GameService(...)): it is the object gameService now; pass it in qd.createServer({ services: [...] })
+    gameService: gameService,
+    // quickdraw-migrate: review [server] the 4.x service was constructed here (new DefinitionService(...)): it is the object definitionService now; pass it in qd.createServer({ services: [...] })
+    definitionService: definitionService,
     // ── quickdraw-game:end ──
   };
 }

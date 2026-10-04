@@ -1,18 +1,10 @@
-import type { Definition, Prisma, PrismaClient } from "@project/db";
-import type { DefinitionDTO, DefinitionServiceMethods } from "@project/shared";
-import { BaseService } from "@fitzzero/quickdraw-core/server";
+import type { Definition, Prisma } from "@project/db";
+import type { DefinitionDTO } from "@project/shared";
 import { z } from "zod";
+import { qd } from "../../quickdraw.js";
+import { definitionContract } from "@project/shared";
 
 // Zod schemas for validation
-const listDefinitionsSchema = z.object({
-  type: z.string().min(1).max(64).optional(),
-});
-
-const getDefinitionSchema = z.object({
-  type: z.string().min(1).max(64),
-  key: z.string().min(1).max(64),
-});
-
 // Admin schema - defines fields available for admin CRUD
 const adminDefinitionSchema = z.object({
   type: z.string(),
@@ -24,6 +16,87 @@ const adminDefinitionSchema = z.object({
 
 type DefinitionChangedListener = (definition: DefinitionDTO) => void;
 
+// quickdraw-migrate: review [this] 4.x constructor code of DefinitionService: a service object has no constructor; move what still matters to module scope, a job or the server's start-up, then delete this function
+function setUpDefinitionService(): void {
+  installAdmin();
+}
+
+/** Subscribe to admin edits (e.g. the game sim hot-reloads tunables). */
+export function onChanged(listener: DefinitionChangedListener): void {
+  // quickdraw-migrate: review [this] this.changedListeners was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+  this.changedListeners.push(listener);
+}
+
+function notifyChanged(definition: Definition): void {
+  const dto = toDto(definition);
+  // quickdraw-migrate: review [this] this.changedListeners was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+  for (const listener of this.changedListeners) {
+    try {
+      listener(dto);
+    } catch {
+      // Listener errors must never break admin writes
+    }
+  }
+}
+
+// Wire shape: dates as ISO strings (what SubscriptionDataMap advertises).
+// This overrides the base hook, so subscribe payloads and emitUpdate use it
+// too -- a private helper named toDTO did not, and leaked raw Prisma rows.
+// quickdraw-migrate: review [projection] 4.x toDto: subscribers now receive the contract entity's keys, projected from the row (dates as ISO strings); fold computed fields into a projection's select and map, then delete this function
+function toDto(definition: Definition): DefinitionDTO {
+  return {
+    id: definition.id,
+    type: definition.type,
+    key: definition.key,
+    data: (definition.data ?? {}) as Record<string, unknown>,
+    version: definition.version,
+    enabled: definition.enabled,
+    updatedAt: definition.updatedAt.toISOString(),
+  };
+}
+
+// Admin writes flow through the generic admin surface; hook them so
+// consumers (the game sim) can hot-reload.
+// quickdraw-migrate: review [this] overrode the 4.x BaseService method adminCreate, which 5.0 does not have: keep what it still needs elsewhere, then delete it
+async function adminCreate(data: Prisma.DefinitionCreateInput): Promise<Definition> {
+  // quickdraw-migrate: review [this] calls the 4.x base class, which 5.0 does not have: keep what this code still needs without it
+  const created = await super.adminCreate(data);
+  notifyChanged(created);
+  return created;
+}
+
+// quickdraw-migrate: review [this] overrode the 4.x BaseService method adminUpdate, which 5.0 does not have: keep what it still needs elsewhere, then delete it
+async function adminUpdate(
+  id: string,
+  data: Prisma.DefinitionUpdateInput,
+): Promise<Definition | null> {
+  // quickdraw-migrate: review [this] calls the 4.x base class, which 5.0 does not have: keep what this code still needs without it
+  const updated = await super.adminUpdate(id, data);
+  if (updated) notifyChanged(updated);
+  return updated;
+}
+
+function installAdmin(): void {
+  // quickdraw-migrate: review [admin] installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, options) in methods)
+  this.installAdminMethods({
+    expose: { list: true, get: true, create: true, update: true, delete: true },
+    access: {
+      list: "Admin",
+      get: "Admin",
+      create: "Admin",
+      update: "Admin",
+      delete: "Admin",
+      setEntryACL: "Admin",
+      getSubscribers: "Admin",
+      reemit: "Admin",
+      unsubscribeAll: "Admin",
+    },
+    schema: adminDefinitionSchema,
+    displayName: "Definitions",
+    tableColumns: ["id", "type", "key", "version", "enabled", "updatedAt"],
+  });
+}
+
 /**
  * DefinitionService — data-driven game content.
  *
@@ -34,121 +107,29 @@ type DefinitionChangedListener = (definition: DefinitionDTO) => void;
  * (installAdminMethods), so balance changes never require re-exporting
  * the game — the server sim also re-reads on change (see onChanged).
  */
-export class DefinitionService extends BaseService<
-  Definition,
-  Prisma.DefinitionCreateInput,
-  Prisma.DefinitionUpdateInput,
-  DefinitionServiceMethods,
-  Record<string, never>,
-  DefinitionDTO
-> {
-  private readonly prisma: PrismaClient;
-  private readonly changedListeners: DefinitionChangedListener[] = [];
-
-  constructor(prisma: PrismaClient) {
-    super({ serviceName: "definitionService", hasEntryACL: false });
-    this.prisma = prisma;
-    this.setDelegate(prisma.definition);
-    this.initMethods();
-    this.installAdmin();
-  }
-
-  /** Subscribe to admin edits (e.g. the game sim hot-reloads tunables). */
-  public onChanged(listener: DefinitionChangedListener): void {
-    this.changedListeners.push(listener);
-  }
-
-  private notifyChanged(definition: Definition): void {
-    const dto = this.toDto(definition);
-    for (const listener of this.changedListeners) {
-      try {
-        listener(dto);
-      } catch {
-        // Listener errors must never break admin writes
-      }
-    }
-  }
-
-  // Wire shape: dates as ISO strings (what SubscriptionDataMap advertises).
-  // This overrides the base hook, so subscribe payloads and emitUpdate use it
-  // too -- a private helper named toDTO did not, and leaked raw Prisma rows.
-  protected override toDto(definition: Definition): DefinitionDTO {
-    return {
-      id: definition.id,
-      type: definition.type,
-      key: definition.key,
-      data: (definition.data ?? {}) as Record<string, unknown>,
-      version: definition.version,
-      enabled: definition.enabled,
-      updatedAt: definition.updatedAt.toISOString(),
-    };
-  }
-
-  private initMethods(): void {
-    // Public: game clients fetch content at load, before auth completes.
-    // Definitions are game content — never store secrets in them.
-    this.defineMethod(
-      "listDefinitions",
-      "Public",
-      async (payload) => {
-        const rows = await this.prisma.definition.findMany({
-          where: { enabled: true, ...(payload.type ? { type: payload.type } : {}) },
+export const definitionService = qd.defineService(definitionContract, {
+  model: "definition",
+  methods: {
+    // quickdraw-migrate: review [kit] listDefinitions has the shape of the read/write kit's list, which checks access on every row it touches, pages and stays live: replace it with crud.handlers (crud.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
+    listDefinitions: {
+      access: "public",
+      handler: async ({ input, db }) => {
+        const rows = await db.definition.findMany({
+          where: { enabled: true, ...(input.type ? { type: input.type } : {}) },
           orderBy: [{ type: "asc" }, { key: "asc" }],
         });
-        return rows.map((row) => this.toDto(row));
+        return rows.map((row) => toDto(row));
       },
-      { schema: listDefinitionsSchema },
-    );
-
-    this.defineMethod(
-      "getDefinition",
-      "Public",
-      async (payload) => {
-        const row = await this.prisma.definition.findUnique({
-          where: { type_key: { type: payload.type, key: payload.key } },
+    },
+    // quickdraw-migrate: review [kit] getDefinition has the shape of the read/write kit's get, which checks access on every row it touches, pages and stays live: replace it with crud.handlers (crud.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
+    getDefinition: {
+      access: "public",
+      handler: async ({ input, db }) => {
+        const row = await db.definition.findUnique({
+          where: { type_key: { type: input.type, key: input.key } },
         });
-        return row && row.enabled ? this.toDto(row) : null;
+        return row && row.enabled ? toDto(row) : null;
       },
-      { schema: getDefinitionSchema },
-    );
-
-    this.verifyAllMethods(["listDefinitions", "getDefinition"]);
-  }
-
-  // Admin writes flow through the generic admin surface; hook them so
-  // consumers (the game sim) can hot-reload.
-  protected override async adminCreate(data: Prisma.DefinitionCreateInput): Promise<Definition> {
-    const created = await super.adminCreate(data);
-    this.notifyChanged(created);
-    return created;
-  }
-
-  protected override async adminUpdate(
-    id: string,
-    data: Prisma.DefinitionUpdateInput,
-  ): Promise<Definition | null> {
-    const updated = await super.adminUpdate(id, data);
-    if (updated) this.notifyChanged(updated);
-    return updated;
-  }
-
-  private installAdmin(): void {
-    this.installAdminMethods({
-      expose: { list: true, get: true, create: true, update: true, delete: true },
-      access: {
-        list: "Admin",
-        get: "Admin",
-        create: "Admin",
-        update: "Admin",
-        delete: "Admin",
-        setEntryACL: "Admin",
-        getSubscribers: "Admin",
-        reemit: "Admin",
-        unsubscribeAll: "Admin",
-      },
-      schema: adminDefinitionSchema,
-      displayName: "Definitions",
-      tableColumns: ["id", "type", "key", "version", "enabled", "updatedAt"],
-    });
-  }
-}
+    },
+  },
+});

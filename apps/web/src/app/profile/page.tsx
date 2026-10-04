@@ -15,19 +15,19 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import { useTranslations } from "next-intl";
 import { useSocket } from "../../providers";
-import { useService, useSubscription } from "../../hooks";
+import { qd } from "../../lib/quickdraw";
 
 export default function ProfilePage(): React.ReactElement {
   const t = useTranslations("ProfilePage");
   const tCommon = useTranslations("Common");
   const { userId } = useSocket();
-  const { data: user, isLoading } = useSubscription("userService", userId ?? "");
+  const { data: user, isLoading } = qd.userService.useEntity(userId ?? "");
 
   const [editing, setEditing] = React.useState(false);
   const [draftName, setDraftName] = React.useState("");
   const [nameError, setNameError] = React.useState<string | null>(null);
 
-  const updateUser = useService("userService", "updateUser", {
+  const updateUser = qd.userService.updateUser.useMutation({
     onSuccess: (result) => {
       if ("error" in result) {
         setNameError(t("nameTaken"));

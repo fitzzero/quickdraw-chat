@@ -1,7 +1,8 @@
 "use client";
 
-import { useCollection, type UseCollectionResult } from "@fitzzero/quickdraw-core/client";
+import { type UseCollectionResult } from "@fitzzero/quickdraw-core/client";
 import { useSocket } from "../providers";
+import { qd } from "../lib/quickdraw";
 import type { ChatListItem } from "@project/shared";
 
 // Most recent activity first; chats without messages fall back to creation
@@ -25,7 +26,9 @@ function compareByActivity(a: ChatListItem, b: ChatListItem): number {
  */
 export function useMyChats(): UseCollectionResult<ChatListItem> {
   const { userId } = useSocket();
-  return useCollection<ChatListItem>("chatService", "myChats", userId ?? null, {
+  // quickdraw-migrate: review [client] declare the collection "myChats" in the chatService contract (see the [collection] marker where 4.x defined it): qd.chatService.myChats does not exist until then, and the cast to the 4.x item type stands in for its type; delete the cast once it is declared
+  // quickdraw-migrate: review [client] compare is gone: items follow the contract collection's order (put the sort there)
+  return qd.chatService.myChats.useCollection(userId ?? null, {
     compare: compareByActivity,
-  });
+  }) as UseCollectionResult<ChatListItem, { readonly id: string }>;
 }

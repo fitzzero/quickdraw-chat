@@ -13,8 +13,8 @@ import {
 } from "@mui/material";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import { useTranslations } from "next-intl";
-import { useService } from "@fitzzero/quickdraw-core/client";
 import { useAdminServices } from "../../hooks/useAdminServices";
+import { qd } from "../../lib/quickdraw";
 import type { AccessLevel } from "@project/shared";
 
 interface AdminUpdateUserPayload {
@@ -48,10 +48,8 @@ export function UserServiceAccessEditor({
 
   // The admin protocol uses dynamic event names not present in
   // ServiceMethodsMap, so use the generic quickdraw-core useService here.
-  const adminUpdate = useService<AdminUpdateUserPayload, Record<string, unknown>>(
-    "userService",
-    "adminUpdate",
-  );
+  // quickdraw-migrate: review [client] userService has no method "adminUpdate" in its contract
+  const adminUpdate = qd.userService.adminUpdate.useMutation();
   const isSaving = adminUpdate.isPending;
 
   // Sync local state when currentAccess changes
