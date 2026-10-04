@@ -1,4 +1,4 @@
-import type { Definition, Prisma } from "@project/db";
+import type { Definition } from "@project/db";
 import type { DefinitionDTO } from "@project/shared";
 import { z } from "zod";
 import { qd } from "../../quickdraw.js";
@@ -17,6 +17,7 @@ const adminDefinitionSchema = z.object({
 type DefinitionChangedListener = (definition: DefinitionDTO) => void;
 
 // quickdraw-migrate: review [this] 4.x constructor code of DefinitionService: a service object has no constructor; move what still matters to module scope, a job or the server's start-up, then delete this function
+// quickdraw-5.0 finding: the codemod dropped the field changedListeners (initialized to []) that onChanged and notifyChanged read; only those uses are marked
 function setUpDefinitionService(): void {
   installAdmin();
 }
@@ -55,26 +56,10 @@ function toDto(definition: Definition): DefinitionDTO {
   };
 }
 
-// Admin writes flow through the generic admin surface; hook them so
-// consumers (the game sim) can hot-reload.
-// quickdraw-migrate: review [this] overrode the 4.x BaseService method adminCreate, which 5.0 does not have: keep what it still needs elsewhere, then delete it
-async function adminCreate(data: Prisma.DefinitionCreateInput): Promise<Definition> {
-  // quickdraw-migrate: review [this] calls the 4.x base class, which 5.0 does not have: keep what this code still needs without it
-  const created = await super.adminCreate(data);
-  notifyChanged(created);
-  return created;
-}
-
-// quickdraw-migrate: review [this] overrode the 4.x BaseService method adminUpdate, which 5.0 does not have: keep what it still needs elsewhere, then delete it
-async function adminUpdate(
-  id: string,
-  data: Prisma.DefinitionUpdateInput,
-): Promise<Definition | null> {
-  // quickdraw-migrate: review [this] calls the 4.x base class, which 5.0 does not have: keep what this code still needs without it
-  const updated = await super.adminUpdate(id, data);
-  if (updated) notifyChanged(updated);
-  return updated;
-}
+// Admin writes flow through the generic admin surface; 4.x hooked them so
+// consumers (the game sim) could hot-reload.
+// quickdraw-migrate: review [this] 4.x overrode adminCreate and adminUpdate to call notifyChanged(row) after each admin write, so the game sim hot-reloads tunables: give the admin kit's writes the same hook
+// quickdraw-5.0 finding: the codemod kept those two overrides as module functions calling super.adminCreate(data) and super.adminUpdate(id, data), which does not parse (oxlint stops at the syntax error, and no baseline can hold one); they are removed, and the marker above keeps their item
 
 function installAdmin(): void {
   // quickdraw-migrate: review [admin] installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, options) in methods)

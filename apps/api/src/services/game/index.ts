@@ -35,6 +35,7 @@ const adminGameWorldSchema = z.object({
 });
 
 // quickdraw-migrate: review [this] 4.x constructor code of GameService: a service object has no constructor; move what still matters to module scope, a job or the server's start-up, then delete this function
+// quickdraw-5.0 finding: the codemod dropped GameService's fields with their initializers: sim (new GameWorldSim({ seed, tunables })), loop (new GameLoop({ sim, emitVolatile, emitReliable, onDeath, hasAudience, onTick })) and playingUsers (new Set()), the constructor's options type and the GameWorldSim/GameLoop imports; only their uses are marked, so the loop's wiring survives only in the 4.x file (before "chore: run quickdraw-codemod v5")
 function setUpGameService(): void {
   const room = serviceRoom("gameService", GLOBAL_WORLD_ID);
   initChannels();
@@ -68,20 +69,8 @@ function checkAccess(
 // the world room. Covers both leave paths: disconnect (unsubscribeSocket)
 // and explicit unsubscribe. The base class removes the departing socket
 // from `subscribers` before these hooks run, so a plain scan suffices.
-// quickdraw-migrate: review [this] overrode the 4.x BaseService method unsubscribeSocket, which 5.0 does not have: keep what it still needs elsewhere, then delete it
-function unsubscribeSocket(socket: QuickdrawSocket): void {
-  // quickdraw-migrate: review [this] calls the 4.x base class, which 5.0 does not have: keep what this code still needs without it
-  super.unsubscribeSocket(socket);
-  maybeRemovePlayer(socket.userId);
-}
-
-// quickdraw-migrate: review [this] overrode the 4.x BaseService method unsubscribe, which 5.0 does not have: keep what it still needs elsewhere, then delete it
-function unsubscribe(entryId: string, socket: QuickdrawSocket): void {
-  // quickdraw-migrate: review [this] calls the 4.x base class, which 5.0 does not have: keep what this code still needs without it
-  super.unsubscribe(entryId, socket);
-  if (entryId === GLOBAL_WORLD_ID) maybeRemovePlayer(socket.userId);
-}
-
+// quickdraw-migrate: review [this] 4.x overrode unsubscribeSocket(socket) (a disconnect) and unsubscribe(entryId, socket) (leaving the world's row) to call maybeRemovePlayer(socket.userId) after the base class removed the socket: run it wherever a player's last socket leaves the world
+// quickdraw-5.0 finding: the codemod kept those two overrides as module functions calling super.unsubscribeSocket(socket) and super.unsubscribe(entryId, socket), which does not parse (oxlint stops at the syntax error, and no baseline can hold one); they are removed, and the marker above keeps their item
 function maybeRemovePlayer(userId: string | undefined): void {
   // quickdraw-migrate: review [this] this.playingUsers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
   if (!userId || !this.playingUsers.has(userId)) return;

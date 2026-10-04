@@ -66,6 +66,7 @@ function createWebPushTransport(): PushTransport | undefined {
 }
 
 // quickdraw-migrate: review [this] 4.x constructor code of PushService: a service object has no constructor; move what still matters to module scope, a job or the server's start-up, then delete this function
+// quickdraw-5.0 finding: the codemod dropped the constructor's field assignments, transport = options.transport ?? createWebPushTransport() and isUserOnline = options.isUserOnline, so createWebPushTransport is now unused and nothing says where the transport came from
 function setUpPushService(): void {
   installAdmin();
 }

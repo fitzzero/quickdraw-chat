@@ -2,7 +2,7 @@
 
 Written by `@fitzzero/quickdraw-codemod` from the `// quickdraw-migrate: review` markers in the code; running the codemod again rewrites it from the markers that remain. Work through the sections in order (contracts, access, emits, client), delete each marker once its item is done, and see the migration guide (`MIGRATION.md`, shipped in `@fitzzero/quickdraw-codemod`) for each kind of item. Then run lint (`no-v4-api` names every 4.x API left, `no-todo-schema` every placeholder) and the typecheck.
 
-218 items in 51 files.
+212 items in 51 files.
 
 | Section                                                        | Items |
 | -------------------------------------------------------------- | ----: |
@@ -15,7 +15,7 @@ Written by `@fitzzero/quickdraw-codemod` from the `// quickdraw-migrate: review`
 | Lifecycle hooks                                                |     2 |
 | installAdminMethods to replace with the admin kit              |     7 |
 | Methods a kit implements                                       |    11 |
-| Service instance state and the 4.x context                     |    42 |
+| Service instance state and the 4.x context                     |    36 |
 | Client                                                         |    24 |
 | Server wiring and other 4.x APIs                               |    82 |
 
@@ -28,16 +28,16 @@ The forms admit exactly the callers 4.x admitted, and `jsonAcl("acl")` the rows 
 - [ ] `apps/api/src/services/document/index.ts:103` this.isLevelSufficient: compare levels in a policy or a custom(fn) form (Public < Read < Moderate < Admin)
 - [ ] `apps/api/src/services/document/index.ts:130` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
 - [ ] `apps/api/src/services/document/index.ts:185` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
-- [ ] `apps/api/src/services/game/index.ts:245` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
-- [ ] `apps/api/src/services/game/index.ts:289` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
-- [ ] `apps/api/src/services/game/index.ts:299` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
-- [ ] `apps/api/src/services/game/index.ts:326` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
+- [ ] `apps/api/src/services/game/index.ts:234` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
+- [ ] `apps/api/src/services/game/index.ts:278` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
+- [ ] `apps/api/src/services/game/index.ts:288` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
+- [ ] `apps/api/src/services/game/index.ts:315` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
 - [ ] `apps/api/src/services/message/index.ts:92` this.isLevelSufficient: compare levels in a policy or a custom(fn) form (Public < Read < Moderate < Admin)
 - [ ] `apps/api/src/services/message/index.ts:149` 4.x's hasEntryACL read the row's `acl` column ([{ userId, level }]), and so does jsonAcl("acl"), with one difference: a user with several entries in a row's list gets the highest of their levels, where 4.x took the first. Check the stored lists for duplicate entries
 - [ ] `apps/api/src/services/message/index.ts:153` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
-- [ ] `apps/api/src/services/push-subscription/index.ts:213` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
-- [ ] `apps/api/src/services/push-subscription/index.ts:222` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
-- [ ] `apps/api/src/services/push-subscription/index.ts:232` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
+- [ ] `apps/api/src/services/push-subscription/index.ts:214` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
+- [ ] `apps/api/src/services/push-subscription/index.ts:223` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
+- [ ] `apps/api/src/services/push-subscription/index.ts:233` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
 - [ ] `apps/api/src/services/user/index.ts:94` "Read" with no row id let every signed-in user call this in 4.x, and "authenticated" keeps that; narrow it ({ service: "Read" }, { entry: "Read", id } or a scope form) if that was not meant
 
 ## Access overrides to turn into a policy
@@ -50,8 +50,8 @@ The forms admit exactly the callers 4.x admitted, and `jsonAcl("acl")` the rows 
 - [ ] `apps/api/src/services/document/index.ts:61` 4.x access override: port it to the service's access policy (owner, jsonAcl, members, inherit, anyOf or resolver), then delete this function
 - [ ] `apps/api/src/services/document/index.ts:78` 4.x access override: port it to the service's access policy (owner, jsonAcl, members, inherit, anyOf or resolver), then delete this function
 - [ ] `apps/api/src/services/document/index.ts:125` 4.x decided row access in checkAccess and checkEntryACL (now functions in this file): port them to a policy (owner, jsonAcl, members, inherit, anyOf or resolver). Until then this policy grants no row, so only service grants pass
-- [ ] `apps/api/src/services/game/index.ts:57` 4.x access override: port it to the service's access policy (owner, jsonAcl, members, inherit, anyOf or resolver), then delete this function
-- [ ] `apps/api/src/services/game/index.ts:241` 4.x decided row access in checkAccess (now functions in this file): port them to a policy (owner, jsonAcl, members, inherit, anyOf or resolver). Until then this policy grants no row, so only service grants pass
+- [ ] `apps/api/src/services/game/index.ts:58` 4.x access override: port it to the service's access policy (owner, jsonAcl, members, inherit, anyOf or resolver), then delete this function
+- [ ] `apps/api/src/services/game/index.ts:230` 4.x decided row access in checkAccess (now functions in this file): port them to a policy (owner, jsonAcl, members, inherit, anyOf or resolver). Until then this policy grants no row, so only service grants pass
 - [ ] `apps/api/src/services/user/index.ts:66` 4.x access override: port it to the service's access policy (owner, jsonAcl, members, inherit, anyOf or resolver), then delete this function
 - [ ] `apps/api/src/services/user/index.ts:90` 4.x decided row access in checkAccess (now functions in this file): port them to a policy (owner, jsonAcl, members, inherit, anyOf or resolver). Until then this policy grants no row, so only service grants pass
 
@@ -60,7 +60,7 @@ The forms admit exactly the callers 4.x admitted, and `jsonAcl("acl")` the rows 
 Subscribers receive the contract's projections, built from rows, with field levels from the contract's `fields`.
 
 - [ ] `apps/api/src/services/chat/index.ts:59` 4.x toDto: subscribers now receive the contract entity's keys, projected from the row (dates as ISO strings); fold computed fields into a projection's select and map, then delete this function
-- [ ] `apps/api/src/services/definition/index.ts:45` 4.x toDto: subscribers now receive the contract entity's keys, projected from the row (dates as ISO strings); fold computed fields into a projection's select and map, then delete this function
+- [ ] `apps/api/src/services/definition/index.ts:46` 4.x toDto: subscribers now receive the contract entity's keys, projected from the row (dates as ISO strings); fold computed fields into a projection's select and map, then delete this function
 - [ ] `apps/api/src/services/document/index.ts:44` 4.x toDto: subscribers now receive the contract entity's keys, projected from the row (dates as ISO strings); fold computed fields into a projection's select and map, then delete this function
 - [ ] `apps/api/src/services/message/index.ts:63` 4.x toDto: subscribers now receive the contract entity's keys, projected from the row (dates as ISO strings); fold computed fields into a projection's select and map, then delete this function
 - [ ] `apps/api/src/services/user/index.ts:54` 4.x toDto: subscribers now receive the contract entity's keys, projected from the row (dates as ISO strings); fold computed fields into a projection's select and map, then delete this function
@@ -82,9 +82,9 @@ A 4.x `defineCollection` becomes a contract collection (`scope`, `item`, `order`
 - [ ] `apps/api/src/services/chat/index.ts:291` hand emit: 5.0 sends collection deltas from tracked writes; write through db and let the tracked write emit, then delete this hand emit once the collection is declared in the contract
 - [ ] `apps/api/src/services/chat/index.ts:374` hand emit: 5.0 sends collection deltas from tracked writes; write through db and let the tracked write emit, then delete this hand emit once the collection is declared in the contract
 - [ ] `apps/api/src/services/chat/index.ts:391` hand emit: 5.0 sends collection deltas from tracked writes; write through db and let the tracked write emit, then delete this hand emit once the collection is declared in the contract
-- [ ] `apps/api/src/services/game/index.ts:100` room event: declare it in the contract's events and send it with ctx.rooms.emit(room, contract, event, payload)
-- [ ] `apps/api/src/services/game/index.ts:263` room event: declare it in the contract's events and send it with ctx.rooms.emit(room, contract, event, payload)
-- [ ] `apps/api/src/services/game/index.ts:307` room event: declare it in the contract's events and send it with ctx.rooms.emit(room, contract, event, payload)
+- [ ] `apps/api/src/services/game/index.ts:89` room event: declare it in the contract's events and send it with ctx.rooms.emit(room, contract, event, payload)
+- [ ] `apps/api/src/services/game/index.ts:252` room event: declare it in the contract's events and send it with ctx.rooms.emit(room, contract, event, payload)
+- [ ] `apps/api/src/services/game/index.ts:296` room event: declare it in the contract's events and send it with ctx.rooms.emit(room, contract, event, payload)
 - [ ] `apps/api/src/services/user/index.ts:146` hand emit: 5.0 sends entity frames from tracked writes; delete this once the write goes through db
 
 ## this.create, this.update and this.delete to write through db
@@ -111,11 +111,11 @@ Hooks ran only inside the CRUD helpers; move their work into the methods that wr
 `admin.contract({ entity })` and `admin.handlers(contract, options)`.
 
 - [ ] `apps/api/src/services/chat/index.ts:33` installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, { displayName, hiddenFields, fieldOverrides }) in methods), then delete this; it is no longer used
-- [ ] `apps/api/src/services/definition/index.ts:80` installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, options) in methods)
+- [ ] `apps/api/src/services/definition/index.ts:65` installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, options) in methods)
 - [ ] `apps/api/src/services/document/index.ts:18` installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, { displayName, hiddenFields, fieldOverrides }) in methods), then delete this; it is no longer used
-- [ ] `apps/api/src/services/game/index.ts:206` installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, options) in methods)
+- [ ] `apps/api/src/services/game/index.ts:195` installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, options) in methods)
 - [ ] `apps/api/src/services/message/index.ts:36` installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, { displayName, hiddenFields, fieldOverrides }) in methods), then delete this; it is no longer used
-- [ ] `apps/api/src/services/push-subscription/index.ts:180` installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, options) in methods)
+- [ ] `apps/api/src/services/push-subscription/index.ts:181` installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, options) in methods)
 - [ ] `apps/api/src/services/user/index.ts:19` installAdminMethods: use the admin kit (...admin.contract({ entity }) in the contract, ...admin.handlers(contract, { displayName, hiddenFields, fieldOverrides }) in methods), then delete this; it is no longer used
 
 ## Methods a kit implements
@@ -125,8 +125,8 @@ Methods of a kit method's shape (`get`, `list`, `create`, `getTask`, ...): the k
 - [ ] `apps/api/src/services/chat/index.ts:250` createChat has the shape of the read/write kit's create, which checks access on every row it touches, pages and stays live: replace it with crud.handlers (crud.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
 - [ ] `apps/api/src/services/chat/index.ts:281` deleteChat has the shape of the read/write kit's delete, which checks access on every row it touches, pages and stays live: replace it with crud.handlers (crud.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
 - [ ] `apps/api/src/services/chat/index.ts:327` inviteByName has the shape of the sharing kit's inviteByName, which checks access on every row it touches, pages and stays live: replace it with sharing.handlers (sharing.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
-- [ ] `apps/api/src/services/definition/index.ts:113` listDefinitions has the shape of the read/write kit's list, which checks access on every row it touches, pages and stays live: replace it with crud.handlers (crud.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
-- [ ] `apps/api/src/services/definition/index.ts:124` getDefinition has the shape of the read/write kit's get, which checks access on every row it touches, pages and stays live: replace it with crud.handlers (crud.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
+- [ ] `apps/api/src/services/definition/index.ts:98` listDefinitions has the shape of the read/write kit's list, which checks access on every row it touches, pages and stays live: replace it with crud.handlers (crud.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
+- [ ] `apps/api/src/services/definition/index.ts:109` getDefinition has the shape of the read/write kit's get, which checks access on every row it touches, pages and stays live: replace it with crud.handlers (crud.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
 - [ ] `apps/api/src/services/document/index.ts:128` createDocument has the shape of the read/write kit's create, which checks access on every row it touches, pages and stays live: replace it with crud.handlers (crud.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
 - [ ] `apps/api/src/services/document/index.ts:147` getDocument has the shape of the read/write kit's get, which checks access on every row it touches, pages and stays live: replace it with crud.handlers (crud.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
 - [ ] `apps/api/src/services/document/index.ts:159` updateDocument has the shape of the read/write kit's update, which checks access on every row it touches, pages and stays live: replace it with crud.handlers (crud.contract in the contract), or keep it with a "// quickdraw: hand-written because <reason>" comment above it (lint: prefer-kit)
@@ -140,46 +140,40 @@ A service is an object now: no constructor, no fields, no `this`; handlers read 
 
 - [ ] `apps/api/src/services/chat/index.ts:200` the 4.x service logger: take a Logger argument, or log from the handler that calls this with ctx.log
 - [ ] `apps/api/src/services/definition/index.ts:19` 4.x constructor code of DefinitionService: a service object has no constructor; move what still matters to module scope, a job or the server's start-up, then delete this function
-- [ ] `apps/api/src/services/definition/index.ts:26` this.changedListeners was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/definition/index.ts:32` this.changedListeners was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/definition/index.ts:60` overrode the 4.x BaseService method adminCreate, which 5.0 does not have: keep what it still needs elsewhere, then delete it
-- [ ] `apps/api/src/services/definition/index.ts:62` calls the 4.x base class, which 5.0 does not have: keep what this code still needs without it
-- [ ] `apps/api/src/services/definition/index.ts:68` overrode the 4.x BaseService method adminUpdate, which 5.0 does not have: keep what it still needs elsewhere, then delete it
-- [ ] `apps/api/src/services/definition/index.ts:73` calls the 4.x base class, which 5.0 does not have: keep what this code still needs without it
+- [ ] `apps/api/src/services/definition/index.ts:27` this.changedListeners was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/definition/index.ts:33` this.changedListeners was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/definition/index.ts:61` 4.x overrode adminCreate and adminUpdate to call notifyChanged(row) after each admin write, so the game sim hot-reloads tunables: give the admin kit's writes the same hook
 - [ ] `apps/api/src/services/game/index.ts:37` 4.x constructor code of GameService: a service object has no constructor; move what still matters to module scope, a job or the server's start-up, then delete this function
-- [ ] `apps/api/src/services/game/index.ts:45` this.loop was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:50` this.loop was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:71` overrode the 4.x BaseService method unsubscribeSocket, which 5.0 does not have: keep what it still needs elsewhere, then delete it
-- [ ] `apps/api/src/services/game/index.ts:73` calls the 4.x base class, which 5.0 does not have: keep what this code still needs without it
-- [ ] `apps/api/src/services/game/index.ts:78` overrode the 4.x BaseService method unsubscribe, which 5.0 does not have: keep what it still needs elsewhere, then delete it
-- [ ] `apps/api/src/services/game/index.ts:80` calls the 4.x base class, which 5.0 does not have: keep what this code still needs without it
-- [ ] `apps/api/src/services/game/index.ts:86` this.playingUsers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:88` this.subscribers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:96` this.playingUsers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:98` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:122` the 4.x service logger: take a Logger argument, or log from the handler that calls this with ctx.log
-- [ ] `apps/api/src/services/game/index.ts:137` this.io was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:141` this.subscribers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:145` this.subscribers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:165` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:170` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:174` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:175` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:188` 4.x channel: declare it in the contract's channels ({ payload, ratePerSecond, burst, requires }; requireRoom becomes requires: { room }) and handle it in defineService's channels
-- [ ] `apps/api/src/services/game/index.ts:193` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:255` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:257` this.playingUsers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:282` ctx.socketId was a field of 4.x's method context (userId, socketId, serviceAccess); 5.0's ctx has principal, requestId, log and transport
-- [ ] `apps/api/src/services/game/index.ts:293` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:303` this.playingUsers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/game/index.ts:305` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:46` this.loop was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:51` this.loop was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:72` 4.x overrode unsubscribeSocket(socket) (a disconnect) and unsubscribe(entryId, socket) (leaving the world's row) to call maybeRemovePlayer(socket.userId) after the base class removed the socket: run it wherever a player's last socket leaves the world
+- [ ] `apps/api/src/services/game/index.ts:75` this.playingUsers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:77` this.subscribers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:85` this.playingUsers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:87` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:111` the 4.x service logger: take a Logger argument, or log from the handler that calls this with ctx.log
+- [ ] `apps/api/src/services/game/index.ts:126` this.io was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:130` this.subscribers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:134` this.subscribers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:154` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:159` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:163` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:164` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:177` 4.x channel: declare it in the contract's channels ({ payload, ratePerSecond, burst, requires }; requireRoom becomes requires: { room }) and handle it in defineService's channels
+- [ ] `apps/api/src/services/game/index.ts:182` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:244` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:246` this.playingUsers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:271` ctx.socketId was a field of 4.x's method context (userId, socketId, serviceAccess); 5.0's ctx has principal, requestId, log and transport
+- [ ] `apps/api/src/services/game/index.ts:282` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:292` this.playingUsers was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/game/index.ts:294` this.sim was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
 - [ ] `apps/api/src/services/message/index.ts:134` this.chatService was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
 - [ ] `apps/api/src/services/message/index.ts:137` this.pushService was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
 - [ ] `apps/api/src/services/message/index.ts:143` this.chatService was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
 - [ ] `apps/api/src/services/push-subscription/index.ts:68` 4.x constructor code of PushService: a service object has no constructor; move what still matters to module scope, a job or the server's start-up, then delete this function
-- [ ] `apps/api/src/services/push-subscription/index.ts:94` this.transport was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/push-subscription/index.ts:135` this.transport was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
-- [ ] `apps/api/src/services/push-subscription/index.ts:172` this.isUserOnline was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/push-subscription/index.ts:95` this.transport was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/push-subscription/index.ts:136` this.transport was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
+- [ ] `apps/api/src/services/push-subscription/index.ts:173` this.isUserOnline was 4.x service-instance state: a service object has none. Import what it held, pass it in, or call another service with ctx.services
 
 ## Client
 
