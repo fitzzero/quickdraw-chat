@@ -26,6 +26,7 @@ export const userSchema = z.object({
   email: z.string(),
   name: z.string().nullable(),
   image: z.string().nullable(),
+  // quickdraw-5.0 finding: a Json column (JsonValue in the Prisma row) a handler cannot return for this typed map without a cast; see document.ts
   /** Service-wide grants: `{ "chatService": "Admin" }`. */
   serviceAccess: z.record(z.string(), accessLevelSchema).nullable(),
   // ── quickdraw-game:start ──

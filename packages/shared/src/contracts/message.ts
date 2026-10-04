@@ -14,28 +14,28 @@ import {
   publicProfileSchema,
 } from "./helpers.js";
 
-const messageRoleSchema = z.enum(["user", "assistant", "system"]);
-
 const postMessageSchema = z.object({
   chatId: cuidSchema("chat ID"),
   content: z
     .string()
     .min(1, "Content is required")
     .max(10000, "Content must be 10000 characters or less"),
-  role: messageRoleSchema.optional(),
+  role: z.enum(["user", "assistant", "system"]).optional(),
 });
 
 /**
  * A message row, as its subscribers receive it. The row's `acl` column (its
  * author holds Admin there, which lets them delete it) is read by the access
- * policy and never sent.
+ * policy and never sent. `role` is "user", "assistant" or "system", but a
+ * string as the column is: handlers return database rows for this entity, and
+ * a narrower type than the column's would refuse them.
  */
 export const messageSchema = z.object({
   id: z.string(),
   chatId: z.string(),
   userId: z.string(),
   content: z.string(),
-  role: messageRoleSchema,
+  role: z.string(),
   createdAt: isoDateSchema,
 });
 

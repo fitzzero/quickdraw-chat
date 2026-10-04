@@ -47,6 +47,7 @@ export const documentSchema = z.object({
   title: z.string(),
   content: z.string(),
   ownerId: z.string(),
+  // quickdraw-5.0 finding: a handler cannot return the Prisma row for this entity: Prisma types the Json column `acl` as JsonValue, which RowFor (strings widened to string | Date, nothing else) will not accept for a typed list; the same holds for user.serviceAccess and definition.data, so each such handler needs a cast or a projection map
   acl: z.array(aceSchema).nullable(),
   createdAt: isoDateSchema,
   updatedAt: isoDateSchema,

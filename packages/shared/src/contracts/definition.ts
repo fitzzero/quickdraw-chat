@@ -24,6 +24,7 @@ export const definitionSchema = z.object({
   id: z.string(),
   type: z.string(),
   key: z.string(),
+  // quickdraw-5.0 finding: a Json column (JsonValue in the Prisma row) a handler cannot return for this typed object without a cast; see document.ts
   data: z.record(z.string(), z.unknown()),
   version: z.number().int(),
   enabled: z.boolean(),
