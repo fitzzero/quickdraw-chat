@@ -114,7 +114,7 @@ export function createAppAuth(options: AppAuthOptions): AppAuth {
     routes,
     server: {
       // sessions (a token or the cookie), and with ENABLE_DEV_CREDENTIALS a
-      // socket naming a user (`auth: { userId }`): the Godot editor, the bench
+      // socket naming a user (`auth: { userId }`): a game editor, load-test bots
       authenticate: socketAuth({ ...keys, allowedOrigins, devCredentials: devCredentials(prisma) }),
       loadServiceAccess: createGrantsLoader({ prisma, serviceNames: options.serviceNames }),
       // a tracked write to User.serviceAccess (setServiceAccess) refreshes the

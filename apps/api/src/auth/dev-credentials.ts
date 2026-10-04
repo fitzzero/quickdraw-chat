@@ -1,9 +1,8 @@
 // Development credentials: with ENABLE_DEV_CREDENTIALS=true (never in
 // production), a socket may sign in by naming a user in its handshake
-// (`auth: { userId }`, no token), for the Godot editor and the netcode
-// bench's bots. `socketAuth({ devCredentials })` serves the handshake and
-// refuses it in production itself; the production boot refuses the flag too
-// (`index.ts`).
+// (`auth: { userId }`, no token), for a game editor and load-test bots.
+// `socketAuth({ devCredentials })` serves the handshake and refuses it in
+// production itself; the production boot refuses the flag too (`index.ts`).
 
 import type { Principal } from "@fitzzero/quickdraw-core/server";
 import type { PrismaClient } from "@project/db";

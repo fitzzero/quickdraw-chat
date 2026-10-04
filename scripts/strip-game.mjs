@@ -12,8 +12,9 @@
  * 2. Strip marked blocks from shared files — every game insertion into a
  *    shared file sits between the markers
  *    `── quickdraw-game:start ──` / `── quickdraw-game:end ──`
- *    (any comment syntax). JSON files that can't carry comments (en.json,
- *    package.json, .oxlintrc.json) get targeted key removal below.
+ *    (any comment syntax). JSON files (en.json, package.json, the
+ *    lint baseline, and .oxlintrc.json, whose JSONC comments are dropped)
+ *    get targeted key removal below.
  *
  * Self-deletes on success.
  */
@@ -49,6 +50,8 @@ const DELETE_PATHS = [
   "apps/api/src/__tests__/services/guest-auth.int.test.ts",
   "packages/shared/src/types/game.ts",
   "packages/shared/src/types/definition.ts",
+  "packages/shared/src/contracts/game.ts",
+  "packages/shared/src/contracts/definition.ts",
   "packages/shared/src/game",
   "packages/bench",
   "apps/api/src/bench",
@@ -113,8 +116,43 @@ for (const file of tracked) {
 }
 
 // ── 3. JSON files (no comment markers possible) ─────────────────────────
+/**
+ * Parses JSON with comments and trailing commas, as .oxlintrc.json is
+ * written (oxlint reads JSONC). The file is written back as plain JSON, so
+ * its comments are dropped: the formatter then lays it out.
+ */
+function parseJsonc(text) {
+  let json = "";
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (inString) {
+      json += char;
+      if (char === "\\") {
+        i += 1;
+        json += text[i] ?? "";
+      } else if (char === '"') {
+        inString = false;
+      }
+    } else if (char === '"') {
+      inString = true;
+      json += char;
+    } else if (char === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+      json += "\n";
+    } else if (char === "/" && text[i + 1] === "*") {
+      i += 2;
+      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i++;
+      i += 1;
+    } else {
+      json += char;
+    }
+  }
+  return JSON.parse(json.replace(/,(\s*[}\]])/g, "$1"));
+}
+
 function editJson(path, edit) {
-  const data = JSON.parse(readFileSync(path, "utf8"));
+  const data = parseJsonc(readFileSync(path, "utf8"));
   edit(data);
   writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);
   console.log(`  edited ${path}`);
@@ -172,13 +210,24 @@ editJson("package.json", (data) => {
   delete data.scripts?.["bench:netcode"];
   delete data.scripts?.["bench:server"];
   delete data.scripts?.["bench:compare"];
+  delete data.scripts?.["check:godot"];
 });
 
 editJson("apps/api/package.json", (data) => {
   delete data.scripts?.["bench:netcode"];
   delete data.scripts?.["bench:server"];
+  delete data.scripts?.["check:godot"];
   delete data.dependencies?.["@project/bench"];
 });
+
+// Lint allowances recorded for files DELETE_PATHS removed
+if (existsSync(".quickdraw-lint-baseline.json")) {
+  editJson(".quickdraw-lint-baseline.json", (data) => {
+    for (const file of Object.keys(data.files ?? {})) {
+      if (!existsSync(file)) delete data.files[file];
+    }
+  });
+}
 
 // docs/api/README.md is generated (scripts/generate-docs.ts) and indexes the
 // service pages. Drop the two whose pages DELETE_PATHS just removed; a later

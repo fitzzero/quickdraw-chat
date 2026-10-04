@@ -91,7 +91,14 @@ describe("UserService admin kit", () => {
   it("creates, updates and deletes a user", async () => {
     const admin = await as(users.admin.id);
     const created = await admin.userService.adminCreate({
-      data: { email: "newuser@test.com", name: "New User", image: null, isGuest: false },
+      data: {
+        email: "newuser@test.com",
+        name: "New User",
+        image: null,
+        // ── quickdraw-game:start ──
+        isGuest: false,
+        // ── quickdraw-game:end ──
+      },
     });
     expect(created).toMatchObject({ email: "newuser@test.com", name: "New User" });
 
@@ -125,7 +132,14 @@ describe("UserService admin kit", () => {
     expect(
       await codeOf(
         regular.userService.adminCreate({
-          data: { email: "hacker@test.com", name: "Hacker", image: null, isGuest: false },
+          data: {
+            email: "hacker@test.com",
+            name: "Hacker",
+            image: null,
+            // ── quickdraw-game:start ──
+            isGuest: false,
+            // ── quickdraw-game:end ──
+          },
         }),
       ),
     ).toBe("FORBIDDEN");
