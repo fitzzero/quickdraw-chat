@@ -1,272 +1,233 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { QuickdrawError } from "@fitzzero/quickdraw-core";
+import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
-import { startTestServer } from "../utils/server.js";
-import { connectAsUser, emitWithAck } from "../utils/socket.js";
-import type { DocumentDTO } from "@project/shared";
+import { documentService } from "../../services/document/index.js";
+import { principalOf, startTestApp, subscribeEntity, type ApiTestApp } from "../utils/app.js";
+import { createTestUser } from "../factories/user-factory.js";
 
-describe("DocumentService Integration", () => {
-  let stop: () => Promise<void>;
-  let port: number;
-  let users: Awaited<ReturnType<typeof seedTestUsers>>;
+type Users = Awaited<ReturnType<typeof seedTestUsers>>;
 
-  beforeAll(async () => {
-    const server = await startTestServer();
-    port = server.port;
-    stop = server.stop;
+let app: ApiTestApp;
+let users: Users;
+
+beforeAll(async () => {
+  app = await startTestApp();
+});
+
+afterAll(async () => {
+  await app.close();
+});
+
+beforeEach(async () => {
+  await resetDatabase();
+  users = await seedTestUsers();
+  app.frames.clear();
+});
+
+async function as(userId: string): Promise<ReturnType<ApiTestApp["as"]>> {
+  return app.as(await principalOf(userId));
+}
+
+async function codeOf(call: Promise<unknown>): Promise<string> {
+  try {
+    await call;
+    return "allow";
+  } catch (error) {
+    return error instanceof QuickdrawError ? error.code : String(error);
+  }
+}
+
+describe("DocumentService (read/write kit)", () => {
+  it("creates a document owned by the caller", async () => {
+    const created = await (
+      await as(users.regular.id)
+    ).documentService.create({
+      title: "My Document",
+      content: "Document content here",
+    });
+    expect(created).toMatchObject({ title: "My Document", ownerId: users.regular.id, acl: [] });
+
+    const stored = await testPrisma.document.findUniqueOrThrow({ where: { id: created.id } });
+    expect(stored.ownerId).toBe(users.regular.id);
   });
 
-  afterAll(async () => {
-    await stop();
+  it("lists the documents the caller owns or that are shared with them", async () => {
+    const regular = await as(users.regular.id);
+    await regular.documentService.create({ title: "Doc 1" });
+    await regular.documentService.create({ title: "Doc 2" });
+    const others = await (await as(users.moderator.id)).documentService.create({ title: "Theirs" });
+    const sharedWithMe = await (
+      await as(users.moderator.id)
+    ).documentService.create({
+      title: "Shared",
+    });
+    await (
+      await as(users.moderator.id)
+    ).documentService.share({
+      id: sharedWithMe.id,
+      userId: users.regular.id,
+      level: "Read",
+    });
+
+    const page = await regular.documentService.list({
+      sort: { field: "title", direction: "asc" },
+    });
+    expect(page.items.map((doc) => doc.title)).toEqual(["Doc 1", "Doc 2", "Shared"]);
+    expect(page.items.some((doc) => doc.id === others.id)).toBe(false);
   });
 
-  beforeEach(async () => {
-    await resetDatabase();
-    users = await seedTestUsers();
+  it("gets, updates and deletes a document", async () => {
+    const regular = await as(users.regular.id);
+    const created = await regular.documentService.create({ title: "Draft", content: "v1" });
+
+    expect(await regular.documentService.get({ id: created.id })).toMatchObject({
+      title: "Draft",
+      content: "v1",
+    });
+    expect(
+      await regular.documentService.update({ id: created.id, title: "Final", content: "v2" }),
+    ).toMatchObject({ title: "Final", content: "v2" });
+    expect(await regular.documentService.delete({ id: created.id })).toBeNull();
+    expect(await testPrisma.document.findUnique({ where: { id: created.id } })).toBeNull();
   });
 
-  // ============================================================================
-  // CRUD Operations
-  // ============================================================================
+  it("answers NOT_FOUND for a missing document to a service-wide reader", async () => {
+    const reader = await createTestUser({ serviceAccess: { documentService: "Admin" } });
+    expect(
+      await codeOf((await as(reader.id)).documentService.get({ id: "ckmissingdoc0000000000000" })),
+    ).toBe("NOT_FOUND");
+  });
 
-  it("should create a document", async () => {
-    const client = await connectAsUser(port, users.regular.id);
+  it("sends an edit to the document's subscribers", async () => {
+    const owner = await as(users.regular.id);
+    const created = await owner.documentService.create({ title: "Live" });
+    await owner.documentService.share({
+      id: created.id,
+      userId: users.moderator.id,
+      level: "Read",
+    });
+    const reader = await app.connect({ userId: users.moderator.id });
+    await subscribeEntity(reader, "documentService", created.id);
+    app.frames.clear();
 
-    const result = await emitWithAck<{ title: string; content?: string }, { id: string }>(
-      client,
-      "documentService:createDocument",
-      {
-        title: "My Document",
-        content: "Document content here",
+    await owner.documentService.update({ id: created.id, content: "Edited" });
+
+    const frame = await app.frames.waitFor({ event: "qd:e", userId: users.moderator.id });
+    expect(frame.data).toMatchObject({
+      s: "documentService",
+      id: created.id,
+      d: { content: "Edited" },
+    });
+    reader.close();
+  });
+});
+
+describe("DocumentService (sharing kit on the access list)", () => {
+  it("refuses a document to a user it is not shared with", async () => {
+    const created = await (await as(users.regular.id)).documentService.create({ title: "Private" });
+    expect(
+      await codeOf((await as(users.moderator.id)).documentService.get({ id: created.id })),
+    ).toBe("FORBIDDEN");
+  });
+
+  it("shares a document, then takes it back", async () => {
+    const owner = await as(users.regular.id);
+    const created = await owner.documentService.create({ title: "Shared Doc" });
+
+    const shares = await owner.documentService.share({
+      id: created.id,
+      userId: users.moderator.id,
+      level: "Read",
+    });
+    expect(shares).toEqual([{ userId: users.moderator.id, level: "Read" }]);
+    const reader = await as(users.moderator.id);
+    expect(await reader.documentService.get({ id: created.id })).toMatchObject({
+      title: "Shared Doc",
+    });
+
+    await owner.documentService.unshare({ id: created.id, userId: users.moderator.id });
+    expect(await codeOf(reader.documentService.get({ id: created.id }))).toBe("FORBIDDEN");
+  });
+
+  it("lets a user it is shared with at Read read it, not edit it", async () => {
+    const owner = await as(users.regular.id);
+    const created = await owner.documentService.create({ title: "Shared Doc" });
+    await owner.documentService.share({
+      id: created.id,
+      userId: users.moderator.id,
+      level: "Read",
+    });
+
+    const reader = await as(users.moderator.id);
+    expect(await reader.documentService.get({ id: created.id })).not.toBeNull();
+    expect(await codeOf(reader.documentService.update({ id: created.id, title: "Hacked" }))).toBe(
+      "FORBIDDEN",
+    );
+    expect((await testPrisma.document.findUniqueOrThrow({ where: { id: created.id } })).title).toBe(
+      "Shared Doc",
+    );
+  });
+
+  it("needs Admin on the document to share it", async () => {
+    const owner = await as(users.regular.id);
+    const created = await owner.documentService.create({ title: "Delegated" });
+    const editor = await createTestUser();
+    await owner.documentService.share({ id: created.id, userId: editor.id, level: "Moderate" });
+
+    // an Admin share is needed to share at all (4.x: { service: "Admin", entry: "Admin" })
+    expect(
+      await codeOf(
+        (await as(editor.id)).documentService.share({
+          id: created.id,
+          userId: users.moderator.id,
+          level: "Read",
+        }),
+      ),
+    ).toBe("FORBIDDEN");
+  });
+});
+
+describe("DocumentService access matrix", () => {
+  it("admits each method's callers", async () => {
+    const [ownerUser, editorUser, readerUser, stranger] = await Promise.all([
+      createTestUser(),
+      createTestUser(),
+      createTestUser(),
+      createTestUser(),
+    ]);
+    const owner = await as(ownerUser.id);
+    const doc = await owner.documentService.create({ title: "Matrix" });
+    await owner.documentService.share({ id: doc.id, userId: editorUser.id, level: "Moderate" });
+    await owner.documentService.share({ id: doc.id, userId: readerUser.id, level: "Read" });
+    const toDelete = await owner.documentService.create({ title: "Gone" });
+
+    await describeAccessMatrix(app, {
+      service: documentService,
+      principals: {
+        owner: await principalOf(ownerUser.id),
+        editor: await principalOf(editorUser.id),
+        reader: await principalOf(readerUser.id),
+        stranger: await principalOf(stranger.id),
       },
-    );
-
-    expect(result.id).toBeDefined();
-
-    // Verify in database
-    const dbDoc = await testPrisma.document.findUnique({
-      where: { id: result.id },
+      cases: [
+        { method: "get", input: { id: doc.id }, allow: ["owner", "editor", "reader"] },
+        { method: "list", input: {}, allow: ["owner", "editor", "reader", "stranger"] },
+        {
+          method: "create",
+          input: { title: "New" },
+          allow: ["owner", "editor", "reader", "stranger"],
+        },
+        { method: "update", input: { id: doc.id, content: "x" }, allow: ["owner", "editor"] },
+        { method: "listShares", input: { id: doc.id }, allow: ["owner", "editor", "reader"] },
+        {
+          method: "setLevel",
+          input: { id: doc.id, userId: readerUser.id, level: "Read" },
+          allow: ["owner"],
+        },
+        { method: "delete", input: { id: toDelete.id }, allow: ["owner"] },
+        { method: "adminList", input: {}, allow: [] },
+      ],
     });
-    expect(dbDoc).not.toBeNull();
-    expect(dbDoc?.title).toBe("My Document");
-    expect(dbDoc?.ownerId).toBe(users.regular.id);
-
-    client.close();
-  });
-
-  it("should list user's documents", async () => {
-    const client = await connectAsUser(port, users.regular.id);
-
-    await emitWithAck(client, "documentService:createDocument", {
-      title: "Doc 1",
-    });
-    await emitWithAck(client, "documentService:createDocument", {
-      title: "Doc 2",
-    });
-
-    const result = await emitWithAck<{ page?: number; pageSize?: number }, DocumentDTO[]>(
-      client,
-      "documentService:listMyDocuments",
-      {},
-    );
-
-    expect(result).toHaveLength(2);
-
-    client.close();
-  });
-
-  it("should get a document by ID", async () => {
-    const client = await connectAsUser(port, users.regular.id);
-
-    const created = await emitWithAck<{ title: string; content?: string }, { id: string }>(
-      client,
-      "documentService:createDocument",
-      {
-        title: "Test Doc",
-        content: "Test content",
-      },
-    );
-
-    const result = await emitWithAck<{ id: string }, DocumentDTO | null>(
-      client,
-      "documentService:getDocument",
-      { id: created.id },
-    );
-
-    expect(result).not.toBeNull();
-    expect(result?.title).toBe("Test Doc");
-    expect(result?.content).toBe("Test content");
-
-    client.close();
-  });
-
-  it("should update a document", async () => {
-    const client = await connectAsUser(port, users.regular.id);
-
-    const created = await emitWithAck<{ title: string }, { id: string }>(
-      client,
-      "documentService:createDocument",
-      { title: "Original" },
-    );
-
-    const result = await emitWithAck<
-      { id: string; title?: string; content?: string },
-      DocumentDTO | null
-    >(client, "documentService:updateDocument", {
-      id: created.id,
-      title: "Updated Title",
-      content: "New content",
-    });
-
-    expect(result?.title).toBe("Updated Title");
-    expect(result?.content).toBe("New content");
-
-    client.close();
-  });
-
-  it("should delete a document", async () => {
-    const client = await connectAsUser(port, users.regular.id);
-
-    const created = await emitWithAck<{ title: string }, { id: string }>(
-      client,
-      "documentService:createDocument",
-      { title: "To Delete" },
-    );
-
-    const result = await emitWithAck<{ id: string }, { id: string; deleted: true }>(
-      client,
-      "documentService:deleteDocument",
-      { id: created.id },
-    );
-
-    expect(result.deleted).toBe(true);
-
-    const dbDoc = await testPrisma.document.findUnique({
-      where: { id: created.id },
-    });
-    expect(dbDoc).toBeNull();
-
-    client.close();
-  });
-
-  // ============================================================================
-  // ACL - JSON ACL Pattern
-  // ============================================================================
-
-  it("should not allow non-owner to access document", async () => {
-    const owner = await connectAsUser(port, users.regular.id);
-    const created = await emitWithAck<{ title: string }, { id: string }>(
-      owner,
-      "documentService:createDocument",
-      { title: "Private Doc" },
-    );
-    owner.close();
-
-    const other = await connectAsUser(port, users.moderator.id);
-    await expect(
-      emitWithAck<{ id: string }, DocumentDTO | null>(other, "documentService:getDocument", {
-        id: created.id,
-      }),
-    ).rejects.toThrow("Insufficient permissions");
-
-    other.close();
-  });
-
-  it("should allow sharing document with another user", async () => {
-    const owner = await connectAsUser(port, users.regular.id);
-    const created = await emitWithAck<{ title: string }, { id: string }>(
-      owner,
-      "documentService:createDocument",
-      { title: "Shared Doc" },
-    );
-
-    // Share with moderator
-    await emitWithAck(owner, "documentService:shareDocument", {
-      id: created.id,
-      userId: users.moderator.id,
-      level: "Read",
-    });
-    owner.close();
-
-    // Moderator should now be able to access
-    const shared = await connectAsUser(port, users.moderator.id);
-    const result = await emitWithAck<{ id: string }, DocumentDTO | null>(
-      shared,
-      "documentService:getDocument",
-      { id: created.id },
-    );
-
-    expect(result).not.toBeNull();
-    expect(result?.title).toBe("Shared Doc");
-
-    shared.close();
-  });
-
-  it("should allow unsharing document", async () => {
-    const owner = await connectAsUser(port, users.regular.id);
-    const created = await emitWithAck<{ title: string }, { id: string }>(
-      owner,
-      "documentService:createDocument",
-      { title: "Shared Doc" },
-    );
-
-    // Share then unshare
-    await emitWithAck(owner, "documentService:shareDocument", {
-      id: created.id,
-      userId: users.moderator.id,
-      level: "Read",
-    });
-    await emitWithAck(owner, "documentService:unshareDocument", {
-      id: created.id,
-      userId: users.moderator.id,
-    });
-    owner.close();
-
-    // Moderator should no longer have access
-    const shared = await connectAsUser(port, users.moderator.id);
-    await expect(
-      emitWithAck<{ id: string }, DocumentDTO | null>(shared, "documentService:getDocument", {
-        id: created.id,
-      }),
-    ).rejects.toThrow("Insufficient permissions");
-
-    shared.close();
-  });
-
-  it("should enforce access levels when sharing", async () => {
-    const owner = await connectAsUser(port, users.regular.id);
-    const created = await emitWithAck<{ title: string }, { id: string }>(
-      owner,
-      "documentService:createDocument",
-      { title: "Shared Doc" },
-    );
-
-    // Share with Read access
-    await emitWithAck(owner, "documentService:shareDocument", {
-      id: created.id,
-      userId: users.moderator.id,
-      level: "Read",
-    });
-    owner.close();
-
-    // Moderator can read but not update (requires Moderate)
-    const shared = await connectAsUser(port, users.moderator.id);
-
-    // Should be able to read
-    const readResult = await emitWithAck<{ id: string }, DocumentDTO | null>(
-      shared,
-      "documentService:getDocument",
-      { id: created.id },
-    );
-    expect(readResult).not.toBeNull();
-
-    // Should NOT be able to update
-    await expect(
-      emitWithAck(shared, "documentService:updateDocument", {
-        id: created.id,
-        title: "Hacked",
-      }),
-    ).rejects.toThrow();
-
-    shared.close();
   });
 });

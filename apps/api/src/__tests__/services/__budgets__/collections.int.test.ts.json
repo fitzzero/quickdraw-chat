@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "budgets": {
+    "open myChats with 30 chats": {
+      "statements": 4,
+      "bytes": 7185,
+      "calls": []
+    },
+    "send a message to 3 subscribers": {
+      "statements": 4,
+      "bytes": 1232,
+      "calls": [
+        {
+          "call": "messageService.postMessage",
+          "statements": 2,
+          "bytes": 50
+        }
+      ]
+    }
+  }
+}

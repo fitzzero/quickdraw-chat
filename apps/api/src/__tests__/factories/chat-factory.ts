@@ -27,7 +27,7 @@ export async function createTestChat(options: {
   });
 }
 
-/** Create a message authored by userId; creator gets entry-level Admin. */
+/** Create a message authored by userId (who holds Admin on it, as its author). */
 export async function createTestMessage(options: {
   chatId: string;
   userId: string;
@@ -38,7 +38,6 @@ export async function createTestMessage(options: {
       chatId: options.chatId,
       userId: options.userId,
       content: options.content ?? "Factory message",
-      acl: [{ userId: options.userId, level: "Admin" }],
     },
     select: { id: true },
   });
