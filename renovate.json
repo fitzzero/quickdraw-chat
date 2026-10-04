@@ -22,8 +22,13 @@
       "automerge": true
     },
     {
-      "description": "Framework updates get their own PR for visibility",
-      "matchPackageNames": ["@fitzzero/quickdraw-core"],
+      "description": "Framework updates get their own PR for visibility; the four quickdraw packages are released together at one version and move together",
+      "matchPackageNames": [
+        "@fitzzero/quickdraw-core",
+        "@fitzzero/quickdraw-lint",
+        "@fitzzero/quickdraw-skills",
+        "@fitzzero/quickdraw-codemod"
+      ],
       "groupName": "quickdraw-core",
       "labels": ["dependencies", "quickdraw-core"]
     },

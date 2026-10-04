@@ -43,6 +43,7 @@ export const withMockSocket: Decorator = (Story, ctx) => {
   // shim resolves behavior by the URL io() receives
   const serverUrl = `http://storybook.invalid/${ctx.id}`;
   setMockSocketBehavior(serverUrl, ctx.parameters.mockSocket as MockSocketBehavior | undefined);
+  // quickdraw-migrate: review [client] 4.x QuickdrawProvider props (serverUrl, autoConnect): 5.0 takes client={qd} (lib/quickdraw), url, auth and socketOptions
   return (
     // key forces a fresh provider (and mock socket) per story
     <QuickdrawProvider key={ctx.id} serverUrl={serverUrl} autoConnect>

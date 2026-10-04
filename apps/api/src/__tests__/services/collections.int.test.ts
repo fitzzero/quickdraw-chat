@@ -11,6 +11,7 @@
 // on: which deltas reach which scope room, and what re-snapshots return.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { resetDatabase, seedTestUsers } from "@project/db/testing";
+// quickdraw-migrate: review [v4-api] 4.x API CollectionSnapshotResponse (removed): lint's no-v4-api names each replacement
 import type { CollectionDelta, CollectionSnapshotResponse } from "@fitzzero/quickdraw-core";
 import type { ChatListItem, MessageDTO } from "@project/shared";
 import { collectionRoom } from "@project/shared";

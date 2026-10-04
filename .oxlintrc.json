@@ -1,6 +1,9 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "extends": ["./node_modules/@fitzzero/quickdraw-core/oxlint.base.jsonc"],
+  "extends": [
+    "./node_modules/@fitzzero/quickdraw-lint/oxlint.base.jsonc",
+    "./node_modules/@fitzzero/quickdraw-lint/oxlint.template.jsonc"
+  ],
   "plugins": ["typescript", "import", "react", "nextjs", "jsx_a11y"],
   "jsPlugins": [
     {
@@ -8,39 +11,44 @@
       "specifier": "./eslint-plugin-project/index.mjs"
     }
   ],
+  "settings": {
+    "quickdraw": { "baseline": ".quickdraw-lint-baseline.json" }
+  },
   "overrides": [
+    // The quickdraw 5.0 migration's leftovers: the codemod keeps each 4.x hook
+    // (toDto, checkAccess, collection and admin options, lifecycle hooks) as an
+    // unused module function or const beside its review marker, and imports
+    // the tracked `db` that handlers' own `db` shadows. These rules warn here
+    // until the markers are worked through; drop a file once it is clean, and
+    // the block once the list is empty.
+    // quickdraw-5.0 finding: `quickdraw-lint baseline` records quickdraw rules only, so the codemod's output fails core rules of the shipped base config (no-unused-vars, no-shadow, no-inline-comments, no-import-type-side-effects) that no baseline can hold
     {
-      "files": ["**/services/**/*.ts"],
+      "files": [
+        "**/src/services/build-services.ts",
+        "**/src/services/chat/index.ts",
+        "**/src/services/definition/index.ts",
+        "**/src/services/document/index.ts",
+        "**/src/services/game/index.ts",
+        "**/src/services/message/index.ts",
+        "**/src/services/push-subscription/index.ts",
+        "**/src/services/user/index.ts",
+        "**/src/components/admin/UserServiceAccessEditor.tsx",
+        "**/src/hooks/useMyChats.ts"
+      ],
       "rules": {
-        "quickdraw/no-cross-service-mutations": [
-          "error",
-          {
-            "allowedModels": {
-              "chat": ["chatMember"],
-              "message": ["chat"],
-              "game": ["chat", "chatMember", "gameScore"]
-            }
-          }
-        ]
-      }
-    },
-    {
-      "files": ["apps/api/src/index.ts", "apps/api/src/auth/middleware.ts", "apps/web/**"],
-      "rules": {
-        "quickdraw/no-raw-service-room-string": "error"
-      }
-    },
-    {
-      "files": ["**/routes.ts", "**/routes/**/*.ts"],
-      "rules": {
-        "project/no-prisma-in-routes": "error"
+        "no-unused-vars": "warn",
+        "no-shadow": "warn",
+        "no-inline-comments": "warn",
+        "typescript/no-import-type-side-effects": "warn"
       }
     },
     {
       "files": ["**/src/bench/**", "**/apps/bench-web/**", "**/packages/bench/src/cli/**"],
       "rules": {
         "no-console": "off",
-        "import/max-dependencies": "off"
+        "import/max-dependencies": "off",
+        // the netcode bench's bots drive raw sockets on purpose, as a game client does
+        "quickdraw/no-raw-socket": "off"
       }
     }
   ],

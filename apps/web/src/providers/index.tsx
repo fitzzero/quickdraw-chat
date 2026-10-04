@@ -8,6 +8,7 @@ import { ThemeProvider } from "./ThemeProvider";
 import { LayoutProvider } from "./LayoutProvider";
 import { IntlProvider } from "./IntlProvider";
 import { ToastProvider } from "./ToastProvider";
+// quickdraw-migrate: review [v4-api] 4.x API useQuickdrawSocket (removed): lint's no-v4-api names each replacement
 import { QuickdrawProvider, useQuickdrawSocket } from "@fitzzero/quickdraw-core/client";
 import { ClientShell } from "../components/layout";
 import { useServiceWorker } from "../hooks/useServiceWorker";
@@ -42,6 +43,7 @@ export function Providers({ children }: ProvidersProps): React.ReactElement {
   // Auth is cookie-based: the socket handshake carries the httpOnly session
   // cookie (QuickdrawProvider defaults withCredentials: true) and the server
   // answers with auth:info — no client-side token handling required.
+  // quickdraw-migrate: review [client] 4.x QuickdrawProvider props (serverUrl, autoConnect): 5.0 takes client={qd} (lib/quickdraw), url, auth and socketOptions
   return (
     <ThemeProvider>
       <ToastProvider>

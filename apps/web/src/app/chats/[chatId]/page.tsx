@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { Box } from "@mui/material";
 import { ChatWindow, ChatSidebar } from "../../../components/chat";
 import { usePageTitle, useRightSidebar } from "../../../providers";
-import { useSubscription } from "../../../hooks";
+import { qd } from "../../../lib/quickdraw";
 import { NotFound, NoPermission } from "../../../components/feedback";
 
 export default function ChatPage(): React.ReactElement {
@@ -13,7 +13,7 @@ export default function ChatPage(): React.ReactElement {
   const chatId = params.chatId as string;
 
   // Subscribe to chat data
-  const { data: chat, error } = useSubscription("chatService", chatId);
+  const { data: chat, error } = qd.chatService.useEntity(chatId);
 
   // Set page title from chat data
   usePageTitle(chat?.title ?? null);
@@ -25,6 +25,7 @@ export default function ChatPage(): React.ReactElement {
   // Handle error states
   if (error) {
     // Check if it's a permission error
+    // quickdraw-migrate: review [client] error is a QuickdrawError now (4.x: the message string): read error.message, or error.code (FORBIDDEN, NOT_FOUND, ...) to tell failures apart
     if (
       error.includes("403") ||
       error.toLowerCase().includes("permission") ||

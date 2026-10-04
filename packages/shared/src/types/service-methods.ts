@@ -1,48 +1,27 @@
-import type { UserDTO, UserServiceMethods } from "./user.js";
-import type { ChatDTO, ChatServiceMethods } from "./chat.js";
-import type { MessageServiceMethods } from "./message.js";
-import type { DocumentDTO, DocumentServiceMethods } from "./document.js";
-import type { PushServiceMethods } from "./push.js";
+import type { EntityOf } from "@fitzzero/quickdraw-core";
+import type { chatContract } from "../contracts/chat.js";
+import type { documentContract } from "../contracts/document.js";
+import type { UserDTO } from "./user.js";
 // ── quickdraw-game:start ──
-import type { GameServiceMethods } from "./game.js";
-import type { DefinitionDTO, DefinitionServiceMethods } from "./definition.js";
+import type { definitionContract } from "../contracts/definition.js";
+import type { gameContract } from "../contracts/game.js";
 // ── quickdraw-game:end ──
 
 // ============================================================================
-// Combined Service Methods Map (for client typing)
+// 4.x's entity map
 // ============================================================================
+// The contracts type every call, entity, item and event now (InputOf,
+// OutputOf, EntityOf, ItemOf from @fitzzero/quickdraw-core), so 4.x's
+// hand-written ServiceMethodsMap is gone. This map is kept, as views of the
+// contracts' entities, only while apps/web still imports it.
 
-export interface ServiceMethodsMap {
-  userService: UserServiceMethods;
-  chatService: ChatServiceMethods;
-  messageService: MessageServiceMethods;
-  documentService: DocumentServiceMethods;
-  pushService: PushServiceMethods;
-  // ── quickdraw-game:start ──
-  gameService: GameServiceMethods;
-  definitionService: DefinitionServiceMethods;
-  // ── quickdraw-game:end ──
-}
-
-// ============================================================================
-// Subscription Data Map (for useSubscription typing)
-// ============================================================================
-// One source of truth: each entry is the service's TDto — the wire shape its
-// toDto() produces and emitUpdate/subscribe actually send.
-
+/** @deprecated Use `EntityOf<typeof <service>Contract>` (or the DTO alias in ./<service>.ts). */
 export interface SubscriptionDataMap {
   userService: UserDTO;
-  chatService: ChatDTO;
-  documentService: DocumentDTO;
+  chatService: EntityOf<typeof chatContract>;
+  documentService: EntityOf<typeof documentContract>;
   // ── quickdraw-game:start ──
-  gameService: {
-    id: string;
-    slug: string;
-    name: string;
-    chatId: string | null;
-    createdAt: string;
-    updatedAt: string;
-  };
-  definitionService: DefinitionDTO;
+  gameService: EntityOf<typeof gameContract>;
+  definitionService: EntityOf<typeof definitionContract>;
   // ── quickdraw-game:end ──
 }

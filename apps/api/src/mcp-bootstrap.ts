@@ -8,6 +8,7 @@
  * Usage: node dist/mcp-bootstrap.js
  */
 
+// quickdraw-migrate: review [v4-api] 4.x API bootstrapMcpServer (moved): lint's no-v4-api names each replacement
 import { bootstrapMcpServer } from "@fitzzero/quickdraw-core/server";
 
 // Absolute URL, not "./mcp-server.js": bootstrapMcpServer resolves the

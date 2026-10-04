@@ -1,4 +1,5 @@
 import type { RequestHandler } from "express";
+// quickdraw-migrate: review [v4-api] 4.x API createRequireAuth (moved): lint's no-v4-api names each replacement
 import { createRequireAuth } from "@fitzzero/quickdraw-core/server";
 import { prisma as defaultPrisma, type PrismaClient } from "@project/db";
 

@@ -20,7 +20,7 @@
     "@emotion/cache": "^11.11.0",
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
-    "@fitzzero/quickdraw-core": "^4.1.0",
+    "@fitzzero/quickdraw-core": "5.0.0-rc.1",
     "@mui/icons-material": "^7.0.0",
     "@mui/material": "^7.0.0",
     "@project/shared": "workspace:*",
@@ -29,7 +29,7 @@
     "next-intl": "^4.7.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "socket.io-client": "^4.7.4"
+    "socket.io-client": "^4.8.0"
   },
   "devDependencies": {
     "@storybook/addon-a11y": "^10.5.0",

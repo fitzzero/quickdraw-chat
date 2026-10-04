@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import type { GameBootstrap, WorldSnapshot } from "@project/shared";
 import { GAME_EVENTS, GLOBAL_WORLD_ID } from "@project/shared";
-import type { GameService } from "../../services/game/index.js";
+import type { gameService as gameServiceDef } from "../../services/game/index.js";
 import { ensureGlobalWorld } from "../../services/game/bootstrap.js";
 import { startTestServer } from "../utils/server.js";
 import { connectAnonymously, connectAsUser, emitWithAck, waitForEvent } from "../utils/socket.js";
@@ -25,7 +25,7 @@ function flush(ms = 60): Promise<void> {
 describe("GameService Integration", () => {
   let stop: () => Promise<void>;
   let port: number;
-  let gameService: GameService;
+  let gameService: typeof gameServiceDef;
   let users: Awaited<ReturnType<typeof seedTestUsers>>;
 
   beforeAll(async () => {
@@ -87,6 +87,7 @@ describe("GameService Integration", () => {
     await flush();
 
     const snapshotPromise = waitForEvent<WorldSnapshot>(client, GAME_EVENTS.snapshot);
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (loop here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     gameService.loop.tickOnce();
     const snapshot = await snapshotPromise;
 
@@ -128,6 +129,7 @@ describe("GameService Integration", () => {
     await flush();
 
     const snapshotPromise = waitForEvent<WorldSnapshot>(insider, GAME_EVENTS.snapshot);
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (loop here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     gameService.loop.tickOnce();
     const snapshot = await snapshotPromise;
 
@@ -148,6 +150,7 @@ describe("GameService Integration", () => {
     await flush();
 
     const snapshotPromise = waitForEvent<WorldSnapshot>(client, GAME_EVENTS.snapshot);
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (loop here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     gameService.loop.tickOnce();
     const snapshot = await snapshotPromise;
 
@@ -168,6 +171,7 @@ describe("GameService Integration", () => {
     await flush(150);
 
     const snapshotPromise = waitForEvent<WorldSnapshot>(client, GAME_EVENTS.snapshot);
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (loop here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     gameService.loop.tickOnce();
     const snapshot = await snapshotPromise;
 
@@ -190,6 +194,7 @@ describe("GameService Integration", () => {
     const left = await leftPromise;
 
     expect(left.id).toBe(users.moderator.id);
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     expect(gameService.sim.hasPlayer(users.moderator.id)).toBe(false);
 
     a.close();
@@ -199,11 +204,13 @@ describe("GameService Integration", () => {
 
   it("disconnect removes the player from the sim", async () => {
     const { client } = await subscribeAndJoin(users.regular.id);
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     expect(gameService.sim.hasPlayer(users.regular.id)).toBe(true);
 
     client.close();
     await flush(150);
 
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     expect(gameService.sim.hasPlayer(users.regular.id)).toBe(false);
   });
 
@@ -257,7 +264,7 @@ describe("GameService Integration", () => {
 describe("GameService spectate, presence, and scores", () => {
   let stop: () => Promise<void>;
   let port: number;
-  let gameService: GameService;
+  let gameService: typeof gameServiceDef;
   let users: Awaited<ReturnType<typeof seedTestUsers>>;
 
   beforeAll(async () => {
@@ -281,15 +288,18 @@ describe("GameService spectate, presence, and scores", () => {
     const client = await connectAsUser(port, users.regular.id);
     await emitWithAck(client, "gameService:subscribe", { entryId: GLOBAL_WORLD_ID });
 
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     const before = gameService.sim.playerCount();
     const world = await emitWithAck<
       { worldId: string },
       { snaps: { id: string }[]; chatId: string | null }
     >(client, "gameService:watchWorld", { worldId: GLOBAL_WORLD_ID });
 
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     expect(gameService.sim.playerCount()).toBe(before);
     expect(world.snaps.map((s) => s.id)).not.toContain(users.regular.id);
     expect(world.chatId).toBeTruthy();
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     expect(gameService.sim.hasPlayer(users.regular.id)).toBe(false);
 
     // Spectators get world-chat membership (the overlay works pre-join)
@@ -318,12 +328,14 @@ describe("GameService spectate, presence, and scores", () => {
       { worldId: GLOBAL_WORLD_ID },
     );
     expect(world.chatId).toBeTruthy();
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     expect(gameService.sim.playerCount()).toBe(0);
     await flush();
 
     // A lone anonymous spectator counts as audience (the sim keeps ticking)
     // and receives the volatile snapshot stream through room membership
     const snapshotPromise = waitForEvent<WorldSnapshot>(anon, GAME_EVENTS.snapshot);
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (loop here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     const result = gameService.loop.tickOnce();
     expect(result).not.toBeNull();
     const snapshot = await snapshotPromise;
@@ -332,6 +344,7 @@ describe("GameService spectate, presence, and scores", () => {
     // Disconnect cleans the spectator out of the audience
     anon.close();
     await flush(150);
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (loop here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     expect(gameService.loop.tickOnce()).toBeNull();
   });
 
@@ -346,11 +359,13 @@ describe("GameService spectate, presence, and scores", () => {
     // The joining socket dies (page reload) — the Godot socket keeps the player alive
     page.close();
     await flush(150);
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     expect(gameService.sim.hasPlayer(users.regular.id)).toBe(true);
 
     // Last socket gone → player removed
     godot.close();
     await flush(150);
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     expect(gameService.sim.hasPlayer(users.regular.id)).toBe(false);
   });
 
@@ -363,10 +378,12 @@ describe("GameService spectate, presence, and scores", () => {
 
     await emitWithAck(b, "gameService:unsubscribe", { entryId: GLOBAL_WORLD_ID });
     await flush();
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     expect(gameService.sim.hasPlayer(users.regular.id)).toBe(true);
 
     await emitWithAck(a, "gameService:unsubscribe", { entryId: GLOBAL_WORLD_ID });
     await flush();
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     expect(gameService.sim.hasPlayer(users.regular.id)).toBe(false);
 
     a.close();
@@ -426,6 +443,7 @@ describe("GameService spectate, presence, and scores", () => {
   it("NPC deaths never create GameScore rows", async () => {
     // Force NPCs on in a cramped world via live tunables, run ticks until an
     // NPC dies, then confirm nothing was persisted for npc ids.
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     gameService.sim.applyTunables({ npcCount: 3, worldWidth: 450, worldHeight: 450 });
     const client = await connectAsUser(port, users.regular.id);
     await emitWithAck(client, "gameService:subscribe", { entryId: GLOBAL_WORLD_ID });
@@ -433,6 +451,7 @@ describe("GameService spectate, presence, and scores", () => {
 
     let sawNpcDeath = false;
     for (let i = 0; i < 3000 && !sawNpcDeath; i++) {
+      // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (loop here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
       const result = gameService.loop.tickOnce();
       if (result?.deaths.some((d) => d.id.startsWith("npc-"))) sawNpcDeath = true;
     }
@@ -444,6 +463,7 @@ describe("GameService spectate, presence, and scores", () => {
     });
     expect(npcScores).toHaveLength(0);
 
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     gameService.sim.applyTunables({ npcCount: 0, worldWidth: 2400, worldHeight: 2400 });
     client.close();
     await flush();

@@ -1,5 +1,6 @@
 "use client";
 
+// quickdraw-migrate: review [v4-api] 4.x API useServiceQuery (removed): lint's no-v4-api names each replacement
 import { useServiceQuery } from "@fitzzero/quickdraw-core/client";
 import type { AdminServiceMeta } from "@project/shared";
 
@@ -29,6 +30,7 @@ export function useAdminMeta(serviceName: string): {
   isLoading: boolean;
   error: string | null;
 } {
+  // quickdraw-migrate: review [client] this 4.x hook call was not converted: it names the service or method at run time. Call the typed client's member (qd.<service>.<method>) instead
   const { data, isError, error } = useServiceQuery<Record<string, never>, AdminServiceMeta>(
     serviceName,
     "adminMeta",

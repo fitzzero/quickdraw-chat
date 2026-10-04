@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+// quickdraw-migrate: review [v4-api] 4.x API useServiceQuery (removed): lint's no-v4-api names each replacement
 import { useServiceQuery } from "@fitzzero/quickdraw-core/client";
+// quickdraw-migrate: review [v4-api] 4.x API AdminListResponse (removed): lint's no-v4-api names each replacement
 import type { AdminListResponse as CoreAdminListResponse } from "@fitzzero/quickdraw-core";
 import type { AdminServiceMeta } from "@project/shared";
 
@@ -66,6 +68,7 @@ export function useAdminList(
     return base;
   }, [page, pageSize, sortField, sortDirection]);
 
+  // quickdraw-migrate: review [client] this 4.x hook call was not converted: it names the service or method at run time. Call the typed client's member (qd.<service>.<method>) instead
   const { data, isFetching, isError, error, refetch } = useServiceQuery<
     Record<string, unknown>,
     AdminListResponse
@@ -94,6 +97,7 @@ export function useAdminList(
 
   // Refresh function (forces a refetch of the current page)
   const refresh = React.useCallback(() => {
+    // quickdraw-migrate: review [client] manual refetch: live data, watch and the invalidation coordinator keep quickdraw queries current; delete it, or give the query a watch
     void refetch();
   }, [refetch]);
 

@@ -12,19 +12,20 @@
 import { PrismaClient } from "@project/db";
 import { setTestPrisma, testPrisma } from "@project/db/testing";
 import type { Scenario } from "@project/bench";
-import { createPrismaTestGlobalSetup } from "@fitzzero/quickdraw-core/server/testing/prisma";
+import { createPrismaTestGlobalSetup } from "@fitzzero/quickdraw-core/testing/prisma";
+// quickdraw-migrate: review [v4-api] 4.x API createQuickdrawServer (removed): lint's no-v4-api names each replacement
 import { createQuickdrawServer } from "@fitzzero/quickdraw-core/server";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { buildServices } from "../services/build-services.js";
-import type { GameService } from "../services/game/index.js";
+import type { gameService as gameServiceDef } from "../services/game/index.js";
 import { ensureGlobalWorld } from "../services/game/bootstrap.js";
 import { createSocketAuth } from "../auth/middleware.js";
 import { createGroundTruthRecorder, type GroundTruthRecorder } from "./ground-truth.js";
 
 export interface BenchServer {
   port: number;
-  gameService: GameService;
+  gameService: typeof gameServiceDef;
   recorder: GroundTruthRecorder;
   /** bot name → user id, one distinct user per bot (rate limits key by user) */
   users: Map<string, string>;
@@ -123,6 +124,7 @@ export async function startBenchServer(scenario: Scenario): Promise<BenchServer>
     throw new Error("bench server failed to bind a port");
   }
 
+  // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (startLoop here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
   gameService.startLoop();
 
   return {
@@ -131,6 +133,7 @@ export async function startBenchServer(scenario: Scenario): Promise<BenchServer>
     recorder,
     users,
     stop: async () => {
+      // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (stopLoop here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
       gameService.stopLoop();
       await io.close();
       await new Promise<void>((resolveClose) => {

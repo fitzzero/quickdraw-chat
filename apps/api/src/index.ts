@@ -12,6 +12,7 @@ config({ path: "../../.env.local" });
 config();
 
 import { logger } from "./utils/logger.js";
+// quickdraw-migrate: review [v4-api] 4.x API ServiceRegistry (removed) and validateRedirectOrigin, QuickdrawSocket (moved): lint's no-v4-api names each replacement
 import {
   ServiceRegistry,
   createRateLimiter,
@@ -26,6 +27,7 @@ import { prisma } from "@project/db";
 import { buildServices } from "./services/build-services.js";
 import { registerPushRoutes } from "./services/push-subscription/rest.js";
 // ── quickdraw-game:start ──
+// quickdraw-migrate: review [v4-api] 4.x API CHANNEL_EVENT_PREFIX (removed): lint's no-v4-api names each replacement
 import { CHANNEL_EVENT_PREFIX } from "@fitzzero/quickdraw-core";
 import { DEFINITION_TYPES, SNAKE_TUNABLES_KEY } from "@project/shared";
 import { ensureGlobalWorld, loadSnakeTunables } from "./services/game/bootstrap.js";
@@ -172,12 +174,16 @@ registerPushRoutes(app, pushService);
 // ── quickdraw-game:start ──
 // The authoritative snake sim: commands are methods, input is a channel,
 // snapshots broadcast volatile at tick rate to the world room.
+// quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (startLoop here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
 gameService.startLoop();
+// quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (stopLoop here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
 process.on("SIGTERM", () => gameService.stopLoop());
 
 // Admin edits to the snake tunables hot-reload the running sim
+// quickdraw-migrate: review [server] definitionService is a 4.x DefinitionService instance, whose members (onChanged here) the service object definitionService does not have: call a contract method through qd.caller(principal).definitionService.<method>(input), and move other logic into a module of its own
 definitionService.onChanged((definition) => {
   if (definition.type === DEFINITION_TYPES.tunables && definition.key === SNAKE_TUNABLES_KEY) {
+    // quickdraw-migrate: review [server] gameService is a 4.x GameService instance, whose members (sim here) the service object gameService does not have: call a contract method through qd.caller(principal).gameService.<method>(input), and move other logic into a module of its own
     gameService.sim.applyTunables(definition.data);
     logger.info("Applied updated snake tunables from definition edit");
   }

@@ -12,6 +12,7 @@
  */
 
 import type { Express, Request, Response } from "express";
+// quickdraw-migrate: review [v4-api] 4.x API setSessionCookie (moved): lint's no-v4-api names each replacement
 import { setSessionCookie } from "@fitzzero/quickdraw-core/server";
 import { prisma as defaultPrisma, type PrismaClient } from "@project/db";
 import { logger } from "../utils/logger.js";

@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import type { Request, Response } from "express";
+// quickdraw-migrate: review [v4-api] 4.x API setSessionCookie, OAuthTokenResponse (moved): lint's no-v4-api names each replacement
 import {
   encrypt,
   setSessionCookie,

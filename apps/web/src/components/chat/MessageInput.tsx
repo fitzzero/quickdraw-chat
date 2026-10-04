@@ -4,7 +4,7 @@ import * as React from "react";
 import { Box, TextField, IconButton, CircularProgress } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import { useTranslations } from "next-intl";
-import { useService } from "../../hooks";
+import { qd } from "../../lib/quickdraw";
 
 export interface MessageInputProps {
   chatId: string;
@@ -17,7 +17,7 @@ export function MessageInput({ chatId, disabled }: MessageInputProps): React.Rea
 
   // No follow-up work on success: the byChat collection delivers the posted
   // message to every subscriber (this window included)
-  const postMessage = useService("messageService", "postMessage", {
+  const postMessage = qd.messageService.postMessage.useMutation({
     onSuccess: () => {
       setMessage("");
     },

@@ -1,4 +1,5 @@
 import type { Express } from "express";
+// quickdraw-migrate: review [v4-api] 4.x API createMockOAuthProvider, createOAuthURL, exchangeOAuthCode, isMockOAuthEnabled, registerMockOAuthProvider, MockOAuthUser, OAuthConfig, OAuthProvider (moved): lint's no-v4-api names each replacement
 import {
   createMockOAuthProvider,
   createOAuthURL,
@@ -9,6 +10,7 @@ import {
   type OAuthConfig,
   type OAuthProvider,
 } from "@fitzzero/quickdraw-core/server";
+// quickdraw-migrate: review [v4-api] 4.x API GoogleUser (moved): lint's no-v4-api names each replacement
 import type { GoogleUser } from "@fitzzero/quickdraw-core/server";
 import { prisma } from "@project/db";
 import { logger } from "../utils/logger.js";

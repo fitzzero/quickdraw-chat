@@ -5,7 +5,7 @@
 //   from the cached template dump — no PostgreSQL required.
 import { PrismaClient } from "@project/db";
 import { resetDatabase, setTestPrisma } from "@project/db/testing";
-import { workerDatabaseUrl } from "@fitzzero/quickdraw-core/server/testing/prisma";
+import { workerDatabaseUrl } from "@fitzzero/quickdraw-core/testing/prisma";
 import { afterAll, beforeAll, beforeEach } from "vitest";
 
 process.env.NODE_ENV = "test";

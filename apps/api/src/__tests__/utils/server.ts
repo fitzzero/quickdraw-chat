@@ -1,10 +1,14 @@
 import type { Server as SocketIOServer } from "socket.io";
+// quickdraw-migrate: review [v4-api] 4.x API createQuickdrawServer (removed): lint's no-v4-api names each replacement
 import { createQuickdrawServer } from "@fitzzero/quickdraw-core/server";
 import { testPrisma } from "@project/db/testing";
 import { buildServices } from "../../services/build-services.js";
-import type { PushService, PushServiceOptions } from "../../services/push-subscription/index.js";
+import type {
+  pushService as pushServiceDef,
+  PushServiceOptions,
+} from "../../services/push-subscription/index.js";
 // ── quickdraw-game:start ──
-import type { GameService } from "../../services/game/index.js";
+import type { gameService as gameServiceDef } from "../../services/game/index.js";
 // ── quickdraw-game:end ──
 import { createSocketAuth } from "../../auth/middleware.js";
 
@@ -12,10 +16,10 @@ interface TestServer {
   port: number;
   io: SocketIOServer;
   stop: () => Promise<void>;
-  pushService: PushService;
+  pushService: typeof pushServiceDef;
   // ── quickdraw-game:start ──
   /** Loop is NOT started in tests — drive ticks via gameService.loop.tickOnce() */
-  gameService: GameService;
+  gameService: typeof gameServiceDef;
   // ── quickdraw-game:end ──
 }
 

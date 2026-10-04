@@ -20,7 +20,8 @@ import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useSocket } from "../../providers";
-import { useSubscription, useAdminServices, useSlowLoadHint } from "../../hooks";
+import { useAdminServices, useSlowLoadHint } from "../../hooks";
+import { qd } from "../../lib/quickdraw";
 import { logout } from "../../lib/auth";
 
 export function UserMenu(): React.ReactElement {
@@ -29,7 +30,7 @@ export function UserMenu(): React.ReactElement {
   const tAuth = useTranslations("Auth");
   const { userId, isConnected } = useSocket();
   const showWarmingHint = useSlowLoadHint(!isConnected);
-  const { data: user } = useSubscription("userService", userId ?? "");
+  const { data: user } = qd.userService.useEntity(userId ?? "");
   const { hasAdminAccess } = useAdminServices();
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
 

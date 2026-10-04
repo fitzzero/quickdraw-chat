@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
+// quickdraw-migrate: review [v4-api] 4.x API CollectionSnapshotResponse (removed): lint's no-v4-api names each replacement
 import type { CollectionSnapshotResponse } from "@fitzzero/quickdraw-core";
 import type { ChatListItem } from "@project/shared";
 import { startTestServer } from "../utils/server.js";

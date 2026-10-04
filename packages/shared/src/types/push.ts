@@ -1,5 +1,6 @@
 // ============================================================================
-// Push Service Methods - Web Push subscriptions (PWA)
+// Push Service Types - Web Push subscriptions (PWA); the methods are in the
+// push contract (contracts/push.ts)
 // ============================================================================
 
 /**
@@ -13,20 +14,4 @@ export interface PushNotificationPayload {
   url: string;
   /** Notification dedupe key — later pushes with the same tag replace earlier ones. */
   tag?: string;
-}
-
-export interface PushServiceMethods {
-  subscribePush: {
-    payload: { endpoint: string; keys: { p256dh: string; auth: string } };
-    response: { success: true };
-  };
-  unsubscribePush: {
-    payload: { endpoint: string };
-    response: { success: true };
-  };
-  /** Sends a test notification to every subscription of the calling user. */
-  sendTestPush: {
-    payload: Record<string, never>;
-    response: { sent: number };
-  };
 }

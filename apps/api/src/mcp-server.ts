@@ -10,6 +10,7 @@
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { config } from "dotenv";
+// quickdraw-migrate: review [v4-api] 4.x API McpRegistry, createMcpStdioServer (moved): lint's no-v4-api names each replacement
 import { McpRegistry, createMcpStdioServer } from "@fitzzero/quickdraw-core/server";
 import type { AccessLevel } from "@project/shared";
 

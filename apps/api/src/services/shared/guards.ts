@@ -1,3 +1,4 @@
+// quickdraw-migrate: review [v4-api] 4.x API ServiceMethodContext (removed): lint's no-v4-api names each replacement
 import type { ServiceMethodContext } from "@fitzzero/quickdraw-core";
 
 /**

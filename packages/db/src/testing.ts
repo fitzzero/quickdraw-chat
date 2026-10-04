@@ -1,6 +1,6 @@
 import { PrismaClient } from "../prisma/generated/prisma/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { resetDatabase as coreResetDatabase } from "@fitzzero/quickdraw-core/server/testing/prisma";
+import { resetDatabase as coreResetDatabase } from "@fitzzero/quickdraw-core/testing/prisma";
 
 let _testPrisma: PrismaClient | undefined;
 

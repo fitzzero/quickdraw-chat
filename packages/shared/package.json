@@ -19,7 +19,8 @@
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
-    "@fitzzero/quickdraw-core": "^4.1.0"
+    "@fitzzero/quickdraw-core": "5.0.0-rc.1",
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

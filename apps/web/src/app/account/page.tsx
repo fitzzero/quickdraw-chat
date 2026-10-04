@@ -20,19 +20,20 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useTranslations } from "next-intl";
 import { useSocket, useToast } from "../../providers";
-import { usePushNotifications, useService, useSubscription } from "../../hooks";
+import { usePushNotifications } from "../../hooks";
 import { ConfirmDialog } from "../../components/feedback";
+import { qd } from "../../lib/quickdraw";
 import { logoutAllDevices } from "../../lib/auth";
 
 export default function AccountPage(): React.ReactElement {
   const t = useTranslations("AccountPage");
   const tCommon = useTranslations("Common");
   const { userId } = useSocket();
-  const { data: user } = useSubscription("userService", userId ?? "");
+  const { data: user } = qd.userService.useEntity(userId ?? "");
   const { showToast } = useToast();
 
   const push = usePushNotifications();
-  const sendTestPush = useService("pushService", "sendTestPush", {
+  const sendTestPush = qd.pushService.sendTestPush.useMutation({
     onSuccess: (data) => {
       showToast(t(data.sent > 0 ? "testNotificationSent" : "testNotificationNone"), "info");
     },

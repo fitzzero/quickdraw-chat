@@ -6,7 +6,8 @@ import ChatIcon from "@mui/icons-material/Chat";
 import CloseIcon from "@mui/icons-material/ExpandMore";
 import { useTranslations } from "next-intl";
 import type { MessageDTO } from "@project/shared";
-import { useRoomEvents, useSubscription } from "../../hooks";
+import { useRoomEvents } from "../../hooks";
+import { qd } from "../../lib/quickdraw";
 import { ChatWindow } from "../chat";
 
 interface GameChatOverlayProps {
@@ -32,8 +33,9 @@ export function GameChatOverlay({ chatId }: GameChatOverlayProps): React.ReactEl
 
   // Join the chat room immediately (membership exists once the game joined),
   // so unread counts accrue even while the panel is minimized.
-  useSubscription("chatService", chatId);
+  qd.chatService.useEntity(chatId);
 
+  // quickdraw-migrate: review [client] room events: declare them in the contract's events and listen with qd.<service>.<event>.useEvent(handler)
   useRoomEvents({
     "chat:message": (message: MessageDTO) => {
       if (message.chatId === chatId && !open) {

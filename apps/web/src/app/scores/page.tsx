@@ -17,7 +17,8 @@ import {
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import { useTranslations } from "next-intl";
 import { GLOBAL_WORLD_ID } from "@project/shared";
-import { useServiceQuery, useSlowLoadHint } from "../../hooks";
+import { useSlowLoadHint } from "../../hooks";
+import { qd } from "../../lib/quickdraw";
 import { useSocket } from "../../providers";
 
 const SCORES_PAYLOAD = { worldId: GLOBAL_WORLD_ID, limit: 25 };
@@ -32,12 +33,9 @@ export default function ScoresPage(): React.ReactElement {
   const t = useTranslations("ScoresPage");
   const tCommon = useTranslations("Common");
   const { userId, isConnected } = useSocket();
-  const { data: scores, isError } = useServiceQuery(
-    "gameService",
-    "getHighScores",
-    SCORES_PAYLOAD,
-    { staleTime: 0 },
-  );
+  const { data: scores, isError } = qd.gameService.getHighScores.useQuery(SCORES_PAYLOAD, {
+    staleTime: 0,
+  });
 
   const isLoading = scores === undefined && !isError;
   // Public route (no AuthGate): only blame the server while the socket
