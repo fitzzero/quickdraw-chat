@@ -6,20 +6,27 @@
  * results without timers or I/O.
  */
 
-import type { GameDeathEvent } from "@project/shared";
-import { GAME_EVENTS, GAME_TICK_RATE } from "@project/shared";
+import type { GameDeathEvent, LeaderboardEntry, WorldSnapshot } from "@project/shared";
+import { GAME_TICK_RATE } from "@project/shared";
 import type { GameWorldSim, TickResult } from "./world.js";
+
+/** What the loop sends, by kind; the runtime puts each on the wire. */
+export interface GameLoopEmits {
+  /** Every tick, volatile: droppable under backpressure (the world stream). */
+  snapshot: (snapshot: WorldSnapshot) => void;
+  /** Reliable: a snake died (the world's room). */
+  death: (death: GameDeathEvent) => void;
+  /** Reliable, 1Hz: the longest snakes (the world's room). */
+  leaderboard: (entries: LeaderboardEntry[]) => void;
+}
 
 export interface GameLoopDeps {
   sim: GameWorldSim;
-  /** Volatile room broadcast (snapshots — droppable under backpressure). */
-  emitVolatile: (eventName: string, data: unknown) => void;
-  /** Reliable room broadcast (deaths, leaderboard). */
-  emitReliable: (eventName: string, data: unknown) => void;
+  emit: GameLoopEmits;
   /** Off-tick-path persistence hook (score upserts). Must not throw. */
   onDeath?: (death: GameDeathEvent) => void;
   /**
-   * Is anyone watching (world-room subscribers, spectators included)?
+   * Is anyone watching (sockets in the world's room, spectators included)?
    * Keeps the NPC world alive behind the pre-game dialog. Omitted = false.
    */
   hasAudience?: () => boolean;
@@ -79,10 +86,10 @@ export class GameLoop {
     // Send-time stamp for client clock sync (H2); the sim itself stays
     // wall-clock-free — timing belongs to the transport boundary.
     result.snapshot.t = Math.round(performance.timeOrigin + performance.now());
-    this.deps.emitVolatile(GAME_EVENTS.snapshot, result.snapshot);
+    this.deps.emit.snapshot(result.snapshot);
 
     for (const death of result.deaths) {
-      this.deps.emitReliable(GAME_EVENTS.death, death);
+      this.deps.emit.death(death);
       this.deps.onDeath?.(death);
     }
 
@@ -98,7 +105,7 @@ export class GameLoop {
 
   public emitLeaderboard(): void {
     if (this.isIdle()) return;
-    this.deps.emitReliable(GAME_EVENTS.leaderboard, this.deps.sim.leaderboard());
+    this.deps.emit.leaderboard(this.deps.sim.leaderboard());
   }
 
   /** Freeze the sim (NPCs included) only when nobody plays AND nobody watches. */

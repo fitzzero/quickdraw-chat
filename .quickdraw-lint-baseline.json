@@ -1,18 +1,4 @@
 {
   "version": 2,
-  "files": {
-    "apps/api/src/services/definition/index.ts": {
-      "prefer-kit": {
-        "048b40c50c9ae294": 1,
-        "fba923c77de1d98f": 1
-      }
-    },
-    "apps/api/src/services/game/bootstrap.ts": {
-      "no-untracked-write": {
-        "1a6212b395008508": 1,
-        "411ce4712528341a": 1,
-        "fdbc9f10139a9b7f": 1
-      }
-    }
-  }
+  "files": {}
 }

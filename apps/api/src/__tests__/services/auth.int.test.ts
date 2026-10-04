@@ -99,9 +99,9 @@ describe("sessions on sockets", () => {
     expect(hello.userId).toBe(users.regular.id);
     socket.disconnect();
 
-    const unknown = await connect({ userId: "ckunknownuser000000000000" });
-    expect(unknown.hello.userId).toBeNull();
-    unknown.socket.disconnect();
+    // socketAuth's devCredentials refuses an unknown user rather than letting
+    // the socket in anonymously
+    await expect(connect({ userId: "ckunknownuser000000000000" })).rejects.toThrow();
   });
 });
 

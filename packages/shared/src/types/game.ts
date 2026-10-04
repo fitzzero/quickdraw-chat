@@ -1,13 +1,20 @@
 // ============================================================================
 // Game Service — types shared by the API, the web wrapper, and (as the
-// documented wire contract) the Godot client.
+// documented wire contract) the Godot client. The contract is
+// contracts/game.ts; on quickdraw protocol v5 (docs/protocol-v5.md in
+// @fitzzero/quickdraw-core) the game's traffic is:
 //
-// Commands (join/respawn/leave) are ordinary quickdraw methods. The two
-// high-frequency streams use quickdraw channels + volatile room events:
-//   client → server  channel "gameService:input"        (~20Hz, fire-and-forget)
-//   server → room    event   "game:snapshot"            (20Hz, volatile)
-//   server → room    events  "game:playerJoined" | "game:playerLeft" |
-//                            "game:death" | "game:leaderboard"   (reliable)
+//   commands       qd:call  gameService.joinGame | watchWorld | respawn | ...
+//                  (watchWorld and joinGame put the CALLING socket in the
+//                  world's room, GLOBAL_WORLD_ROOM)
+//   client → server qd:ch   ["gameService", "input", GameInput]
+//                  (~20Hz, fire-and-forget; dropped unless the sending
+//                  socket is in the world's room)
+//   server → client qd:stream { s: "gameService", stream: "world",
+//                  scope: worldId, item: WorldSnapshot }
+//                  (20Hz, volatile, seeded with the latest snapshot)
+//   server → room  qd:event ["gameService", "playerJoined" | "playerLeft" |
+//                  "death" | "leaderboard" | "scoreSaved", payload] (reliable)
 // ============================================================================
 
 /**
@@ -18,22 +25,16 @@
 export const GLOBAL_WORLD_ID = "gameworld_global";
 export const GLOBAL_WORLD_SLUG = "global";
 
+/**
+ * The global world's app room. watchWorld and joinGame put the calling socket
+ * in it: its sockets hear the world's events, a player stays in the sim while
+ * any socket of theirs is in it, and the input channel accepts only sockets
+ * in it.
+ */
+export const GLOBAL_WORLD_ROOM = "world:gameworld_global";
+
 /** Server simulation tick rate (Hz). Clients run prediction at the same rate. */
 export const GAME_TICK_RATE = 20;
-
-/** Room event names broadcast to the world's service room. */
-export const GAME_EVENTS = {
-  /** WorldSnapshot — volatile, every tick. */
-  snapshot: "game:snapshot",
-  /** GamePlayerMeta — reliable, when a player joins. */
-  playerJoined: "game:playerJoined",
-  /** { id: string } — reliable, when a player leaves. */
-  playerLeft: "game:playerLeft",
-  /** GameDeathEvent — reliable, when a snake dies. */
-  death: "game:death",
-  /** LeaderboardEntry[] — reliable, 1Hz. */
-  leaderboard: "game:leaderboard",
-} as const;
 
 /**
  * One input frame from a client. `seq` increments per frame; the server
@@ -70,7 +71,12 @@ export interface FoodDTO {
   v: number;
 }
 
-/** Broadcast every tick (volatile). Food is delta-encoded; players are full. */
+/**
+ * Pushed to the world stream every tick (volatile). Food is delta-encoded;
+ * players are full, so the stream's seed (the latest snapshot) places every
+ * snake at once, and the full food comes from the watchWorld/joinGame
+ * bootstrap.
+ */
 export interface WorldSnapshot {
   tick: number;
   /**
@@ -102,6 +108,12 @@ export interface LeaderboardEntry {
   id: string;
   name: string | null;
   len: number;
+}
+
+/** A player's stored best changed (their first score, or a longer run): high scores are stale. */
+export interface ScoreSavedEvent {
+  userId: string;
+  bestLength: number;
 }
 
 /**

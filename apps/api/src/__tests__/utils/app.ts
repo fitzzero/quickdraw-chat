@@ -21,7 +21,7 @@ import { createGrantsLoader } from "../../auth/grants.js";
 import { serviceNames, services } from "../../services/index.js";
 import { configurePush, type PushServiceOptions } from "../../services/push-subscription/index.js";
 // ── quickdraw-game:start ──
-import { createGameRuntime } from "../../services/game/runtime.js";
+import { createGameRuntime, onGameRoomLeave, worldAudience } from "../../services/game/runtime.js";
 // ── quickdraw-game:end ──
 
 export type ApiTestApp = TestApp<typeof services>;
@@ -40,19 +40,28 @@ export interface StartOptions {
 /** Starts the API's services on a test server; close it with `app.close()`. */
 export async function startTestApp(options: StartOptions = {}): Promise<ApiTestApp> {
   configurePush(options.push ?? {});
-  // ── quickdraw-game:start ──
-  // Fixed seed for deterministic spawns; NPCs off (tests assert exact player
-  // sets); the loop is never started
-  createGameRuntime(testDb, { simSeed: 42, tunables: { npcCount: 0 } });
-  // ── quickdraw-game:end ──
-  return await createTestApp({
+  const app = await createTestApp({
     services,
     db: testDb,
     ...(options.app ? { app: options.app } : {}),
     // N+1 reads, unbounded reads and nested writes in a call fail the test
     strictWarnings: true,
     auth: { loadServiceAccess, serviceAccessSource: { model: "user", column: "serviceAccess" } },
+    // ── quickdraw-game:start ──
+    // a player whose last socket left the world's room leaves the sim
+    onRoomLeave: onGameRoomLeave,
+    // ── quickdraw-game:end ──
   });
+  // ── quickdraw-game:start ──
+  // Fixed seed for deterministic spawns; NPCs off (tests assert exact player
+  // sets); the loop is never started (tests drive loop.tickOnce())
+  createGameRuntime(testDb, {
+    simSeed: 42,
+    tunables: { npcCount: 0 },
+    hasAudience: worldAudience(app.server),
+  });
+  // ── quickdraw-game:end ──
+  return app;
 }
 
 /** The principal the server builds for a user's socket: their id and grants. */

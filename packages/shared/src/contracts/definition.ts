@@ -1,9 +1,9 @@
 // The contract of definitionService, written by @fitzzero/quickdraw-codemod from
 // DefinitionServiceMethods and the defineMethod calls of DefinitionService
 // (apps/api/src/services/definition/index.ts), then completed by hand: the
-// entity.
+// entity and the admin kit.
 
-import { defineContract, listOf, nullable, query } from "@fitzzero/quickdraw-core";
+import { admin, defineContract, listOf, nullable, query } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
 import { isoDateSchema } from "./helpers.js";
 
@@ -43,6 +43,13 @@ export const definitionContract = defineContract("definitionService", {
       input: getDefinitionSchema,
       output: nullable("entity"),
       describe: "Reads one enabled definition by type and key, or null.",
+    }),
+    // The admin screens: every definition, enabled or not, for holders of a
+    // service-wide Admin grant (balance changes without re-exporting the game)
+    ...admin.contract({
+      entity: definitionSchema,
+      filter: ["type", "enabled"],
+      sort: ["type", "key", "version", "updatedAt"],
     }),
   },
 });
