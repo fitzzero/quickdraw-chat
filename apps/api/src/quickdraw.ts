@@ -3,8 +3,9 @@ import { initQuickdraw, type MethodImplementation } from "@fitzzero/quickdraw-co
 import type { contracts } from "@project/shared";
 import type { db } from "./db.js";
 
-// Written by @fitzzero/quickdraw-codemod: the app's types, stated once. Every
-// service, handler and caller is typed from them.
+// The app's quickdraw instance and its types, stated once: the tracked
+// database client and the contracts. Every service, handler and caller is
+// typed from them; import `qd` from here, never call initQuickdraw again.
 export type AppTypes = { readonly db: typeof db; readonly contracts: typeof contracts };
 
 export const qd = initQuickdraw<AppTypes>();

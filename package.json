@@ -37,7 +37,6 @@
     "prepare": "husky && conveyor-skills link && quickdraw-skills link"
   },
   "devDependencies": {
-    "@fitzzero/quickdraw-codemod": "5.0.0-rc.3",
     "@fitzzero/quickdraw-lint": "5.0.0-rc.3",
     "@fitzzero/quickdraw-skills": "5.0.0-rc.3",
     "@rallycry/conveyor-skills": "^1.0.4",
