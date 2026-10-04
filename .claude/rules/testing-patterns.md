@@ -16,8 +16,10 @@ error codes) and the testing helpers (`createTestApp`, `describeAccessMatrix`,
 ## Lanes
 
 - **Unit** (`*.test.ts`, not `.int.`): pure logic, no database
-  (`bun run test:unit`). The game sim and loop, the bench's metrics, the
-  API's utilities, the PWA helpers.
+  (`bun run test:unit`): the API's utilities, the PWA helpers.
+  <!-- ── quickdraw-game:start ── -->
+  Also the game sim and loop, and the bench's metrics.
+  <!-- ── quickdraw-game:end ── -->
 - **Integration** (`*.int.test.ts(x)`): the real server against a real
   database (`bun run test:int`). The API's suites are
   `apps/api/src/__tests__/services/*.int.test.ts` (CI shards them by file,

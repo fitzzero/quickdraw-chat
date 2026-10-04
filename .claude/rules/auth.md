@@ -16,8 +16,8 @@ provider, development credentials, env layering) is in
 ## The pieces
 
 `createAppAuth({ prisma, serviceNames, onRevoke })` in
-`apps/api/src/auth/index.ts` builds everything, once per database, so the
-server, the tests and the netcode bench sign in the same way:
+`apps/api/src/auth/index.ts` builds everything, once per database, so every
+server root (the API, the tests) signs in the same way:
 
 - **Routes** (`createAuthRoutes`, one Express middleware): each provider's
   `/auth/{provider}/start` and `/callback`, `/auth/me`, `/auth/logout` and

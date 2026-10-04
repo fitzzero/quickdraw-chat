@@ -22,13 +22,16 @@ to this app.
   helpers shared by the contracts are in `contracts/helpers.ts`.
 - **Named shapes**: `packages/shared/src/types/<service>.ts` names what the
   apps use (`ChatDTO = EntityOf<typeof chatContract>`, `ChatListItem`) and
-  holds the wire types no contract owns (the game's protocol notes).
+  holds the wire types no contract owns.
 - **Services**: `apps/api/src/services/<name>/index.ts`, each a
   `qd.defineService(contract, {...})` object. `qd` comes from
   `apps/api/src/quickdraw.ts` (the one `initQuickdraw`); never make another.
 - **The list**: `apps/api/src/services/index.ts` exports `services`; the API
-  server, the MCP server, the tests and the netcode bench all take theirs
-  from it, so a new service is registered once, there.
+  server, the MCP server and the tests all take theirs from it, so a new
+  service is registered once, there.
+  <!-- ── quickdraw-game:start ── -->
+  The netcode bench takes it too.
+  <!-- ── quickdraw-game:end ── -->
 - **Clients**: `db` from `@project/db` is the tracked client every service
   writes through (handlers receive it as `db`); `prisma` is the untracked
   one, for seeds, sessions and sign-in only (`no-untracked-write` lints it).

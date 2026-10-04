@@ -14,7 +14,14 @@ This is how the API app is put together.
 `apps/api/src/index.ts` is the composition root: an Express app (helmet,
 CORS from the auth's allowed origins, cookie-parser, a 100 kB JSON body,
 `/health`), the auth routes, then
-`qd.createServer({ app, services, db, auth, cors, http, onRoomLeave })`.
+`qd.createServer({ app, services, db, auth, cors, http })`.
+
+<!-- ── quickdraw-game:start ── -->
+
+It also passes the game's `onRoomLeave` (`game-patterns.md`).
+
+<!-- ── quickdraw-game:end ── -->
+
 Every service in `services/index.ts` is served three ways from the same
 dispatcher, access checks and tracked writes:
 
