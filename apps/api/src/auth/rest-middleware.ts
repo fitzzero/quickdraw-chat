@@ -1,7 +1,9 @@
 import type { RequestHandler } from "express";
-// quickdraw-migrate: review [v4-api] 4.x API createRequireAuth (moved): lint's no-v4-api names each replacement
-import { createRequireAuth } from "@fitzzero/quickdraw-core/server";
-import { prisma as defaultPrisma, type PrismaClient } from "@project/db";
+import {
+  createRequireAuth,
+  liveSession,
+  type SessionKeys,
+} from "@fitzzero/quickdraw-core/server/auth";
 
 declare global {
   // oxlint-disable-next-line typescript/no-namespace
@@ -13,23 +15,18 @@ declare global {
 }
 
 /**
- * Build the REST auth middleware against a specific database client.
- *
- * Every REST surface authenticates the same way; the only thing that varies is
- * the client (tests point it at testPrisma). Use this factory rather than
- * calling core's `createRequireAuth` again, so there is one session-lookup
- * path to audit.
+ * The REST auth middleware: the session cookie (or a bearer token) must
+ * stand for a live session in the auth routes' store, exactly as on a
+ * socket, so a signed-out session stops authenticating REST calls at once.
+ * Attaches `req.userId` on success, answers 401 otherwise.
  */
-export function createRestRequireAuth(db: PrismaClient = defaultPrisma): RequestHandler {
-  return createRequireAuth({
-    getSession: (token) => db.session.findUnique({ where: { token } }),
+export function createRestRequireAuth(keys: SessionKeys): RequestHandler {
+  const requireAuth = createRequireAuth({
+    jwtSecret: keys.jwtSecret,
+    // quickdraw-5.0 finding: createRequireAuth is 4.1's token-keyed middleware: with the auth routes kit's sessions (the JWT names its session, `sid`) an app hands it liveSession, which verifies the JWT a second time; the kit has no REST middleware of its own over SessionKeys
+    getSession: (token) => liveSession(keys, token),
   });
+  return (req, res, next) => {
+    void requireAuth(req, res, next);
+  };
 }
-
-/**
- * Express middleware that authenticates requests via session cookie or Bearer
- * token. Attaches req.userId on success, returns 401 on failure. Session
- * lookup mirrors the socket auth path so revoked sessions stop authenticating
- * immediately.
- */
-export const requireAuth: RequestHandler = createRestRequireAuth();

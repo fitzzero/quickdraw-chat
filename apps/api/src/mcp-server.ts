@@ -1,18 +1,23 @@
 /**
- * MCP Server for Cursor CLI Integration
+ * MCP Server for Claude Code / Cursor
  *
- * Standalone server implementing the Model Context Protocol (MCP).
- * Exposes all service methods as tools that Cursor can invoke.
+ * Serves the API's service methods to an agent as MCP tools over stdio
+ * (JSON-RPC 2.0): one tool per method, generated from the contracts at start
+ * (`{service}_{method}`, described by the method's `describe`, its input's
+ * JSON Schema as the tool's arguments). Every call goes through this
+ * process's own dispatcher with transport "mcp", so input validation, access
+ * checks and limits apply exactly as on a socket. Writes go through the
+ * tracked client; this process has no sockets, so the API server's
+ * subscribers learn about them on their next read, not live.
  *
- * Protocol: JSON-RPC 2.0 over stdio
+ * Who the session acts for: MCP_USER_ID (as in 4.x), with the user's grants;
+ * without it the session is anonymous and may call "public" methods only.
  */
 
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { config } from "dotenv";
-// quickdraw-migrate: review [v4-api] 4.x API McpRegistry, createMcpStdioServer (moved): lint's no-v4-api names each replacement
-import { McpRegistry, createMcpStdioServer } from "@fitzzero/quickdraw-core/server";
-import type { AccessLevel } from "@project/shared";
+import { createMcpRegistry, createMcpStdioServer } from "@fitzzero/quickdraw-core/server/mcp";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "../../..");
@@ -23,42 +28,39 @@ const envFile = process.env.DOTENV_CONFIG_PATH
 config({ path: envFile });
 config({ path: path.join(projectRoot, ".env") });
 
-const { prisma } = await import("@project/db");
-const { buildServices } = await import("./services/build-services.js");
+const { db, prisma } = await import("@project/db");
+const { qd } = await import("./quickdraw.js");
+const { serviceNames, services } = await import("./services/index.js");
+const { createGrantsLoader } = await import("./auth/grants.js");
 
-const mcpRegistry = new McpRegistry({
-  hydrateUserContext: async (userId: string) => {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { serviceAccess: true },
-      });
-      return {
-        serviceAccess: (user?.serviceAccess as Record<string, AccessLevel>) ?? {},
-      };
-    } catch {
-      return { serviceAccess: {} };
+/** The services whose methods are not tools. */
+const notServed = new Set<string>([
+  // ── quickdraw-game:start ──
+  // gameService: every game method binds to a live sim and its players'
+  // sockets, and there is no sim loop in this process. See
+  // .claude/rules/api-conventions.md.
+  "gameService",
+  // ── quickdraw-game:end ──
+]);
+const mcpServices = services.filter((service) => !notServed.has(service.name));
+
+const dispatcher = qd.createDispatcher({ services, db });
+const loadServiceAccess = createGrantsLoader({ prisma, serviceNames });
+
+const registry = createMcpRegistry({
+  services: mcpServices,
+  dispatcher,
+  principal: async () => {
+    const userId = process.env.MCP_USER_ID;
+    if (!userId) {
+      return null;
     }
+    return { userId, kind: "agent", serviceAccess: await loadServiceAccess(userId) };
   },
 });
-
-const services = buildServices(prisma);
-const mcpServices: Record<string, (typeof services)[keyof typeof services]> = { ...services };
-
-// ── quickdraw-game:start ──
-// gameService is deliberately NOT registered. McpRegistry.invoke() has no
-// socket, but every game method binds to one: joinGame and respawn mutate
-// live sim presence, watchWorld grants world-room membership by socket id,
-// and there is no sim loop in this process. See .claude/rules/api-conventions.md.
-delete mcpServices["gameService"];
-// ── quickdraw-game:end ──
-
-for (const [name, service] of Object.entries(mcpServices)) {
-  mcpRegistry.registerService(name, service);
-}
 
 createMcpStdioServer({
   name: "quickdraw-chat-mcp",
   version: "0.1.0",
-  registry: mcpRegistry,
+  registry,
 });

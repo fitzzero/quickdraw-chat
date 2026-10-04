@@ -2,16 +2,15 @@
 /**
  * MCP Server Bootstrap
  *
- * Entry point for Cursor CLI. Redirects console to stderr
- * before importing the MCP server to protect the JSON-RPC protocol.
+ * Entry point for Claude Code / Cursor (the root `.mcp.json`). Sends console
+ * output to stderr before importing the MCP server, so only the JSON-RPC
+ * protocol reaches stdout.
  *
  * Usage: node dist/mcp-bootstrap.js
  */
 
-// quickdraw-migrate: review [v4-api] 4.x API bootstrapMcpServer (moved): lint's no-v4-api names each replacement
-import { bootstrapMcpServer } from "@fitzzero/quickdraw-core/server";
+import { bootstrapMcpServer } from "@fitzzero/quickdraw-core/server/mcp";
 
-// Absolute URL, not "./mcp-server.js": bootstrapMcpServer resolves the
-// specifier from inside quickdraw-core's own dist, so a relative path looks
-// for the file next to core rather than next to this bundle.
-bootstrapMcpServer(new URL("./mcp-server.js", import.meta.url).href);
+// A URL resolves against this bundle (a bare relative path would resolve
+// against the working directory).
+await bootstrapMcpServer(new URL("./mcp-server.js", import.meta.url));
