@@ -4,11 +4,12 @@
 // admin kit.
 import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } from "vitest";
 import { QuickdrawError, type EventFrame, type StreamFrame } from "@fitzzero/quickdraw-core";
-import { emitWithAck, expectBudget } from "@fitzzero/quickdraw-core/testing";
+import { describeAccessMatrix, emitWithAck, expectBudget } from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import type { GameBootstrap, WorldSnapshot } from "@project/shared";
 import { GLOBAL_WORLD_ID, GLOBAL_WORLD_ROOM, GLOBAL_WORLD_SLUG } from "@project/shared";
 import { ensureGlobalWorld } from "../../services/game/bootstrap.js";
+import { gameService } from "../../services/game/index.js";
 import { gameRuntime } from "../../services/game/runtime.js";
 import { createTestUser } from "../factories/user-factory.js";
 import { startTestApp, type ApiConnection, type ApiTestApp } from "../utils/app.js";
@@ -172,6 +173,31 @@ describe("GameService", () => {
     await expect(as(users.regular.id).gameService.joinGame({ worldId: "nope" })).rejects.toEqual(
       new QuickdrawError("NOT_FOUND", "Unknown world"),
     );
+  });
+});
+
+describe("GameService access matrix", () => {
+  it("admits each method's callers", async () => {
+    // a signed-in player (no grant) and a holder of a service-wide Admin grant
+    const gameAdmin = await createTestUser({ serviceAccess: { gameService: "Admin" } });
+    await describeAccessMatrix(app, {
+      service: gameService,
+      principals: { player: { userId: users.regular.id }, gameAdmin: { userId: gameAdmin.id } },
+      cases: [
+        { method: "watchWorld", input: WORLD, allow: ["player", "gameAdmin", "anonymous"] },
+        {
+          method: "getWorld",
+          input: { slug: GLOBAL_WORLD_SLUG },
+          allow: ["player", "gameAdmin", "anonymous"],
+        },
+        { method: "getHighScores", input: WORLD, allow: ["player", "gameAdmin", "anonymous"] },
+        { method: "joinGame", input: WORLD, allow: ["player", "gameAdmin"] },
+        { method: "respawn", input: WORLD, allow: ["player", "gameAdmin"] },
+        { method: "getMyBest", input: WORLD, allow: ["player", "gameAdmin"] },
+        { method: "leaveGame", input: WORLD, allow: ["player", "gameAdmin"] },
+        { method: "adminList", input: {}, allow: ["gameAdmin"] },
+      ],
+    });
   });
 });
 

@@ -88,7 +88,7 @@ function ChatTitleSection({
   // The title being edited; null while not editing
   const [draft, setDraft] = React.useState<string | null>(null);
 
-  // Commits on blur or Enter, as 4.x's SocketTextField did with commitMode="blur"
+  // Commits on blur or Enter (the rename is optimistic: the list shows it at once)
   const commit = (): void => {
     if (draft === null) return;
     const title = draft.trim();
@@ -325,7 +325,7 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
   // Members roster: a query-shaped read (memberships joined to profiles).
   // The server sends memberUpdate to each member's sockets whenever the
   // chat's members change (an invite, a removal, a leave), so the roster is
-  // read again then: 4.x's invalidateOn, as an event handler.
+  // read again then, from the event's handler.
   const { data: queryMembers, isLoading: membersLoading } = qd.chatService.getChatMembers.useQuery(
     { chatId },
     { enabled: !!chatId },
