@@ -24,14 +24,6 @@
     // quickdraw-5.0 finding: `quickdraw-lint baseline` records quickdraw rules only, so the codemod's output fails core rules of the shipped base config (no-unused-vars, no-shadow, no-inline-comments, no-import-type-side-effects) that no baseline can hold
     {
       "files": [
-        "**/src/services/build-services.ts",
-        "**/src/services/chat/index.ts",
-        "**/src/services/definition/index.ts",
-        "**/src/services/document/index.ts",
-        "**/src/services/game/index.ts",
-        "**/src/services/message/index.ts",
-        "**/src/services/push-subscription/index.ts",
-        "**/src/services/user/index.ts",
         "**/src/components/admin/UserServiceAccessEditor.tsx",
         "**/src/hooks/useMyChats.ts"
       ],
