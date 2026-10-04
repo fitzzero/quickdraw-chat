@@ -88,20 +88,21 @@ export function configurePush(options: PushServiceOptions = {}): void {
 }
 
 /**
- * Send a payload to every subscription of one user. Endpoints the push
- * service reports gone (410/404) are deleted. Returns delivered count.
+ * Send a payload to every subscription of some users, read in one query.
+ * Endpoints the push service reports gone (410/404) are deleted. Returns the
+ * delivered count.
  */
-async function sendToUser(
+async function sendToUsers(
   db: Db,
-  userId: string,
+  userIds: readonly string[],
   payload: PushNotificationPayload,
 ): Promise<number> {
   const { transport } = delivery;
-  if (!transport) return 0;
+  if (!transport || userIds.length === 0) return 0;
 
   const subscriptions = await db.pushSubscription.findMany({
-    where: { userId },
-    take: MAX_SUBSCRIPTIONS_PER_USER,
+    where: { userId: { in: [...userIds] } },
+    take: MAX_SUBSCRIPTIONS_PER_USER * userIds.length,
   });
   if (subscriptions.length === 0) return 0;
 
@@ -119,9 +120,9 @@ async function sendToUser(
         if (statusCode === 410 || statusCode === 404) {
           // Expired/revoked endpoint — prune so we stop paying for it
           gone.push(sub.id);
-          logger.info("Removing stale push subscription", { userId, statusCode });
+          logger.info("Removing stale push subscription", { userId: sub.userId, statusCode });
         } else {
-          logger.debug("Push send failed", { userId, statusCode, ...errorMeta(error) });
+          logger.debug("Push send failed", { userId: sub.userId, statusCode, ...errorMeta(error) });
         }
         throw error;
       }
@@ -163,7 +164,11 @@ async function deliverMessagePush(
 
   const online = await Promise.all(members.map((member) => delivery.isUserOnline(member.userId)));
   const offline = members.filter((_member, index) => online[index] !== true);
-  await Promise.all(offline.map((member) => sendToUser(db, member.userId, payload)));
+  await sendToUsers(
+    db,
+    offline.map((member) => member.userId),
+    payload,
+  );
 }
 
 /**
@@ -232,7 +237,7 @@ export const pushService = qd.defineService(pushContract, {
       // sends to the caller's own devices (4.x: "Read" without a row id)
       access: "authenticated",
       handler: async ({ ctx, db }) => {
-        const sent = await sendToUser(db, ctx.principal.userId, {
+        const sent = await sendToUsers(db, [ctx.principal.userId], {
           title: "Test notification",
           body: "Push notifications are working on this device.",
           url: "/account",
