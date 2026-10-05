@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import type { QuickdrawError } from "@fitzzero/quickdraw-core";
+import { QuickdrawError } from "@fitzzero/quickdraw-core";
 
 /** The first problem a `VALIDATION` error names (the schema's own message), if any. */
 function firstIssue(error: QuickdrawError): string | undefined {
@@ -18,16 +18,18 @@ function firstIssue(error: QuickdrawError): string | undefined {
 /**
  * Turns a failed call into a sentence for people, by its code: the same
  * wording wherever a mutation or a read fails (`FORBIDDEN`, `VALIDATION`
- * with the schema's message, `RATE_LIMITED`, ...).
+ * with the schema's message, `RATE_LIMITED`, ...). Anything that is not a
+ * `QuickdrawError` (a `catch` block's error) reads as the generic sentence.
  *
  * @example
  * const errorText = useErrorText();
  * {rename.error && <FormHelperText error>{errorText(rename.error)}</FormHelperText>}
  */
-export function useErrorText(): (error: QuickdrawError) => string {
+export function useErrorText(): (error: unknown) => string {
   const t = useTranslations("Errors");
   return React.useCallback(
-    (error: QuickdrawError): string => {
+    (error: unknown): string => {
+      if (!(error instanceof QuickdrawError)) return t("generic");
       switch (error.code) {
         case "UNAUTHENTICATED":
           return t("unauthenticated");

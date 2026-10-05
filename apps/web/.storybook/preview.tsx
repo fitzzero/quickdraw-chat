@@ -3,30 +3,31 @@ import { CssBaseline, ThemeProvider as MuiThemeProvider } from "@mui/material";
 import type { Preview } from "@storybook/nextjs-vite";
 import { IntlProvider } from "../src/providers/IntlProvider";
 import { ToastProvider } from "../src/providers/ToastProvider";
-import { StorySessionProvider, type StorySession } from "../src/stories/quickdraw";
+import { qd, type QuickdrawStoryParameters } from "../src/stories/quickdraw";
 import { theme } from "../src/theme";
 import "../src/app/globals.css";
 
 // Mounts MUI theme + intl + toasts directly. Deliberately NOT
 // src/providers/ThemeProvider.tsx (useServerInsertedHTML is Next-runtime-only)
 // and NOT src/providers/index.tsx (it mounts the real QuickdrawProvider).
-// Components' `qd` is quickdraw's mock client (see main.ts); the session
-// provider gives `useQuickdraw()` the story's signed-in user, or the one a
-// story names in `parameters.quickdraw.session`.
+// Components' `qd` is quickdraw's mock client (see main.ts), and the mock's
+// own provider gives the real `useQuickdraw()` the mock's session.
 const preview: Preview = {
+  // Who each story renders as: its `parameters.quickdraw.session` over the
+  // mock's default session (a story without one gets the default back)
+  beforeEach: (context) => {
+    const parameters = context.parameters.quickdraw as QuickdrawStoryParameters | undefined;
+    qd.$session(parameters?.session ?? {});
+  },
   decorators: [
-    (Story, context) => (
+    (Story) => (
       <MuiThemeProvider theme={theme}>
         <CssBaseline />
         <IntlProvider>
           <ToastProvider>
-            <StorySessionProvider
-              session={
-                (context.parameters.quickdraw as { session?: StorySession } | undefined)?.session
-              }
-            >
+            <qd.$Provider>
               <Story />
-            </StorySessionProvider>
+            </qd.$Provider>
           </ToastProvider>
         </IntlProvider>
       </MuiThemeProvider>

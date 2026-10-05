@@ -31,9 +31,9 @@ const config: StorybookConfig = {
     };
     // Components render over quickdraw's mock client: every import of the
     // app's client module (`../lib/quickdraw`, at any depth) resolves to
-    // src/stories/quickdraw.tsx, which exports the same names (`qd` from
-    // createMockClient, `useQuickdraw` from the story's session). No socket,
-    // no server; stories set what the hooks show (see that file).
+    // src/stories/quickdraw.tsx, whose `qd` is createMockClient's. No socket,
+    // no server; stories set what the hooks show (see that file), and the
+    // real useQuickdraw() reads the mock's session under qd.$Provider.
     const existing = viteConfig.resolve?.alias;
     const aliases = Array.isArray(existing)
       ? existing

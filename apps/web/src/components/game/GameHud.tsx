@@ -4,8 +4,9 @@ import * as React from "react";
 import { Box, Fade, Paper, Typography } from "@mui/material";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import { useTranslations } from "next-intl";
+import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import { NPC_ID_PREFIX, type LeaderboardEntry } from "@project/shared";
-import { qd, useQuickdraw } from "../../lib/quickdraw";
+import { qd } from "../../lib/quickdraw";
 
 /**
  * DOM leaderboard overlay above the Godot canvas.

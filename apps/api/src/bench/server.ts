@@ -11,12 +11,14 @@
  */
 
 import type { AddressInfo } from "node:net";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { PrismaClient } from "@project/db";
 import { setTestPrisma, testDb, testPrisma } from "@project/db/testing";
 import type { Scenario } from "@project/bench";
-import { createPrismaTestGlobalSetup } from "@fitzzero/quickdraw-core/testing/prisma";
+import {
+  createPrismaTestGlobalSetup,
+  openPgliteFromTemplate,
+} from "@fitzzero/quickdraw-core/testing/prisma";
+import { TEST_TEMPLATE } from "../__tests__/utils/test-template.js";
 import { createAppAuth } from "../auth/index.js";
 import { qd } from "../quickdraw.js";
 import { serviceNames, services } from "../services/index.js";
@@ -46,25 +48,16 @@ async function ensureDatabase(): Promise<void> {
   if (dbReady) return;
 
   const setup = createPrismaTestGlobalSetup({
-    migrationsDir: resolve(process.cwd(), "../../packages/db/prisma/migrations"),
+    ...TEST_TEMPLATE,
     templateDbName: "quickdraw_chat_test",
-    templateName: "quickdraw-chat-test-template",
     workerCount: 1,
   });
   await setup();
 
   if (!process.env.TEST_DATABASE_URL) {
-    const { PGlite } = await import("@electric-sql/pglite");
     const { PrismaPGlite } = await import("pglite-prisma-adapter");
-    const templatePath = resolve(
-      process.cwd(),
-      "node_modules/.cache/quickdraw-chat-test-template.tar.gz",
-    );
-    const blob = new Blob([readFileSync(templatePath)], { type: "application/x-gzip" });
-    const pglite = new PGlite({ loadDataDir: blob });
-    await pglite.waitReady;
-    const adapter = new PrismaPGlite(pglite);
-    setTestPrisma(new PrismaClient({ adapter, log: [] }));
+    const pglite = await openPgliteFromTemplate(TEST_TEMPLATE);
+    setTestPrisma(new PrismaClient({ adapter: new PrismaPGlite(pglite), log: [] }));
     pgliteClose = () => pglite.close();
   }
   dbReady = true;

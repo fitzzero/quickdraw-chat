@@ -5,8 +5,9 @@
 //   from the cached template dump — no PostgreSQL required.
 import { PrismaClient } from "@project/db";
 import { resetDatabase, setTestPrisma } from "@project/db/testing";
-import { workerDatabaseUrl } from "@fitzzero/quickdraw-core/testing/prisma";
+import { openPgliteFromTemplate, workerDatabaseUrl } from "@fitzzero/quickdraw-core/testing/prisma";
 import { afterAll, beforeAll, beforeEach } from "vitest";
+import { TEST_TEMPLATE } from "./utils/test-template.js";
 
 process.env.NODE_ENV = "test";
 process.env.LOG_LEVEL = "error";
@@ -29,28 +30,15 @@ if (process.env.TEST_DATABASE_URL) {
     await resetDatabase();
   });
 } else {
-  // PGlite mode: load from the cached template dump built by global-setup.
-  const { PGlite } = await import("@electric-sql/pglite");
+  // PGlite mode: this worker's own database, from the template global-setup
+  // built (read through Node's Blob, so under the web's jsdom too)
   const { PrismaPGlite } = await import("pglite-prisma-adapter");
-  const { readFileSync } = await import("node:fs");
-  const { resolve } = await import("node:path");
 
-  const TEMPLATE_PATH = resolve(
-    process.cwd(),
-    "node_modules/.cache/quickdraw-chat-test-template.tar.gz",
-  );
-
-  let pglite: InstanceType<typeof PGlite>;
+  let pglite: Awaited<ReturnType<typeof openPgliteFromTemplate>>;
 
   beforeAll(async () => {
-    const templateData = readFileSync(TEMPLATE_PATH);
-    const blob = new Blob([templateData], { type: "application/x-gzip" });
-    pglite = new PGlite({ loadDataDir: blob });
-    await pglite.waitReady;
-
-    const adapter = new PrismaPGlite(pglite);
-    const client = new PrismaClient({ adapter, log: [] });
-    setTestPrisma(client);
+    pglite = await openPgliteFromTemplate(TEST_TEMPLATE);
+    setTestPrisma(new PrismaClient({ adapter: new PrismaPGlite(pglite), log: [] }));
   });
 
   afterAll(async () => {

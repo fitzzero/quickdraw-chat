@@ -2,15 +2,37 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
-import { Box, CircularProgress, Fade, Typography } from "@mui/material";
+import { Box, Chip, CircularProgress, Fade, Typography } from "@mui/material";
 import { useTranslations } from "next-intl";
+import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import { useSlowLoadHint } from "../../hooks";
-import { useQuickdraw } from "../../lib/quickdraw";
 import { routeRequiresAuth } from "../../lib/navigation";
 import { LoginRequired } from "../feedback";
 
 interface AuthGateProps {
   children: React.ReactNode;
+}
+
+/** Says the connection is coming back, over the page, which stays as it was meanwhile. */
+function ReconnectingNotice({ show }: { show: boolean }): React.ReactElement {
+  const t = useTranslations("Common");
+  return (
+    <Fade in={show} unmountOnExit>
+      <Box
+        role="status"
+        sx={{
+          position: "fixed",
+          bottom: 16,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: "snackbar",
+          pointerEvents: "none",
+        }}
+      >
+        <Chip icon={<CircularProgress size={14} color="inherit" />} label={t("reconnecting")} />
+      </Box>
+    </Fade>
+  );
 }
 
 /**
@@ -20,21 +42,25 @@ interface AuthGateProps {
 export function AuthGate({ children }: AuthGateProps): React.ReactNode {
   const t = useTranslations("Common");
   const pathname = usePathname();
-  // `hello` is the server's answer to this connection's credentials: until it
-  // arrives, a null userId means "not known yet", not "signed out". It stays
-  // while the socket reconnects, so the page (and what it shows) stays up.
-  // quickdraw-5.0 finding: useQuickdraw() has no flag for "the user is known": userId is null both while anonymous and before the hello, isConnected turns true before the hello (and false while reconnecting), and `reconnecting` is not exposed, so a gate ported from 4.x's isConnected/userId flashes LoginRequired or unmounts the page on every reconnect
-  const { hello, userId } = useQuickdraw();
-  const isKnown = hello !== null;
+  // isKnown: the server's hello on this connection's credentials arrived, so
+  // userId is final (null: signed out). It stays true while the socket
+  // reconnects (`reconnecting`), so the page (and what it shows) stays up.
+  const { isKnown, userId, reconnecting } = useQuickdraw();
   // A long connect is (in production) a Cloud Run cold start — say so
   const showWarmingHint = useSlowLoadHint(!isKnown);
 
   const requiresAuth = routeRequiresAuth(pathname);
+  const notice = <ReconnectingNotice show={reconnecting} />;
 
   // Public routes render immediately — only auth-gated routes wait for the
   // socket (their pages need the user to decide what to show)
   if (!requiresAuth) {
-    return children;
+    return (
+      <>
+        {children}
+        {notice}
+      </>
+    );
   }
 
   // Still connecting - show loading
@@ -62,9 +88,14 @@ export function AuthGate({ children }: AuthGateProps): React.ReactNode {
   }
 
   // Route requires auth but user is not logged in
-  if (requiresAuth && !userId) {
+  if (!userId) {
     return <LoginRequired />;
   }
 
-  return children;
+  return (
+    <>
+      {children}
+      {notice}
+    </>
+  );
 }

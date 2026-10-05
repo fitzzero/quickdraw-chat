@@ -6,22 +6,28 @@ import AddIcon from "@mui/icons-material/Add";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { keepPreviousData } from "@tanstack/react-query";
-import { useAdminServices, type AdminServiceInfo } from "@fitzzero/quickdraw-core/client";
+import {
+  adminOf,
+  useAdminServices,
+  type AdminKeysOf,
+  type AdminScreen,
+  type AdminServiceInfo,
+} from "@fitzzero/quickdraw-core/client";
 import type { AdminServiceMeta } from "@project/shared";
 import { useRightSidebar, usePageTitle } from "../../../providers/LayoutProvider";
 import { AdminTable } from "../../../components/admin/AdminTable";
 import { AdminEntitySidebar } from "../../../components/admin/AdminEntitySidebar";
 import { AdminCreateModal } from "../../../components/admin/AdminCreateModal";
-import {
-  adminMembers,
-  type AdminKey,
-  type AdminMembers,
-  type AdminSort,
-} from "../../../components/admin/adminMembers";
 import { useErrorText } from "../../../hooks/useErrorText";
 import { qd } from "../../../lib/quickdraw";
 
 const PAGE_SIZE = 20;
+
+/** An `adminList` sort the screen chose: one field `adminMeta` marks sortable. */
+interface AdminSort {
+  readonly field: string;
+  readonly direction: "asc" | "desc";
+}
 
 /** Newest first when the service sorts by creation time, else the kit's default order. */
 function defaultSort(meta: AdminServiceMeta | undefined): AdminSort | null {
@@ -32,11 +38,11 @@ function defaultSort(meta: AdminServiceMeta | undefined): AdminSort | null {
 /**
  * One page of the service's rows: the page and the sort the screen chose,
  * and `adminList`'s answer for them. The admin list is a query (the kit's
- * rows are not live): the previous page stays on screen while the next one
- * loads, and admin writes from this screen read it again (`refresh`).
+ * rows are not live: another admin's write shows at the next read): the
+ * previous page stays on screen while the next one loads, and admin writes
+ * from this screen read it again (`refresh`).
  */
-// quickdraw-5.0 finding: the admin kit's adminList is neither live nor watchable (a query can only watch a collection scope), so an admin screen shows other admins' writes only when it reads again, and after its own writes it must call qd.invalidate by hand
-function useAdminPage(admin: AdminMembers, meta: AdminServiceMeta | undefined) {
+function useAdminPage(admin: AdminScreen, meta: AdminServiceMeta | undefined) {
   const [page, setPage] = React.useState(1);
   const [chosenSort, setChosenSort] = React.useState<AdminSort | null>(null);
   const fallbackSort = React.useMemo(() => defaultSort(meta), [meta]);
@@ -81,16 +87,17 @@ function Centered({ children }: { children: React.ReactNode }): React.ReactEleme
 /**
  * The admin screen of one service: a page of its rows, sorted by a field its
  * metadata marks sortable, a sidebar for the selected row, and a create form.
- * Every call goes through the service's admin kit members (`qd[key].admin`).
+ * Every call goes through the service's admin kit members, as one shape for
+ * every service (`adminOf(qd, key)`: rows and inputs by field name).
  */
 function AdminServiceScreen({
   service,
 }: {
-  service: AdminServiceInfo<AdminKey>;
+  service: AdminServiceInfo<AdminKeysOf<typeof qd>>;
 }): React.ReactElement {
   const t = useTranslations("Admin");
   const errorText = useErrorText();
-  const admin: AdminMembers = adminMembers(service.key);
+  const admin = adminOf(qd, service.key);
 
   const { data: meta, error: metaError } = admin.adminMeta.useQuery(undefined);
   const list = useAdminPage(admin, meta);
@@ -101,13 +108,14 @@ function AdminServiceScreen({
 
   usePageTitle(meta?.displayName ?? service.displayName);
 
-  // Right sidebar: the selected row
+  // Right sidebar: the selected row (services whose kit exposes adminGet)
   const sidebarContent = React.useMemo(() => {
-    if (!selectedId || !meta) return null;
+    if (!selectedId || !meta || admin.adminGet === undefined) return null;
     return (
       <AdminEntitySidebar
         key={selectedId}
         admin={admin}
+        adminGet={admin.adminGet}
         serviceKey={service.key}
         entryId={selectedId}
         meta={meta}

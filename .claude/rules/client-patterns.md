@@ -15,11 +15,13 @@ how the web app uses it.
 - `apps/web/src/lib/quickdraw.ts` exports the one client,
   `qd = createQuickdrawClient(contracts)`, keyed by service name:
   `qd.chatService.myChats.useCollection(userId)`,
-  `qd.messageService.postMessage.useMutation()`. It also re-exports
-  `useQuickdraw`: components import both from `../lib/quickdraw`, never from
+  `qd.messageService.postMessage.useMutation()`. Components import `qd` from
+  `../lib/quickdraw`, and the hooks that take no client (`useQuickdraw`,
+  `useJoin`, `useAdminServices`, `adminOf`) and the auth helpers from
   `@fitzzero/quickdraw-core/client`.
   <!-- ── quickdraw-storybook:start ── -->
-  Storybook's mock of that one module then stands in for both.
+  Storybook's mock of that one module stands in for `qd`, and the mock's own
+  provider (`qd.$Provider`) for the connection `useQuickdraw()` reads.
   <!-- ── quickdraw-storybook:end ── -->
 - `apps/web/src/providers/index.tsx` mounts `QuickdrawProvider` with
   `client={qd}`, the API's URL and no `auth`: the session is the httpOnly
@@ -43,20 +45,35 @@ how the web app uses it.
 - **One row, live**: `qd.<service>.useEntity(id)` (a chat's title, a user's
   profile, a document). Fields tiered in the contract (`email`,
   `serviceAccess`) are optional in its `data`: guard them.
-- **Query-shaped reads** (a join, an aggregate): `useQuery`, read again from
-  an event handler when the server says it changed
-  (`qd.chatService.memberUpdate.useEvent` invalidates `getChatMembers`).
+- **A send shown at once**: the mutation's `optimistic` adds the row it
+  creates with `cache.addItem(collection, scope, item)` (give it the
+  collection's `order` fields), and the list styles `useCollection().pending`
+  as sending (`ChatWindow`: a message shows at once, then the server's row
+  in its place; a refused one is dropped and the window offers a retry).
+- **Query-shaped reads** (a join, an aggregate): `useQuery`; an event that
+  carries the new result writes it into the query's cache with
+  `qd.<service>.<query>.setData(input, result)` (`memberUpdate` carries the
+  chat's roster for `getChatMembers`).
+- **Rooms joined by a call** (the game page's world room, its player):
+  `useJoin(qd.<service>.<method>, input, { enabled })`, which runs the call
+  again on every connection (a new socket is in no app room), never an
+  effect on `hello` or `isConnected`.
 - **Who is signed in**: `useQuickdraw()` gives `userId`, `serviceAccess`
-  (the grants) and `hello`. `hello === null` means "not known yet", not
-  "signed out" (see `AuthGate`); gate on it before showing sign-in prompts.
+  (the grants), `isKnown` and `reconnecting`. `userId === null` is "signed
+  out" only once `isKnown` (see `AuthGate`): gate on it before showing
+  sign-in prompts. A reconnect keeps the user and the page (`reconnecting`
+  shows a notice).
 - **Admin screens** (`/admin`, `components/admin/`) are generic: the
-  services come from `useAdminServices(qd)`, and every table and form from
-  the service's `adminMeta` through `adminMembers(key)` (one typed shape
-  for every admin kit). A user's grants have their own editor
+  services come from `useAdminServices(qd)` (it asks only the services the
+  hello's grants allow), and every table and form from the service's
+  `adminMeta` through `adminOf(qd, key)` (one shape for every admin kit,
+  typed by field name). The kit's rows are not live: a screen reads its list
+  again after its own writes. A user's grants have their own editor
   (`UserServiceAccessEditor`, written through `adminUpdate`).
-- **Sign-in and sign-out** go through the auth routes kit's URLs with
-  `apps/web/src/lib/auth.ts` (`getOAuthUrl`, `logout`, `logoutAllDevices`):
-  never the client package's own helpers of the same names.
+- **Sign-in and sign-out** go through the auth routes kit with the client's
+  `signInUrl(provider, AUTH_ROUTES)`, `signOut(AUTH_ROUTES)` and
+  `signOutEverywhere(AUTH_ROUTES)` (`AUTH_ROUTES` in `apps/web/src/lib/auth.ts`
+  says where the API is); a sign-out that rejects left the session live.
 - **Errors** shown to people: `useErrorText()` maps a `QuickdrawError`'s
   code to a translated message.
 

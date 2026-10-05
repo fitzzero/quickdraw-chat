@@ -41,10 +41,12 @@ connection:
 3. send input frames; reconcile against `PlayerSnap.ack`.
 
 The web boots Godot into SPECTATE (`watchWorld`: full bootstrap, no spawn);
-the React pre-game dialog then calls `joinGame` on the page's own socket and
-Godot spawns the local snake when its id appears in a snapshot. The page
-calls `watchWorld` on every hello (`useWorldRoom` in `GameSurface.tsx`) so
-its HUD hears the world. Presence is room-anchored: a player stays in the sim
+the React pre-game dialog then joins the game on the page's own socket and
+Godot spawns the local snake when its id appears in a snapshot. The page's
+socket joins with `useJoin` (`GameSurface.tsx`), which runs the call again
+on every connection: `watchWorld` always (its HUD hears the world), and
+`joinGame` while the user plays and is alive (Respawn lets it run again:
+joinGame spawns a dead player's snake). Presence is room-anchored: a player stays in the sim
 while ANY of their sockets is in the world's room (page + Godot are two
 sockets, one user); `createServer({ onRoomLeave: onGameRoomLeave })` removes
 the player (and sends `playerLeft`) when the last one leaves or disconnects.

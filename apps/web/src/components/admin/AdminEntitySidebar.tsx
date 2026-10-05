@@ -23,12 +23,12 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { useTranslations } from "next-intl";
+import type { AdminKeysOf, AdminRow, AdminScreen } from "@fitzzero/quickdraw-core/client";
 import { ConfirmDialog } from "../feedback";
 import { UserServiceAccessEditor } from "./UserServiceAccessEditor";
 import { useErrorText } from "../../hooks/useErrorText";
 import { qd } from "../../lib/quickdraw";
 import type { AdminServiceMeta, AdminFieldConfig } from "@project/shared";
-import type { AdminKey, AdminMembers, AdminRow } from "./adminMembers";
 
 /** The user's grants field, which `admin.handlers(user, { grants: true })` adds to adminMeta. */
 function isGrants(field: AdminFieldConfig): boolean {
@@ -181,7 +181,7 @@ function FieldInput({
 }
 
 interface EditActionsProps {
-  adminUpdate: NonNullable<AdminMembers["adminUpdate"]>;
+  adminUpdate: NonNullable<AdminScreen["adminUpdate"]>;
   entity: AdminRow;
   meta: AdminServiceMeta;
   /** The values being edited; null while viewing. */
@@ -260,7 +260,7 @@ function DeleteAction({
   id,
   onDeleted,
 }: {
-  adminDelete: NonNullable<AdminMembers["adminDelete"]>;
+  adminDelete: NonNullable<AdminScreen["adminDelete"]>;
   id: string;
   onDeleted: () => void;
 }): React.ReactElement {
@@ -310,10 +310,12 @@ function DeleteAction({
 }
 
 interface AdminEntitySidebarProps {
-  /** The service's admin kit members. */
-  admin: AdminMembers;
+  /** The service's admin kit members (`adminOf(qd, key)`). */
+  admin: AdminScreen;
+  /** Its `adminGet`, which the sidebar reads the row with. */
+  adminGet: NonNullable<AdminScreen["adminGet"]>;
   /** The service's key on the client. */
-  serviceKey: AdminKey;
+  serviceKey: AdminKeysOf<typeof qd>;
   entryId: string;
   meta: AdminServiceMeta;
   onClose: () => void;
@@ -329,6 +331,7 @@ interface AdminEntitySidebarProps {
  */
 export function AdminEntitySidebar({
   admin,
+  adminGet,
   serviceKey,
   entryId,
   meta,
@@ -339,16 +342,16 @@ export function AdminEntitySidebar({
   const tAdmin = useTranslations("Admin");
   const errorText = useErrorText();
 
-  const { data: entity, error, isLoading } = admin.adminGet.useQuery({ id: entryId });
+  const { data: entity, error, isLoading } = adminGet.useQuery({ id: entryId });
   // The values being edited (a form draft); null while viewing
   const [editedValues, setEditedValues] = React.useState<Record<string, unknown> | null>(null);
 
   const handleSaved = React.useCallback((): void => {
     setEditedValues(null);
     // The kit's rows are not live: read this row and the list again
-    qd.invalidate(admin.adminGet, { id: entryId });
+    qd.invalidate(adminGet, { id: entryId });
     onChanged();
-  }, [admin, entryId, onChanged]);
+  }, [adminGet, entryId, onChanged]);
 
   if (isLoading) {
     return (

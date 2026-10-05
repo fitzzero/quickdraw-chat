@@ -31,8 +31,10 @@ error codes) and the testing helpers (`createTestApp`, `describeAccessMatrix`,
 `apps/api/src/__tests__/utils/global-setup.ts` and `setup.ts` pick it:
 
 - **No `TEST_DATABASE_URL`** (the local default): each worker boots an
-  in-memory PGlite from a template dump cached by a fingerprint of the
-  migrations. No PostgreSQL needed; the API's suites run in seconds.
+  in-memory PGlite (`openPgliteFromTemplate(TEST_TEMPLATE)`, under jsdom
+  too) from a template dump cached by a fingerprint of the migrations
+  (`utils/test-template.ts`). No PostgreSQL needed; the API's suites run in
+  seconds.
 - **`TEST_DATABASE_URL` set** (CI): real PostgreSQL, a database per worker
   cloned from a migrated template.
 
@@ -91,8 +93,10 @@ Close it in `afterAll`. Then:
 - `apps/web/src/__tests__/chat.int.test.tsx` renders the real pages and
   components with `renderWithQuickdraw` against the API's test app (the
   web's integration config reuses the API's database set-up, plus
-  `dom-setup.ts` for what jsdom lacks).
-- Component tests without a server use `createMockClient(contracts)`.
+  `dom-setup.ts`, which calls `installJsdomShims()` for what jsdom lacks).
+- Component tests without a server use `createMockClient(contracts)`; a
+  component that reads `useQuickdraw()` renders inside `mock.$Provider`,
+  with the session set by `mock.$session({ userId, serviceAccess, ... })`.
   <!-- ── quickdraw-storybook:start ── -->
   Storybook renders on it too (`storybook.md`).
   <!-- ── quickdraw-storybook:end ── -->

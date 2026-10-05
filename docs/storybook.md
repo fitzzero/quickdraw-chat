@@ -48,8 +48,9 @@ job, so a story that stops compiling fails the pipeline.
 ## Decorators
 
 The global decorator in `apps/web/.storybook/preview.tsx` provides the MUI
-theme, `CssBaseline`, intl, toasts, and the story's quickdraw session (below).
-It deliberately does NOT use `src/providers/ThemeProvider.tsx`
+theme, `CssBaseline`, intl, toasts, and the mock client's provider with the
+story's quickdraw session (below). It deliberately does NOT use
+`src/providers/ThemeProvider.tsx`
 (Next-runtime-only) or `src/providers/index.tsx` (it mounts the real
 `QuickdrawProvider`).
 
@@ -63,14 +64,16 @@ Route-dependent components mock `next/navigation` per story via
 ## Mocking quickdraw
 
 Components read server data through the app's typed client (`qd` from
-`src/lib/quickdraw.ts`) and the connection through `useQuickdraw()`, which
-that module re-exports. In the Storybook bundle, `.storybook/main.ts` points
-every import of that module at `src/stories/quickdraw.tsx`, which exports the
-same names: `qd` is `createMockClient(contracts)` from
-`@fitzzero/quickdraw-core/testing/client` (the typed client's shape, with
-stubs, and no socket or server), and `useQuickdraw()` returns the story's
-session. Stories import `qd` from `src/stories/quickdraw.tsx` (typed as the
-mock) and set what the hooks show in a `beforeEach`:
+`src/lib/quickdraw.ts`) and the connection through `useQuickdraw()` from
+`@fitzzero/quickdraw-core/client`. In the Storybook bundle, `.storybook/main.ts`
+points every import of the app's module at `src/stories/quickdraw.tsx`, whose
+`qd` is `createMockClient(contracts)` from `@fitzzero/quickdraw-core/testing/mock`
+(the typed client's shape, with stubs, and no socket or server; that entry
+names no Testing Library, for the browser bundle). The global decorator
+renders every story inside the mock's own provider, `qd.$Provider`, where the
+real `useQuickdraw()` reads the mock's session. Stories import `qd` from
+`src/stories/quickdraw.tsx` (typed as the mock) and set what the hooks show in
+a `beforeEach`:
 
 ```tsx
 import { qd } from "../../stories/quickdraw";
@@ -95,11 +98,16 @@ const meta = {
 - The mock is one module for every story, and a docs page renders several
   stories at once: give each story its own ids (scopes, rows) so their data
   never meets (see `ChatWindow.stories.tsx`, `UserAvatar.stories.tsx`).
-- `parameters: { quickdraw: { session: { userId, connected, serviceAccess } } }`
+- `parameters: { quickdraw: { session: { userId, serviceAccess, isConnected, isKnown } } }`
   sets who the story renders as (`userId: null` is signed out,
-  `connected: false` the state before the server's hello); the default is
-  `STORY_USER_ID`, connected, with no grants.
-- The mock shows no optimistic updates.
+  `{ isConnected: false, isKnown: false }` the state before the server's
+  hello); the default is `STORY_USER_ID`, connected, with no grants. The
+  preview's `beforeEach` gives it to the mock (`qd.$session`), so a story
+  without one gets the default back. The session is the mock's one: a docs
+  page that renders stories with different sessions shows them all with the
+  last one set.
+- The mock shows no optimistic updates: `MessageList`'s `Sending` and
+  `NotSent` stories show a send's states from props.
 
 ## Story tiers
 

@@ -16,9 +16,10 @@ import {
 } from "@mui/material";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import { useTranslations } from "next-intl";
+import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import { GLOBAL_WORLD_ID } from "@project/shared";
 import { useSlowLoadHint } from "../../hooks";
-import { qd, useQuickdraw } from "../../lib/quickdraw";
+import { qd } from "../../lib/quickdraw";
 
 const SCORES_PAYLOAD = { worldId: GLOBAL_WORLD_ID, limit: 25 };
 
