@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import { MessageList, type FailedMessage } from "./MessageList";
 import { MessageInput } from "./MessageInput";
+import { newId } from "../../lib/ids";
 import { qd } from "../../lib/quickdraw";
 import { useErrorText } from "../../hooks/useErrorText";
 
@@ -24,18 +25,25 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
   // contract's order), so the first page is the latest 50 and loadMore walks
   // back in time by cursor. Messages anyone posts or deletes arrive as
   // deltas, and after a reconnect the scope resumes from its revision.
-  const { items, pending, refused, isLoading, hasMore, isLoadingMore, loadMore } =
+  const { items, pending, checking, refused, isLoading, hasMore, isLoadingMore, loadMore } =
     qd.messageService.byChat.useCollection(chatId || null);
   // The window reads oldest first
   const messages = React.useMemo(() => [...items].reverse(), [items]);
 
   // Sending shows the message at once: the optimistic add puts it in byChat,
   // newest (its createdAt), flagged in `pending` while the call is on its
-  // way, and the server's row takes its place. A refused send is kept
+  // way, and the server's row takes its place. Each send carries an id the
+  // client made, which the message keeps: when the connection drops after
+  // the call went out (or it times out), the server may have written it, so
+  // the message stays, in `checking` too, until the chat's next load says
+  // (the reconnect's resume): its own copy shows when the server has it, and
+  // otherwise it is refused. Without that id the load could not find it, and
+  // a retry could post it twice. A refused send is kept
   // (`onRefused: "keep"`): it leaves the items for the scope's `refused`,
   // which the window shows last, marked, until the user retries it (the same
-  // call again, pending again) or dismisses it. The client holds them, not
-  // this component: they outlive the window, and no later send drops one.
+  // call, with the same id, through this mutation) or dismisses it. The
+  // client holds them, not this component: they outlive the window, and no
+  // later send drops one.
   const { mutate: post } = qd.messageService.postMessage.useMutation({
     optimistic: (input, cache) => {
       if (userId === null) return;
@@ -43,6 +51,7 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
         "byChat",
         input.chatId,
         {
+          id: input.id,
           chatId: input.chatId,
           userId,
           content: input.content,
@@ -72,7 +81,7 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
 
   const handleSend = React.useCallback(
     (content: string) => {
-      post({ chatId, content });
+      post({ id: newId(), chatId, content });
     },
     [post, chatId],
   );
@@ -102,6 +111,7 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
       <MessageList
         messages={messages}
         pending={pending}
+        checking={checking}
         isLoading={isLoading}
         currentUserId={userId}
         hasMore={hasMore}
@@ -110,8 +120,8 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
         failed={failed}
       />
 
-      {/* Input: one message on its way at a time, as the list shows it (a
-          retried one too, which the mutation's own state never sees) */}
+      {/* Input: one message on its way at a time, as the list shows it: one
+          being checked too, whose call has already failed */}
       <MessageInput onSend={handleSend} disabled={!isConnected} sending={pending.size > 0} />
     </Box>
   );

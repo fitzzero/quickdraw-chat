@@ -83,6 +83,11 @@ export const messageService = qd.defineService(messageContract, {
         const message = await db.$transaction(async (tx) => {
           const created = await tx.message.create({
             data: {
+              // The id the sender made (the web's sends carry one), else the
+              // database's. A create never overwrites: an id that exists fails
+              // it as a unique violation, which reaches the caller as CONFLICT,
+              // so a send repeated after a lost answer writes nothing twice
+              id: input.id,
               chatId: input.chatId,
               userId: ctx.principal.userId,
               content: input.content,

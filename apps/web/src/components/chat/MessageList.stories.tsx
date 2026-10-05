@@ -82,6 +82,19 @@ export const Sending: Story = {
   },
 };
 
+/**
+ * A send whose answer the dropped connection lost: still shown, checking
+ * until the chat's next load says whether the server has it
+ * (useCollection's `checking`).
+ */
+export const Checking: Story = {
+  args: {
+    messages: [...CONVERSATION, message(6, USERS.ada, "Heading into the standup now.", 0)],
+    pending: new Set(["msg-6"]),
+    checking: new Set(["msg-6"]),
+  },
+};
+
 /** Messages the server refused: each kept last, marked, with a retry and a dismiss. */
 export const NotSent: Story = {
   args: {

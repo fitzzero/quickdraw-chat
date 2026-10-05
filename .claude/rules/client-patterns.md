@@ -49,12 +49,19 @@ how the web app uses it.
   creates with `cache.addItem(collection, scope, item, { onRefused: "keep" })`
   (give it the collection's `order` fields), and the list styles
   `useCollection().pending` as sending (`ChatWindow`: a message shows at
-  once, then the server's row in its place). A refused one leaves the items
+  once, then the server's row in its place). The row carries an id the
+  client made (`newId()` from `lib/ids.ts`, a UUID: `crypto.randomUUID()`
+  is missing on a plain-http page), sent in the input and written by the
+  create: when the connection drops after the call went out, or it times
+  out, the server may have the row, so it stays, in
+  `useCollection().checking` too (shown as checking), until the scope's
+  next load finds it by that id or refuses it; a second call with the id
+  fails `CONFLICT` instead of writing twice. A refused one leaves the items
   for `useCollection().refused`, which the window shows last, each with its
-  `error`, `retry()` (the same call again) and `dismiss()`: the client keeps
-  them, never component state, so they outlive the window. The input waits
-  while `pending` is not empty: a retry is pending too, which the
-  mutation's own `isPending` never sees.
+  `error`, `retry()` (the same call again, through the mutation hook) and
+  `dismiss()`: the client keeps them, never component state, so they
+  outlive the window. The input waits while `pending` is not empty: a row
+  being checked is pending too, though its call has already failed.
 - **Query-shaped reads** (a join, an aggregate): `useQuery`; an event that
   carries the new result writes it into the query's cache with
   `qd.<service>.<query>.setData(input, result)`.

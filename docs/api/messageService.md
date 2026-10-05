@@ -42,7 +42,7 @@ Each method below says who may call it.
 
 ### `postMessage`
 
-Posts a message to a chat the caller is a member of.
+Posts a message to a chat the caller is a member of, under the id the caller made for it (a UUID) if it gave one: an id that exists answers CONFLICT and writes nothing.
 
 A mutation.
 
@@ -52,6 +52,7 @@ Input:
 
 | Field     | Type                                | Notes                 |
 | --------- | ----------------------------------- | --------------------- |
+| `id?`     | `string`                            | format uuid           |
 | `chatId`  | `string`                            | format cuid           |
 | `content` | `string`                            | 1 to 10000 characters |
 | `role?`   | `"user" \| "assistant" \| "system"` |                       |
@@ -68,9 +69,9 @@ Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or
 
 Input:
 
-| Field | Type     | Notes       |
-| ----- | -------- | ----------- |
-| `id`  | `string` | format cuid |
+| Field | Type     |
+| ----- | -------- |
+| `id`  | `string` |
 
 Output: `{ id: string; deleted: true }`.
 
