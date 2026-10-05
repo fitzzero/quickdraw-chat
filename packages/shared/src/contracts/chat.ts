@@ -143,6 +143,17 @@ export const chatContract = defineContract("chatService", {
       output: idResultSchema,
       describe: "Removes the caller from a chat, unless they are its last Admin.",
     }),
+    // ── quickdraw-game:start ──
+    // Everyone in a game world is in its chat (the in-game chat overlay): the
+    // game's methods call this through ctx.services, so the membership is
+    // written by the chat service, which owns memberships
+    joinWorldChat: mutation({
+      input: z.object({ worldId: z.string().min(1) }),
+      output: z.object({ chatId: z.string().nullable() }),
+      describe:
+        "Adds the caller to a game world's chat at Read when they are not a member yet; answers the chat's id, or null for a world without one.",
+    }),
+    // ── quickdraw-game:end ──
     // The admin screens: every chat, for holders of a service-wide Admin grant
     ...admin.contract({ entity: chatSchema, sort: ["createdAt", "title", "lastMessageAt"] }),
   },

@@ -175,3 +175,39 @@ export async function changeMembership(
     throw error;
   }
 }
+
+// ── quickdraw-game:start ──
+/** Prisma's unique-constraint violation: the membership exists already. */
+function isUniqueViolation(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "P2002";
+}
+
+/**
+ * Makes `userId` a member of the chat at `level` when they are not one yet,
+ * and writes nothing when they are: a join a page repeats on every load or
+ * reconnect (the game's world chat) changes nothing the second time. Answers
+ * whether it added them. No rules apply: the caller's method decides who may
+ * join which chat.
+ */
+export async function joinChat(
+  db: Db,
+  chatId: string,
+  userId: string,
+  level: AccessLevel,
+): Promise<boolean> {
+  const existing = await db.chatMember.findUnique({
+    where: { chatId_userId: { chatId, userId } },
+    select: { id: true },
+  });
+  if (existing !== null) return false;
+  try {
+    await db.chatMember.create({ data: { chatId, userId, level }, select: { id: true } });
+    return true;
+  } catch (error) {
+    // another socket of the user joined them first (the page and the game
+    // client watch the world at once)
+    if (isUniqueViolation(error)) return false;
+    throw error;
+  }
+}
+// ── quickdraw-game:end ──

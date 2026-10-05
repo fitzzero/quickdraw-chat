@@ -138,8 +138,9 @@ export const gameContract = defineContract("gameService", {
         "Spawns the caller's snake in a world, puts the calling socket in the world's room, and answers the world's state with it.",
     }),
     // A query although it joins the caller to the world's chat and puts the
-    // calling socket in the world's room: both joins are idempotent, so
-    // fetching it again is safe, and the web app reads it as a query.
+    // calling socket in the world's room: both joins are idempotent (the chat
+    // membership is written the first time only), so fetching it again is
+    // safe and changes nothing, and the web app reads it as a query.
     watchWorld: query({
       input: worldScopedSchema,
       output: worldBootstrapSchema,

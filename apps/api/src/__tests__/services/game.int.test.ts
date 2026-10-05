@@ -21,10 +21,10 @@ import {
 } from "@project/shared";
 import { ensureGlobalWorld } from "../../services/game/bootstrap.js";
 import { gameService } from "../../services/game/index.js";
-import { gameRuntime } from "../../services/game/runtime.js";
+import { gameRuntime, persistScore } from "../../services/game/runtime.js";
 import { qd } from "../../quickdraw.js";
 import { createTestUser } from "../factories/user-factory.js";
-import { startTestApp, type ApiConnection, type ApiTestApp } from "../utils/app.js";
+import { startTestApp, subscribeScope, type ApiConnection, type ApiTestApp } from "../utils/app.js";
 
 const WORLD = { worldId: GLOBAL_WORLD_ID };
 
@@ -308,6 +308,101 @@ describe("GameService spectating and scores", () => {
     } finally {
       runtime.sim.applyTunables({ npcCount: 0, worldWidth: 2400, worldHeight: 2400 });
     }
+  });
+});
+
+describe("what changes the game's topic and the world chat's lists", () => {
+  /** Lets any flush the steps before set off land (a stray frame would arrive by then). */
+  async function settle(): Promise<void> {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 150);
+    });
+  }
+
+  it("only a stored new best changes the topic the scores watch (GAME-TOPIC)", async () => {
+    const watcher = await connect(null);
+    const watched = await emitWithAck<{ ok: boolean }>(watcher.socket, "qd:watch", {
+      s: "gameService",
+      topic: "service",
+    });
+    expect(watched.ok).toBe(true);
+    const ada = await createTestUser({ name: "Ada" });
+    const bo = await createTestUser({ name: "Bo" });
+    const adaSocket = await connect(ada.id);
+    app.frames.clear();
+
+    // the first watch writes the world chat's membership (the chat service's)
+    await adaSocket.call.gameService.watchWorld(WORLD);
+    // a page load or a reconnect: the membership is there, nothing is written
+    await adaSocket.call.gameService.watchWorld(WORLD);
+    await adaSocket.call.gameService.joinGame(WORLD);
+    // a chat created and an invite anywhere in the app
+    const chat = await as(ada.id).chatService.createChat({ title: "Unrelated" });
+    await as(ada.id).chatService.inviteUser({ id: chat.id, userId: bo.id, level: "Read" });
+    // a death that sets no new best
+    await testPrisma.gameScore.create({
+      data: { worldId: GLOBAL_WORLD_ID, userId: ada.id, bestLength: 40 },
+    });
+    await persistScore(testDb, { id: ada.id, len: 12 });
+    await settle();
+    expect(app.frames({ event: "qd:changed", socketId: watcher.socket.id })).toHaveLength(0);
+
+    // a new best is stored, and changes the topic once
+    await persistScore(testDb, { id: ada.id, len: 55 });
+    await app.frames.waitFor({ event: "qd:changed", socketId: watcher.socket.id });
+    await settle();
+    expect(app.frames({ event: "qd:changed", socketId: watcher.socket.id })).toHaveLength(1);
+    const stored = await testPrisma.gameScore.findUniqueOrThrow({
+      where: { worldId_userId: { worldId: GLOBAL_WORLD_ID, userId: ada.id } },
+    });
+    expect(stored.bestLength).toBe(55);
+  });
+
+  it("stores a first death's length, and leaves a better best as it is", async () => {
+    await persistScore(testDb, { id: users.regular.id, len: 20 });
+    await persistScore(testDb, { id: users.regular.id, len: 8 });
+    expect(await as(users.regular.id).gameService.getMyBest(WORLD)).toEqual({ bestLength: 20 });
+  });
+
+  it("a repeat watch or join sends the world chat to no member's list (MYCHATS-ON-REPEAT-WATCHWORLD)", async () => {
+    const ada = await createTestUser({ name: "Ada" });
+    const bo = await createTestUser({ name: "Bo" });
+    const adaSocket = await connect(ada.id);
+    const boSocket = await connect(bo.id);
+    const { chatId } = await adaSocket.call.gameService.watchWorld(WORLD);
+    await boSocket.call.gameService.watchWorld(WORLD);
+    // Bo's sidebar: their chat list, the world chat in it
+    expect(await subscribeScope(boSocket, "chatService", "myChats", bo.id)).toMatchObject({
+      ok: true,
+    });
+    await settle();
+    app.frames.clear();
+
+    for (let i = 0; i < 3; i++) await adaSocket.call.gameService.watchWorld(WORLD);
+    await adaSocket.call.gameService.joinGame(WORLD);
+    await settle();
+    expect(app.frames({ event: "qd:c", socketId: boSocket.socket.id })).toHaveLength(0);
+
+    // ...while a message in the world chat moves it in Bo's list, once
+    await as(ada.id).messageService.postMessage({ chatId: must(chatId), content: "hi" });
+    await app.frames.waitFor({ event: "qd:c", socketId: boSocket.socket.id });
+    await settle();
+    expect(app.frames({ event: "qd:c", socketId: boSocket.socket.id })).toHaveLength(1);
+  });
+
+  it("joins the world chat once when two sockets of a user watch at the same time", async () => {
+    const ada = await createTestUser({ name: "Ada" });
+    const [page, godot] = await Promise.all([connect(ada.id), connect(ada.id)]);
+    const [first, second] = await Promise.all([
+      page.call.gameService.watchWorld(WORLD),
+      godot.call.gameService.watchWorld(WORLD),
+    ]);
+    expect(second.chatId).toBe(first.chatId);
+    expect(
+      await testPrisma.chatMember.count({
+        where: { chatId: must(first.chatId), userId: ada.id },
+      }),
+    ).toBe(1);
   });
 });
 

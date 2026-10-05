@@ -68,38 +68,56 @@ function worldHasAudience(): boolean {
   return qd.rooms.size(GLOBAL_WORLD_ROOM) > 0;
 }
 
+/** Prisma's unique-constraint violation: the score row exists already. */
+function isUniqueViolation(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "P2002";
+}
+
 /**
- * Score writes happen off the tick path, in a unit of work of their own;
- * failures are logged, never thrown. The writes go through the tracked
- * client to GameScore, which gameService lists in `writes`: they change its
- * service topic, which the score queries watch, so their readers read them
- * again.
+ * Stores a player's death as their best length, when it is one: off the
+ * tick path, in a unit of work of its own; failures are logged, never
+ * thrown (the promise always resolves). The write goes through the tracked
+ * client to GameScore, which gameService lists in `writes`: it changes the
+ * service topic the score queries watch, so their readers read them again.
+ * A death that sets no new best writes nothing, so it changes nothing.
  */
-function persistScore(db: Db, death: GameDeathEvent): void {
+export async function persistScore(db: Db, death: GameDeathEvent): Promise<void> {
   // Bots have no User row and no high scores
   if (isNpcId(death.id)) return;
-  void qd
-    .run(
+  const key = { worldId: GLOBAL_WORLD_ID, userId: death.id };
+  try {
+    await qd.run(
       async () => {
-        await db.gameScore.upsert({
-          where: { worldId_userId: { worldId: GLOBAL_WORLD_ID, userId: death.id } },
-          update: {},
-          create: { worldId: GLOBAL_WORLD_ID, userId: death.id, bestLength: death.len },
+        const stored = await db.gameScore.findUnique({
+          where: { worldId_userId: key },
           select: { bestLength: true },
         });
+        if (stored !== null && stored.bestLength >= death.len) return;
+        if (stored === null) {
+          try {
+            await db.gameScore.create({
+              data: { ...key, bestLength: death.len },
+              select: { id: true },
+            });
+            return;
+          } catch (error) {
+            // stored meanwhile (another death of the player): raise it below
+            if (!isUniqueViolation(error)) throw error;
+          }
+        }
         await db.gameScore.updateMany({
-          where: { worldId: GLOBAL_WORLD_ID, userId: death.id, bestLength: { lt: death.len } },
+          where: { ...key, bestLength: { lt: death.len } },
           data: { bestLength: death.len },
         });
       },
       { detached: true },
-    )
-    .catch((error: unknown) => {
-      logger.warn("Failed to persist game score", {
-        userId: death.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
+    );
+  } catch (error) {
+    logger.warn("Failed to persist game score", {
+      userId: death.id,
+      error: error instanceof Error ? error.message : String(error),
     });
+  }
 }
 
 let current: GameRuntime | undefined;
@@ -116,7 +134,9 @@ export function createGameRuntime(db: Db, options: GameRuntimeOptions = {}): Gam
   const loop = new GameLoop({
     sim,
     emit: wire,
-    onDeath: (death) => persistScore(db, death),
+    onDeath: (death) => {
+      void persistScore(db, death);
+    },
     hasAudience: options.hasAudience ?? worldHasAudience,
     ...(options.onTick ? { onTick: options.onTick } : {}),
   });

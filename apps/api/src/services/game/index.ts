@@ -18,18 +18,13 @@ function unknownWorld(): never {
   throw new QuickdrawError("NOT_FOUND", "Unknown world");
 }
 
-/** Idempotent membership in the world chat (the in-game chat overlay). */
-async function ensureChatMembership(
-  db: Db,
-  chatId: string | null | undefined,
-  userId: string,
-): Promise<void> {
-  if (!chatId) return;
-  await db.chatMember.upsert({
-    where: { chatId_userId: { chatId, userId } },
-    update: {},
-    create: { chatId, userId, level: "Read" },
+/** The world's chat (the in-game chat overlay), read for a caller who is not signed in. */
+async function worldChatId(db: Db): Promise<string | null> {
+  const world = await db.gameWorld.findUnique({
+    where: { id: GLOBAL_WORLD_ID },
+    select: { chatId: true },
   });
+  return world?.chatId ?? null;
 }
 
 function buildWorldBootstrap(runtime: GameRuntime, chatId: string | null): WorldBootstrap {
@@ -74,8 +69,10 @@ const IN_WORLD = { entry: "Read", id: "worldId" } as const;
 export const gameService = qd.defineService(gameContract, {
   model: "gameWorld",
   access: anyWorld,
-  // the world chat's memberships and the high scores
-  writes: ["chatMember", "gameScore"],
+  // The high scores. Only the game's own writes change its service topic,
+  // which anyone may watch: the world chat's memberships are the chat
+  // service's (`joinWorldChat`, called through ctx.services)
+  writes: ["gameScore"],
   methods: {
     joinGame: {
       // a signed-in user, on a world (the policy gives every signed-in user
@@ -84,20 +81,20 @@ export const gameService = qd.defineService(gameContract, {
       handler: async ({ input, ctx, db }): Promise<GameBootstrap> => {
         if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
         const runtime = gameRuntime(db);
-        const [user, world] = await Promise.all([
+        // the player is in the world's chat too (written once, by the chat service)
+        const [user, { chatId }] = await Promise.all([
           db.user.findUnique({ where: { id: ctx.principal.userId }, select: { name: true } }),
-          db.gameWorld.findUnique({ where: { id: GLOBAL_WORLD_ID }, select: { chatId: true } }),
+          ctx.services.chatService.joinWorldChat({ worldId: GLOBAL_WORLD_ID }),
         ]);
         // The calling socket hears the world and may send input; the player
         // stays while any socket of theirs is in the room (onGameRoomLeave)
         ctx.rooms.join(GLOBAL_WORLD_ROOM);
         const { meta, isNew } = runtime.sim.addPlayer(ctx.principal.userId, user?.name ?? null);
         runtime.playingUsers.add(ctx.principal.userId);
-        await ensureChatMembership(db, world?.chatId, ctx.principal.userId);
         if (isNew) {
           ctx.rooms.emit(GLOBAL_WORLD_ROOM, gameContract, "playerJoined", meta);
         }
-        return { ...buildWorldBootstrap(runtime, world?.chatId ?? null), you: meta };
+        return { ...buildWorldBootstrap(runtime, chatId), you: meta };
       },
     },
     watchWorld: {
@@ -106,18 +103,17 @@ export const gameService = qd.defineService(gameContract, {
       access: "public",
       handler: async ({ input, ctx, db }): Promise<WorldBootstrap> => {
         if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
-        const world = await db.gameWorld.findUnique({
-          where: { id: GLOBAL_WORLD_ID },
-          select: { chatId: true },
-        });
-        if (ctx.principal !== null) {
-          await ensureChatMembership(db, world?.chatId, ctx.principal.userId);
-        }
+        // a signed-in spectator is in the world's chat too (the overlay works
+        // before they join), written once, by the chat service
+        const chatId =
+          ctx.principal === null
+            ? await worldChatId(db)
+            : (await ctx.services.chatService.joinWorldChat({ worldId: GLOBAL_WORLD_ID })).chatId;
         // The calling socket hears the world's events and counts as its
         // audience, signed in or not; an anonymous one never sends input
         // (channels need a principal)
         ctx.rooms.join(GLOBAL_WORLD_ROOM);
-        return buildWorldBootstrap(gameRuntime(db), world?.chatId ?? null);
+        return buildWorldBootstrap(gameRuntime(db), chatId);
       },
     },
     respawn: {

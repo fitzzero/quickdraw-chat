@@ -172,6 +172,22 @@ Input:
 
 Output: `{ id: string }`.
 
+### `joinWorldChat`
+
+Adds the caller to a game world's chat at Read when they are not a member yet; answers the chat's id, or null for a world without one.
+
+A mutation.
+
+Access: `{ scope: "Read", of: gameService, id: "worldId" }`: Read or more on the `gameService` row `input.worldId` names.
+
+Input:
+
+| Field     | Type     | Notes                |
+| --------- | -------- | -------------------- |
+| `worldId` | `string` | at least 1 character |
+
+Output: `{ chatId: string | null }`.
+
 ### `adminList`
 
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.

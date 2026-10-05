@@ -3,6 +3,10 @@ import { chatContract } from "@project/shared";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
 import { changeMembership, listMembers, type MembershipChange } from "./membership.js";
+// ── quickdraw-game:start ──
+import { gameContract } from "@project/shared";
+import { joinChat } from "./membership.js";
+// ── quickdraw-game:end ──
 
 type Db = typeof appDb;
 
@@ -171,6 +175,24 @@ export const chatService = qd.defineService(chatContract, {
         return { id: input.id };
       },
     },
+    // ── quickdraw-game:start ──
+    joinWorldChat: {
+      // every signed-in user may be in a world (the game's policy gives
+      // everyone Read on every world), and so in its chat
+      access: { scope: "Read", of: gameContract, id: "worldId" },
+      handler: async ({ input, ctx, db }) => {
+        const world = await db.gameWorld.findUnique({
+          where: { id: input.worldId },
+          select: { chatId: true },
+        });
+        const chatId = world?.chatId ?? null;
+        if (chatId !== null) {
+          await joinChat(db, chatId, ctx.principal.userId, "Read");
+        }
+        return { chatId };
+      },
+    },
+    // ── quickdraw-game:end ──
     ...admin.handlers(chatContract, {
       displayName: "Chats",
       // kept by messageService.postMessage, not edited by hand

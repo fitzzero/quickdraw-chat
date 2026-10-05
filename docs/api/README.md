@@ -6,7 +6,7 @@ One page per service, generated from its contract by `quickdraw-docs`.
 
 | Service                                   | Methods | Collections | Streams | Channels | Events |
 | ----------------------------------------- | ------- | ----------- | ------- | -------- | ------ |
-| [chatService](chatService.md)             | 16      | 1           | 0       | 0        | 1      |
+| [chatService](chatService.md)             | 17      | 1           | 0       | 0        | 1      |
 | [definitionService](definitionService.md) | 10      | 0           | 0       | 0        | 0      |
 | [documentService](documentService.md)     | 17      | 0           | 0       | 0        | 0      |
 | [gameService](gameService.md)             | 13      | 0           | 1       | 1        | 4      |

@@ -2,13 +2,18 @@
   "version": 1,
   "budgets": {
     "join the world": {
-      "statements": 3,
-      "bytes": 4851,
+      "statements": 4,
+      "bytes": 4857,
       "calls": [
         {
-          "call": "gameService.joinGame",
+          "call": "chatService.joinWorldChat",
           "statements": 3,
-          "bytes": 4428
+          "bytes": 0
+        },
+        {
+          "call": "gameService.joinGame",
+          "statements": 4,
+          "bytes": 4432
         }
       ]
     }

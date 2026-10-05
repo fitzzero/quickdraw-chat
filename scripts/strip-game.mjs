@@ -285,8 +285,11 @@ const LEFTOVER_PATTERN = [
   "high-scores",
 ].join("\\|");
 
+// docs/api is generated from the contracts, whose game-only methods (the chat
+// service's joinWorldChat) are gone now: init-fork.sh generates it again next
+// (as whoever runs this script alone must, with `bun run docs:generate`)
 const leftovers = execSync(
-  `git grep -lIi "${LEFTOVER_PATTERN}" -- . ":!scripts/strip-game.mjs" ":!scripts/init-fork.sh" || true`,
+  `git grep -lIi "${LEFTOVER_PATTERN}" -- . ":!scripts/strip-game.mjs" ":!scripts/init-fork.sh" ":!docs/api" || true`,
   { encoding: "utf8" },
 )
   .split("\n")

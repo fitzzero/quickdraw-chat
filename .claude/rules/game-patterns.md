@@ -16,7 +16,12 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   (`getHighScores`, `getMyBest`) declare `watch: "service"`: a stored score
   (a GameScore row, which gameService lists in `writes`) changes the
   service's topic (open to anyone: `watchAccess: "public"`), and their
-  readers read them again.
+  readers read them again. Every write to a model in `writes` changes that
+  topic, so it lists the game's own model only, and nothing writes what
+  changes nothing: a death stores a new best only, and `watchWorld` and
+  `joinGame` put the caller in the world's chat through the chat service
+  (`ctx.services.chatService.joinWorldChat`, which writes the membership
+  the first time only).
 - **The `input` channel** — fire-and-forget (`qd:ch`, never answered),
   per-socket token bucket, payload checked against the contract. Use ONLY for
   tick-rate traffic where the next message supersedes the last (player
@@ -81,9 +86,10 @@ included) — spectators behind the pre-game dialog keep the NPC world running.
   I/O, no `Date.now()`, seeded RNG, fixed timestep (`GAME_TICK_RATE`). Unit
   tests drive it directly; integration tests drive `gameRuntime(db).loop.tickOnce()`
   (the loop is never auto-started in tests).
-- **No database access anywhere in the tick path.** Persistence (score
-  upserts) happens in detached `qd.run` units triggered by loop callbacks;
-  the tracked write changes the service topic the score queries watch.
+- **No database access anywhere in the tick path.** Persistence
+  (`persistScore`: a new best only) happens in detached `qd.run` units
+  triggered by loop callbacks; the tracked write changes the service topic
+  the score queries watch.
 - Only snake heads go on the wire — bodies are derived from head-path history
   on both sides. Keep snapshots small; add fields consciously (each stream
   frame also carries its `[service, stream, scope]` envelope).
