@@ -1,4 +1,10 @@
-import { admin, members, type BaseContext, type Principal } from "@fitzzero/quickdraw-core/server";
+import {
+  admin,
+  members,
+  type BaseContext,
+  type Principal,
+  type RoomLeaveHandler,
+} from "@fitzzero/quickdraw-core/server";
 import { chatContract } from "@project/shared";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
@@ -11,31 +17,68 @@ import { joinChat } from "./membership.js";
 type Db = typeof appDb;
 
 /**
- * A membership write's follow-up: each member still in the chat gets the new
- * member list (`memberUpdate`). The tracked writes decide the rest: who joined
- * or left a member's `myChats` list and who lost access to the chat (the
- * membership row), and the new member count in the lists that still hold the
- * chat (its `memberCount`, written in the same transaction).
+ * A chat's roster room: the sockets showing the chat's members, which
+ * `getChatMembers` puts there and `memberUpdate` goes to.
+ */
+function rosterRoom(chatId: string): string {
+  return `chat:${chatId}`;
+}
+
+/**
+ * The roster room each socket is in, by socket id. A socket shows one chat's
+ * members at a time (the chat page's sidebar), so reading another chat's
+ * roster moves it: its app rooms never pile up (a socket may be in 100).
+ */
+const rosterRoomOf = new Map<string, string>();
+
+/** Puts the calling socket in the chat's roster room, out of the one it was in. */
+function showRoster(ctx: Pick<BaseContext, "rooms" | "socketId">, chatId: string): void {
+  const { socketId } = ctx;
+  // a call without a socket (HTTP, MCP, in process) hears no event
+  if (socketId === undefined) return;
+  const room = rosterRoom(chatId);
+  const before = rosterRoomOf.get(socketId);
+  if (before !== undefined && before !== room) ctx.rooms.leave(before);
+  if (ctx.rooms.join(room)) rosterRoomOf.set(socketId, room);
+}
+
+/** Forgets the roster room of a socket that left it (removed from the chat, or gone). */
+const forgetRoster: RoomLeaveHandler = ({ socketId, rooms }) => {
+  const room = rosterRoomOf.get(socketId);
+  if (room !== undefined && rooms.some((left) => left.room === room)) {
+    rosterRoomOf.delete(socketId);
+  }
+};
+
+/**
+ * A membership write's follow-up: the sockets showing the chat's members get
+ * the new list (`memberUpdate`, to the roster room), after a member who left
+ * or was removed is taken out of that room on every node, so they hear
+ * nothing more. The tracked writes decide the rest: who joined or left a
+ * member's `myChats` list and who lost access to the chat (the membership
+ * row), and the new member count in the lists that still hold the chat (its
+ * `memberCount`, written in the same transaction).
  */
 async function membersChanged(
   ctx: Pick<BaseContext, "rooms">,
   db: Db,
   chatId: string,
+  gone: string | null = null,
 ): Promise<void> {
-  const current = await listMembers(db, chatId);
-  for (const member of current) {
-    ctx.rooms.emitToUser(member.userId, chatContract, "memberUpdate", {
-      chatId,
-      members: current,
-    });
+  if (gone !== null) {
+    await ctx.rooms.leave(rosterRoom(chatId), { userId: gone });
   }
+  ctx.rooms.emit(rosterRoom(chatId), chatContract, "memberUpdate", {
+    chatId,
+    members: await listMembers(db, chatId),
+  });
 }
 
 /**
  * Changes a chat's members under the sharing kit's rules (`changeMembership`
  * in `membership.ts`: nobody gives above their own level, only an Admin
  * changes a member at or above the caller's level, the last Admin stays),
- * then tells the members when anything changed.
+ * then tells the roster's viewers when anything changed.
  */
 async function changeMembers(
   ctx: Pick<BaseContext, "rooms"> & { readonly principal: Principal },
@@ -43,7 +86,7 @@ async function changeMembers(
   change: MembershipChange,
 ): Promise<void> {
   if (await changeMembership(ctx.principal, db, change)) {
-    await membersChanged(ctx, db, change.chatId);
+    await membersChanged(ctx, db, change.chatId, change.level === null ? change.userId : null);
   }
 }
 
@@ -103,7 +146,12 @@ export const chatService = qd.defineService(chatContract, {
     },
     getChatMembers: {
       access: { service: "Read", entry: "Read", id: "chatId" },
-      handler: ({ input, db }) => listMembers(db, input.chatId),
+      // the calling socket now hears the chat's memberUpdate events (the web
+      // calls this with useJoin, again on every connection)
+      handler: ({ input, ctx, db }) => {
+        showRoster(ctx, input.chatId);
+        return listMembers(db, input.chatId);
+      },
     },
     // quickdraw: hand-written because a Moderate invites and removes here (the sharing kit's members mode lets only Admins change members by default and caps no change to a member above the caller), and one method both invites and changes a member's level, as the web app's invite box expects; the kit's three rules apply in changeMembership
     inviteUser: {
@@ -166,8 +214,13 @@ export const chatService = qd.defineService(chatContract, {
           select: { chatId: true },
         });
         const chatId = world?.chatId ?? null;
-        if (chatId !== null) {
-          await joinChat(db, chatId, ctx.principal.userId, "Read");
+        const joined =
+          chatId !== null && (await joinChat(db, chatId, ctx.principal.userId, "Read"));
+        // The world chat holds every player: its roster is read again only
+        // when someone shows it (the game runs on one node, game-patterns.md,
+        // so this node's room is everyone's)
+        if (joined && ctx.rooms.size(rosterRoom(chatId)) > 0) {
+          await membersChanged(ctx, db, chatId);
         }
         return { chatId };
       },
@@ -179,4 +232,6 @@ export const chatService = qd.defineService(chatContract, {
       fieldOverrides: { lastMessageAt: { editable: false } },
     }),
   },
+  // a socket that left its roster room is forgotten (see rosterRoomOf)
+  onRoomLeave: forgetRoster,
 });

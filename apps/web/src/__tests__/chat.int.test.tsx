@@ -7,7 +7,10 @@
 
 import * as React from "react";
 import { fireEvent, waitFor, type RenderResult } from "@testing-library/react";
-import { renderWithQuickdraw } from "@fitzzero/quickdraw-core/testing/client";
+import {
+  renderWithQuickdraw,
+  type QuickdrawRenderResult,
+} from "@fitzzero/quickdraw-core/testing/client";
 import { testPrisma } from "@project/db/testing";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTestChat } from "../../../api/src/__tests__/factories/chat-factory";
@@ -48,7 +51,7 @@ afterAll(async () => {
   await app.close();
 });
 
-async function renderAs(userId: string, ui: React.ReactElement): Promise<RenderResult> {
+async function renderAs(userId: string, ui: React.ReactElement): Promise<QuickdrawRenderResult> {
   return await renderWithQuickdraw(ui, {
     app,
     as: { userId },
@@ -214,6 +217,23 @@ describe("the chat sidebar", () => {
       expect(row?.title).toBe("New title");
     });
     expect(view.getByText("New title")).toBeTruthy();
+  });
+
+  it("shows a member invited elsewhere, live, and again after a reconnect (the roster's room)", async () => {
+    const { ada, bo } = await twoMembers();
+    const chat = await createTestChat({ title: "Roster", members: [{ userId: ada }] });
+
+    const view = await renderAs(ada, <ChatSidebar chatId={chat.id} />);
+    await view.findByText("Ada");
+    await as(ada).chatService.inviteUser({ id: chat.id, userId: bo, level: "Read" });
+    await view.findByText("Bo");
+
+    // a new socket is in no room: the roster is read again, which joins it
+    await view.disconnect();
+    await view.reconnect();
+    const cy = await createTestUser({ name: "Cy" });
+    await as(ada).chatService.inviteUser({ id: chat.id, userId: cy.id, level: "Read" });
+    await view.findByText("Cy");
   });
 });
 

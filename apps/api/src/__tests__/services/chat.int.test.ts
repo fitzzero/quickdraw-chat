@@ -1,10 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { QuickdrawError } from "@fitzzero/quickdraw-core";
-import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
+import { describeAccessMatrix, eventFrames } from "@fitzzero/quickdraw-core/testing";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
-import type { ChatMemberDTO } from "@project/shared";
+import { chatContract, type ChatMemberDTO } from "@project/shared";
 import { chatService } from "../../services/chat/index.js";
-import { startTestApp, subscribeEntity, subscribeScope, type ApiTestApp } from "../utils/app.js";
+import {
+  startTestApp,
+  subscribeEntity,
+  subscribeScope,
+  type ApiConnection,
+  type ApiTestApp,
+} from "../utils/app.js";
 import { createTestUser } from "../factories/user-factory.js";
 
 type Users = Awaited<ReturnType<typeof seedTestUsers>>;
@@ -223,77 +229,139 @@ describe("ChatService live updates", () => {
   });
 });
 
-describe("ChatService member updates (memberUpdate)", () => {
-  /** The next memberUpdate a user's sockets get: the chat's members after the change. */
-  async function nextMemberUpdate(userId: string): Promise<{
-    chatId: string;
-    members: ChatMemberDTO[];
-  }> {
-    const frame = await app.frames.waitFor(
-      (candidate) =>
-        candidate.event === "qd:event" &&
-        candidate.userId === userId &&
-        (candidate.data as unknown[])[1] === "memberUpdate",
-    );
-    return (frame.data as [string, string, { chatId: string; members: ChatMemberDTO[] }])[2];
+describe("ChatService member updates (memberUpdate, to the roster's room)", () => {
+  /** The memberUpdate frames one socket received for a chat. */
+  function updatesTo(connection: ApiConnection, chatId: string): readonly unknown[] {
+    return app.frames({
+      ...eventFrames(chatContract, "memberUpdate", (update) => update.chatId === chatId),
+      socketId: connection.socket.id,
+    });
   }
 
-  it("tells the members when a user is invited", async () => {
+  /** The next memberUpdate one socket gets for a chat: its members after the change. */
+  async function nextMemberUpdate(
+    connection: ApiConnection,
+    chatId: string,
+  ): Promise<{ chatId: string; members: readonly ChatMemberDTO[] }> {
+    const { data } = await app.frames.waitFor({
+      ...eventFrames(chatContract, "memberUpdate", (update) => update.chatId === chatId),
+      socketId: connection.socket.id,
+    });
+    return data[2];
+  }
+
+  /** A socket showing the chat's members: it read the roster, which joins the chat's room. */
+  async function showingRoster(userId: string, chatId: string): Promise<ApiConnection> {
+    const connection = await app.connect({ userId });
+    await connection.call.chatService.getChatMembers({ chatId });
+    return connection;
+  }
+
+  /** Lets any frame the steps before set off land. */
+  async function settle(): Promise<void> {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 150);
+    });
+  }
+
+  it("sends an invite's roster to the sockets showing it, and to no other", async () => {
     const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "Test Chat" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.moderator.id, level: "Read" });
-    const existing = await app.connect({ userId: users.moderator.id });
+    const viewer = await showingRoster(users.moderator.id, chat.id);
+    // the same member's other socket, not showing the roster
+    const elsewhere = await app.connect({ userId: users.moderator.id });
     app.frames.clear();
 
     await owner.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
 
-    const update = await nextMemberUpdate(users.moderator.id);
-    expect(update.chatId).toBe(chat.id);
+    const update = await nextMemberUpdate(viewer, chat.id);
     // owner, moderator, regular
     expect(update.members).toHaveLength(3);
-    expect(update.members.some((m) => m.userId === users.regular.id)).toBe(true);
     expect(update.members.find((m) => m.userId === users.regular.id)?.user.name).toBe(
       "Regular User",
     );
-    existing.close();
+    await settle();
+    expect(updatesTo(elsewhere, chat.id)).toHaveLength(0);
+    viewer.close();
+    elsewhere.close();
   });
 
-  it("tells the remaining members when a user is removed", async () => {
+  it("takes a removed member out of the room first: they hear nothing, then or after", async () => {
     const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "Test Chat" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.moderator.id, level: "Read" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
-    const remaining = await app.connect({ userId: users.moderator.id });
-    const removed = await app.connect({ userId: users.regular.id });
+    const remaining = await showingRoster(users.moderator.id, chat.id);
+    const removed = await showingRoster(users.regular.id, chat.id);
     app.frames.clear();
 
     await owner.chatService.removeUser({ id: chat.id, userId: users.regular.id });
 
-    const update = await nextMemberUpdate(users.moderator.id);
+    const update = await nextMemberUpdate(remaining, chat.id);
     expect(update.members).toHaveLength(2);
     expect(update.members.some((m) => m.userId === users.regular.id)).toBe(false);
-    // the removed user is no longer told who is in the chat
-    expect(
-      app.frames((frame) => frame.event === "qd:event" && frame.userId === users.regular.id),
-    ).toHaveLength(0);
+    // ...and a later change: the removed socket is out of the room
+    const newcomer = await createTestUser({ name: "Newcomer" });
+    await owner.chatService.inviteUser({ id: chat.id, userId: newcomer.id, level: "Read" });
+    await nextMemberUpdate(remaining, chat.id);
+    await settle();
+    expect(updatesTo(removed, chat.id)).toHaveLength(0);
     remaining.close();
     removed.close();
   });
 
-  it("tells the remaining members when a user leaves", async () => {
+  it("tells the remaining viewers when a user leaves, and not the one who left", async () => {
     const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "Test Chat" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.moderator.id, level: "Read" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
-    const remaining = await app.connect({ userId: users.moderator.id });
+    const remaining = await showingRoster(users.moderator.id, chat.id);
+    const leaving = await showingRoster(users.regular.id, chat.id);
     app.frames.clear();
 
-    await as(users.regular.id).chatService.leaveChat({ id: chat.id });
+    await leaving.call.chatService.leaveChat({ id: chat.id });
 
-    const update = await nextMemberUpdate(users.moderator.id);
+    const update = await nextMemberUpdate(remaining, chat.id);
     expect(update.members).toHaveLength(2);
     expect(update.members.some((m) => m.userId === users.regular.id)).toBe(false);
+    await settle();
+    expect(updatesTo(leaving, chat.id)).toHaveLength(0);
     remaining.close();
+    leaving.close();
+  });
+
+  it("keeps a socket in the roster room of the chat it showed last", async () => {
+    const owner = as(users.admin.id);
+    const first = await owner.chatService.createChat({
+      title: "First",
+      members: [{ userId: users.regular.id, level: "Read" }],
+    });
+    const second = await owner.chatService.createChat({
+      title: "Second",
+      members: [{ userId: users.regular.id, level: "Read" }],
+    });
+    const viewer = await showingRoster(users.regular.id, first.id);
+    await viewer.call.chatService.getChatMembers({ chatId: second.id });
+    app.frames.clear();
+
+    await owner.chatService.inviteUser({ id: first.id, userId: users.moderator.id, level: "Read" });
+    await owner.chatService.inviteUser({
+      id: second.id,
+      userId: users.moderator.id,
+      level: "Read",
+    });
+
+    await nextMemberUpdate(viewer, second.id);
+    await settle();
+    expect(updatesTo(viewer, first.id)).toHaveLength(0);
+    viewer.close();
+  });
+
+  it("answers the roster to a caller without a socket too", async () => {
+    const chat = await as(users.admin.id).chatService.createChat({ title: "Over HTTP" });
+    const roster = await as(users.admin.id).chatService.getChatMembers({ chatId: chat.id });
+    expect(roster.map((member) => member.userId)).toEqual([users.admin.id]);
   });
 });
 

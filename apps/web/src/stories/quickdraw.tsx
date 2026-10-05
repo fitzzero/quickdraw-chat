@@ -10,7 +10,7 @@
 //
 //   qd.messageService.byChat.mockScope("chat-1", messages); // useCollection
 //   qd.userService.useEntity.mockRow(user);                  // useEntity
-//   qd.chatService.getChatMembers.mockResolvedValue(members); // useQuery
+//   qd.chatService.getChatMembers.mockResolvedValue(members); // its call: useQuery, useJoin
 //
 // The mock is one module for every story, and a docs page renders several
 // stories at once: give each story its own ids (scopes, rows) so their data

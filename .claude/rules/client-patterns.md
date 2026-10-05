@@ -52,11 +52,13 @@ how the web app uses it.
   in its place; a refused one is dropped and the window offers a retry).
 - **Query-shaped reads** (a join, an aggregate): `useQuery`; an event that
   carries the new result writes it into the query's cache with
-  `qd.<service>.<query>.setData(input, result)` (`memberUpdate` carries the
-  chat's roster for `getChatMembers`).
+  `qd.<service>.<query>.setData(input, result)`.
 - **Rooms joined by a call**: `useJoin(qd.<service>.<method>, input, { enabled })`,
   which runs the call again on every connection (a new socket is in no app
-  room), never an effect on `hello` or `isConnected`.
+  room), never an effect on `hello` or `isConnected`. The chat sidebar reads
+  its roster this way: `getChatMembers` puts the socket in the chat's room,
+  where `memberUpdate` carries each new roster; `onJoined` and the event both
+  `setData` it, and the roster reads the query's cache (`enabled: false`).
   <!-- ── quickdraw-game:start ── -->
   The game page joins its world room (`watchWorld`) and its player
   (`joinGame`, while the user plays) this way.

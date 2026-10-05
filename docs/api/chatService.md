@@ -89,7 +89,7 @@ Output: `{ id: string; deleted: true }`.
 
 ### `getChatMembers`
 
-Lists a chat's members, oldest first, with their level and public profile.
+Lists a chat's members, oldest first, with their level and public profile, and puts the calling socket in the chat's room for memberUpdate.
 
 A query.
 

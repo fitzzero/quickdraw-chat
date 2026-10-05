@@ -111,10 +111,14 @@ export const chatContract = defineContract("chatService", {
       output: deletedResultSchema,
       describe: "Deletes a chat with its memberships and messages.",
     }),
+    // Also puts the calling socket in the chat's roster room (out of the one
+    // it was in), where memberUpdate goes: a client reads it with useJoin, so
+    // a reconnected socket joins again
     getChatMembers: query({
       input: getChatMembersSchema,
       output: z.array(chatMemberSchema),
-      describe: "Lists a chat's members, oldest first, with their level and public profile.",
+      describe:
+        "Lists a chat's members, oldest first, with their level and public profile, and puts the calling socket in the chat's room for memberUpdate.",
     }),
     // The membership changes follow the sharing kit's rules: nobody gives a
     // level above their own, only an Admin changes or removes a member at or
@@ -176,8 +180,10 @@ export const chatContract = defineContract("chatService", {
     },
   },
   events: {
-    // Sent to each member (emitToUser) whenever the chat's members change,
-    // with the chat's id so a client showing several chats can tell them apart
+    // Sent to the chat's roster room (the sockets that read getChatMembers)
+    // whenever the chat's members change, with the chat's id so a client
+    // showing several chats can tell them apart; a member removed or gone is
+    // taken out of the room first, and hears no more
     memberUpdate: {
       payload: z.object({ chatId: z.string(), members: z.array(chatMemberSchema) }),
     },

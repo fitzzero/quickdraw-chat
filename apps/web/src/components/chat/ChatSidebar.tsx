@@ -23,7 +23,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
+import { useJoin, useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import { UserAvatar } from "../user";
 import { ConfirmDialog } from "../feedback";
 import { qd } from "../../lib/quickdraw";
@@ -325,12 +325,25 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
   const { data: chat } = qd.chatService.useEntity(chatId);
 
   // Members roster: a query-shaped read (memberships joined to profiles).
-  // The server sends memberUpdate to each member's sockets whenever the
-  // chat's members change (an invite, a removal, a leave), carrying the new
-  // roster, which the event's handler writes into the query's cache.
-  const { data: queryMembers, isLoading: membersLoading } = qd.chatService.getChatMembers.useQuery(
+  // Reading it puts this socket in the chat's room, where the server sends
+  // memberUpdate whenever the chat's members change (an invite, a removal, a
+  // leave), so it is read with useJoin: again on every connection (a
+  // reconnected socket is in no room) and for each chat shown. Each answer
+  // and each memberUpdate's roster go into the query's cache, which the
+  // roster below reads without fetching.
+  useJoin(
+    qd.chatService.getChatMembers,
     { chatId },
-    { enabled: !!chatId },
+    {
+      enabled: chatId !== "",
+      onJoined: (roster) => {
+        qd.chatService.getChatMembers.setData({ chatId }, roster);
+      },
+    },
+  );
+  const { data: queryMembers } = qd.chatService.getChatMembers.useQuery(
+    { chatId },
+    { enabled: false },
   );
   qd.chatService.memberUpdate.useEvent((update) => {
     if (update.chatId === chatId) {
@@ -338,6 +351,7 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
     }
   });
   const members = React.useMemo(() => queryMembers ?? [], [queryMembers]);
+  const membersLoading = queryMembers === undefined;
 
   // UI state
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
