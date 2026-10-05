@@ -14,7 +14,6 @@ import {
   isAllowedOrigin,
   trustProxyFromEnv,
 } from "./auth/config.js";
-import { registerProvidersRoute } from "./auth/providers.js";
 import { deleteExpiredSessions } from "./auth/sessions.js";
 import { db } from "./db.js";
 import { qd } from "./quickdraw.js";
@@ -146,9 +145,8 @@ app.get("/api", (_req, res) => {
   res.json({ message: "API is running", version: "0.0.1" });
 });
 
-// GET /auth/providers: the sign-ins served below, for the login page
-registerProvidersRoute(app, auth);
-// /auth/{google,discord,mock}/start and /callback, /auth/me, /auth/logout and
+// /auth/{google,discord,mock}/start and /callback, /auth/providers (the
+// sign-ins served now, for the login page), /auth/me, /auth/logout and
 // /auth/logout-all (each rate-limited by the kit)
 app.use(auth.routes);
 // ── quickdraw-game:start ──

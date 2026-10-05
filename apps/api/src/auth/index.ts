@@ -1,16 +1,16 @@
 // The app's sign-in, on the auth routes kit: Google, Discord, the development
-// mock and guests as one Express middleware over the Session table, the
-// `authenticate` that checks those sessions on every handshake and HTTP call
-// (plus development credentials), and the grants loader. One function builds
-// it for a database, so the server, the tests and the netcode bench sign in
-// the same way.
+// mock and guests as one Express middleware over the Session table (which
+// also answers GET /auth/providers, the sign-ins it serves, for the login
+// page), the `authenticate` that checks those sessions on every handshake and
+// HTTP call (plus development credentials), and the grants loader. One
+// function builds it for a database, so the server, the tests and the netcode
+// bench sign in the same way.
 
 import type { ServerAuth } from "@fitzzero/quickdraw-core/server";
 import {
   createAuthRoutes,
   discord,
   google,
-  isMockOAuthEnabled,
   mock,
   socketAuth,
   type AllowedOrigin,
@@ -45,27 +45,18 @@ export interface AppAuthOptions {
   readonly jwtSecret?: string;
 }
 
-/** A sign-in the routes serve, as `GET /auth/providers` lists it. */
-export interface ServedProvider {
-  /** Its id: `/auth/{id}/start` starts it (a guest's sign-in is `POST /auth/guest`). */
-  readonly id: string;
-  /** `"oauth"` (Google, Discord), `"mock"` (the development picker) or `"guest"`. */
-  readonly kind: AuthProvider["kind"];
-}
-
 export interface AppAuth {
   /** Where sessions are stored, and the secret their JWTs are signed with. */
   readonly keys: SessionKeys;
   /** The web app's origins: CORS, sign-in returns, cookie-authenticated sockets. */
   readonly allowedOrigins: readonly AllowedOrigin[];
-  /** The sign-in routes under /auth, as one Express middleware. */
-  readonly routes: AuthRoutes;
   /**
-   * The sign-ins `routes` serve now, in order: what `GET /auth/providers`
-   * answers (`registerProvidersRoute`), so the login page offers nothing
-   * that answers 404.
+   * The sign-in routes under /auth, as one Express middleware. They answer
+   * `GET /auth/providers` with the sign-ins they serve now
+   * (`{ providers: [{ id, name, kind }] }`, `routes.providers()` in
+   * process), so the login page offers nothing that answers 404.
    */
-  readonly providers: () => readonly ServedProvider[];
+  readonly routes: AuthRoutes;
   /** `createServer`'s `auth`. */
   readonly server: Required<
     Pick<ServerAuth, "authenticate" | "loadServiceAccess" | "serviceAccessSource">
@@ -73,8 +64,9 @@ export interface AppAuth {
 }
 
 /**
- * The sign-ins: Google and Discord when their credentials are set (`optional`
- * builds nothing without them, and refuses one set without the other), the
+ * The sign-ins, in the order the login page lists them: Google and Discord
+ * when their credentials are set (`optional` builds nothing without them,
+ * which the kit skips, and refuses one set without the other), the
  * development mock, and guests.
  */
 function providersFor(prisma: PrismaClient): (AuthProvider | undefined)[] {
@@ -106,15 +98,10 @@ export function createAppAuth(options: AppAuthOptions): AppAuth {
     jwtSecret: options.jwtSecret ?? jwtSecretFromEnv(),
   };
   const allowedOrigins = options.allowedOrigins ?? allowedOriginsFromEnv();
-  // One list for the routes and for what GET /auth/providers says they serve
-  const providers = providersFor(prisma).filter(
-    (provider): provider is AuthProvider => provider !== undefined,
-  );
-  // The kit mounts the mock only when it is enabled as the routes are made,
-  // and its start route checks again on every request (404 once it is not)
-  const mockMounted = isMockOAuthEnabled();
   const routes = createAuthRoutes({
-    providers,
+    // GET /auth/providers lists those served now: the mock only while it is
+    // mounted (enabled as the routes are made) and still enabled
+    providers: providersFor(prisma),
     ...keys,
     onLogin: (profile, provider) => upsertOAuthUser(prisma, profile, provider),
     allowedOrigins,
@@ -128,10 +115,6 @@ export function createAppAuth(options: AppAuthOptions): AppAuth {
     keys,
     allowedOrigins,
     routes,
-    providers: () =>
-      providers
-        .filter((provider) => provider.kind !== "mock" || (mockMounted && isMockOAuthEnabled()))
-        .map(({ id, kind }) => ({ id, kind })),
     server: {
       // sessions (a token or the cookie), and with ENABLE_DEV_CREDENTIALS a
       // socket naming a user (`auth: { userId }`): a game editor, load-test bots

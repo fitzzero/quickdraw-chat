@@ -1,19 +1,19 @@
-// What the login page offers for each answer of GET /auth/providers: a
-// button per sign-in the API serves and none it does not, the demo-user
-// picker only with the mock, and the loading, failed and nothing-served
-// states.
+// What the login page offers for each answer of GET /auth/providers
+// (`authProviders()`): a button per sign-in the API serves, named as the API
+// names it, and none it does not, the demo-user picker only with the mock,
+// and the loading, failed and nothing-served states.
 
 import * as React from "react";
 import { fireEvent, render, screen, type RenderResult } from "@testing-library/react";
+import type { AuthProviderInfo } from "@fitzzero/quickdraw-core/client";
 import { describe, expect, it, vi } from "vitest";
-import type { SignInProvider } from "../../lib/auth";
 import { IntlProvider } from "../../providers/IntlProvider";
 import { SignInOptions, type SignInOptionsProps } from "./SignInOptions";
 
-const GOOGLE: SignInProvider = { id: "google", kind: "oauth" };
-const DISCORD: SignInProvider = { id: "discord", kind: "oauth" };
-const MOCK: SignInProvider = { id: "mock", kind: "mock" };
-const GUEST: SignInProvider = { id: "guest", kind: "guest" };
+const GOOGLE: AuthProviderInfo = { id: "google", name: "Google", kind: "oauth" };
+const DISCORD: AuthProviderInfo = { id: "discord", name: "Discord", kind: "oauth" };
+const MOCK: AuthProviderInfo = { id: "mock", name: "Mock", kind: "mock" };
+const GUEST: AuthProviderInfo = { id: "guest", name: "Guest", kind: "guest" };
 
 function renderOptions(props: SignInOptionsProps): RenderResult {
   return render(
@@ -29,12 +29,13 @@ function buttons(): string[] {
 }
 
 describe("SignInOptions", () => {
-  it("offers every OAuth provider served, then the demo-user picker", () => {
-    renderOptions({ providers: [GOOGLE, DISCORD, { id: "github", kind: "oauth" }, MOCK, GUEST] });
+  it("offers every OAuth provider served, by the name the API gives it, then the demo-user picker", () => {
+    const github: AuthProviderInfo = { id: "github", name: "GitHub", kind: "oauth" };
+    renderOptions({ providers: [GOOGLE, DISCORD, github, MOCK, GUEST] });
     expect(buttons()).toEqual([
       "Continue with Google",
       "Continue with Discord",
-      "Continue with Github",
+      "Continue with GitHub",
       "Continue as demo user",
     ]);
     expect(screen.getByText("or")).toBeTruthy();

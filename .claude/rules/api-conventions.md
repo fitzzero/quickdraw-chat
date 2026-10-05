@@ -47,8 +47,8 @@ dispatcher, access checks and tracked writes:
 ## Data goes through services, not REST
 
 Never add a REST endpoint for data: add a method to a service. REST is only
-for the auth routes (the kit's, plus the app's own sign-in routes and the
-public `GET /auth/providers`), `/health`, the service worker's
+for the auth routes (the kit's, its public `GET /auth/providers` among them,
+plus the app's own sign-in routes), `/health`, the service worker's
 `POST /api/push/resubscribe` (a service worker has no socket) and inbound
 webhooks. An app REST route:
 

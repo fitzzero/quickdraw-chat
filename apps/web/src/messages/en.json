@@ -195,11 +195,9 @@
   "LoginPage": {
     "title": "Welcome",
     "subtitle": "Sign in to Quickdraw",
-    "continueWithDiscord": "Continue with Discord",
     "errorCancelled": "Authentication was cancelled",
     "errorFailed": "Authentication failed. Please try again.",
     "errorGeneric": "An error occurred during login",
-    "continueWithGoogle": "Continue with Google",
     "continueWith": "Continue with {provider}",
     "continueAsDemoUser": "Continue as demo user",
     "demoLoginHint": "Development only — sign in as a seeded demo account",

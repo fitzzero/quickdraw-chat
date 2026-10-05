@@ -12,8 +12,8 @@ import {
   Typography,
 } from "@mui/material";
 import { useTranslations } from "next-intl";
-import { signInUrl } from "@fitzzero/quickdraw-core/client";
-import { AUTH_ROUTES, type SignInProvider } from "../../lib/auth";
+import { signInUrl, type AuthProviderInfo } from "@fitzzero/quickdraw-core/client";
+import { AUTH_ROUTES } from "../../lib/auth";
 
 // Discord icon SVG
 function DiscordIcon(): React.ReactElement {
@@ -56,14 +56,19 @@ function startSignIn(provider: string): void {
   window.location.href = signInUrl(provider, AUTH_ROUTES);
 }
 
-/** An OAuth provider's button: Google's and Discord's in their colors, any other by its id. */
-function ProviderButton({ id }: { readonly id: string }): React.ReactElement {
+/**
+ * An OAuth provider's button, labelled with the name the API gives it
+ * ("Google", "Discord", or an app's own provider's `name`): Google's and
+ * Discord's in their colors, any other outlined.
+ */
+function ProviderButton({ provider }: { readonly provider: AuthProviderInfo }): React.ReactElement {
   const t = useTranslations("LoginPage");
+  const label = t("continueWith", { provider: provider.name });
   const onClick = (): void => {
-    startSignIn(id);
+    startSignIn(provider.id);
   };
 
-  if (id === "google") {
+  if (provider.id === "google") {
     return (
       <Button
         variant="contained"
@@ -76,11 +81,11 @@ function ProviderButton({ id }: { readonly id: string }): React.ReactElement {
           "&:hover": { bgcolor: "#f1f3f4" },
         }}
       >
-        {t("continueWithGoogle")}
+        {label}
       </Button>
     );
   }
-  if (id === "discord") {
+  if (provider.id === "discord") {
     return (
       <Button
         variant="contained"
@@ -92,22 +97,20 @@ function ProviderButton({ id }: { readonly id: string }): React.ReactElement {
           "&:hover": { bgcolor: "#4752C4" },
         }}
       >
-        {t("continueWithDiscord")}
+        {label}
       </Button>
     );
   }
-  // An app's own provider (`providersFor` on the API): its id, capitalized
-  const name = `${id.charAt(0).toUpperCase()}${id.slice(1)}`;
   return (
     <Button variant="outlined" size="large" onClick={onClick}>
-      {t("continueWith", { provider: name })}
+      {label}
     </Button>
   );
 }
 
 export interface SignInOptionsProps {
-  /** The sign-ins the API serves (`GET /auth/providers`); `undefined` while they load. */
-  readonly providers?: readonly SignInProvider[];
+  /** The sign-ins the API serves (`authProviders()`); `undefined` while they load. */
+  readonly providers?: readonly AuthProviderInfo[];
   /** True when asking the API failed: says so, with a retry, and offers no button that could 404. */
   readonly failed?: boolean;
   /** Asks the API again: the retry button's action. */
@@ -178,7 +181,7 @@ export function SignInOptions({
   return (
     <Stack spacing={2}>
       {oauth.map((provider) => (
-        <ProviderButton key={provider.id} id={provider.id} />
+        <ProviderButton key={provider.id} provider={provider} />
       ))}
 
       {demo && (

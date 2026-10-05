@@ -25,21 +25,26 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {
     providers: [
-      { id: "google", kind: "oauth" },
-      { id: "discord", kind: "oauth" },
-      { id: "mock", kind: "mock" },
+      { id: "google", name: "Google", kind: "oauth" },
+      { id: "discord", name: "Discord", kind: "oauth" },
+      { id: "mock", name: "Mock", kind: "mock" },
     ],
   },
 };
 
 /** One provider configured. */
 export const OneProvider: Story = {
-  args: { providers: [{ id: "google", kind: "oauth" }] },
+  args: { providers: [{ id: "google", name: "Google", kind: "oauth" }] },
+};
+
+/** An app's own OAuth provider, by the name it gives itself. */
+export const OwnProvider: Story = {
+  args: { providers: [{ id: "acme", name: "Acme ID", kind: "oauth" }] },
 };
 
 /** A hosted development instance without Google or Discord credentials: the demo user alone. */
 export const DemoUserOnly: Story = {
-  args: { providers: [{ id: "mock", kind: "mock" }] },
+  args: { providers: [{ id: "mock", name: "Mock", kind: "mock" }] },
 };
 
 /** While the API is asked. */
