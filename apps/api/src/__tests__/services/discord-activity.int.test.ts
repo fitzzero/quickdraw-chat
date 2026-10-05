@@ -79,11 +79,12 @@ describe("Discord Activity auth", () => {
 
     const user = await testPrisma.user.findFirst({
       where: { accounts: { some: { provider: "discord", providerAccountId: "discord-user-1" } } },
-      select: { id: true, email: true, name: true },
+      select: { id: true, email: true, emailVerified: true, name: true },
     });
     expect(user?.name).toBe("Snake Fan");
-    // identify scope has no email → synthetic address
-    expect(user?.email).toBe("discord-user-1@discord.activity");
+    // identify scope has no email → the placeholder address, never verified
+    expect(user?.email).toBe("discord-user-1@discord.local");
+    expect(user?.emailVerified).toBe(false);
 
     // The token names a live session of that user, stored as an Activity sign-in
     const session = await liveSession(keys, token);

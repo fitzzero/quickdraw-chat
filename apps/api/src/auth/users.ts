@@ -25,15 +25,74 @@ export type SignInProfile = Pick<
 >;
 
 /**
+ * The address a user gets when their provider verified none:
+ * `<providerAccountId>@<provider>.local`. No provider verifies a `.local`
+ * address, so it never links another sign-in or matches ADMIN_EMAILS.
+ */
+export function placeholderEmail(providerAccountId: string, provider: string): string {
+  return `${providerAccountId}@${provider}.local`;
+}
+
+/** Prisma's unique-constraint violation: another user holds the address. */
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
+}
+
+interface KnownUser {
+  readonly id: string;
+  readonly email: string;
+  readonly emailVerified: boolean;
+}
+
+/**
+ * A known user signs in again: when their provider now verifies an address
+ * for them, record it. Their stored address is marked verified; the
+ * placeholder this account was given is replaced by the verified address,
+ * unless another user holds it. Never marks anything unverified.
+ */
+async function recordVerifiedEmail(
+  prisma: PrismaClient,
+  user: KnownUser,
+  verified: string | null,
+  placeholder: string,
+): Promise<void> {
+  if (verified === null || (user.emailVerified && user.email === verified)) return;
+  if (user.email === verified) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerified: true },
+      select: { id: true },
+    });
+    return;
+  }
+  if (user.email !== placeholder) return;
+  try {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { email: verified, emailVerified: true },
+      select: { id: true },
+    });
+  } catch (error) {
+    // another user holds the verified address: the placeholder stays
+    if (!isUniqueViolation(error)) throw error;
+  }
+}
+
+/**
  * Finds or creates the user `profile` signs in, and stores the provider's
- * tokens on its Account row; returns the user's id, or `null` to refuse. A
- * known provider account signs its user in; otherwise an existing user with
- * the profile's email is linked (seeded demo users, a second provider) when
- * the provider verified that email, and the sign-in is refused when it did
- * not (an unverified email would hand over that user's account); otherwise a
- * user is created. A profile without a verified email gets
- * `<id>@<provider>.local`: an unverified address never lands on a user row,
- * where it could claim an ADMIN_EMAILS grant or a later verified sign-in.
+ * tokens on its Account row; returns the user's id, or `null` to refuse.
+ *
+ * - A known provider account signs its user in (and records an address its
+ *   provider now verifies, see `recordVerifiedEmail`).
+ * - An address the provider did not verify is never stored, linked or
+ *   matched against ADMIN_EMAILS (anyone can type someone else's): the new
+ *   user gets `placeholderEmail` instead.
+ * - A verified address links the user who holds it (a seeded or
+ *   pre-provisioned user, or one adding a second provider), unless someone
+ *   signed in to that user before without a provider verifying the address
+ *   (any address was stored before 5.0): then the sign-in is refused, as
+ *   linking could hand it that account. Otherwise a user is created with
+ *   the address, verified.
  */
 export async function upsertOAuthUser(
   prisma: PrismaClient,
@@ -42,10 +101,13 @@ export async function upsertOAuthUser(
 ): Promise<string | null> {
   const { providerAccountId, tokens } = profile;
   const expiresAt = tokens.expires_in ? Math.floor(Date.now() / 1000) + tokens.expires_in : null;
+  // The address this sign-in may use for the user: one its provider verified
+  const verified = profile.emailVerified && profile.email ? profile.email : null;
+  const placeholder = placeholderEmail(providerAccountId, provider);
 
   const existing = await prisma.user.findFirst({
     where: { accounts: { some: { provider, providerAccountId } } },
-    select: { id: true },
+    select: { id: true, email: true, emailVerified: true },
   });
   if (existing) {
     await prisma.account.updateMany({
@@ -56,6 +118,7 @@ export async function upsertOAuthUser(
         expiresAt,
       },
     });
+    await recordVerifiedEmail(prisma, existing, verified, placeholder);
     logger.info(`Updated ${provider} tokens`, { userId: existing.id });
     return existing.id;
   }
@@ -69,37 +132,51 @@ export async function upsertOAuthUser(
     tokenType: tokens.token_type,
     scope: tokens.scope,
   };
-  // Link by email when the user exists without this provider — covers seeded
-  // demo users and users adding a second OAuth provider.
-  if (profile.email) {
-    const byEmail = await prisma.user.findUnique({
-      where: { email: profile.email },
-      select: { id: true },
-    });
-    if (byEmail) {
-      if (!profile.emailVerified) {
-        logger.warn(`Refused ${provider} sign-in: unverified email of an existing user`);
-        return null;
-      }
-      await prisma.account.create({ data: { ...account, userId: byEmail.id } });
-      logger.info(`Linked ${provider} account to existing user`, { userId: byEmail.id });
-      return byEmail.id;
-    }
-  }
-  const email =
-    profile.email && profile.emailVerified
-      ? profile.email
-      : `${providerAccountId}@${provider}.local`;
-
   // One statement with its account: users are written untracked here (no
   // subscriber can exist before the first sign-in)
+  const newUser = {
+    name: profile.name,
+    image: safeImageUrl(profile.image),
+    accounts: { create: account },
+  };
+
+  if (verified === null) {
+    const created = await prisma.user.create({
+      data: { ...newUser, email: placeholder },
+      select: { id: true },
+    });
+    logger.info(`Created new user via ${provider} sign-in, without a verified email`, {
+      userId: created.id,
+    });
+    return created.id;
+  }
+
+  const byEmail = await prisma.user.findUnique({
+    where: { email: verified },
+    select: { id: true, emailVerified: true, accounts: { select: { id: true }, take: 1 } },
+  });
+  if (byEmail) {
+    if (!byEmail.emailVerified && byEmail.accounts.length > 0) {
+      logger.warn(
+        `Refused ${provider} sign-in: its verified email is held by a user no provider verified it for`,
+        { userId: byEmail.id },
+      );
+      return null;
+    }
+    await prisma.account.create({ data: { ...account, userId: byEmail.id }, select: { id: true } });
+    if (!byEmail.emailVerified) {
+      await prisma.user.update({
+        where: { id: byEmail.id },
+        data: { emailVerified: true },
+        select: { id: true },
+      });
+    }
+    logger.info(`Linked ${provider} account to existing user`, { userId: byEmail.id });
+    return byEmail.id;
+  }
+
   const created = await prisma.user.create({
-    data: {
-      email,
-      name: profile.name,
-      image: safeImageUrl(profile.image),
-      accounts: { create: account },
-    },
+    data: { ...newUser, email: verified, emailVerified: true },
     select: { id: true },
   });
   logger.info(`Created new user via ${provider} sign-in`, { userId: created.id });

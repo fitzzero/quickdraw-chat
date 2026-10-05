@@ -382,7 +382,9 @@ a provider without credentials is simply left out.
 (and test bots) sign a socket in as a seeded user during development —
 also refused in production.
 <!-- ── quickdraw-game:end ── -->
-- **Bootstrap admin**: list emails in `ADMIN_EMAILS` to auto-promote to Admin.
+- **Bootstrap admin**: list emails in `ADMIN_EMAILS` to auto-promote to Admin,
+  once a sign-in provider verified the address (an unverified address is
+  never stored: the user gets a `<id>@<provider>.local` placeholder).
 - **Token encryption**: set `ENCRYPTION_KEY` (64-char hex) to encrypt stored
   OAuth tokens at rest (AES-256-GCM via core).
 

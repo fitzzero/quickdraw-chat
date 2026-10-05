@@ -13,9 +13,10 @@
  * still set best-effort).
  *
  * Note: `authorize()` in Activities grants the `identify` scope (no email),
- * so first-time Activity users get a synthetic `<id>@discord.activity` email.
- * Users who previously signed in via regular Discord OAuth match on
- * providerAccountId and keep their real account.
+ * so first-time Activity users get the placeholder address
+ * `<id>@discord.local` (as any sign-in without a verified email does, see
+ * `upsertOAuthUser`). Users who previously signed in via regular Discord
+ * OAuth match on providerAccountId and keep their real account.
  *
  * An app route rather than an auth routes kit provider: the kit's providers
  * redirect, and this flow answers a POST from the Activity's own page.
@@ -108,10 +109,10 @@ export function registerDiscordActivityRoutes(app: Express, deps: DiscordActivit
           deps.db,
           {
             providerAccountId: discordUser.id,
-            // Activities grant `identify` only — no email: a synthetic address
-            // derived from the Discord id the exchange just proved
-            email: discordUser.email ?? `${discordUser.id}@discord.activity`,
-            emailVerified: discordUser.email ? discordUser.verified === true : true,
+            // Activities grant `identify` only, so no email: the user gets the
+            // placeholder address, as for an email Discord did not verify
+            email: discordUser.email ?? null,
+            emailVerified: discordUser.verified === true,
             name: discordUser.global_name ?? discordUser.username,
             image: discordUser.avatar
               ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`

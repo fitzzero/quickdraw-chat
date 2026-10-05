@@ -45,7 +45,9 @@ touching auth.
 ## Bootstrap access
 
 - `ADMIN_EMAILS`: comma-separated emails that get Admin on every service at
-  their next sign-in or handshake (`grants.ts`).
+  their next sign-in or handshake (`grants.ts`), once a sign-in provider
+  verified the address for that user (`User.emailVerified`; the mock
+  provider verifies every address it signs in).
 - `SERVICE_DEFAULT_ACCESS`: grants every signed-in user starts with, under
   their own (format `serviceName:Level,...`; `.env.infra` gives
   `userService:Read`).

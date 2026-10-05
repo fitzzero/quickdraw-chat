@@ -5,11 +5,12 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import express from "express";
 import { io, type Socket } from "socket.io-client";
 import { PROTOCOL_VERSION, type HelloFrame } from "@fitzzero/quickdraw-core";
-import { issueSession } from "@fitzzero/quickdraw-core/server/auth";
+import { issueSession, type OAuthTokenResponse } from "@fitzzero/quickdraw-core/server/auth";
 import { createTestApp, type TestApp } from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
+import type { AccessLevel } from "@project/shared";
 import { createGrantsLoader } from "../../auth/grants.js";
-import { upsertOAuthUser } from "../../auth/users.js";
+import { upsertOAuthUser, type SignInProfile } from "../../auth/users.js";
 import { services, serviceNames } from "../../services/index.js";
 import { createTestAuth, TEST_WEB_ORIGIN } from "../utils/auth.js";
 import { createTestUser } from "../factories/user-factory.js";
@@ -149,7 +150,7 @@ describe("the session routes", () => {
 
 describe("grants", () => {
   it("gives an ADMIN_EMAILS user Admin on every service, stored on their row", async () => {
-    const promoted = await createTestUser({ email: "boss@example.com" });
+    const promoted = await createTestUser({ email: "boss@example.com", emailVerified: true });
     process.env.ADMIN_EMAILS = "Boss@Example.com";
     try {
       const grants = await createGrantsLoader({ prisma: testPrisma, serviceNames })(promoted.id);
@@ -161,29 +162,189 @@ describe("grants", () => {
       delete process.env.ADMIN_EMAILS;
     }
   });
+
+  it("gives an ADMIN_EMAILS address no provider verified the defaults only, not the grants on its row", async () => {
+    // a row that claimed the address through an unverified sign-in before
+    // 5.0 checked, and received a bootstrap's grants then
+    const squatter = await createTestUser({
+      email: "boss@example.com",
+      serviceAccess: Object.fromEntries(
+        serviceNames().map((name): [string, AccessLevel] => [name, "Admin"]),
+      ),
+    });
+    process.env.ADMIN_EMAILS = "boss@example.com";
+    try {
+      const grants = await createGrantsLoader({ prisma: testPrisma, serviceNames })(squatter.id);
+      expect(grants).toEqual({ userService: "Read" });
+    } finally {
+      delete process.env.ADMIN_EMAILS;
+    }
+  });
 });
 
-describe("users from a provider's profile", () => {
-  const profile = (email: string, emailVerified: boolean) => ({
-    providerAccountId: "discord-42",
-    email,
-    emailVerified,
-    name: "Signs In",
-    image: null,
-    tokens: { access_token: "token", token_type: "Bearer" },
+describe("sign-in accounts and verified emails", () => {
+  const tokens: OAuthTokenResponse = { access_token: "access", token_type: "Bearer" };
+  const loadGrants = createGrantsLoader({ prisma: testPrisma, serviceNames });
+
+  /** A provider's profile for `upsertOAuthUser`. */
+  function profile(
+    providerAccountId: string,
+    email: string | null,
+    emailVerified: boolean,
+  ): SignInProfile {
+    return { providerAccountId, email, emailVerified, name: null, image: null, tokens };
+  }
+
+  /** The providers a user can sign in with. */
+  async function accountsOf(userId: string): Promise<string[]> {
+    const accounts = await testPrisma.account.findMany({
+      where: { userId },
+      select: { provider: true },
+      orderBy: { provider: "asc" },
+    });
+    return accounts.map((account) => account.provider);
+  }
+
+  it("never makes an unverified ADMIN_EMAILS address an admin (ADMIN-SQUAT)", async () => {
+    process.env.ADMIN_EMAILS = "boss@example.com";
+    try {
+      const squatterId = await upsertOAuthUser(
+        testPrisma,
+        profile("discord-mallory", "boss@example.com", false),
+        "discord",
+      );
+      if (squatterId === null) throw new Error("expected a user");
+      const squatter = await testPrisma.user.findUniqueOrThrow({ where: { id: squatterId } });
+      expect(squatter).toMatchObject({
+        email: "discord-mallory@discord.local",
+        emailVerified: false,
+      });
+      expect(await loadGrants(squatterId)).toEqual({ userService: "Read" });
+
+      // the real admin's verified sign-in gets the address, and Admin
+      const bossId = await upsertOAuthUser(
+        testPrisma,
+        profile("google-boss", "boss@example.com", true),
+        "google",
+      );
+      if (bossId === null) throw new Error("expected a user");
+      expect(bossId).not.toBe(squatterId);
+      const grants = await loadGrants(bossId);
+      expect(Object.values(grants).every((level) => level === "Admin")).toBe(true);
+    } finally {
+      delete process.env.ADMIN_EMAILS;
+    }
   });
 
-  it("never stores an unverified email: it cannot claim an ADMIN_EMAILS address", async () => {
-    const userId = await upsertOAuthUser(testPrisma, profile("boss@example.com", false), "discord");
-    const created = await testPrisma.user.findUniqueOrThrow({ where: { id: userId ?? "" } });
-    expect(created.email).toBe("discord-42@discord.local");
+  it("never links a verified sign-in into a user an unverified email made (PRE-HIJACK)", async () => {
+    const attackerId = await upsertOAuthUser(
+      testPrisma,
+      profile("discord-mallory", "victim@example.com", false),
+      "discord",
+    );
+    const victimId = await upsertOAuthUser(
+      testPrisma,
+      profile("google-victim", "victim@example.com", true),
+      "google",
+    );
+    if (attackerId === null || victimId === null) throw new Error("expected two users");
+    expect(victimId).not.toBe(attackerId);
+    expect(await accountsOf(attackerId)).toEqual(["discord"]);
+    expect(await accountsOf(victimId)).toEqual(["google"]);
+    const victim = await testPrisma.user.findUniqueOrThrow({ where: { id: victimId } });
+    expect(victim).toMatchObject({ email: "victim@example.com", emailVerified: true });
   });
 
-  it("refuses an unverified email of an existing user, and links a verified one", async () => {
+  it("gives an unverified email of an existing user a placeholder user of its own", async () => {
     const existing = await createTestUser({ email: "taken@example.com" });
-    const unverified = profile("taken@example.com", false);
-    expect(await upsertOAuthUser(testPrisma, unverified, "discord")).toBeNull();
-    const verified = profile("taken@example.com", true);
-    expect(await upsertOAuthUser(testPrisma, verified, "discord")).toBe(existing.id);
+    const signedIn = await upsertOAuthUser(
+      testPrisma,
+      profile("discord-42", "taken@example.com", false),
+      "discord",
+    );
+    if (signedIn === null) throw new Error("expected a user");
+    expect(signedIn).not.toBe(existing.id);
+    expect(await accountsOf(existing.id)).toEqual([]);
+    expect((await testPrisma.user.findUniqueOrThrow({ where: { id: signedIn } })).email).toBe(
+      "discord-42@discord.local",
+    );
+  });
+
+  it("refuses a verified sign-in to a user someone signed in to with that address unverified", async () => {
+    // a pre-claim from before 5.0 checked: the address stored, never verified
+    const preClaimed = await testPrisma.user.create({
+      data: {
+        email: "victim@example.com",
+        accounts: { create: { provider: "discord", providerAccountId: "discord-mallory" } },
+      },
+      select: { id: true },
+    });
+    expect(
+      await upsertOAuthUser(
+        testPrisma,
+        profile("google-victim", "victim@example.com", true),
+        "google",
+      ),
+    ).toBeNull();
+    expect(await accountsOf(preClaimed.id)).toEqual(["discord"]);
+  });
+
+  it("links a verified sign-in to a user without accounts (seeded or pre-provisioned)", async () => {
+    const seeded = await createTestUser({ email: "seeded@example.com" });
+    const signedIn = await upsertOAuthUser(
+      testPrisma,
+      profile("google-seeded", "seeded@example.com", true),
+      "google",
+    );
+    expect(signedIn).toBe(seeded.id);
+    expect(await accountsOf(seeded.id)).toEqual(["google"]);
+    const row = await testPrisma.user.findUniqueOrThrow({ where: { id: seeded.id } });
+    expect(row.emailVerified).toBe(true);
+  });
+
+  it("records an address at the next sign-in that verifies it: the stored one, or a placeholder's", async () => {
+    // a user from before 5.0: their address stored, never marked verified
+    const known = await testPrisma.user.create({
+      data: {
+        email: "known@example.com",
+        accounts: { create: { provider: "google", providerAccountId: "google-known" } },
+      },
+      select: { id: true },
+    });
+    const verifiedOf = async (userId: string): Promise<boolean> =>
+      (await testPrisma.user.findUniqueOrThrow({ where: { id: userId } })).emailVerified;
+    await upsertOAuthUser(
+      testPrisma,
+      profile("google-known", "known@example.com", false),
+      "google",
+    );
+    expect(await verifiedOf(known.id)).toBe(false);
+    expect(
+      await upsertOAuthUser(
+        testPrisma,
+        profile("google-known", "known@example.com", true),
+        "google",
+      ),
+    ).toBe(known.id);
+    expect(await verifiedOf(known.id)).toBe(true);
+
+    // a placeholder becomes the address the provider verifies later
+    const placeheld = await upsertOAuthUser(
+      testPrisma,
+      profile("discord-later", "later@example.com", false),
+      "discord",
+    );
+    if (placeheld === null) throw new Error("expected a user");
+    expect(
+      await upsertOAuthUser(
+        testPrisma,
+        profile("discord-later", "later@example.com", true),
+        "discord",
+      ),
+    ).toBe(placeheld);
+    expect(await testPrisma.user.findUniqueOrThrow({ where: { id: placeheld } })).toMatchObject({
+      email: "later@example.com",
+      emailVerified: true,
+    });
   });
 });

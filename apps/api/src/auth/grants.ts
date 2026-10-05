@@ -63,8 +63,12 @@ export interface GrantsOptions {
 /**
  * Builds `loadServiceAccess`: the user's stored grants over
  * SERVICE_DEFAULT_ACCESS (explicit grants win), or Admin on every service
- * for an ADMIN_EMAILS user, stored on their row the first time. A missing
- * user gets the defaults.
+ * for an ADMIN_EMAILS user whose address a sign-in provider verified
+ * (`User.emailVerified`), stored on their row the first time. A user whose
+ * ADMIN_EMAILS address no provider verified gets the defaults only, without
+ * the grants stored on their row: the row may have claimed the address
+ * through an unverified sign-in (any address was stored before 5.0) and
+ * received a bootstrap's grants then. A missing user gets the defaults.
  */
 export function createGrantsLoader(
   options: GrantsOptions,
@@ -73,12 +77,16 @@ export function createGrantsLoader(
   return async (userId) => {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true, serviceAccess: true },
+      select: { email: true, emailVerified: true, serviceAccess: true },
     });
     const stored = storedGrants(user?.serviceAccess);
     const merged = { ...defaultServiceAccess(), ...stored };
     if (!user || !bootstrapAdminEmails().has(user.email.toLowerCase())) {
       return merged;
+    }
+    if (!user.emailVerified) {
+      logger.warn("ADMIN_EMAILS address no provider verified: default grants only", { userId });
+      return defaultServiceAccess();
     }
     const names = serviceNames();
     if (names.every((name) => stored[name] === "Admin")) {

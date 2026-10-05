@@ -33,10 +33,17 @@ server root (the API, the tests) signs in the same way:
   credentials; one of the pair alone refuses to boot), and `mock(...)` for
   development.
 - **Users** (`users.ts`): `onLogin` → `upsertOAuthUser` finds the user by
-  provider account, links an existing user by email only when the provider
-  verified it, or creates one (an unverified email becomes
-  `<id>@<provider>.local`); provider tokens are stored `encrypt`ed when
-  `ENCRYPTION_KEY` is set; avatars go through `safeImageUrl`.
+  provider account, or creates one; provider tokens are stored `encrypt`ed
+  when `ENCRYPTION_KEY` is set; avatars go through `safeImageUrl`. Only an
+  address the provider verified is ever stored as a user's email
+  (`User.emailVerified` records it): a profile without one gets the
+  placeholder `<providerAccountId>@<provider>.local`, which never links or
+  matches `ADMIN_EMAILS`. A verified address links the user holding it (a
+  seeded or pre-provisioned user, a second provider), except a user someone
+  signed in to before without a provider verifying that address (any address
+  was stored before 5.0): that sign-in is refused. A known account's later
+  sign-in records an address its provider now verifies (the stored one, or
+  in place of its placeholder).
 - **Sessions** (`sessions.ts`): `prismaSessions(prisma)`, the kit's
   `SessionStore` over the `Session` table (untracked writes: sessions are
   not live data). An hourly sweep in `index.ts` deletes expired rows.
@@ -45,9 +52,11 @@ server root (the API, the tests) signs in the same way:
   the development credentials (`dev-credentials.ts`).
 - **Grants** (`grants.ts`): `createGrantsLoader` is `auth.loadServiceAccess`:
   the user's `User.serviceAccess` over `SERVICE_DEFAULT_ACCESS`, or Admin on
-  every service for an `ADMIN_EMAILS` user (stored on their row the first
-  time). `auth.serviceAccessSource` names that column, so a tracked write
-  to it (the admin screens' grants editor) reaches the user's open sockets.
+  every service for an `ADMIN_EMAILS` user whose address a provider verified
+  (stored on their row the first time). An `ADMIN_EMAILS` address no
+  provider verified gets the defaults only, without the grants on its row.
+  `auth.serviceAccessSource` names that column, so a tracked write to it
+  (the admin screens' grants editor) reaches the user's open sockets.
 - **Settings** (`config.ts`): `jwtSecretFromEnv`, `apiUrl`, `clientUrl` and
   `allowedOriginsFromEnv` (CORS, sign-in returns and cookie-authenticated
   sockets share one list).

@@ -16,8 +16,9 @@ closed) is the linked `quickdraw-access.md`.
   no token in a redirect URL; sign-out revokes the row and ends its sockets
   (`/auth/logout`, `/auth/logout-all`), and an hourly sweep deletes expired
   rows; provider tokens AES-256-GCM encrypted at rest (`ENCRYPTION_KEY`);
-  avatars restricted to https; an email links accounts only when the
-  provider verified it, and an unverified email is never stored on a user.
+  avatars restricted to https; only an email a provider verified is stored,
+  links accounts or matches `ADMIN_EMAILS` (`User.emailVerified`; an
+  unverified one leaves a `<id>@<provider>.local` placeholder).
 - **Development auth** (`ENABLE_MOCK_OAUTH`, `ENABLE_DEV_CREDENTIALS`) is
   off in production at every layer; keep them all (see `dev-auth.md`).
 - **Calls**: every method, channel and stream declares its access and fails

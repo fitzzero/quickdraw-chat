@@ -17,9 +17,14 @@ datasource db {
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
+  // Whether a sign-in provider verified `email` for this user. Only a
+  // verified address links a second provider or matches ADMIN_EMAILS; a
+  // provider that did not verify its address gets a placeholder
+  // (`<id>@<provider>.local`) instead (apps/api/src/auth/users.ts)
+  emailVerified Boolean   @default(false) @map("email_verified")
   name          String?   @unique
   image         String?
-  
+
   // Service-level access control: { "chatService": "Admin", "userService": "Read" }
   serviceAccess Json?     @map("service_access")
 

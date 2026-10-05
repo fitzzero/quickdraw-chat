@@ -15,6 +15,7 @@ documented as an alternative.
 - [Option 1: Deploy Workflow — Cloud Run (API) + Vercel (Web)](#option-1-deploy-workflow)
 - [Option 2: Docker Compose (self-hosted)](#option-2-docker-compose-self-hosted)
 - [Database Setup](#database-setup)
+- [Upgrading to quickdraw 5.0](#upgrading-to-quickdraw-50)
 - [Health Checks](#health-checks)
 
 ---
@@ -62,7 +63,8 @@ DISCORD_CLIENT_SECRET=...
 EXTRA_ALLOWED_ORIGINS=https://staging.your-domain.com  # comma-separated
 COOKIE_DOMAIN=.your-domain.com                          # cross-subdomain sessions
 
-# Bootstrap admin
+# Bootstrap admin: Admin on every service, once a sign-in provider verified
+# the address for that user (see "Upgrading to quickdraw 5.0" below)
 ADMIN_EMAILS=you@your-domain.com
 
 # Logging
@@ -268,6 +270,58 @@ cd packages/db && DATABASE_URL=... bunx prisma migrate deploy
 Optionally seed demo data on a fresh non-production instance with
 `bun run db:seed` (idempotent; creates the demo users the mock OAuth picker
 uses in dev).
+
+---
+
+## Upgrading to quickdraw 5.0
+
+The 5.0 migrations apply to a 4.x database as they are (the deploy workflow
+runs them). What changes for the people who use it:
+
+- **Everyone signs in once more**: sessions now name their row, so the
+  migration ends every 4.x session.
+- **Verified emails.** A user's email counts (links a second provider's
+  sign-in, matches `ADMIN_EMAILS`) only once a sign-in provider verified
+  it. Nothing in a 4.x database records that, and 4.x stored and linked
+  addresses no provider had verified, so every existing user starts
+  unverified (`users.email_verified = false`). Their next sign-in through a
+  provider that reports the stored address as verified (Google; Discord when
+  the address is verified there) marks it.
+- **Bootstrap admins** (`ADMIN_EMAILS`) hold Admin only once their address
+  is verified that way: until their first such sign-in after the upgrade,
+  an `ADMIN_EMAILS` user gets the default grants only, and the Admin grants
+  a 4.x bootstrap stored on their row do not apply (such a row may be one
+  that claimed the address through an unverified sign-in). Grants given in
+  the admin screens to other users are kept as they are.
+
+What an operator does, once, with the list of `ADMIN_EMAILS`:
+
+1. Check which provider accounts can sign in to each admin (4.x linked a
+   sign-in to the user holding its address whether or not the provider
+   verified it), and delete any that is not the admin's own:
+
+   ```sql
+   SELECT u.id AS user_id, u.email, a.id AS account_id, a.provider,
+          a.provider_account_id, a.created_at
+   FROM users u JOIN accounts a ON a.user_id = u.id
+   WHERE lower(u.email) IN ('you@your-domain.com');
+   -- DELETE FROM accounts WHERE id = '<account_id>';
+   ```
+
+2. Have each admin sign in with Google (or Discord, with the address
+   verified there). The sign-in marks the address and the bootstrap gives
+   Admin again. Should that sign-in be refused (the log says "its verified
+   email is held by a user no provider verified it for"), the address
+   belongs to a user someone signed in to with an unverified address: give
+   that user another address, or delete it, then sign in again:
+
+   ```sql
+   UPDATE users SET email = id || '@unclaimed.local' WHERE id = '<user_id>';
+   ```
+
+The same refusal can meet any user who signs in with a second provider
+before their first sign-in after the upgrade; signing in once with the
+provider they used before marks their address and ends it.
 
 ---
 
