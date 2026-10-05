@@ -20,7 +20,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -85,10 +85,12 @@ for (const name of gameMigrations) {
 }
 
 // ── 2. Marker-stripped blocks in shared files ───────────────────────────
+// Regular files only: the tracked skill and rule links (.claude/) are
+// symlinks, dangling in a fresh clone and directories once installed
 const tracked = execSync("git ls-files", { encoding: "utf8" })
   .split("\n")
   .filter(Boolean)
-  .filter((file) => existsSync(file));
+  .filter((file) => existsSync(file) && lstatSync(file).isFile());
 
 let strippedCount = 0;
 const SELF = "scripts/strip-game.mjs";

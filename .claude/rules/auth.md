@@ -34,7 +34,8 @@ server root (the API, the tests) signs in the same way:
   development.
 - **Users** (`users.ts`): `onLogin` → `upsertOAuthUser` finds the user by
   provider account, links an existing user by email only when the provider
-  verified it, or creates one; provider tokens are stored `encrypt`ed when
+  verified it, or creates one (an unverified email becomes
+  `<id>@<provider>.local`); provider tokens are stored `encrypt`ed when
   `ENCRYPTION_KEY` is set; avatars go through `safeImageUrl`.
 - **Sessions** (`sessions.ts`): `prismaSessions(prisma)`, the kit's
   `SessionStore` over the `Session` table (untracked writes: sessions are

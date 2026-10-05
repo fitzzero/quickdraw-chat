@@ -31,8 +31,9 @@ export type SignInProfile = Pick<
  * the profile's email is linked (seeded demo users, a second provider) when
  * the provider verified that email, and the sign-in is refused when it did
  * not (an unverified email would hand over that user's account); otherwise a
- * user is created. A
- * profile without an email gets `<id>@<provider>.local`.
+ * user is created. A profile without a verified email gets
+ * `<id>@<provider>.local`: an unverified address never lands on a user row,
+ * where it could claim an ADMIN_EMAILS grant or a later verified sign-in.
  */
 export async function upsertOAuthUser(
   prisma: PrismaClient,
@@ -68,20 +69,27 @@ export async function upsertOAuthUser(
     tokenType: tokens.token_type,
     scope: tokens.scope,
   };
-  const email = profile.email ?? `${providerAccountId}@${provider}.local`;
-
   // Link by email when the user exists without this provider — covers seeded
   // demo users and users adding a second OAuth provider.
-  const byEmail = await prisma.user.findUnique({ where: { email }, select: { id: true } });
-  if (byEmail) {
-    if (!profile.emailVerified) {
-      logger.warn(`Refused ${provider} sign-in: unverified email of an existing user`);
-      return null;
+  if (profile.email) {
+    const byEmail = await prisma.user.findUnique({
+      where: { email: profile.email },
+      select: { id: true },
+    });
+    if (byEmail) {
+      if (!profile.emailVerified) {
+        logger.warn(`Refused ${provider} sign-in: unverified email of an existing user`);
+        return null;
+      }
+      await prisma.account.create({ data: { ...account, userId: byEmail.id } });
+      logger.info(`Linked ${provider} account to existing user`, { userId: byEmail.id });
+      return byEmail.id;
     }
-    await prisma.account.create({ data: { ...account, userId: byEmail.id } });
-    logger.info(`Linked ${provider} account to existing user`, { userId: byEmail.id });
-    return byEmail.id;
   }
+  const email =
+    profile.email && profile.emailVerified
+      ? profile.email
+      : `${providerAccountId}@${provider}.local`;
 
   // One statement with its account: users are written untracked here (no
   // subscriber can exist before the first sign-in)

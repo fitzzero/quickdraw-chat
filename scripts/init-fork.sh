@@ -95,10 +95,10 @@ fi
 # (BSD sed chokes on non-UTF8 bytes). Migration SQL is name-free; the
 # lockfile only carries the workspace name (identity pass).
 FILES=$(git ls-files | grep -vE '^packages/db/prisma/migrations/|\.(wasm|pck|png|ico|jpg|jpeg|gif|webp|woff2?)$')
-# After a carve-out, ls-files still lists the deleted paths — drop them
-if [ -n "$WITHOUT_GAME" ] || [ -n "$WITHOUT_STORYBOOK" ]; then
-  FILES=$(echo "$FILES" | while read -r f; do [ -f "$f" ] && echo "$f"; done)
-fi
+# Regular files only: after a carve-out ls-files still lists the deleted
+# paths, and the skill and rule links (.claude/) are symlinks that sed would
+# fail on (dangling) or replace with copies (installed)
+FILES=$(echo "$FILES" | while read -r f; do if [ -f "$f" ] && [ ! -L "$f" ]; then echo "$f"; fi; done)
 
 # ── 1. App identity ──────────────────────────────────────────────────
 echo "$FILES" | xargs "${SED_I[@]}" \

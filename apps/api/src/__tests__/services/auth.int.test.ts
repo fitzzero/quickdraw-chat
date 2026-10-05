@@ -9,6 +9,7 @@ import { issueSession } from "@fitzzero/quickdraw-core/server/auth";
 import { createTestApp, type TestApp } from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import { createGrantsLoader } from "../../auth/grants.js";
+import { upsertOAuthUser } from "../../auth/users.js";
 import { services, serviceNames } from "../../services/index.js";
 import { createTestAuth, TEST_WEB_ORIGIN } from "../utils/auth.js";
 import { createTestUser } from "../factories/user-factory.js";
@@ -159,5 +160,30 @@ describe("grants", () => {
     } finally {
       delete process.env.ADMIN_EMAILS;
     }
+  });
+});
+
+describe("users from a provider's profile", () => {
+  const profile = (email: string, emailVerified: boolean) => ({
+    providerAccountId: "discord-42",
+    email,
+    emailVerified,
+    name: "Signs In",
+    image: null,
+    tokens: { access_token: "token", token_type: "Bearer" },
+  });
+
+  it("never stores an unverified email: it cannot claim an ADMIN_EMAILS address", async () => {
+    const userId = await upsertOAuthUser(testPrisma, profile("boss@example.com", false), "discord");
+    const created = await testPrisma.user.findUniqueOrThrow({ where: { id: userId ?? "" } });
+    expect(created.email).toBe("discord-42@discord.local");
+  });
+
+  it("refuses an unverified email of an existing user, and links a verified one", async () => {
+    const existing = await createTestUser({ email: "taken@example.com" });
+    const unverified = profile("taken@example.com", false);
+    expect(await upsertOAuthUser(testPrisma, unverified, "discord")).toBeNull();
+    const verified = profile("taken@example.com", true);
+    expect(await upsertOAuthUser(testPrisma, verified, "discord")).toBe(existing.id);
   });
 });
