@@ -21,13 +21,13 @@ scripts already run through the loader.
 
 ## Development sign-in (no OAuth credentials needed)
 
-- **Mock OAuth** (`ENABLE_MOCK_OAUTH=true` and
-  `NEXT_PUBLIC_ENABLE_MOCK_OAUTH=true`, on in `.env.infra`): "Continue as
-  demo user" on the login page runs a real OAuth code flow against
+- **Mock OAuth** (`ENABLE_MOCK_OAUTH=true`, on in `.env.infra`): "Continue
+  as demo user" on the login page runs a real OAuth code flow against
   `/auth/mock/provider/*`, served by the API itself (the auth routes kit's
-  `mock({ listUsers })` provider). The picker lists users from the database:
-  run `bun run db:seed` first (admin@demo.local, moderator@demo.local,
-  user@demo.local).
+  `mock({ listUsers })` provider). The page shows it when the API lists it
+  in `GET /auth/providers` (no web-side flag). The picker lists users from
+  the database: run `bun run db:seed` first (admin@demo.local,
+  moderator@demo.local, user@demo.local).
 - **Development credentials** (`ENABLE_DEV_CREDENTIALS=true`): a socket may
   sign in by naming a user in its handshake (`auth: { userId }`, no token),
   through `socketAuth({ devCredentials })` and `auth/dev-credentials.ts`;
@@ -41,6 +41,23 @@ flag set when `NODE_ENV=production` (`index.ts`), `devCredentials` answers
 nothing there, `socketAuth` refuses such a handshake in production, and the
 kit never serves the mock provider's routes there. Keep every layer when
 touching auth.
+
+## A hosted development instance
+
+A deploy outside production on public addresses (the template's dev deploy,
+behind a tunnel; `DEPLOYMENT.md`, "Hosted dev instance") keeps the mock on
+and needs, besides `CLIENT_URL`:
+
+- `API_URL`, its public URL. With `CLIENT_URL` or an `EXTRA_ALLOWED_ORIGINS`
+  entry off localhost and no `API_URL`, the API refuses to boot in every
+  `NODE_ENV` (`apiUrlProblem` in `config.ts`; `apiUrl()` throws the same)
+  rather than send sign-ins to `http://localhost:<port>`. Local development
+  keeps that fallback.
+- `TRUST_PROXY` (`trustProxyFromEnv`), the proxies in front: unset, 1 in
+  production and for an `https:` `API_URL` (logged as inferred), else off.
+
+Its login page offers what `GET /auth/providers` lists: the demo-user
+picker, plus Google or Discord only where their credentials are set.
 
 ## Bootstrap access
 

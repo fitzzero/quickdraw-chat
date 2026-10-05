@@ -1,5 +1,38 @@
 # Changelog
 
+## Sign-in on a hosted dev instance (2026-10-04)
+
+What the first QA of the hosted dev deploy (`quickdraw-dev.techtree.gg`,
+not production, behind a Cloudflare tunnel, demo sign-in on) found. No
+access change.
+
+### Fixed
+
+- **The login page offers only what the API serves.** It showed Google,
+  Discord and the demo user whatever the server had: Google's button led to
+  a 404 on an API without Google credentials. The API now answers
+  `GET /auth/providers` (`{ providers: [{ id, kind }] }`, from the same list
+  the auth routes kit is given; the mock only while it is enabled) and the
+  page renders a button per OAuth provider listed, the demo-user picker only
+  for the mock, a notice when nothing is served, and a retry when the
+  request fails. `NEXT_PUBLIC_ENABLE_MOCK_OAUTH` is gone: a flag baked into
+  the bundle at build time drifts from the server. The route carries a
+  `quickdraw-5.0 finding`: quickdraw 5.0.0's kit serves it itself.
+- **No sign-in redirect to localhost.** With `API_URL` unset, the API built
+  its redirect URIs from `http://localhost:<port>`, so the demo sign-in
+  sent visitors there. A `CLIENT_URL` or `EXTRA_ALLOWED_ORIGINS` entry off
+  localhost now requires `API_URL` in every `NODE_ENV`: the API refuses to
+  boot and says why. Local development keeps the fallback.
+- **The proxy is trusted outside production.** `trust proxy` was set in
+  production only, so behind the tunnel every visitor shared the tunnel's
+  address in the rate limits, and express-rate-limit logged
+  `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`. `TRUST_PROXY` (a number of hops, or
+  `true`/`false`) sets it; unset, it is 1 in production and for an
+  `https:` `API_URL` (logged as inferred), and off otherwise.
+
+`DEPLOYMENT.md` has a "Hosted dev instance" section: `API_URL`,
+`CLIENT_URL`, `TRUST_PROXY`, `ENABLE_MOCK_OAUTH` and which sign-ins appear.
+
 ## quickdraw 5.0 (2026-10-04)
 
 The whole template moved from `@fitzzero/quickdraw-core` 4.1 to the 5.0

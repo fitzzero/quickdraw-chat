@@ -371,6 +371,10 @@ Real env vars (e.g. CI) always take precedence.
   session row, carried in an httpOnly cookie (`__Host-session` over HTTPS) —
   the one credential for sockets, HTTP calls and REST routes; no token ever
   appears in a URL or in localStorage.
+- **The login page offers what the API serves**: it asks
+  `GET /auth/providers` and shows a button for each sign-in listed (and
+  says so when there is none), so a provider without credentials never
+  shows a button that leads to a 404.
 - **Mock OAuth (dev only)**: `ENABLE_MOCK_OAUTH=true` (default in `.env.infra`)
   serves a real OAuth code flow from the API itself with a seeded-user picker.
   Refused in production (the API will not boot with the flag set).

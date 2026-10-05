@@ -90,6 +90,9 @@ how the web app uses it.
   `signInUrl(provider, AUTH_ROUTES)`, `signOut(AUTH_ROUTES)` and
   `signOutEverywhere(AUTH_ROUTES)` (`AUTH_ROUTES` in `apps/web/src/lib/auth.ts`
   says where the API is); a sign-out that rejects left the session live.
+  The login page offers the sign-ins the API lists in `GET /auth/providers`
+  (`fetchSignInProviders` under a plain TanStack `useQuery`: no quickdraw
+  method serves it), never ones a `NEXT_PUBLIC_*` flag names.
 - **Errors** shown to people: `useErrorText()` maps a `QuickdrawError`'s
   code to a translated message.
 

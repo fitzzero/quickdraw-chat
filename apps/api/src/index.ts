@@ -8,7 +8,13 @@ import { validateEnv } from "@fitzzero/quickdraw-core/server";
 import { createAuthLimiter, createCallLimiter } from "@fitzzero/quickdraw-core/server/express";
 import { disconnectPrisma, prisma } from "@project/db";
 import { createAppAuth } from "./auth/index.js";
-import { encryptionKeyProblem, isAllowedOrigin } from "./auth/config.js";
+import {
+  apiUrlProblem,
+  encryptionKeyProblem,
+  isAllowedOrigin,
+  trustProxyFromEnv,
+} from "./auth/config.js";
+import { registerProvidersRoute } from "./auth/providers.js";
 import { deleteExpiredSessions } from "./auth/sessions.js";
 import { db } from "./db.js";
 import { qd } from "./quickdraw.js";
@@ -62,6 +68,29 @@ if (encryptionKeyError !== null) {
   process.exit(1);
 }
 
+// A web app on another machine (CLIENT_URL or EXTRA_ALLOWED_ORIGINS off
+// localhost) needs API_URL in every NODE_ENV: the localhost fallback would
+// send its sign-ins to http://localhost:<port>. Refuse to boot instead.
+const apiUrlError = apiUrlProblem();
+if (apiUrlError !== null) {
+  logger.error(`${apiUrlError} — refusing to start`);
+  process.exit(1);
+}
+
+// How many proxies in front to believe for the client's address (the rate
+// limits) and protocol: TRUST_PROXY, else 1 in production or behind an https
+// API_URL, else none
+const trustProxy = trustProxyFromEnv();
+if ("problem" in trustProxy) {
+  logger.error(`${trustProxy.problem} — refusing to start`);
+  process.exit(1);
+}
+if (trustProxy.source === "API_URL") {
+  logger.info(
+    "TRUST_PROXY is not set: trusting 1 proxy, since API_URL is https (set TRUST_PROXY to change it)",
+  );
+}
+
 const PORT = Number(process.env.BACKEND_PORT ?? process.env.PORT ?? 4000);
 const SERVER_IP = process.env.SERVER_IP ?? "localhost";
 
@@ -89,10 +118,9 @@ function corsOrigin(
 }
 
 // Middleware
-if (process.env.NODE_ENV === "production") {
-  // Behind Cloud Run / a reverse proxy: trust X-Forwarded-* for IPs + cookies
-  app.set("trust proxy", 1);
-}
+// Behind Cloud Run, a reverse proxy or a tunnel, the X-Forwarded-* headers of
+// the proxies trusted above give the client's IP and protocol (none locally)
+app.set("trust proxy", trustProxy.value);
 app.use(helmet());
 app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(cookieParser());
@@ -118,6 +146,8 @@ app.get("/api", (_req, res) => {
   res.json({ message: "API is running", version: "0.0.1" });
 });
 
+// GET /auth/providers: the sign-ins served below, for the login page
+registerProvidersRoute(app, auth);
 // /auth/{google,discord,mock}/start and /callback, /auth/me, /auth/logout and
 // /auth/logout-all (each rate-limited by the kit)
 app.use(auth.routes);

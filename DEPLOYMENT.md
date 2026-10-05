@@ -14,6 +14,7 @@ documented as an alternative.
 - [Environment Variables](#environment-variables)
 - [Option 1: Deploy Workflow — Cloud Run (API) + Vercel (Web)](#option-1-deploy-workflow)
 - [Option 2: Docker Compose (self-hosted)](#option-2-docker-compose-self-hosted)
+- [Hosted dev instance (not production, behind a proxy)](#hosted-dev-instance-not-production-behind-a-proxy)
 - [Database Setup](#database-setup)
 - [Upgrading to quickdraw 5.0](#upgrading-to-quickdraw-50)
 - [Health Checks](#health-checks)
@@ -44,6 +45,11 @@ NEXT_PUBLIC_API_URL=https://api.your-domain.com
 > Production hard-blocks: the API **refuses to boot** if `ENABLE_DEV_CREDENTIALS`
 > or `ENABLE_MOCK_OAUTH` is set to `true` with `NODE_ENV=production`. These are
 > dev-only flags from `.env.infra` — never set them in production environments.
+>
+> `API_URL` is required outside production too, as soon as the web app is not
+> on the API's machine: with `CLIENT_URL` (or an `EXTRA_ALLOWED_ORIGINS` entry)
+> off localhost and no `API_URL`, the API refuses to boot rather than send
+> sign-ins to `http://localhost:<port>`.
 
 ### Optional
 
@@ -63,6 +69,11 @@ DISCORD_CLIENT_SECRET=...
 # CORS / cookies
 EXTRA_ALLOWED_ORIGINS=https://staging.your-domain.com  # comma-separated
 COOKIE_DOMAIN=.your-domain.com                          # cross-subdomain sessions
+
+# Proxies in front of the API to trust for the client's IP (the rate limits)
+# and protocol: a number of hops, or true/false. Default 1 in production (and
+# for an https API_URL outside it); set it when more than one proxy is in front
+TRUST_PROXY=1
 
 # Bootstrap admin: Admin on every service, once a sign-in provider verified
 # the address for that user (see "Upgrading to quickdraw 5.0" below)
@@ -263,6 +274,53 @@ docker-compose exec api bunx prisma migrate deploy
 
 Put a reverse proxy (Caddy/nginx) with TLS in front; WebSockets need
 `Upgrade`/`Connection` headers forwarded.
+
+---
+
+## Hosted dev instance (not production, behind a proxy)
+
+A shared development deploy runs with `NODE_ENV` other than `production`, so
+the demo-user sign-in can stay on, on public addresses behind whatever ends
+its TLS (a tunnel, a reverse proxy). The template's own is
+`https://quickdraw-dev.techtree.gg` with its API at
+`https://quickdraw-io-dev.techtree.gg`, behind a Cloudflare tunnel. It needs:
+
+```bash
+CLIENT_URL=https://dev.your-domain.com             # the web app
+API_URL=https://dev-api.your-domain.com            # required (below)
+NEXT_PUBLIC_API_URL=https://dev-api.your-domain.com  # the web app's build
+ENABLE_MOCK_OAUTH=true                             # the demo-user picker: run bun run db:seed once
+# TRUST_PROXY=1                                    # inferred from the https API_URL (below)
+```
+
+- **`API_URL`** is where every sign-in redirect goes: each provider's
+  redirect URI (`{API_URL}/auth/{provider}/callback`) and the demo-user
+  picker. It falls back to `http://localhost:<port>` only while every web
+  origin is on localhost; with `CLIENT_URL` or an `EXTRA_ALLOWED_ORIGINS`
+  entry anywhere else the API refuses to boot without it, in any
+  `NODE_ENV`, and says why:
+  `API_URL is required: CLIENT_URL is https://dev.your-domain.com, not this
+machine, so sign-in redirects would point at http://localhost:4000. Set
+API_URL to the API's public URL — refusing to start`.
+- **`TRUST_PROXY`**: behind a proxy every request reaches the API from the
+  proxy's address. Trusting it gives the rate limits each visitor's own IP
+  (from `X-Forwarded-For`) and `req.secure` from `X-Forwarded-Proto`, and
+  express-rate-limit stops logging `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`.
+  Unset, it is 1 for an `https:` `API_URL` (the API logs that it inferred
+  it) and in production, and off otherwise (local development). Set it to
+  the number of proxies in front when there are more (2 for a CDN in front
+  of a reverse proxy); a value that is not a number, `true` or `false`
+  refuses to boot.
+- **The login page offers what the API serves**, from its
+  `GET /auth/providers`: Google and Discord once their client id and secret
+  are set (register `{API_URL}/auth/{provider}/callback` with each), the
+  demo-user picker while `ENABLE_MOCK_OAUTH=true` (never in production),
+  and nothing else; with none of them it says no sign-in is configured. No
+  `NEXT_PUBLIC_*` flag decides it: the page asks the running API.
+  <!-- ── quickdraw-game:start ── -->
+  The list also names the guest sign-in (`kind: "guest"`), which the game's
+  pre-game dialog uses; the login page does not offer it.
+  <!-- ── quickdraw-game:end ── -->
 
 ---
 
