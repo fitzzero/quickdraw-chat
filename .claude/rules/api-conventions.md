@@ -53,12 +53,14 @@ socket) and inbound webhooks. An app REST route:
 
 - authenticates with `requireSession(auth.keys)` from
   `@fitzzero/quickdraw-core/server/auth` (a live session from the cookie or a
-  bearer token; it answers 401 itself and sets `req.userId`);
+  bearer token; it answers 401 itself), and reads it with `sessionOf(req)`
+  (`{ userId, sessionId, principal }`, typed, no cast of `req`);
 - validates its body with `validateRequest(schema, req.body, res)` from
   `apps/api/src/utils/validate-request.ts`;
 - does the work by calling the service in process
-  (`qd.caller({ userId }).pushService.subscribePush(body)`), so the
-  method's validation, access check and tracked writes are the socket's;
+  (`qd.caller(principal).pushService.subscribePush(body)`, which loads the
+  user's grants as a socket's handshake does), so the method's validation,
+  access check and tracked writes are the socket's;
 - is rate limited with a limiter from `@fitzzero/quickdraw-core/server/express`
   (`createAuthLimiter()`, `createPublicApiLimiter()`, `createWebhookLimiter()`).
 

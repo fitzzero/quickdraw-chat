@@ -74,7 +74,10 @@ third-party cookies).
 
 An app route that needs a signed-in user takes `requireSession(auth.keys)`
 (see `api-conventions.md`), never a hand-rolled JWT check: it reads the
-cookie and the bearer token by the same rule as the sockets.
+cookie and the bearer token by the same rule as the sockets. The route reads
+the session with `sessionOf(req)` and calls services as
+`qd.caller(principal)`, which loads the user's grants (`auth.loadServiceAccess`)
+as a socket's handshake does.
 
 ## The web side
 

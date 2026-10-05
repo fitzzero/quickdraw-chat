@@ -116,7 +116,6 @@ function AdminServiceScreen({
         key={selectedId}
         admin={admin}
         adminGet={admin.adminGet}
-        serviceKey={service.key}
         entryId={selectedId}
         meta={meta}
         onClose={(): void => {
@@ -129,7 +128,7 @@ function AdminServiceScreen({
         }}
       />
     );
-  }, [selectedId, meta, admin, service.key, refreshList]);
+  }, [selectedId, meta, admin, refreshList]);
 
   useRightSidebar(sidebarContent);
 

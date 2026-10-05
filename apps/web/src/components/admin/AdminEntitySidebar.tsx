@@ -23,16 +23,16 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { useTranslations } from "next-intl";
-import type { AdminKeysOf, AdminRow, AdminScreen } from "@fitzzero/quickdraw-core/client";
+import type { AdminRow, AdminScreen } from "@fitzzero/quickdraw-core/client";
 import { ConfirmDialog } from "../feedback";
 import { UserServiceAccessEditor } from "./UserServiceAccessEditor";
 import { useErrorText } from "../../hooks/useErrorText";
 import { qd } from "../../lib/quickdraw";
 import type { AdminServiceMeta, AdminFieldConfig } from "@project/shared";
 
-/** The user's grants field, which `admin.handlers(user, { grants: true })` adds to adminMeta. */
-function isGrants(field: AdminFieldConfig): boolean {
-  return field.name === "serviceAccess";
+/** Whether the generic form shows a field: not one an override kept out (the user's grants). */
+function inForm(field: AdminFieldConfig): boolean {
+  return field.showInForm !== false;
 }
 
 /** Safely convert unknown to string for display - avoids no-base-to-string for objects */
@@ -314,8 +314,6 @@ interface AdminEntitySidebarProps {
   admin: AdminScreen;
   /** Its `adminGet`, which the sidebar reads the row with. */
   adminGet: NonNullable<AdminScreen["adminGet"]>;
-  /** The service's key on the client. */
-  serviceKey: AdminKeysOf<typeof qd>;
   entryId: string;
   meta: AdminServiceMeta;
   onClose: () => void;
@@ -332,7 +330,6 @@ interface AdminEntitySidebarProps {
 export function AdminEntitySidebar({
   admin,
   adminGet,
-  serviceKey,
   entryId,
   meta,
   onClose,
@@ -405,9 +402,9 @@ export function AdminEntitySidebar({
         <Divider sx={{ my: 2 }} />
 
         {/* Fields (the kit leaves out hidden ones, such as acl); a user's
-            grants have their own editor below */}
+            grants are kept out of the form and have their own editor below */}
         {meta.fields
-          .filter((f) => f.name !== "id" && !(serviceKey === "userService" && isGrants(f)))
+          .filter((f) => f.name !== "id" && inForm(f))
           .map((field) => (
             <Box key={field.name} sx={{ mb: 2 }}>
               {editedValues !== null && field.editable ? (
@@ -431,8 +428,8 @@ export function AdminEntitySidebar({
             </Box>
           ))}
 
-        {/* The user's service-wide grants: only for userService */}
-        {serviceKey === "userService" && (
+        {/* A user's service-wide grants: the field the kit marks `kind: "grants"` */}
+        {meta.fields.some((f) => f.kind === "grants") && (
           <>
             <Divider sx={{ my: 2 }} />
             <UserServiceAccessEditor userId={entryId} />

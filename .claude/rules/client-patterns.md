@@ -68,8 +68,10 @@ how the web app uses it.
   hello's grants allow), and every table and form from the service's
   `adminMeta` through `adminOf(qd, key)` (one shape for every admin kit,
   typed by field name). The kit's rows are not live: a screen reads its list
-  again after its own writes. A user's grants have their own editor
-  (`UserServiceAccessEditor`, written through `adminUpdate`).
+  again after its own writes. The forms show the fields whose `showInForm`
+  is not `false`; a user's grants (`showInForm: false` on the server) have
+  their own editor (`UserServiceAccessEditor`, written through `adminUpdate`),
+  shown for the field the kit marks `kind: "grants"`.
 - **Sign-in and sign-out** go through the auth routes kit with the client's
   `signInUrl(provider, AUTH_ROUTES)`, `signOut(AUTH_ROUTES)` and
   `signOutEverywhere(AUTH_ROUTES)` (`AUTH_ROUTES` in `apps/web/src/lib/auth.ts`

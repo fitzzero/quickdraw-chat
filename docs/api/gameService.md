@@ -2,6 +2,17 @@
 
 # gameService
 
+## Access
+
+| Option             | Value                                                    |
+| ------------------ | -------------------------------------------------------- |
+| Row policy         | `everyone`: Read for every signed-in user, on every row  |
+| Service-wide Admin | passes every check of the service                        |
+| Change topic       | `"public"`: anyone, signed in or not                     |
+| Field levels       | none: every caller who may read a row receives all of it |
+
+Each method below says who may call it.
+
 ## Entity
 
 | Field       | Type             | Notes            |
@@ -21,6 +32,8 @@ Spawns the caller's snake in a world, puts the calling socket in the world's roo
 
 A mutation.
 
+Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
+
 Input:
 
 | Field     | Type     | Notes                |
@@ -34,6 +47,8 @@ Output: `{ worldId: string; chatId: string | null; tick: integer; tickRate: numb
 Answers a world's state without spawning, and puts the calling socket in the world's room, for spectating.
 
 A query.
+
+Access: `"public"`: anyone, signed in or not.
 
 Input:
 
@@ -49,6 +64,8 @@ Respawns the caller's snake after it died.
 
 A mutation.
 
+Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
+
 Input:
 
 | Field     | Type     | Notes                |
@@ -62,6 +79,8 @@ Output: `{ ok: true }`.
 Takes the caller's snake out of the world; their sockets stay as spectators.
 
 A mutation.
+
+Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
 
 Input:
 
@@ -77,6 +96,8 @@ Reads a world by its slug (its id, name and chat), or null.
 
 A query.
 
+Access: `"public"`: anyone, signed in or not.
+
 Input:
 
 | Field  | Type     | Notes              |
@@ -90,6 +111,8 @@ Output: `{ id: string; name: string; chatId: string | null } | null`.
 The caller's best length in a world (0 before their first death).
 
 A query that watches its service: a cached result is fetched again after every change to the service's rows, collections or the models it writes.
+
+Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
 
 Input:
 
@@ -105,6 +128,8 @@ A world's best lengths, highest first (25 unless a limit is given).
 
 A query that watches its service: a cached result is fetched again after every change to the service's rows, collections or the models it writes.
 
+Access: `"public"`: anyone, signed in or not.
+
 Input:
 
 | Field     | Type      | Notes                |
@@ -119,6 +144,8 @@ Output: `{ userId: string; name: string | null; image: string | null; isGuest: b
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -136,6 +163,8 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
 | Field | Type     | Notes                |
@@ -149,6 +178,8 @@ Output: `{ id?: string; slug?: string; name?: string; chatId?: string | null; cr
 Changes the given fields of one row; its id and timestamps cannot be changed.
 
 A mutation.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -165,6 +196,8 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input: `{}`.
 
 Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string; kind?: "grants"; showInForm?: boolean }[] }`.
@@ -174,6 +207,8 @@ Output: `{ serviceName: string; displayName: string; fields: { name: string; typ
 Counts the sockets subscribed to one row, per access level.
 
 A query.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -188,6 +223,8 @@ Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: intege
 Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -207,9 +244,10 @@ Feeds of items the server appends, each subscriber starting from the latest few.
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Item     | `{ tick: integer; t?: number; players: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; foodSpawned?: { id: string; x: number; y: number; v: number }[]; foodEaten?: string[] }` |
 | Scope    | one feed per `worldId`                                                                                                                                                                                                                     |
-| Seed     | none (default)                                                                                                                                                                                                                             |
+| Seed     | computed by the service when a socket subscribes                                                                                                                                                                                           |
 | Volatile | yes                                                                                                                                                                                                                                        |
 | Access   | `"public"`                                                                                                                                                                                                                                 |
+| Checked  | in development only (`validate: "development"`)                                                                                                                                                                                            |
 
 ## Channels
 
@@ -223,6 +261,7 @@ Fire-and-forget messages from clients, dropped over the rate.
 | Rate     | 30 a second per socket                                      |
 | Burst    | 60                                                          |
 | Requires | the sending socket in the app room `world:gameworld_global` |
+| Access   | `"authenticated"`: any signed-in caller                     |
 
 ## Events
 

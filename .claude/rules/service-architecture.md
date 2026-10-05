@@ -74,5 +74,6 @@ the running sim (`onChanged`).
   once a quickdraw release fixes it.
 - Comments in contracts and services say what the code does now, never how
   an older version did it.
-- After changing a contract, run `bun run docs:generate` and commit
-  `docs/api` (CI runs `bun run docs:check`).
+- After changing a contract or a service's access, run `bun run docs:generate`
+  and commit `docs/api` (CI runs `bun run docs:check`): the pages come from
+  the contracts and, with `--services`, the services' access.

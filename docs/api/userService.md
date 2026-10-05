@@ -2,6 +2,17 @@
 
 # userService
 
+## Access
+
+| Option             | Value                                                                                                                                        |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Row policy         | `anyOf`: the highest level of (`owner`: Admin for the user the `id` column names), (`everyone`: Read for every signed-in user, on every row) |
+| Service-wide Admin | passes every check of the service                                                                                                            |
+| Change topic       | closed: the service declares no `watchAccess`                                                                                                |
+| Field levels       | `email`: Admin, `serviceAccess`: Admin                                                                                                       |
+
+Each method below says who may call it.
+
 ## Entity
 
 | Field           | Type                                                                  | Level | Notes            |
@@ -25,6 +36,8 @@ Reads the caller's own user.
 
 A query.
 
+Access: `"authenticated"`: any signed-in caller.
+
 Input: `{}`.
 
 Output: one row as the `entity` projection, or `null`.
@@ -34,6 +47,8 @@ Output: one row as the `entity` projection, or `null`.
 Changes a user's name or image; answers { error: "name_taken" } when another user has the name.
 
 A mutation.
+
+Access: `{ service: "Moderate", entry: "Moderate" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.id` names.
 
 Input:
 
@@ -49,6 +64,8 @@ Output: `{ error: "name_taken" } | { id: string; email: string; name: string | n
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -66,6 +83,8 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
 | Field | Type     | Notes                |
@@ -80,6 +99,8 @@ Creates a row from data, the new row's field values; the database sets its id an
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
 | Field  | Type                                                                                                                                                                        |
@@ -93,6 +114,8 @@ Output: `{ id?: string; email?: string; name?: string | null; image?: string | n
 Changes the given fields of one row; its id and timestamps cannot be changed.
 
 A mutation.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -109,6 +132,8 @@ Deletes one row.
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
 | Field | Type     | Notes                |
@@ -123,6 +148,8 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input: `{}`.
 
 Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string; kind?: "grants"; showInForm?: boolean }[] }`.
@@ -132,6 +159,8 @@ Output: `{ serviceName: string; displayName: string; fields: { name: string; typ
 Counts the sockets subscribed to one row, per access level.
 
 A query.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -146,6 +175,8 @@ Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: intege
 Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 

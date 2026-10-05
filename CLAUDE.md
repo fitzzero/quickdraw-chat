@@ -30,7 +30,7 @@ quickdraw-chat/
 │   ├── bench/        # Netcode benchmark scenarios + scoring (@project/bench)
 <!-- ── quickdraw-game:end ── -->
 │   └── shared/       # Contracts + named types (@project/shared)
-├── docs/api/         # API reference, generated from the contracts
+├── docs/api/         # API reference, generated from the contracts and services
 └── eslint-plugin-project/   # Repo-local lint rules
 ```
 
@@ -51,7 +51,7 @@ bun run test:int      # Integration tests (PGlite locally, PostgreSQL in CI)
 bun run lint          # Lint all packages (oxlint on @fitzzero/quickdraw-lint's template config, see .claude/rules/linting.md)
 bun run typecheck     # Type-check all packages (tsgo)
 bun run check         # lint + typecheck
-bun run docs:generate # Regenerate docs/api from the contracts (quickdraw-docs); docs:check verifies it
+bun run docs:generate # Regenerate docs/api from the contracts and services (quickdraw-docs); docs:check verifies it
 
 # ── quickdraw-storybook:start ──
 bun run storybook     # Component catalog on http://localhost:6106 (see docs/storybook.md)

@@ -17,8 +17,8 @@
     "lint": "oxlint -c ../../.oxlintrc.json src",
     "lint:fix": "oxlint --fix -c ../../.oxlintrc.json src",
     "typecheck": "tsgo --noEmit",
-    "docs:generate": "quickdraw-docs src/index.ts --out ../../docs/api",
-    "docs:check": "quickdraw-docs src/index.ts --out ../../docs/api --check"
+    "docs:generate": "quickdraw-docs src/index.ts --services ../../apps/api/src/services/index.ts --out ../../docs/api",
+    "docs:check": "quickdraw-docs src/index.ts --services ../../apps/api/src/services/index.ts --out ../../docs/api --check"
   },
   "dependencies": {
     "@fitzzero/quickdraw-core": "5.0.0-rc.4",
