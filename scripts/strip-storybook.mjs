@@ -24,7 +24,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -63,10 +63,12 @@ for (const file of storyFiles) {
 }
 
 // ── 2. Marker-stripped blocks in shared files ───────────────────────────
+// Regular files only: the tracked skill and rule links (.claude/) are
+// symlinks, dangling in a fresh clone and directories once installed
 const tracked = execSync("git ls-files", { encoding: "utf8" })
   .split("\n")
   .filter(Boolean)
-  .filter((file) => existsSync(file));
+  .filter((file) => existsSync(file) && lstatSync(file).isFile());
 
 let strippedCount = 0;
 const SELF = "scripts/strip-storybook.mjs";
@@ -95,8 +97,43 @@ for (const file of tracked) {
 }
 
 // ── 3. JSON files (no comment markers possible) ─────────────────────────
+/**
+ * Parses JSON with comments and trailing commas, as .oxlintrc.json is
+ * written (oxlint reads JSONC). The file is written back as plain JSON, so
+ * its comments are dropped: the formatter then lays it out.
+ */
+function parseJsonc(text) {
+  let json = "";
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (inString) {
+      json += char;
+      if (char === "\\") {
+        i += 1;
+        json += text[i] ?? "";
+      } else if (char === '"') {
+        inString = false;
+      }
+    } else if (char === '"') {
+      inString = true;
+      json += char;
+    } else if (char === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+      json += "\n";
+    } else if (char === "/" && text[i + 1] === "*") {
+      i += 2;
+      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i++;
+      i += 1;
+    } else {
+      json += char;
+    }
+  }
+  return JSON.parse(json.replace(/,(\s*[}\]])/g, "$1"));
+}
+
 function editJson(path, edit) {
-  const data = JSON.parse(readFileSync(path, "utf8"));
+  const data = parseJsonc(readFileSync(path, "utf8"));
   edit(data);
   writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);
   console.log(`  edited ${path}`);

@@ -1,0 +1,13 @@
+-- Whether a sign-in provider verified the user's email. Only a verified
+-- address links a second provider's sign-in to the user or matches
+-- ADMIN_EMAILS (apps/api/src/auth/users.ts and grants.ts).
+--
+-- Backfill: none. Nothing stored says which addresses a provider verified
+-- (4.x created and linked users from unverified addresses too), so every
+-- existing user starts unverified. A user's next sign-in through a provider
+-- that reports their stored address as verified (Google, Discord, the
+-- development mock) marks it; every user signs in once more after the 5.0
+-- upgrade anyway (20261004180100_auth_route_sessions ends every session).
+-- Until then an ADMIN_EMAILS address on an unverified row gets only the
+-- default grants, those stored on its row included.
+ALTER TABLE "users" ADD COLUMN "email_verified" BOOLEAN NOT NULL DEFAULT false;

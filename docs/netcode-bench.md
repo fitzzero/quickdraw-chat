@@ -22,18 +22,23 @@ when a netcode improvement lands on main).
 
 **Tier 1 (headless, the R&D workhorse)** — one Node process runs:
 
-- the real API server (integration-test bootstrap: PGlite, dev-credential
-  auth, production auth hooks) with the game loop RUNNING;
+- the real API server (integration-test bootstrap: PGlite, the app's own
+  sign-in with development credentials, the game service's own
+  `onRoomLeave`) with the game loop RUNNING;
 - a ground-truth recorder on `GameLoop.onTick` — exact authoritative
   positions, tick duration, snapshot bytes per tick;
 - a seeded TCP latency proxy per bot (`packages/bench/src/proxy.ts`) — base
   delay + jitter per direction. "Loss" is modeled honestly for TCP as
-  `stall` (paused reads → real backpressure → engine.io's `.volatile.emit`
+  `stall` (paused reads → real backpressure → the volatile world stream
   genuinely drops snapshots);
-- bot clients (`apps/api/src/bench/bot/`) speaking the production wire
-  protocol and running 1:1 TS ports of the Godot netcode:
-  `prediction.ts` ≡ `local_snake.gd`, `interpolation.ts` ≡ `remote_snake.gd`.
-  Bots render at ~60Hz and record every rendered frame.
+- bot clients (`apps/api/src/bench/bot/`) speaking the production wire,
+  quickdraw protocol v5, the way the Godot client does: `qd:stream:sub` of
+  the `world` stream, then `joinGame`/`watchWorld` (`qd:call`, which puts the
+  socket in the world's room), input as `qd:ch` (volatile, never answered),
+  snapshots as `qd:stream` frames and deaths as `qd:event` — and running 1:1
+  TS ports of the Godot netcode: `prediction.ts` ≡ `local_snake.gd`,
+  `interpolation.ts` ≡ `remote_snake.gd`, `world-clock.ts` ≡ `game.gd`'s
+  clock. Bots render at ~60Hz and record every rendered frame.
 
 Everything shares one machine clock, so cross-client comparisons are exact.
 
@@ -59,10 +64,19 @@ real render pipeline, including WASM frame pacing.
 | `packet.gapRate`                         | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted). | ~0 except bursty scenarios.                                                |
 | `packet.inputAckRttMs`                   | Input send → first snapshot acking it.                                                                                 | RTT + up-to-one-tick alignment.                                            |
 | `server.tickDurMs` / `effectiveTickRate` | Sim cost and loop health.                                                                                              | ≪ 50ms / 20Hz.                                                             |
+| `server.snapshotBytes`                   | The snapshot's JSON (the stream item). On the wire each `qd:stream` frame adds its envelope, 59 bytes.                 | Grows with players; add fields consciously.                                |
 
 Aggregated runs (`--runs 3`) report element-wise medians plus `runVariance`
 (max−min of headline metrics across runs). `bench:compare` treats deltas
 inside the noise band as `within-noise` — don't ship a "win" that lives there.
+
+## The real client: `check:godot`
+
+The bots stand in for the Godot client; `bun run check:godot` runs the real
+one: two headless copies of `apps/game/godot` (`test/session.gd`) against
+the same bench server, checking a whole session (join, each sees the other
+move, a death, the leaderboard, an API restart with both reconnecting). See
+`apps/game/README.md`.
 
 ## Scenarios
 
@@ -96,6 +110,12 @@ in `packages/bench/src/compare.ts` (`DEFAULT_THRESHOLDS`); pass
   frame pacing, WASM GC pauses, and draw cost only show up in Tier 2.
 - The remote interpolator's convergence is frame-rate dependent (per-frame
   nudge); bots must hold ~60fps — `effectiveFps` in the scorecard guards this.
+
+## Tests
+
+`bun run --filter @project/bench test` runs the metric unit tests
+(`packages/bench/src/metrics/metrics.test.ts`); `bun run test` at the root
+includes them.
 
 ## Extending
 

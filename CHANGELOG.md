@@ -1,5 +1,182 @@
 # Changelog
 
+## quickdraw 5.0 (2026-10-04)
+
+The whole template moved from `@fitzzero/quickdraw-core` 4.1 to the 5.0
+release candidate (`5.0.0-rc.5`): the server, the web app, the game and its
+Godot client, the tests, CI and the docs. Everyone signs in once more
+(session tokens now name their session). Upgrading a deployed 4.x
+database: run the migrations, then follow "Upgrading to quickdraw 5.0" in
+`DEPLOYMENT.md` (bootstrap admins sign in once through a provider that
+verifies their address).
+
+### Access changes a fork inherits
+
+Who may do what, against 4.x (each service's access matrix pins its
+methods; `docs/api` lists every method's access).
+
+- **Narrower**
+  - Invites are capped at the inviter's own level on the chat (4.x let a
+    Moderate invite anyone, themself included, at Admin).
+  - Chat memberships follow the sharing kit's three rules: nobody gives a
+    level above their own; only an Admin changes or removes a member at or
+    above the caller's own level (a Moderate manages Read members, an
+    Admin anyone, other Admins included); the chat's last Admin cannot be
+    removed, demoted or leave (`CONFLICT`), whoever asks.
+  - `updateUser` needs the user themself or a userService Moderate grant
+    (4.x let any userService grant, so every signed-in user in
+    development), and answers the public profile only: no `email`.
+  - A user's email counts only once a sign-in provider verified it: an
+    unverified address is never stored (the user gets
+    `<id>@<provider>.local`), never links another sign-in, and never
+    matches `ADMIN_EMAILS`; an `ADMIN_EMAILS` row whose address no provider
+    verified gets the default grants only, not the grants stored on it. A
+    verified sign-in to a user someone signed in to with that address
+    unverified is refused.
+  - GitHub Codespaces origins are allowed outside production only (the
+    sign-in's `returnTo`, CORS and cookie-authenticated sockets).
+  - A chat's live row opens to its members and a chatService Admin grant
+    only (4.x: any chatService grant); `memberUpdate` reaches only the
+    sockets showing the chat's members (4.x: everyone subscribed, never
+    revoked), and a removed member hears no more.
+  - Document sharing follows the sharing kit's rules (no share above the
+    caller's level, the owner never changed).
+- **Wider**
+  - A chat's Admins delete any message in it (4.x: its author and a
+    messageService Admin grant).
+  - A messageService Admin grant posts to any chat (`postMessage`) and
+    opens any chat's live history (`byChat`), as it read every message
+    through 4.x's admin list.
+  - A chat's members open its messages' live rows (4.x: the author and a
+    messageService grant).
+  - Every signed-in user receives `createdAt`, `updatedAt` and `isGuest`
+    of every profile (name and image as before; email and grants stay the
+    user's own and a userService Admin grant's).
+- **New**: `chatService.joinWorldChat` (game only) puts the caller in a
+  world's chat, as `watchWorld` and `joinGame` did; the game's change topic
+  is open to anyone (`watchAccess: "public"`) for the score queries.
+
+### Changed
+
+- **Contracts and services.** Each service is a contract in
+  `packages/shared/src/contracts/` and a `qd.defineService` object in
+  `apps/api`: declared access on every method, a row policy per service
+  (`owner`, `jsonAcl`, `members`, `inherit`, `everyone`), tracked Prisma
+  writes instead of hand-sent events, and the read/write, sharing and admin
+  kits (documents are kits only; grants are edited through the admin kit).
+- **Live lists** are contract collections: `byChat` (anchored on the chat)
+  and `myChats` (through the `ChatMember` table, indexed by user, with a
+  maintained `Chat.memberCount`), ordered by a maintained
+  `Chat.lastMessageAt` column (deleting the latest message moves it back).
+- **Database.** Migrations `chat_last_message_at` and `auth_route_sessions`
+  (4.x sessions end; `Message.acl` goes, the author's Admin is a policy
+  now), `user_email_verified` (every existing user starts unverified),
+  `chat_member_count` (the count backfilled, `chat_members(user_id)`
+  indexed, and a trigger that counts a deleted user's cascaded memberships
+  out of their chats) and `document_acl_without_owner` (drops the owner's
+  own entry 4.x wrote into each document's access list).
+- **Writes that change nothing write nothing**: a repeat `watchWorld` or
+  `joinGame` (the world chat's membership is written once, by the chat
+  service), and a death without a new best; only the game's own writes
+  change its public topic.
+- **The server** is `qd.createServer` on the app's Express app (Socket.IO
+  protocol 5, HTTP calls and MCP from one dispatcher) with the default
+  socket rate limit; sign-in is the auth routes kit over the `Session`
+  table, with `requireSession` for the app's REST routes.
+- **The web app** reads through the typed client (`qd.<service>.<member>`):
+  the wrapper hooks are gone, the admin screens are generic over the admin
+  kit, and Storybook renders components on the mock client.
+- **The game** runs on the realtime kit (an input channel gated on the
+  world's room, a volatile snapshot stream, room events), and the Godot
+  client speaks protocol 5; `bun run check:godot` plays two headless
+  clients through an API restart.
+- **Tests** run on quickdraw's test app: an access matrix per service,
+  live-delta tests over real sockets, component tests against the real
+  server, and committed query budgets for the chat list, a message send, a
+  document share and the game's join.
+- **Tooling.** Lint extends `@fitzzero/quickdraw-lint`'s template config;
+  quickdraw's agent rules and skills are linked into `.claude/` by
+  `@fitzzero/quickdraw-skills`, and this app's own rules were rewritten for
+  5.0; `docs/api` is generated from the contracts and the services by
+  `quickdraw-docs` (who may call each method; `bun run docs:generate`,
+  checked in CI).
+
+### On `5.0.0-rc.5`
+
+The release candidate that fixed what the final review of this migration
+found. Access is unchanged: every access matrix passes as it was. On its
+own the upgrade changed only the generated API reference (the streams'
+intro); the strict test app starts (no method's own output names a tiered
+field, `tiered-field-in-output`), and lint's wider `no-raw-socket` and
+`prefer-kit` find nothing.
+
+- **Security.** A cookie-authenticated HTTP call (`POST /qd/...`) from an
+  origin outside the allowed ones is refused (403), as a cookie socket is:
+  the web app makes none (it calls over its socket, and its REST route
+  takes `requireSession`), and tests pin the rule (allowed origin, another
+  site, no `Origin`, a bearer token). The Discord Activity's best-effort
+  cookie stays SameSite=Lax, now the helper's default: the Activity signs in
+  with its token. `DEPLOYMENT.md` says what a SameSite=Lax cookie needs: the
+  web and the API on one site (the raw `vercel.app` and `run.app` pair signs
+  no socket in), or `cookie: { sameSite: "none" }`.
+- **Game.** The high scores watch `{ service: ["gameScore"] }`: an edit of
+  a world row changes the game's topic too, and no longer makes every score
+  reader fetch them again. Admin edits of definitions reach the sim from the
+  admin kit's `onCommitted`, once the edit committed (one that failed never
+  does). The Godot addon is quickdraw's rc.5 client (a refused stream
+  subscribe is not held, so the game no longer releases it by hand), and
+  the web export is rebuilt.
+- **Web.** A refused send is kept by the client, not in component state:
+  `cache.addItem(..., { onRefused: "keep" })` and `useCollection().refused`,
+  each with `retry()` and `dismiss()`, so it outlives the chat window. A
+  join the server refuses says why and offers `useJoin().retry()`: the chat
+  roster, and the game's pre-game dialog (which no longer resets the
+  player's start). Storybook gives each story a provider of its own
+  (`<qd.$Provider session>`), so a docs page shows every story's session.
+- **Writes that change nothing** send nothing in rc.5, whatever the app
+  does. The app still reads first where it must know what a write did:
+  `joinWorldChat` counts a new member and tells the roster, and
+  `persistScore` tells a first score from a new best; the tests that pin
+  those writes sending nothing stay.
+
+### On `5.0.0-rc.4`
+
+The release candidate that fixed what this migration found: the findings'
+workarounds are gone. What the app still does for itself, the framework
+not (yet) doing it: it reads before a write that may change nothing (a
+tracked write signals its topics even when it changes nothing), counts a
+deleted user's cascaded memberships with a database trigger (the admin
+kit's `onWrite` runs after the delete, when they are gone), and keeps one
+roster room per socket (rooms are joined by methods, and nothing leaves
+one when a page closes).
+
+- **Wire.** `qd:stream` frames are positional
+  (`[service, stream, scope, item]`): the Godot addon is quickdraw's rc.4
+  reference client again, and the bench bots read frames by position.
+- **Web.** A sent message shows at once through the mutation's optimistic
+  add (`cache.addItem`, `useCollection().pending`); sign-in and sign-out use
+  the client's `signInUrl`, `signOut` and `signOutEverywhere` (a refused
+  sign-out now says so and stays); the gates read `isKnown`, and a
+  "Reconnecting…" notice shows while `reconnecting`; the admin screens use
+  `adminOf(qd, key)` and keep the grants field out of their forms
+  (`showInForm: false`, the editor finds it by `kind: "grants"`); the chat
+  roster is read with `useJoin` (it joins the chat's room) and arrives with
+  `setData`; the game page joins its rooms with
+  `useJoin`; Storybook and component tests use the mock's own provider. A
+  refused send stays, with a retry and a dismiss, until the user acts on
+  it.
+- **Game.** The game service brings its own `onRoomLeave`; the world
+  stream's seed is the current world, computed per subscriber, and checked
+  in development only; the audience is `qd.rooms.size`; the high scores
+  watch the service topic (the `scoreSaved` event is gone, and `/scores`
+  updates live); admin edits of definitions reach the sim through the admin
+  kit's `onWrite`; the Godot clock follows the hello's `server_id`.
+- **Server and tests.** REST routes read `sessionOf(req)` and call services
+  as `qd.caller(principal)`, with the user's grants; the world is made
+  before `createServer`; the realtime tests match frames with
+  `streamFrames`/`eventFrames`; PGlite workers open their database with
+  `openPgliteFromTemplate`, and the web tests add `installJsdomShims()`.
+
 ## August 2026 — netcode R&D, PWA, and the move to a `dev` integration branch (2026-08-29)
 
 ### Added

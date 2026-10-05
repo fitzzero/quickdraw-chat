@@ -97,7 +97,7 @@ func _on_world_ready(bootstrap: Dictionary) -> void:
 func _on_join_failed(error: String) -> void:
 	_set_status("Join failed: %s (retrying…)" % error)
 	await get_tree().create_timer(3.0).timeout
-	if not Game.is_in_world and Net.client.is_socket_connected():
+	if not Game.is_in_world and Net.client.is_ready():
 		Game._enter_world()
 
 
@@ -245,9 +245,9 @@ func _process(delta: float) -> void:
 		_camera.position = _camera.position.lerp(
 			_spectate_target, minf(1.0, delta * SPECTATE_PAN_SPEED)
 		)
-	if not Net.client.is_socket_connected() and Game.is_in_world == false:
+	if not Net.client.is_ready() and Game.is_in_world == false:
 		_set_status("Reconnecting…")
-	elif _status.text.begins_with("Reconnecting") and Net.client.is_socket_connected():
+	elif _status.text.begins_with("Reconnecting") and Net.client.is_ready():
 		_set_status("")
 	queue_redraw()
 

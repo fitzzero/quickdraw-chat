@@ -21,6 +21,7 @@ async function seedUsers(): Promise<{ adminId: string; moderatorId: string; user
         chatService: "Admin",
         messageService: "Admin",
         documentService: "Admin",
+        pushService: "Admin",
         // ── quickdraw-game:start ──
         gameService: "Admin",
         definitionService: "Admin",
@@ -60,17 +61,14 @@ async function seedChat(ids: {
   moderatorId: string;
   userId: string;
 }): Promise<void> {
+  const members = [
+    { userId: ids.adminId, level: "Admin" },
+    { userId: ids.moderatorId, level: "Moderate" },
+    { userId: ids.userId, level: "Read" },
+  ];
   const chat = await prisma.chat.create({
-    data: {
-      title: "Welcome 👋",
-      members: {
-        create: [
-          { userId: ids.adminId, level: "Admin" },
-          { userId: ids.moderatorId, level: "Moderate" },
-          { userId: ids.userId, level: "Read" },
-        ],
-      },
-    },
+    // memberCount counts the members, as the chat service keeps it
+    data: { title: "Welcome 👋", memberCount: members.length, members: { create: members } },
   });
 
   const messages: Array<{ userId: string; content: string }> = [
@@ -92,16 +90,19 @@ async function seedChat(ids: {
     },
   ];
 
+  let lastMessageAt = chat.createdAt;
   for (const message of messages) {
-    await prisma.message.create({
+    const created = await prisma.message.create({
       data: {
         chatId: chat.id,
         userId: message.userId,
         content: message.content,
-        acl: [{ userId: message.userId, level: "Admin" }],
       },
     });
+    lastMessageAt = created.createdAt;
   }
+  // The sidebar orders chats by it (messageService.postMessage keeps it current)
+  await prisma.chat.update({ where: { id: chat.id }, data: { lastMessageAt } });
 }
 
 async function seedDocument(ids: { adminId: string; moderatorId: string }): Promise<void> {
@@ -133,6 +134,7 @@ async function seedGameWorld(ids: { adminId: string }): Promise<void> {
   const chat = await prisma.chat.create({
     data: {
       title: "🌍 Game Server",
+      memberCount: 1,
       members: { create: [{ userId: ids.adminId, level: "Admin" }] },
     },
   });
@@ -148,13 +150,16 @@ async function seedGameWorld(ids: { adminId: string }): Promise<void> {
     },
   });
 
-  await prisma.message.create({
+  const welcome = await prisma.message.create({
     data: {
       chatId: chat.id,
       userId: ids.adminId,
       content: "Welcome to the game server chat — everyone who joins the game lands here.",
-      acl: [{ userId: ids.adminId, level: "Admin" }],
     },
+  });
+  await prisma.chat.update({
+    where: { id: chat.id },
+    data: { lastMessageAt: welcome.createdAt },
   });
 }
 

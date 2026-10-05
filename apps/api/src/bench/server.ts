@@ -1,30 +1,34 @@
 /**
  * Bench server bootstrap — the integration-test server recipe
- * (__tests__/utils/server.ts + setup.ts) minus vitest, plus a RUNNING game
+ * (__tests__/utils/app.ts + setup.ts) minus vitest, plus a RUNNING game
  * loop and the ground-truth recorder. PGlite by default (the tick path is
  * DB-free; score writes are fire-and-forget), real PostgreSQL when
- * TEST_DATABASE_URL is set.
+ * TEST_DATABASE_URL is set. The bots sign in as the Godot editor does: the
+ * app's own `authenticate` with development credentials (`auth: { userId }`).
  *
  * IMPORTANT: import this module only AFTER setting the bench env
- * (see setupBenchEnv in run.ts) — services read env at import time.
+ * (see run.ts) — the app's sign-in reads ENABLE_DEV_CREDENTIALS when built.
  */
 
+import type { AddressInfo } from "node:net";
 import { PrismaClient } from "@project/db";
-import { setTestPrisma, testPrisma } from "@project/db/testing";
+import { setTestPrisma, testDb, testPrisma } from "@project/db/testing";
 import type { Scenario } from "@project/bench";
-import { createPrismaTestGlobalSetup } from "@fitzzero/quickdraw-core/server/testing/prisma";
-import { createQuickdrawServer } from "@fitzzero/quickdraw-core/server";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { buildServices } from "../services/build-services.js";
-import type { GameService } from "../services/game/index.js";
+import {
+  createPrismaTestGlobalSetup,
+  openPgliteFromTemplate,
+} from "@fitzzero/quickdraw-core/testing/prisma";
+import { TEST_TEMPLATE } from "../__tests__/utils/test-template.js";
+import { createAppAuth } from "../auth/index.js";
+import { qd } from "../quickdraw.js";
+import { serviceNames, services } from "../services/index.js";
 import { ensureGlobalWorld } from "../services/game/bootstrap.js";
-import { createSocketAuth } from "../auth/middleware.js";
+import { createGameRuntime, type GameRuntime } from "../services/game/runtime.js";
 import { createGroundTruthRecorder, type GroundTruthRecorder } from "./ground-truth.js";
 
 export interface BenchServer {
   port: number;
-  gameService: GameService;
+  game: GameRuntime;
   recorder: GroundTruthRecorder;
   /** bot name → user id, one distinct user per bot (rate limits key by user) */
   users: Map<string, string>;
@@ -39,33 +43,31 @@ async function ensureDatabase(): Promise<void> {
   if (dbReady) return;
 
   const setup = createPrismaTestGlobalSetup({
-    migrationsDir: resolve(process.cwd(), "../../packages/db/prisma/migrations"),
+    ...TEST_TEMPLATE,
     templateDbName: "quickdraw_chat_test",
-    templateName: "quickdraw-chat-test-template",
     workerCount: 1,
   });
   await setup();
 
   if (!process.env.TEST_DATABASE_URL) {
-    const { PGlite } = await import("@electric-sql/pglite");
     const { PrismaPGlite } = await import("pglite-prisma-adapter");
-    const templatePath = resolve(
-      process.cwd(),
-      "node_modules/.cache/quickdraw-chat-test-template.tar.gz",
-    );
-    const blob = new Blob([readFileSync(templatePath)], { type: "application/x-gzip" });
-    const pglite = new PGlite({ loadDataDir: blob });
-    await pglite.waitReady;
-    const adapter = new PrismaPGlite(pglite);
-    setTestPrisma(new PrismaClient({ adapter, log: [] }));
+    const pglite = await openPgliteFromTemplate(TEST_TEMPLATE);
+    setTestPrisma(new PrismaClient({ adapter: new PrismaPGlite(pglite), log: [] }));
     pgliteClose = () => pglite.close();
   }
   dbReady = true;
 }
 
-export async function startBenchServer(scenario: Scenario): Promise<BenchServer> {
+export interface BenchServerOptions {
+  /** The port to listen on; default any free one. The Godot check restarts on the same one. */
+  readonly port?: number;
+}
+
+export async function startBenchServer(
+  scenario: Scenario,
+  options: BenchServerOptions = {},
+): Promise<BenchServer> {
   await ensureDatabase();
-  await ensureGlobalWorld(testPrisma);
 
   const users = new Map<string, string>();
   for (const spec of scenario.clients) {
@@ -79,19 +81,9 @@ export async function startBenchServer(scenario: Scenario): Promise<BenchServer>
   }
 
   const recorder = createGroundTruthRecorder();
-  const services = buildServices(testPrisma, {
-    game: {
-      simSeed: scenario.seed,
-      tunables: scenario.tunables ?? {},
-      onTick: recorder.onTick,
-    },
-  });
-  const { gameService } = services;
 
   // Benchmarks measure timing — keep the hot path free of console I/O
-  const silent = () => {
-    /* no-op */
-  };
+  const silent = (): void => undefined;
   const silentLogger = {
     info: silent,
     warn: silent,
@@ -100,42 +92,38 @@ export async function startBenchServer(scenario: Scenario): Promise<BenchServer>
     child: () => silentLogger,
   };
 
-  const { io, httpServer } = createQuickdrawServer({
-    port: 0,
+  const server = qd.createServer({
     services,
+    db: testDb,
     logger: silentLogger,
     // Tier 2 connects real browsers (pages served from the web dev server)
-    cors: {
-      origin: [process.env.CLIENT_URL ?? "http://localhost:3000"],
-      credentials: true,
-    },
-    auth: createSocketAuth({
-      prisma: testPrisma,
-      getServiceNames: () => Object.keys(services),
-    }),
+    cors: { origin: [process.env.CLIENT_URL ?? "http://localhost:3000"], credentials: true },
+    // bots sign in with development credentials (auth.userId)
+    auth: createAppAuth({ prisma: testPrisma, serviceNames }).server,
   });
-
+  await ensureGlobalWorld(testDb);
+  // anyone in the world's room keeps it running; a bot whose socket left the
+  // world leaves the sim (the game service's onRoomLeave), as a player does
+  const game = createGameRuntime(testDb, {
+    simSeed: scenario.seed,
+    tunables: scenario.tunables ?? {},
+    onTick: recorder.onTick,
+  });
   await new Promise<void>((resolvePort) => {
-    httpServer.once("listening", () => resolvePort());
+    server.httpServer.listen(options.port ?? 0, () => resolvePort());
   });
-  const address = httpServer.address();
-  if (!address || typeof address === "string") {
-    throw new Error("bench server failed to bind a port");
-  }
+  const { port } = server.httpServer.address() as AddressInfo;
 
-  gameService.startLoop();
+  game.loop.start();
 
   return {
-    port: address.port,
-    gameService,
+    port,
+    game,
     recorder,
     users,
     stop: async () => {
-      gameService.stopLoop();
-      await io.close();
-      await new Promise<void>((resolveClose) => {
-        httpServer.close(() => resolveClose());
-      });
+      game.loop.stop();
+      await server.close();
     },
   };
 }

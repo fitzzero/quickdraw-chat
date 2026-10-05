@@ -54,7 +54,8 @@
         "src/**/*.tsx",
         "../../.oxlintrc.json",
         "../../eslint-plugin-project/**",
-        "../../node_modules/@fitzzero/quickdraw-core/oxlint.base.jsonc"
+        "../../node_modules/@fitzzero/quickdraw-lint/oxlint.base.jsonc",
+        "../../node_modules/@fitzzero/quickdraw-lint/oxlint.template.jsonc"
       ],
       "outputs": [],
       "cache": true

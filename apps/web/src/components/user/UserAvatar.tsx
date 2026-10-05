@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Avatar, Skeleton, Tooltip } from "@mui/material";
-import { useSubscription } from "../../hooks";
+import { qd } from "../../lib/quickdraw";
 
 export interface UserAvatarProps {
   userId: string;
@@ -22,7 +22,7 @@ export function UserAvatar({
   size = 40,
   showTooltip = true,
 }: UserAvatarProps): React.ReactElement {
-  const { data: user, isLoading } = useSubscription("userService", userId);
+  const { data: user, isLoading } = qd.userService.useEntity(userId);
 
   if (isLoading || !user) {
     return <Skeleton variant="circular" width={size} height={size} />;

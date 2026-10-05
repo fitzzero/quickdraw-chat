@@ -27,16 +27,19 @@
     "db:push": "turbo db:push",
     "db:migrate": "turbo db:migrate",
     "db:seed": "turbo db:seed",
-    "docs:generate": "tsx scripts/generate-docs.ts",
+    "docs:generate": "turbo build --filter=@project/shared --filter=@project/db --output-logs=errors-only && bun run --cwd packages/shared docs:generate",
+    "docs:check": "turbo build --filter=@project/shared --filter=@project/db --output-logs=errors-only && bun run --cwd packages/shared docs:check",
     "bench:netcode": "turbo build --filter=@project/shared --filter=@project/bench && bun run --cwd apps/api bench:netcode",
     "bench:server": "turbo build --filter=@project/shared --filter=@project/bench && bun run --cwd apps/api bench:server",
     "bench:compare": "tsx packages/bench/src/cli/compare.ts",
+    "check:godot": "turbo build --filter=@project/shared --filter=@project/bench && bun run --cwd apps/api check:godot",
     "build:prod": "NODE_ENV=production turbo build",
     "db:migrate:deploy": "cd packages/db && bun run db:migrate:deploy",
-    "prepare": "husky && conveyor-skills link"
+    "prepare": "husky && conveyor-skills link && quickdraw-skills link"
   },
   "devDependencies": {
-    "@fitzzero/quickdraw-core": "^4.1.0",
+    "@fitzzero/quickdraw-lint": "5.0.0-rc.5",
+    "@fitzzero/quickdraw-skills": "5.0.0-rc.5",
     "@rallycry/conveyor-skills": "^1.0.4",
     "@types/node": "^24.0.0",
     "@typescript/native-preview": "^7.0.0-dev",

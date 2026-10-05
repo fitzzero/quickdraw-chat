@@ -1,170 +1,38 @@
-import type { User, Prisma, PrismaClient } from "@project/db";
-import type { UserDTO, UserServiceMethods, AccessLevel } from "@project/shared";
-import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
-import { z } from "zod";
-import { cuidSchema } from "../shared/index.js";
+import { admin, anyOf, everyone, owner } from "@fitzzero/quickdraw-core/server";
+import { userContract } from "@project/shared";
+import { qd } from "../../quickdraw.js";
 
-// Zod schemas for validation
-const updateUserSchema = z.object({
-  id: cuidSchema("user ID"),
-  data: z.object({
-    name: z.string().min(1).max(50).optional(),
-    image: z.string().url("Invalid image URL").optional(),
-  }),
-});
-
-// Admin schema - defines fields available for admin CRUD
-const adminUserSchema = z.object({
-  email: z.string().email(),
-  name: z.string().optional(),
-  image: z.string().url().optional(),
-  serviceAccess: z.record(z.string(), z.enum(["Public", "Read", "Moderate", "Admin"])).optional(),
-});
-
-export class UserService extends BaseService<
-  User,
-  Prisma.UserCreateInput,
-  Prisma.UserUpdateInput,
-  UserServiceMethods,
-  Record<string, never>,
-  UserDTO
-> {
-  private readonly prisma: PrismaClient;
-
-  constructor(prisma: PrismaClient) {
-    super({ serviceName: "userService", hasEntryACL: false });
-    this.prisma = prisma;
-    this.setDelegate(prisma.user);
-    this.initMethods();
-
-    // Install admin CRUD methods
-    this.installAdminMethods({
-      expose: {
-        list: true,
-        get: true,
-        create: true,
-        update: true,
-        delete: true,
-      },
-      access: {
-        list: "Admin",
-        get: "Admin",
-        create: "Admin",
-        update: "Admin",
-        delete: "Admin",
-        setEntryACL: "Admin",
-        getSubscribers: "Admin",
-        reemit: "Admin",
-        unsubscribeAll: "Admin",
-      },
-      schema: adminUserSchema,
-      displayName: "Users",
-      tableColumns: ["id", "email", "name", "createdAt"],
-      // serviceAccess is exposed but handled by custom UI in admin sidebar:
-      // editable via custom component, raw JSON hidden from the table
-      fieldOverrides: {
-        serviceAccess: {
-          editable: true,
-          showInTable: false,
-          label: "Service Access",
-        },
-      },
-    });
-  }
-
-  // Wire shape: the public profile + protected fields (see below)
-  protected override toDto(user: User): UserDTO {
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      image: user.image,
-      serviceAccess: user.serviceAccess as Record<string, AccessLevel> | null,
-    };
-  }
-
-  // Users can access their own data
-  protected override checkAccess(
-    userId: string,
-    entryId: string,
-    requiredLevel: AccessLevel,
-    _socket: QuickdrawSocket,
-  ): boolean {
-    // Any authenticated user can read any profile (for profile viewing)
-    if (requiredLevel === "Read") {
-      return true;
-    }
-    // For write operations, only self-access
-    return userId === entryId;
-  }
-
-  // Protected fields (of the wire DTO) that non-elevated subscribers won't
-  // receive — live emits strip these for everyone outside the :full room
-  protected override getProtectedFields(): (keyof UserDTO)[] {
-    return ["email", "serviceAccess"];
-  }
-
-  private initMethods(): void {
-    // Get current user
-    this.defineMethod(
-      "getMe",
-      "Read",
-      async (_payload, ctx) => {
-        if (!ctx.userId) return null;
-
-        const user = await this.prisma.user.findUnique({
-          where: { id: ctx.userId },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            image: true,
-            serviceAccess: true,
-          },
-        });
-
-        if (!user) return null;
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-          serviceAccess: user.serviceAccess as Record<string, AccessLevel> | null,
-        };
-      },
-      { schema: z.object({}) },
-    );
-
-    // Update user profile
-    this.defineMethod(
-      "updateUser",
-      "Read",
-      async (payload, ctx) => {
-        // Users can only update themselves unless they have service-level access
-        if (payload.id !== ctx.userId && !ctx.serviceAccess.userService) {
-          throw new Error("Cannot update other users");
-        }
-
+/**
+ * Users: each user holds Admin on their own row (`owner` on `id`), which
+ * gives them their email and grants (the contract's `fields` keep both at
+ * Admin), and every signed-in user reads the rest of every profile: their
+ * name and image (`everyone("Read")`). Service administrators edit users
+ * through the admin kit, grants included (`grants: true`).
+ */
+export const userService = qd.defineService(userContract, {
+  model: "user",
+  access: anyOf(owner("id"), everyone("Read")),
+  methods: {
+    getMe: {
+      // the caller's own row: names no row by id
+      access: "authenticated",
+      handler: ({ ctx, db }) => db.user.findUnique({ where: { id: ctx.principal.userId } }),
+    },
+    // quickdraw: hand-written because a taken name answers { error: "name_taken" } (the profile form shows it) where the read/write kit's update answers CONFLICT, and it answers the changed public profile rather than the entity
+    updateUser: {
+      // the user themself (Admin on their row) or a service-wide userService
+      // Moderate grant (SERVICE_DEFAULT_ACCESS gives every signed-in user
+      // Read, which is not enough)
+      access: { service: "Moderate", entry: "Moderate" },
+      handler: async ({ input, db }) => {
         try {
-          const updated = await this.prisma.user.update({
-            where: { id: payload.id },
-            data: {
-              name: payload.data.name,
-              image: payload.data.image,
-            },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              image: true,
-            },
+          // the public profile only: the contract's field tiers do not strip
+          // a hand-written output, so `email` stays out of it
+          return await db.user.update({
+            where: { id: input.id },
+            data: { name: input.data.name, image: input.data.image },
+            select: { id: true, name: true, image: true },
           });
-
-          // Emit update to subscribers
-          this.emitUpdate(payload.id, updated);
-
-          return updated;
         } catch (error) {
           // User.name is unique — surface collisions as a typed result
           // (mirrors chatService.inviteByName's { error } pattern)
@@ -174,13 +42,18 @@ export class UserService extends BaseService<
           throw error;
         }
       },
-      {
-        schema: updateUserSchema,
-        resolveEntryId: (p) => p.id,
-      },
-    );
-
-    // Fail fast at construction if the method map and definitions drift
-    this.verifyAllMethods(["getMe", "updateUser"]);
-  }
-}
+    },
+    // The admin screens: every user, for holders of a service-wide Admin
+    // grant. `grants: true` shows and writes `serviceAccess` through
+    // `adminUpdate`, for callers whose own userService grant is Admin only;
+    // the tracked write refreshes the user's open sockets (the server names
+    // the column in `auth.serviceAccessSource`).
+    ...admin.handlers(userContract, {
+      displayName: "Users",
+      grants: true,
+      // edited by the grants editor on the user's admin page (which finds the
+      // field by its `kind: "grants"`): neither a column nor a generic form field
+      fieldOverrides: { serviceAccess: { showInTable: false, showInForm: false } },
+    }),
+  },
+});

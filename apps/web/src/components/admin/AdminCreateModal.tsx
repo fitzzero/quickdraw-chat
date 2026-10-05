@@ -19,13 +19,15 @@ import {
   Box,
 } from "@mui/material";
 import { useTranslations } from "next-intl";
-import { useService } from "@fitzzero/quickdraw-core/client";
+import type { AdminScreen } from "@fitzzero/quickdraw-core/client";
 import type { AdminServiceMeta, AdminFieldConfig } from "@project/shared";
+import { useErrorText } from "../../hooks/useErrorText";
 
 interface AdminCreateModalProps {
   open: boolean;
   onClose: () => void;
-  serviceName: string;
+  /** The service's adminCreate (the admin kit's member, from `adminOf(qd, key)`). */
+  adminCreate: NonNullable<AdminScreen["adminCreate"]>;
   meta: AdminServiceMeta;
   onSuccess: () => void;
 }
@@ -55,47 +57,45 @@ function getDefaultValue(field: AdminFieldConfig): unknown {
 export function AdminCreateModal({
   open,
   onClose,
-  serviceName,
+  adminCreate,
   meta,
   onSuccess,
 }: AdminCreateModalProps): React.ReactElement {
   const t = useTranslations("Common");
   const tAdmin = useTranslations("Admin");
+  const errorText = useErrorText();
+
+  // The fields the form writes: the editable ones, but those an override
+  // keeps out of a generic form (a user's grants, which have their own editor)
+  const formFields = React.useMemo(
+    () => meta.fields.filter((f) => f.editable && f.showInForm !== false && f.name !== "id"),
+    [meta.fields],
+  );
 
   // Initialize form values with defaults
   const [values, setValues] = React.useState<Record<string, unknown>>(() => {
     const initial: Record<string, unknown> = {};
-    meta.fields
-      .filter((f) => f.editable && f.name !== "id")
-      .forEach((field) => {
-        initial[field.name] = getDefaultValue(field);
-      });
+    formFields.forEach((field) => {
+      initial[field.name] = getDefaultValue(field);
+    });
     return initial;
   });
 
-  const [error, setError] = React.useState<string | null>(null);
-
-  // The admin protocol uses dynamic event names not present in
-  // ServiceMethodsMap, so use the generic quickdraw-core useService here.
-  const adminCreate = useService<{ data: Record<string, unknown> }, Record<string, unknown>>(
-    serviceName,
-    "adminCreate",
-  );
-  const isSubmitting = adminCreate.isPending;
+  const create = adminCreate.useMutation();
+  const isSubmitting = create.isPending;
+  const { reset } = create;
 
   // Reset form when modal opens
   React.useEffect(() => {
     if (open) {
       const initial: Record<string, unknown> = {};
-      meta.fields
-        .filter((f) => f.editable && f.name !== "id")
-        .forEach((field) => {
-          initial[field.name] = getDefaultValue(field);
-        });
+      formFields.forEach((field) => {
+        initial[field.name] = getDefaultValue(field);
+      });
       setValues(initial);
-      setError(null);
+      reset();
     }
-  }, [open, meta.fields]);
+  }, [open, formFields, reset]);
 
   // Update a field value
   const handleFieldChange = (fieldName: string, value: unknown) => {
@@ -103,28 +103,19 @@ export function AdminCreateModal({
   };
 
   // Submit form
-  const handleSubmit = React.useCallback(async (): Promise<void> => {
-    setError(null);
-
+  const handleSubmit = (): void => {
     // Filter out empty values for optional fields
     const createData: Record<string, unknown> = {};
-    meta.fields
-      .filter((f) => f.editable && f.name !== "id")
-      .forEach((field) => {
-        const value = values[field.name];
-        // Include required fields always, optional fields only if not empty
-        if (field.required || (value !== "" && value !== null && value !== undefined)) {
-          createData[field.name] = value;
-        }
-      });
+    formFields.forEach((field) => {
+      const value = values[field.name];
+      // Include required fields always, optional fields only if not empty
+      if (field.required || (value !== "" && value !== null && value !== undefined)) {
+        createData[field.name] = value;
+      }
+    });
 
-    try {
-      await adminCreate.mutateAsync({ data: createData });
-      onSuccess();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, [adminCreate, values, meta.fields, onSuccess]);
+    create.mutate({ data: createData }, { onSuccess });
+  };
 
   // Render field input
   const renderInput = (field: AdminFieldConfig): React.ReactNode => {
@@ -218,18 +209,16 @@ export function AdminCreateModal({
     }
   };
 
-  // Get editable fields (excluding id, createdAt, updatedAt)
-  const editableFields = meta.fields.filter(
-    (f) => f.editable && f.name !== "id" && f.name !== "createdAt" && f.name !== "updatedAt",
-  );
+  // The inputs shown: the form's fields but the timestamps
+  const editableFields = formFields.filter((f) => f.name !== "createdAt" && f.name !== "updatedAt");
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{tAdmin("createTitle")}</DialogTitle>
       <DialogContent>
-        {error && (
+        {create.error !== null && (
           <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
+            {errorText(create.error)}
           </Alert>
         )}
 
@@ -243,13 +232,7 @@ export function AdminCreateModal({
         <Button onClick={onClose} disabled={isSubmitting}>
           {t("cancel")}
         </Button>
-        <Button
-          onClick={(): void => {
-            void handleSubmit();
-          }}
-          variant="contained"
-          disabled={isSubmitting}
-        >
+        <Button onClick={handleSubmit} variant="contained" disabled={isSubmitting}>
           {isSubmitting ? <CircularProgress size={20} /> : t("create")}
         </Button>
       </DialogActions>

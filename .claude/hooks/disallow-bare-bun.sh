@@ -12,7 +12,7 @@ if [ -z "$COMMAND" ]; then
 fi
 
 # Package.json script names that conflict with or bypass turbo when run as bare bun commands
-SCRIPTS="dev|build|build:prod|lint|lint:fix|format|format:check|typecheck|check|test|test:unit|test:int|test:int:watch|test:watch|test:coverage|clean|db:generate|db:push|db:migrate|db:migrate:deploy|db:seed|db:studio|docs:generate|precommit"
+SCRIPTS="dev|build|build:prod|lint|lint:fix|format|format:check|typecheck|check|test|test:unit|test:int|test:int:watch|test:watch|test:coverage|clean|db:generate|db:push|db:migrate|db:migrate:deploy|db:seed|db:studio|docs:generate|docs:check|precommit"
 
 # Match `bun <script>` anywhere in the command, with optional trailing args
 # but NOT `bun run <script>`, `bun x <script>`, `bunx`, `bun install`, etc.

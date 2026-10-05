@@ -6,33 +6,54 @@ paths:
 
 # Linting
 
-Two-layer oxlint setup; all packages lint with `oxlint -c ../../.oxlintrc.json`.
+oxlint, run per package by turbo (`bun run lint`, each package's
+`oxlint -c ../../.oxlintrc.json src`), in two layers:
 
-1. **Framework base** — `.oxlintrc.json` extends
-   `node_modules/@fitzzero/quickdraw-core/oxlint.base.jsonc`: the strict rule
-   set (categories at `deny`, `no-unsafe-*` family, complexity budgets), the
-   `quickdraw` jsPlugin, and path-scoped overrides for `services/**`, web/tsx,
-   `packages/shared|db`, and tests. It updates with the package — don't copy
-   its rules into this repo's config.
-2. **Project layer** — `.oxlintrc.json` holds only what is ours: the
-   `no-cross-service-mutations` `allowedModels` map, file-specific overrides,
-   `ignorePatterns`, and the local `project` plugin
-   (`eslint-plugin-project/`, currently `project/no-prisma-in-routes`).
+1. **The framework's** — `.oxlintrc.json` extends
+   `node_modules/@fitzzero/quickdraw-lint/oxlint.template.jsonc`, which
+   extends `oxlint.base.jsonc` (the strict categories, the `no-unsafe-*`
+   family, complexity budgets, the `quickdraw` plugin's rules and its path
+   overrides for the web app, `packages/shared|db` and tests) and adds the
+   design-system rules (no raw strings in MUI `Button`, `Typography` and a
+   `Tooltip`'s `title`). They update with the package: never copy their
+   rules here. `node_modules/@fitzzero/quickdraw-lint/README.md` lists every
+   quickdraw rule; the linked `quickdraw-services.md` and
+   `quickdraw-client.md` say what each one protects.
+2. **This app's** — `.oxlintrc.json` holds only what is ours: the
+   `plugins` list, `ignorePatterns`, file overrides
+   <!-- ── quickdraw-game:start ── -->
+   (the netcode bench drives raw sockets and prints, on purpose)
+   <!-- ── quickdraw-game:end ── -->
+   and the local `project` plugin (`eslint-plugin-project/`, no rules yet).
+
+Fix the code, not the rule. A rule that must not apply to one line takes an
+`// oxlint-disable-next-line <rule> -- <why>` comment; a whole kind of file,
+an override here with a reason.
+
+## A new rule with old violations
+
+There is no baseline: the app has no violations left. To adopt a new rule
+before its old violations are fixed, record them with
+`node_modules/.bin/quickdraw-lint baseline` (it writes
+`.quickdraw-lint-baseline.json`), name the file in
+`settings.quickdraw.baseline`, and lint with `quickdraw-lint check`
+instead of plain oxlint until the baseline is empty again. Never re-run the
+baseline to let a new violation through.
 
 ## oxlint extends gotchas
 
-- `overrides` concatenate base-first → a consumer override on the same glob
-  wins (that's how the `allowedModels` map relaxes the base's strict default).
-- `rules`/`categories` merge per-key, consumer wins.
-- **Not inherited**: `ignorePatterns`, `env`, `globals`, `settings` — declare
+- `overrides` concatenate base first, so an override here on the same glob
+  wins; `rules` and `categories` merge per key, this file winning.
+- **Not inherited**: `ignorePatterns`, `env`, `globals`, `settings`: declare
   them here.
-- Keep the explicit `plugins` array mirroring the base; omitting it unions
-  oxlint's _default_ plugin set into the merge and produces surprise
-  diagnostics.
+- Keep the explicit `plugins` array: leaving it out unions oxlint's default
+  plugins into the merge and brings surprise diagnostics.
+- Globs in `overrides` and `ignorePatterns` match paths as seen from where
+  oxlint runs, each package directory: keep them `**/`-prefixed.
 
 ## Adding a custom rule
 
-See `eslint-plugin-project/README.md`: add `rules/<name>.mjs`, register in
-`index.mjs`, enable under `project/<name>` in `.oxlintrc.json` (scoped via
-`overrides` when it targets specific paths). Framework-generic rules belong
-upstream in quickdraw-core's plugin + base config instead.
+See `eslint-plugin-project/README.md`: add `rules/<name>.mjs`, register it in
+`index.mjs`, enable it as `project/<name>` in `.oxlintrc.json` (in an
+override when it targets some paths). A rule every quickdraw app should have
+belongs upstream in `@fitzzero/quickdraw-lint`.

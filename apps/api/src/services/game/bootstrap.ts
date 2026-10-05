@@ -13,52 +13,71 @@ import {
   GLOBAL_WORLD_SLUG,
   SNAKE_TUNABLES_KEY,
 } from "@project/shared";
+import type { db as appDb } from "../../db.js";
+import { qd } from "../../quickdraw.js";
 import type { GameTunables } from "./world.js";
+
+type Db = typeof appDb;
 
 export const GLOBAL_WORLD_NAME = "Snake — Global";
 export const GLOBAL_WORLD_CHAT_TITLE = "🌍 Game Server";
 
-export async function ensureGlobalWorld(prisma: PrismaClient): Promise<GameWorld> {
-  const world = await prisma.gameWorld.upsert({
-    where: { id: GLOBAL_WORLD_ID },
-    update: {},
-    create: {
-      id: GLOBAL_WORLD_ID,
-      slug: GLOBAL_WORLD_SLUG,
-      name: GLOBAL_WORLD_NAME,
-    },
-  });
+/**
+ * Makes the global world and its chat, once: through the tracked client in a
+ * unit of work of its own (`qd.run`), before or after `createServer` (before
+ * it, the writes reach no one: no socket can be subscribed yet).
+ */
+export async function ensureGlobalWorld(db: Db): Promise<GameWorld> {
+  return await qd.run(async () => {
+    const world = await db.gameWorld.upsert({
+      where: { id: GLOBAL_WORLD_ID },
+      update: {},
+      create: {
+        id: GLOBAL_WORLD_ID,
+        slug: GLOBAL_WORLD_SLUG,
+        name: GLOBAL_WORLD_NAME,
+      },
+    });
 
-  if (world.chatId) {
-    // Guard against a dangling chatId (e.g. chat deleted via admin UI)
-    const chat = await prisma.chat.findUnique({
-      where: { id: world.chatId },
+    if (world.chatId) {
+      // Guard against a dangling chatId (e.g. chat deleted via admin UI)
+      const chat = await db.chat.findUnique({
+        where: { id: world.chatId },
+        select: { id: true },
+      });
+      if (chat) return world;
+    }
+
+    const chat = await db.chat.create({
+      data: { title: GLOBAL_WORLD_CHAT_TITLE },
       select: { id: true },
     });
-    if (chat) return world;
-  }
 
-  const chat = await prisma.chat.create({
-    data: { title: GLOBAL_WORLD_CHAT_TITLE },
-    select: { id: true },
+    return await db.gameWorld.update({
+      where: { id: GLOBAL_WORLD_ID },
+      data: { chatId: chat.id },
+    });
   });
+}
 
-  return await prisma.gameWorld.update({
-    where: { id: GLOBAL_WORLD_ID },
-    data: { chatId: chat.id },
-  });
+/**
+ * A stored tunables object as the sim takes it: {} for anything but an
+ * object. Values are sanitized by GameWorldSim.applyTunables.
+ */
+export function snakeTunablesOf(data: unknown): Partial<GameTunables> {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return {};
+  return data as Partial<GameTunables>;
 }
 
 /**
  * Load snake tunables from the DefinitionService row (seeded; may be
  * admin-edited). Returns {} when absent — the sim falls back to
- * DEFAULT_TUNABLES. Values are sanitized by GameWorldSim.applyTunables.
+ * DEFAULT_TUNABLES.
  */
 export async function loadSnakeTunables(prisma: PrismaClient): Promise<Partial<GameTunables>> {
   const row = await prisma.definition.findUnique({
     where: { type_key: { type: DEFINITION_TYPES.tunables, key: SNAKE_TUNABLES_KEY } },
     select: { data: true, enabled: true },
   });
-  if (!row?.enabled || typeof row.data !== "object" || row.data === null) return {};
-  return row.data as Partial<GameTunables>;
+  return row?.enabled ? snakeTunablesOf(row.data) : {};
 }

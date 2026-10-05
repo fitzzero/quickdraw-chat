@@ -29,17 +29,25 @@ the build.
 ## Context and mocking
 
 - NEVER import `src/providers/index.tsx` or `src/providers/ThemeProvider.tsx`
-  in stories or Storybook config — the first drags in the socket layer, the
-  second is Next-runtime-only (`useServerInsertedHTML`). The global decorator
-  in `.storybook/preview.tsx` already provides theme + intl + toasts.
+  in stories or Storybook config — the first mounts the real
+  `QuickdrawProvider`, the second is Next-runtime-only
+  (`useServerInsertedHTML`). The global decorator in `.storybook/preview.tsx`
+  already provides theme + intl + toasts + the story's quickdraw session.
 - Components calling `useLayout()`: add `withLayoutProvider` from
   `src/stories/decorators.tsx`.
-- Socket-coupled components (`useSubscription`/`useCollection`/`useService`):
-  add `withMockSocket` and configure `parameters.mockSocket` with
-  `mockSuccessEmit`/`mockErrorEmit` from
-  `@fitzzero/quickdraw-core/client/testing`. Subscriptions answer via
-  `<service>:batchSubscribe` → `{ [id]: entity }`; collections via
-  `<service>:collection:subscribe` → `{ items, rev, totalCount, nextCursor }`.
+- Components on quickdraw (`qd.<service>.<member>` hooks, `useQuickdraw()`)
+  render over `createMockClient`: Storybook aliases `src/lib/quickdraw.ts` to
+  `src/stories/quickdraw.tsx`, and the global decorator renders every story
+  inside a `qd.$Provider` of its own, where the real `useQuickdraw()` reads
+  the story's session. Import `qd` from there and set what the hooks show in
+  the story's `beforeEach` (`qd.<service>.<collection>.mockScope`,
+  `qd.<service>.useEntity.mockRow`/`mockError`, `qd.<service>.<method>.mockResolvedValue`);
+  give each story its own ids (a docs page renders them together); what no
+  story sets stays loading. `parameters.quickdraw.session` (`userId`,
+  `serviceAccess`, `isConnected`, `isKnown`) sets who the story renders as:
+  the decorator passes it as that provider's `session`, so stories side by
+  side each keep theirs. Never set it with `qd.$session` (one session for
+  every story on the page).
 - Route-dependent components: mock the pathname with
   `parameters: { nextjs: { navigation: { pathname: "/..." } } }`.
 - Do not add ports or boot steps for Storybook to `turbo dev`, pod boot

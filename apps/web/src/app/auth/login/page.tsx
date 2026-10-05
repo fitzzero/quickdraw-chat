@@ -13,7 +13,8 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { useTranslations } from "next-intl";
-import { getOAuthUrl, isMockLoginEnabled } from "../../../lib/auth";
+import { signInUrl } from "@fitzzero/quickdraw-core/client";
+import { AUTH_ROUTES, isMockLoginEnabled } from "../../../lib/auth";
 
 // Discord icon SVG
 function DiscordIcon(): React.ReactElement {
@@ -54,23 +55,27 @@ function LoginContent(): React.ReactElement {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
 
+  // Each starts at the auth routes' /auth/{provider}/start, which returns to
+  // this page's origin (/auth/callback) once the provider let the user in
   const handleDiscordLogin = () => {
-    window.location.href = getOAuthUrl("discord");
+    window.location.href = signInUrl("discord", AUTH_ROUTES);
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = getOAuthUrl("google");
+    window.location.href = signInUrl("google", AUTH_ROUTES);
   };
 
   const handleMockLogin = () => {
-    window.location.href = getOAuthUrl("mock");
+    window.location.href = signInUrl("mock", AUTH_ROUTES);
   };
 
+  // The auth routes' failed sign-ins land here with ?error=denied (the user
+  // declined at the provider), failed, or state (an expired or replayed attempt)
   const getErrorMessage = (errorCode: string): string => {
     switch (errorCode) {
-      case "no_code":
+      case "denied":
         return t("errorCancelled");
-      case "oauth_failed":
+      case "failed":
         return t("errorFailed");
       default:
         return t("errorGeneric");

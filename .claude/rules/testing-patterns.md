@@ -1,54 +1,104 @@
 ---
 paths:
   - "**/*.test.ts"
-  - "**/*.int.test.ts"
+  - "**/*.test.tsx"
   - "apps/api/src/__tests__/**/*"
+  - "apps/web/src/__tests__/**/*"
 ---
 
 # Testing Patterns
 
-Two lanes, split by filename:
+What every service's tests cover (an access matrix, live behavior, budgets,
+error codes) and the testing helpers (`createTestApp`, `describeAccessMatrix`,
+`expectBudget`, `renderWithQuickdraw`, `createMockClient`) are in the linked
+`quickdraw-testing.md`. This is this app's set-up.
 
-- **Unit** (`*.test.ts`, not `.int.`): pure logic, no database. `bun run test:unit`.
-- **Integration** (`*.int.test.ts`): real services against a real database.
-  `bun run test:int`. Files live at `apps/api/src/__tests__/services/*.int.test.ts`.
+## Lanes
 
-## Dual-mode test database
+- **Unit** (`*.test.ts`, not `.int.`): pure logic, no database
+  (`bun run test:unit`): the API's utilities, the PWA helpers.
+  <!-- ── quickdraw-game:start ── -->
+  Also the game sim and loop, and the bench's metrics.
+  <!-- ── quickdraw-game:end ── -->
+- **Integration** (`*.int.test.ts(x)`): the real server against a real
+  database (`bun run test:int`). The API's suites are
+  `apps/api/src/__tests__/services/*.int.test.ts` (CI shards them by file,
+  discovered at run time); the web's is `apps/web/src/__tests__/*.int.test.tsx`.
+- `bun run test` runs both. Always through `bun run`, never bare `bun test`.
 
-Integration tests pick their database automatically (see
-`apps/api/src/__tests__/utils/global-setup.ts`):
+## The database (dual mode)
 
-- **No `TEST_DATABASE_URL` (local default)** → in-memory PGlite booted from a
-  fingerprint-cached template dump. No PostgreSQL needed; the full suite runs
-  in seconds. The template rebuilds automatically when migrations change.
-- **`TEST_DATABASE_URL` set (CI)** → real PostgreSQL; each vitest worker gets
-  its own database cloned from a migrated template DB.
+`apps/api/src/__tests__/utils/global-setup.ts` and `setup.ts` pick it:
 
-`beforeEach` truncates all tables (`resetDatabase()` from `@project/db/testing`).
+- **No `TEST_DATABASE_URL`** (the local default): each worker boots an
+  in-memory PGlite (`openPgliteFromTemplate(TEST_TEMPLATE)`, under jsdom
+  too) from a template dump cached by a fingerprint of the migrations
+  (`utils/test-template.ts`). No PostgreSQL needed; the API's suites run in
+  seconds.
+- **`TEST_DATABASE_URL` set** (CI): real PostgreSQL, a database per worker
+  cloned from a migrated template.
 
-## Helpers
+`beforeEach` truncates every table (`resetDatabase()` from
+`@project/db/testing`). Seed with `seedTestUsers()` (an admin, a moderator
+and a regular user with fixed grants: never widen them, tests rely on the
+exact levels) and the factories in `apps/api/src/__tests__/factories/`
+(`createTestUser`, `createTestChat`, `createTestMessage`), which write
+through the untracked `testPrisma`.
 
-- `seedTestUsers()` from `@project/db/testing` — admin / moderator / regular
-  with known serviceAccess. Don't widen their access maps; tests rely on the
-  exact levels. For custom access, use the factories.
-- Factories in `apps/api/src/__tests__/factories/` — `createTestUser()`,
-  `createTestChat()`, `createTestMessage()` for arbitrary setups.
-- `startTestServer()` (`__tests__/utils/server.ts`) — core's
-  `createQuickdrawServer` on an ephemeral port with all services registered
-  and the production auth hooks (`createSocketAuth`) against the test DB.
-- `connectAsUser(port, userId)` / `emitWithAck(socket, event, payload)` /
-  `waitForEvent(socket, event)` from `__tests__/utils/socket.ts`.
+## The test app
 
-## Collection tests
+`startTestApp()` (`apps/api/src/__tests__/utils/app.ts`) is quickdraw's
+`createTestApp` with:
 
-See `collections.int.test.ts` for the pattern. Subscribe via
-`emitWithAck(socket, "{service}:collection:subscribe", { collection, scopeId })`
-(ack = snapshot; denied = rejected ack). Deltas arrive on the event named
-`collectionRoom(service, collection, scopeId)` from `@project/shared` — set up
-`waitForEvent` on it BEFORE triggering the write. Cover, per collection: delta
-propagation to a second client, scope ACL denial, and (for `ids`-bearing
-collections) the reconnect re-snapshot excluding rows deleted while offline.
+- every service, over the tracked `testDb`;
+- the production grants loader (`User.serviceAccess` over
+  `SERVICE_DEFAULT_ACCESS`);
+- `strictWarnings: true`, so an N+1 read, an unbounded read or a nested
+  write in a call fails the test that made it.
+  <!-- ── quickdraw-game:start ── -->
+  With the game: a game runtime with a fixed seed and no NPCs (tests drive
+  `loop.tickOnce()`; the loop never starts); the game service's own
+  `onRoomLeave` runs in it as in production.
+  <!-- ── quickdraw-game:end ── -->
 
-**Always test these roles:** Admin, Moderator, Entry Admin, Entry Read, Outsider, Self
+Close it in `afterAll`. Then:
 
-Admin methods to test: `adminList`, `adminGet`, `adminCreate`, `adminUpdate`, `adminDelete`, `adminMeta`
+- Call as a user with `app.as({ userId })`, or over a real socket with
+  `app.connect({ userId })`; both load the user's grants at each call, as
+  production does. `null` is the anonymous caller.
+- `subscribeEntity` and `subscribeScope` in `utils/app.ts` open a row or a
+  collection scope over a socket and return the server's answer; assert on
+  `app.frames` (`waitFor({ event: "qd:c", userId })`), not internals.
+- REST routes under test go on an Express app passed to `startTestApp({ app })`;
+  sign in there with `issueSession(keys, userId, { provider: "test" })`.
+- The auth routes' own tests build the app's sign-in over the test database
+  with `createTestAuth()` (`utils/auth.ts`, a fixed 32-character secret).
+
+## What this app's suites pin
+
+- Each service's `describeAccessMatrix` (in its `*.int.test.ts`): an owner
+  or member, a stranger, a service-wide grant where it matters, anonymous.
+  A mutation that consumes its row takes an `input` factory, so every cell
+  gets a fresh row. A change to who may call a method shows up here first.
+- Budgets in `apps/api/src/__tests__/services/__budgets__/`, one file per
+  suite: the chat list (30 chats), a message to 3 subscribers, a document
+  share with 2 subscribers.
+  <!-- ── quickdraw-game:start ── -->
+  The game's suite has a player's first join of the world.
+  <!-- ── quickdraw-game:end ── -->
+  Commit the file `expectBudget` writes; under CI a step that grows (or
+  shrinks without a commit) fails.
+
+## Web tests
+
+- `apps/web/src/__tests__/chat.int.test.tsx` renders the real pages and
+  components with `renderWithQuickdraw` against the API's test app (the
+  web's integration config reuses the API's database set-up, plus
+  `dom-setup.ts`, which calls `installJsdomShims()` for what jsdom lacks).
+- Component tests without a server use `createMockClient(contracts)`; a
+  component that reads `useQuickdraw()` renders inside `mock.$Provider`,
+  with the session set by `mock.$session({ userId, serviceAccess, ... })`,
+  or by the provider's `session` prop for its subtree alone.
+  <!-- ── quickdraw-storybook:start ── -->
+  Storybook renders on it too, a provider per story (`storybook.md`).
+  <!-- ── quickdraw-storybook:end ── -->

@@ -23,14 +23,12 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { SocketTextField } from "@fitzzero/quickdraw-core/client";
-import { useSocket } from "../../providers";
-import { useService, useServiceQuery, useSubscription } from "../../hooks";
+import { useJoin, useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import { UserAvatar } from "../user";
 import { ConfirmDialog } from "../feedback";
-import type { ChatMemberDTO, AccessLevel, SubscriptionDataMap } from "@project/shared";
-
-type ChatEntity = SubscriptionDataMap["chatService"];
+import { qd } from "../../lib/quickdraw";
+import { useErrorText } from "../../hooks/useErrorText";
+import type { ChatDTO, ChatMemberDTO, AccessLevel } from "@project/shared";
 
 interface ChatSidebarProps {
   chatId: string;
@@ -73,43 +71,51 @@ function getRoleBadge(level: string): {
 }
 
 interface ChatTitleSectionProps {
-  chat: ChatEntity | null;
+  chat: ChatDTO | undefined;
   canModerate: boolean;
-  isEditing: boolean;
-  onStartEdit: () => void;
-  onStopEdit: () => void;
-  onTitleUpdate: (patch: { title?: string }) => Promise<unknown>;
+  /** Renames the chat: shown at once, dropped again if the server refuses. */
+  onRename: (title: string) => void;
+  /** Why the last rename was refused, if it was. */
+  renameError: string | null;
 }
 
 function ChatTitleSection({
   chat,
   canModerate,
-  isEditing,
-  onStartEdit,
-  onStopEdit,
-  onTitleUpdate,
+  onRename,
+  renameError,
 }: ChatTitleSectionProps): React.ReactElement {
+  const t = useTranslations("ChatWindow");
+  // The title being edited; null while not editing
+  const [draft, setDraft] = React.useState<string | null>(null);
+
+  // Commits on blur or Enter (the rename is optimistic: the list shows it at once)
+  const commit = (): void => {
+    if (draft === null) return;
+    const title = draft.trim();
+    setDraft(null);
+    if (chat && title.length > 0 && title !== chat.title) {
+      onRename(title);
+    }
+  };
+
   return (
     <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
-      {isEditing && chat ? (
-        <SocketTextField
-          state={chat}
-          update={onTitleUpdate}
-          property="title"
-          commitMode="blur"
-          onSuccess={onStopEdit}
-          autoFocus
-          style={{
-            width: "100%",
-            padding: "8px 12px",
-            fontSize: "1.25rem",
-            fontWeight: 500,
-            border: "1px solid",
-            borderColor: "rgba(255, 255, 255, 0.23)",
-            borderRadius: "4px",
-            backgroundColor: "transparent",
-            color: "inherit",
+      {draft !== null && chat ? (
+        <TextField
+          fullWidth
+          size="small"
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
           }}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") setDraft(null);
+          }}
+          autoFocus
+          slotProps={{ htmlInput: { maxLength: 100, "aria-label": t("chatTitleLabel") } }}
         />
       ) : (
         <Box
@@ -127,13 +133,21 @@ function ChatTitleSection({
             <IconButton
               className="edit-icon"
               size="small"
-              onClick={onStartEdit}
+              onClick={() => {
+                setDraft(chat?.title ?? "");
+              }}
+              aria-label={t("chatTitleLabel")}
               sx={{ opacity: 0, transition: "opacity 0.2s" }}
             >
               <EditIcon fontSize="small" />
             </IconButton>
           )}
         </Box>
+      )}
+      {renameError !== null && (
+        <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.5 }}>
+          {renameError}
+        </Typography>
       )}
     </Box>
   );
@@ -145,10 +159,14 @@ interface InviteSectionProps {
 
 function InviteSection({ chatId }: InviteSectionProps): React.ReactElement {
   const t = useTranslations("ChatSidebar");
+  const errorText = useErrorText();
   const [inviteUsername, setInviteUsername] = React.useState("");
   const [inviteError, setInviteError] = React.useState<string | null>(null);
 
-  const inviteByName = useService("chatService", "inviteByName", {
+  // The new member shows in the roster through the memberUpdate event, and the
+  // chat in their list through myChats. An invite above the inviter's own
+  // level is FORBIDDEN (this form invites at Read).
+  const inviteByName = qd.chatService.inviteByName.useMutation({
     onSuccess: (result) => {
       if ("error" in result) {
         setInviteError(t("inviteUserNotFound"));
@@ -158,7 +176,7 @@ function InviteSection({ chatId }: InviteSectionProps): React.ReactElement {
       }
     },
     onError: (error) => {
-      setInviteError(error);
+      setInviteError(errorText(error));
     },
   });
 
@@ -200,6 +218,7 @@ function InviteSection({ chatId }: InviteSectionProps): React.ReactElement {
                   disabled={!inviteUsername.trim() || inviteByName.isPending}
                   edge="end"
                   size="small"
+                  aria-label={t("inviteButton")}
                 >
                   {inviteByName.isPending ? <CircularProgress size={20} /> : <PersonAddIcon />}
                 </IconButton>
@@ -215,6 +234,10 @@ function InviteSection({ chatId }: InviteSectionProps): React.ReactElement {
 interface MembersSectionProps {
   members: ChatMemberDTO[];
   isLoading: boolean;
+  /** Why reading the roster (and joining its room) was refused, for people; `null` when it was not. */
+  error: string | null;
+  /** Reads the roster again at once, after a refusal. */
+  onRetry: () => void;
   canRemoveMember: (member: ChatMemberDTO) => boolean;
   onRemoveMember: (member: ChatMemberDTO) => void;
 }
@@ -222,6 +245,8 @@ interface MembersSectionProps {
 function MembersSection({
   members,
   isLoading,
+  error,
+  onRetry,
   canRemoveMember,
   onRemoveMember,
 }: MembersSectionProps): React.ReactElement {
@@ -233,6 +258,16 @@ function MembersSection({
       <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
         {t("membersTitle")}
       </Typography>
+      {error !== null && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+          <Typography variant="caption" color="error" sx={{ flex: 1 }}>
+            {t("membersFailed", { reason: error })}
+          </Typography>
+          <Button size="small" color="error" onClick={onRetry}>
+            {t("membersRetry")}
+          </Button>
+        </Box>
+      )}
       {isLoading ? (
         <List dense disablePadding>
           {[1, 2, 3].map((i) => (
@@ -299,34 +334,60 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
   const t = useTranslations("ChatSidebar");
   const tCommon = useTranslations("Common");
   const router = useRouter();
-  const { userId, serviceAccess } = useSocket();
+  const errorText = useErrorText();
+  const { userId, serviceAccess } = useQuickdraw();
 
-  // Chat subscription for title (also keeps the socket in the chat room,
-  // which the invalidateOn below relies on)
-  const { data: chat } = useSubscription("chatService", chatId);
+  // The chat, live (its title)
+  const { data: chat } = qd.chatService.useEntity(chatId);
 
-  // Members roster: a genuinely query-shaped read (joined user profiles),
-  // so it stays a query — invalidateOn refetches it whenever the server
-  // broadcasts the typed chat:memberUpdate room event. This replaces the
-  // old useState + useRoomEvents merge.
-  const { data: queryMembers, isLoading: membersLoading } = useServiceQuery(
-    "chatService",
-    "getChatMembers",
+  // Members roster: a query-shaped read (memberships joined to profiles).
+  // Reading it puts this socket in the chat's room, where the server sends
+  // memberUpdate whenever the chat's members change (an invite, a removal, a
+  // leave), so it is read with useJoin: again on every connection (a
+  // reconnected socket is in no room) and for each chat shown. Each answer
+  // and each memberUpdate's roster go into the query's cache, which the
+  // roster below reads without fetching. A refusal stands until the next
+  // connection: the roster says why, with a retry (the same call, now).
+  const rosterJoin = useJoin(
+    qd.chatService.getChatMembers,
     { chatId },
-    { enabled: !!chatId, invalidateOn: ["chat:memberUpdate"] },
+    {
+      enabled: chatId !== "",
+      onJoined: (roster) => {
+        qd.chatService.getChatMembers.setData({ chatId }, roster);
+      },
+    },
   );
+  const { data: queryMembers } = qd.chatService.getChatMembers.useQuery(
+    { chatId },
+    { enabled: false },
+  );
+  qd.chatService.memberUpdate.useEvent((update) => {
+    if (update.chatId === chatId) {
+      qd.chatService.getChatMembers.setData({ chatId }, update.members);
+    }
+  });
   const members = React.useMemo(() => queryMembers ?? [], [queryMembers]);
+  const rosterError = rosterJoin.status === "error" ? errorText(rosterJoin.error) : null;
+  const membersLoading = queryMembers === undefined && rosterError === null;
 
   // UI state
-  const [isEditingTitle, setIsEditingTitle] = React.useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = React.useState(false);
   const [memberToRemove, setMemberToRemove] = React.useState<ChatMemberDTO | null>(null);
 
-  // Service methods (mutations only)
-  const updateTitle = useService("chatService", "updateTitle");
-  const removeUser = useService("chatService", "removeUser");
-  const deleteChat = useService("chatService", "deleteChat", {
+  // Service methods (mutations only). A rename is optimistic: the new title
+  // shows at once here, in the page title and in every list holding the chat
+  // (myChats items), is dropped if the server refuses it, and gives way to
+  // the server's row. (The default for a mutation with `id` and an "entity"
+  // output, written out.)
+  const updateTitle = qd.chatService.updateTitle.useMutation({
+    optimistic: (input, cache) => {
+      cache.patchEntity(input.id, { title: input.title });
+    },
+  });
+  const removeUser = qd.chatService.removeUser.useMutation();
+  const deleteChat = qd.chatService.deleteChat.useMutation({
     onSuccess: () => {
       router.push("/chats");
     },
@@ -339,22 +400,22 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
   );
 
   // Check permissions
-  const serviceLevel = serviceAccess?.chatService as AccessLevel | undefined;
+  const serviceLevel: AccessLevel | undefined = serviceAccess?.chatService;
   const effectiveLevel = resolveEffectiveLevel(serviceLevel, currentUserMember?.level);
 
   const canModerate = isLevelSufficient(effectiveLevel, "Moderate");
   const canAdmin = isLevelSufficient(effectiveLevel, "Admin");
 
   // Handle title update
-  const handleTitleUpdate = React.useCallback(
-    async (patch: { title?: string }) => {
-      if (!chat || !patch.title) return null;
-      const result = await updateTitle.mutateAsync({ id: chatId, title: patch.title });
-      setIsEditingTitle(false);
-      return result;
+  const { mutate: rename } = updateTitle;
+  const handleRename = React.useCallback(
+    (title: string): void => {
+      rename({ id: chatId, title });
     },
-    [chat, chatId, updateTitle],
+    [rename, chatId],
   );
+  const renameError =
+    updateTitle.error === null ? null : t("renameFailed", { reason: errorText(updateTitle.error) });
 
   // Handle remove member
   const handleRemoveMember = React.useCallback((member: ChatMemberDTO): void => {
@@ -362,27 +423,52 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
     setRemoveMemberDialogOpen(true);
   }, []);
 
-  const confirmRemoveMember = async (): Promise<void> => {
+  const confirmRemoveMember = (): void => {
     if (!memberToRemove) return;
-    await removeUser.mutateAsync({ id: chatId, userId: memberToRemove.userId });
-    setRemoveMemberDialogOpen(false);
-    setMemberToRemove(null);
+    removeUser.mutate(
+      { id: chatId, userId: memberToRemove.userId },
+      {
+        onSettled: () => {
+          setRemoveMemberDialogOpen(false);
+          setMemberToRemove(null);
+        },
+      },
+    );
   };
 
   // Handle delete chat
-  const handleDeleteChat = async (): Promise<void> => {
-    await deleteChat.mutateAsync({ id: chatId });
+  const handleDeleteChat = (): void => {
+    deleteChat.mutate(
+      { id: chatId },
+      {
+        onError: () => {
+          setDeleteDialogOpen(false);
+        },
+      },
+    );
   };
 
-  // Can remove this member? Must be Moderate+ and target must be lower level than current user
+  // A refused removal or deletion (FORBIDDEN, say), said once under the roster
+  const actionError = removeUser.error ?? deleteChat.error;
+
+  // The server's rules for removing a member, offered only where they pass:
+  // a Moderate removes members below their own level, an Admin anyone, and
+  // the chat keeps an Admin
+  const adminCount = React.useMemo(
+    () => members.filter((member) => member.level === "Admin").length,
+    [members],
+  );
   const canRemoveMember = React.useCallback(
     (member: ChatMemberDTO): boolean => {
       if (!canModerate) return false;
       // Can't remove self
       if (member.userId === userId) return false;
-      return !isLevelSufficient(member.level, effectiveLevel ?? "Public");
+      if (member.level === "Admin" && adminCount <= 1) return false;
+      return (
+        effectiveLevel === "Admin" || !isLevelSufficient(member.level, effectiveLevel ?? "Public")
+      );
     },
-    [canModerate, userId, effectiveLevel],
+    [canModerate, userId, effectiveLevel, adminCount],
   );
 
   return (
@@ -391,14 +477,8 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
       <ChatTitleSection
         chat={chat}
         canModerate={canModerate}
-        isEditing={isEditingTitle}
-        onStartEdit={() => {
-          setIsEditingTitle(true);
-        }}
-        onStopEdit={() => {
-          setIsEditingTitle(false);
-        }}
-        onTitleUpdate={handleTitleUpdate}
+        onRename={handleRename}
+        renameError={renameError}
       />
 
       {/* Invite Section */}
@@ -408,9 +488,17 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
       <MembersSection
         members={members}
         isLoading={membersLoading}
+        error={rosterError}
+        onRetry={rosterJoin.retry}
         canRemoveMember={canRemoveMember}
         onRemoveMember={handleRemoveMember}
       />
+
+      {actionError !== null && (
+        <Typography variant="caption" color="error" sx={{ px: 2, pb: 1 }}>
+          {errorText(actionError)}
+        </Typography>
+      )}
 
       {/* Delete Section */}
       {canAdmin && (

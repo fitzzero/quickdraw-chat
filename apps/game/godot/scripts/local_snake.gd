@@ -17,6 +17,10 @@ var sim_pos := Vector2.ZERO
 var sim_dir := Vector2.RIGHT
 var sim_len := float(GameConfig.start_length)
 
+## A world point to steer toward instead of the mouse, when set (the headless
+## two-client check, test/session.gd, has no mouse).
+var steer_target: Variant = null
+
 var _prev_sim_pos := Vector2.ZERO
 var _pending: Array[Dictionary] = []
 var _accum := 0.0
@@ -58,7 +62,8 @@ func _physics_process(delta: float) -> void:
 
 
 func _step_once() -> void:
-	var aim := get_global_mouse_position() - position
+	var target: Vector2 = steer_target if steer_target is Vector2 else get_global_mouse_position()
+	var aim := target - position
 	if aim.length() < 4.0:
 		aim = sim_dir
 	aim = aim.normalized()

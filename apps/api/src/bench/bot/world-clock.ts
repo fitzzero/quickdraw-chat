@@ -35,6 +35,8 @@ interface DelaySample {
 }
 
 export class WorldClock {
+  /** The server whose world the clock follows (its hello's `serverId`). */
+  private serverId: string | null = null;
   private est = 0;
   private latest = 0;
   private hasEst = false;
@@ -46,6 +48,17 @@ export class WorldClock {
   private hasTimestamps = false;
 
   constructor(private readonly tickRate: number) {}
+
+  /**
+   * Follows the world of the server a hello names: another server (a
+   * restart: a new world, ticks from 0) starts the timeline over, a network
+   * blip keeps it. Pinned to game.gd clock_follow_server.
+   */
+  public followServer(serverId: string): void {
+    if (serverId === this.serverId) return;
+    this.serverId = serverId;
+    this.reset();
+  }
 
   public observe(tick: number, sendT?: number, arrivalMs?: number): void {
     this.latest = Math.max(this.latest, tick);
@@ -89,6 +102,17 @@ export class WorldClock {
     const error = target - this.est;
     const maxStep = MAX_SLEW_TICKS_PER_S * deltaS;
     this.est += Math.max(-maxStep, Math.min(maxStep, error));
+  }
+
+  /** Forgets the timeline: the next snapshot anchors it again. */
+  private reset(): void {
+    this.est = 0;
+    this.latest = 0;
+    this.hasEst = false;
+    this.samples.length = 0;
+    this.lastTick = 0;
+    this.lastSendT = 0;
+    this.hasTimestamps = false;
   }
 
   public renderTick(): number | null {

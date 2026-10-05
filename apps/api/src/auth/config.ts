@@ -1,0 +1,79 @@
+// The auth settings the server reads from its environment, once.
+
+import type { AllowedOrigin } from "@fitzzero/quickdraw-core/server/auth";
+
+const DEV_JWT_SECRET = "development-secret-DO-NOT-USE-IN-PRODUCTION";
+
+/**
+ * Signs the session JWTs (the auth routes, `socketAuth`, and the app's own
+ * routes that issue sessions): 32 characters or more. Required in production
+ * (`index.ts` validates the environment); development falls back to a fixed
+ * secret.
+ */
+export function jwtSecretFromEnv(): string {
+  const secret = process.env.JWT_SECRET;
+  if (secret) {
+    return secret;
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("JWT_SECRET environment variable is required in production");
+  }
+  return DEV_JWT_SECRET;
+}
+
+/** ENCRYPTION_KEY's shape: 32 bytes as 64 hex characters (`openssl rand -hex 32`). */
+const ENCRYPTION_KEY_FORMAT = /^[0-9a-f]{64}$/i;
+
+/**
+ * What is wrong with ENCRYPTION_KEY, which encrypts stored provider tokens
+ * (AES-256-GCM), or `null` when nothing is: unset is fine here (production
+ * requires it through `validateEnv` in `index.ts`; development then stores
+ * tokens plain), but a set key must be 64 hex characters, or every sign-in
+ * fails at its first encryption. The server refuses to boot on an answer.
+ */
+export function encryptionKeyProblem(key: string | undefined): string | null {
+  if (key === undefined || key === "" || ENCRYPTION_KEY_FORMAT.test(key)) return null;
+  return "ENCRYPTION_KEY must be 64 hex characters (32 bytes: openssl rand -hex 32)";
+}
+
+/** The web app's origin: where sign-ins return, and the first allowed origin. */
+export function clientUrl(): string {
+  return process.env.CLIENT_URL ?? "http://localhost:3000";
+}
+
+/** The API's public URL: OAuth redirect URIs are `{apiUrl}/auth/{provider}/callback`. */
+export function apiUrl(): string {
+  const port = process.env.BACKEND_PORT ?? process.env.PORT ?? "4000";
+  return process.env.API_URL ?? `http://localhost:${port}`;
+}
+
+/** GitHub Codespace forwarded-port origins, outside production. */
+const CODESPACE_ORIGIN = /^https:\/\/[a-z0-9-]+-[a-z0-9-]+-\d+\.app\.github\.dev$/;
+/** Any localhost port, outside production. */
+const LOCALHOST_ORIGIN = /^http:\/\/localhost:\d+$/;
+
+/**
+ * The web app's origins, one list for CORS, the sign-in return and the pages
+ * that may open a socket with the session cookie: CLIENT_URL first (where a
+ * sign-in without `returnTo` lands), then EXTRA_ALLOWED_ORIGINS, and
+ * Codespaces and localhost outside production (anyone can open a Codespace:
+ * in production it would be an open sign-in redirect and a cookie origin).
+ */
+export function allowedOriginsFromEnv(): AllowedOrigin[] {
+  const extra = (process.env.EXTRA_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+  return [
+    new URL(clientUrl()).origin,
+    ...extra.map((origin) => new URL(origin).origin),
+    ...(process.env.NODE_ENV === "production" ? [] : [CODESPACE_ORIGIN, LOCALHOST_ORIGIN]),
+  ];
+}
+
+/** True when `origin` is one of `allowed` (an exact origin or an anchored pattern). */
+export function isAllowedOrigin(allowed: readonly AllowedOrigin[], origin: string): boolean {
+  return allowed.some((entry) =>
+    typeof entry === "string" ? entry === origin : entry.test(origin),
+  );
+}

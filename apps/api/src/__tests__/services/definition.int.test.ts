@@ -1,182 +1,238 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
-import type { DefinitionDTO } from "@project/shared";
-import { startTestServer } from "../utils/server.js";
-import { connectAsUser, emitWithAck } from "../utils/socket.js";
+// Definitions on 5.0: the public reads, the admin kit, and the tunables hot
+// reload its writes drive.
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
+import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
+import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
+import {
+  definitionService,
+  notifyChanged,
+  onChanged,
+  type ChangedDefinition,
+} from "../../services/definition/index.js";
+import { snakeTunablesOf } from "../../services/game/bootstrap.js";
+import { gameRuntime } from "../../services/game/runtime.js";
 import { createTestUser } from "../factories/user-factory.js";
+import { startTestApp, type ApiTestApp } from "../utils/app.js";
 
-describe("DefinitionService Integration", () => {
-  let stop: () => Promise<void>;
-  let port: number;
-  let users: Awaited<ReturnType<typeof seedTestUsers>>;
+let app: ApiTestApp;
 
-  beforeAll(async () => {
-    const server = await startTestServer();
-    port = server.port;
-    stop = server.stop;
+/** The definitions every edit was announced with, since the file started. */
+const heard: ChangedDefinition[] = [];
+// What the API's start-up does (index.ts): an edit of the snake tunables
+// reaches the running sim
+onChanged((definition) => {
+  heard.push(definition);
+  if (definition.type === "tunables" && definition.key === "snake") {
+    gameRuntime(testDb).sim.applyTunables(snakeTunablesOf(definition.data));
+  }
+});
+
+beforeAll(async () => {
+  app = await startTestApp();
+});
+
+afterAll(async () => {
+  await app.close();
+});
+
+beforeEach(async () => {
+  await resetDatabase();
+  await testPrisma.definition.create({
+    data: { type: "tunables", key: "snake", data: { baseSpeed: 200, turnRate: 5 } },
   });
-
-  afterAll(async () => {
-    await stop();
+  await testPrisma.definition.create({
+    data: { type: "tunables", key: "disabled-thing", data: { x: 1 }, enabled: false },
   });
+});
 
-  beforeEach(async () => {
-    await resetDatabase();
-    users = await seedTestUsers();
-    await testPrisma.definition.create({
-      data: {
-        type: "tunables",
-        key: "snake",
-        data: { baseSpeed: 200, turnRate: 5 },
-      },
-    });
-    await testPrisma.definition.create({
-      data: {
-        type: "tunables",
-        key: "disabled-thing",
-        data: { x: 1 },
-        enabled: false,
-      },
-    });
-  });
-
-  it("lists enabled definitions publicly (any authenticated user)", async () => {
-    const client = await connectAsUser(port, users.regular.id);
-
-    const all = await emitWithAck<{ type?: string }, DefinitionDTO[]>(
-      client,
-      "definitionService:listDefinitions",
-      {},
-    );
+describe("DefinitionService", () => {
+  it("lists enabled definitions publicly", async () => {
+    const all = await app.as(null).definitionService.listDefinitions({});
     expect(all.map((d) => d.key)).toEqual(["snake"]);
     expect(all[0]?.data).toEqual({ baseSpeed: 200, turnRate: 5 });
+    expect(typeof all[0]?.updatedAt).toBe("string");
 
-    const filtered = await emitWithAck<{ type?: string }, DefinitionDTO[]>(
-      client,
-      "definitionService:listDefinitions",
-      { type: "nope" },
-    );
-    expect(filtered).toEqual([]);
-
-    client.close();
+    expect(await app.as(null).definitionService.listDefinitions({ type: "nope" })).toEqual([]);
   });
 
-  it("getDefinition returns a single row and hides disabled rows", async () => {
-    const client = await connectAsUser(port, users.regular.id);
-
-    const snake = await emitWithAck<{ type: string; key: string }, DefinitionDTO | null>(
-      client,
-      "definitionService:getDefinition",
-      { type: "tunables", key: "snake" },
-    );
+  it("getDefinition answers one row and hides disabled rows", async () => {
+    const snake = await app.as(null).definitionService.getDefinition({
+      type: "tunables",
+      key: "snake",
+    });
     expect(snake?.data["baseSpeed"]).toBe(200);
 
-    const disabled = await emitWithAck<{ type: string; key: string }, DefinitionDTO | null>(
-      client,
-      "definitionService:getDefinition",
-      { type: "tunables", key: "disabled-thing" },
-    );
+    const disabled = await app.as(null).definitionService.getDefinition({
+      type: "tunables",
+      key: "disabled-thing",
+    });
     expect(disabled).toBeNull();
-
-    client.close();
   });
 
-  it("admin can edit definitions; regular users cannot", async () => {
-    const admin = await createTestUser({ serviceAccess: { definitionService: "Admin" } });
-    const adminClient = await connectAsUser(port, admin.id);
-    const regularClient = await connectAsUser(port, users.regular.id);
+  it("tells its listeners about an edited definition, which the game sim applies", async () => {
+    heard.length = 0;
+    const sim = gameRuntime(testDb).sim;
+    const row = await testPrisma.definition.update({
+      where: { type_key: { type: "tunables", key: "snake" } },
+      data: { data: { baseSpeed: 260 } },
+    });
 
+    notifyChanged({ type: row.type, key: row.key, data: { baseSpeed: 260 } });
+
+    expect(heard.map((d) => d.key)).toEqual(["snake"]);
+    expect(sim.tunables.baseSpeed).toBe(260);
+  });
+});
+
+describe("DefinitionService admin kit", () => {
+  async function snakeId(): Promise<string> {
     const row = await testPrisma.definition.findUniqueOrThrow({
       where: { type_key: { type: "tunables", key: "snake" } },
       select: { id: true },
     });
+    return row.id;
+  }
 
-    const updated = await emitWithAck<
-      { id: string; data: Record<string, unknown> },
-      { data: Record<string, unknown> } | null
-    >(adminClient, "definitionService:adminUpdate", {
-      id: row.id,
+  it("service administrators edit definitions through the admin kit; others are refused", async () => {
+    const editor = await createTestUser({ serviceAccess: { definitionService: "Admin" } });
+    const asEditor = app.as({ userId: editor.id });
+    const id = await snakeId();
+
+    // every row, the disabled one too
+    const page = await asEditor.definitionService.adminList({ sort: { field: "key" } });
+    expect(page.items.map((d) => d.key)).toEqual(["disabled-thing", "snake"]);
+
+    const updated = await asEditor.definitionService.adminUpdate({
+      id,
       data: { data: { baseSpeed: 250 } },
     });
-    expect(updated?.data).toEqual({ baseSpeed: 250 });
+    expect(updated.data).toEqual({ baseSpeed: 250 });
+    const created = await asEditor.definitionService.adminCreate({
+      data: { type: "items", key: "apple", data: { value: 2 }, version: 1, enabled: true },
+    });
+    expect(created.key).toBe("apple");
 
+    const { regular, admin } = await seedTestUsers();
+    for (const userId of [regular.id, admin.id]) {
+      await expect(
+        app.as({ userId }).definitionService.adminUpdate({
+          id,
+          data: { data: { baseSpeed: 999 } },
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
+    await expect(app.as(null).definitionService.adminList({})).rejects.toMatchObject({
+      code: "UNAUTHENTICATED",
+    });
+  });
+
+  it("an admin edit of the snake tunables hot-reloads the running sim, once it committed", async () => {
+    const editor = await createTestUser({ serviceAccess: { definitionService: "Admin" } });
+    const sim = gameRuntime(testDb).sim;
+    expect(sim.tunables.baseSpeed).not.toBe(275);
+    heard.length = 0;
+
+    await app.as({ userId: editor.id }).definitionService.adminUpdate({
+      id: await snakeId(),
+      data: { data: { baseSpeed: 275, turnRate: 5 } },
+    });
+
+    // the admin kit's onCommitted runs after the commit, in a unit of work
+    // the reply does not wait for
+    await vi.waitFor(() => {
+      expect(sim.tunables.baseSpeed).toBe(275);
+    });
+    expect(heard.map((d) => [d.type, d.key])).toEqual([["tunables", "snake"]]);
+  });
+
+  it("an admin edit that fails never reaches the sim", async () => {
+    const editor = await createTestUser({ serviceAccess: { definitionService: "Admin" } });
+    const sim = gameRuntime(testDb).sim;
+    const speed = sim.tunables.baseSpeed;
+    heard.length = 0;
+    const disabled = await testPrisma.definition.findUniqueOrThrow({
+      where: { type_key: { type: "tunables", key: "disabled-thing" } },
+      select: { id: true },
+    });
+
+    // (type, key) is unique: the write is refused, nothing commits
     await expect(
-      emitWithAck(regularClient, "definitionService:adminUpdate", {
-        id: row.id,
-        data: { data: { baseSpeed: 999 } },
+      app.as({ userId: editor.id }).definitionService.adminUpdate({
+        id: disabled.id,
+        data: { key: "snake", data: { baseSpeed: 999 } },
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "CONFLICT" });
 
-    adminClient.close();
-    regularClient.close();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 100);
+    });
+    expect(heard).toEqual([]);
+    expect(sim.tunables.baseSpeed).toBe(speed);
   });
+});
 
-  it("subscribe payloads go through toDto (ISO updatedAt, not a Date)", async () => {
-    // subscribe checks the service-level ACL, unlike the Public read methods.
-    const reader = await createTestUser({ serviceAccess: { definitionService: "Read" } });
-    const client = await connectAsUser(port, reader.id);
-
-    const row = await testPrisma.definition.findUniqueOrThrow({
+describe("DefinitionService access matrix", () => {
+  it("admits each method's callers", async () => {
+    const editor = await createTestUser({ serviceAccess: { definitionService: "Admin" } });
+    // a player holds no grant on definitions; Admin elsewhere is not enough
+    const player = await createTestUser();
+    const otherAdmin = await createTestUser({ serviceAccess: { gameService: "Admin" } });
+    const { id: snake } = await testPrisma.definition.findUniqueOrThrow({
       where: { type_key: { type: "tunables", key: "snake" } },
       select: { id: true },
     });
+    let made = 0;
+    /** A definition of its own, for one cell that deletes it. */
+    const doomed = async (): Promise<{ id: string }> => {
+      made += 1;
+      return await testPrisma.definition.create({
+        data: { type: "items", key: `doomed-${made}`, data: {} },
+        select: { id: true },
+      });
+    };
+    /** A new definition's fields, a key of its own for each cell. */
+    const fresh = (): {
+      data: {
+        type: string;
+        key: string;
+        data: Record<string, unknown>;
+        version: number;
+        enabled: boolean;
+      };
+    } => {
+      made += 1;
+      return { data: { type: "items", key: `fresh-${made}`, data: {}, version: 1, enabled: true } };
+    };
 
-    const snapshot = await emitWithAck<{ entryId: string }, Partial<DefinitionDTO>>(
-      client,
-      "definitionService:subscribe",
-      { entryId: row.id },
-    );
-
-    // Socket.IO serializes a Date to an ISO string on the wire, so the type
-    // alone proves nothing. The DTO shape is what distinguishes them: toDto
-    // drops createdAt and maps `data` to a plain record.
-    expect(typeof snapshot.updatedAt).toBe("string");
-    expect(snapshot).not.toHaveProperty("createdAt");
-    expect(Object.keys(snapshot).sort()).toEqual([
-      "data",
-      "enabled",
-      "id",
-      "key",
-      "type",
-      "updatedAt",
-      "version",
-    ]);
-
-    client.close();
-  });
-
-  it("admin edits hot-reload the game sim tunables via onChanged", async () => {
-    // Wire a fresh service pair directly (unit-ish, no sockets needed)
-    const { DefinitionService } = await import("../../services/definition/index.js");
-    const { GameService } = await import("../../services/game/index.js");
-    const definitionService = new DefinitionService(testPrisma);
-    const gameService = new GameService(testPrisma, { simSeed: 1 });
-
-    definitionService.onChanged((definition) => {
-      if (definition.type === "tunables" && definition.key === "snake") {
-        gameService.sim.applyTunables(definition.data);
-      }
+    await describeAccessMatrix(app, {
+      service: definitionService,
+      principals: {
+        editor: { userId: editor.id },
+        player: { userId: player.id },
+        otherAdmin: { userId: otherAdmin.id },
+      },
+      cases: [
+        {
+          method: "listDefinitions",
+          input: {},
+          allow: ["editor", "player", "otherAdmin", "anonymous"],
+        },
+        {
+          method: "getDefinition",
+          input: { type: "tunables", key: "snake" },
+          allow: ["editor", "player", "otherAdmin", "anonymous"],
+        },
+        { method: "adminList", input: {}, allow: ["editor"] },
+        { method: "adminGet", input: { id: snake }, allow: ["editor"] },
+        { method: "adminCreate", input: fresh, allow: ["editor"] },
+        {
+          method: "adminUpdate",
+          input: { id: snake, data: { data: { baseSpeed: 210 } } },
+          allow: ["editor"],
+        },
+        { method: "adminDelete", input: doomed, allow: ["editor"] },
+        { method: "adminMeta", input: {}, allow: ["editor"] },
+      ],
     });
-
-    const before = gameService.sim.tunables.baseSpeed;
-    const admin = await createTestUser({ serviceAccess: { definitionService: "Admin" } });
-    const adminClient = await connectAsUser(port, admin.id);
-    void adminClient; // ACL exercised in the previous test; here we drive the hook directly
-
-    const row = await testPrisma.definition.findUniqueOrThrow({
-      where: { type_key: { type: "tunables", key: "snake" } },
-      select: { id: true },
-    });
-    // Drive adminUpdate on the locally-wired service instance
-    await (
-      definitionService as unknown as {
-        adminUpdate: (id: string, data: unknown) => Promise<unknown>;
-      }
-    ).adminUpdate(row.id, { data: { baseSpeed: 260 } });
-
-    expect(before).not.toBe(260);
-    expect(gameService.sim.tunables.baseSpeed).toBe(260);
-
-    adminClient.close();
   });
 });

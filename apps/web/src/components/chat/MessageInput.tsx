@@ -4,31 +4,28 @@ import * as React from "react";
 import { Box, TextField, IconButton, CircularProgress } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import { useTranslations } from "next-intl";
-import { useService } from "../../hooks";
 
 export interface MessageInputProps {
-  chatId: string;
+  /** Sends a message; the field clears at once (the list shows it as sending). */
+  onSend: (content: string) => void;
   disabled?: boolean;
+  /** A message is on its way: one at a time. */
+  sending?: boolean;
 }
 
-export function MessageInput({ chatId, disabled }: MessageInputProps): React.ReactElement {
+export function MessageInput({
+  onSend,
+  disabled = false,
+  sending = false,
+}: MessageInputProps): React.ReactElement {
   const t = useTranslations("MessageInput");
   const [message, setMessage] = React.useState("");
 
-  // No follow-up work on success: the byChat collection delivers the posted
-  // message to every subscriber (this window included)
-  const postMessage = useService("messageService", "postMessage", {
-    onSuccess: () => {
-      setMessage("");
-    },
-  });
-
   const handleSend = () => {
-    if (message.trim() && !postMessage.isPending) {
-      postMessage.mutate({
-        chatId,
-        content: message.trim(),
-      });
+    const content = message.trim();
+    if (content && !sending && !disabled) {
+      onSend(content);
+      setMessage("");
     }
   };
 
@@ -60,15 +57,16 @@ export function MessageInput({ chatId, disabled }: MessageInputProps): React.Rea
           setMessage(e.target.value);
         }}
         onKeyDown={handleKeyDown}
-        disabled={disabled ?? postMessage.isPending}
+        disabled={disabled}
         size="small"
       />
       <IconButton
         color="primary"
         onClick={handleSend}
-        disabled={!message.trim() || postMessage.isPending || disabled}
+        disabled={!message.trim() || sending || disabled}
+        aria-label={t("send")}
       >
-        {postMessage.isPending ? <CircularProgress size={24} /> : <SendIcon />}
+        {sending ? <CircularProgress size={24} /> : <SendIcon />}
       </IconButton>
     </Box>
   );

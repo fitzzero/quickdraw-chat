@@ -1,64 +1,45 @@
 import { Box } from "@mui/material";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import type { MessageDTO } from "@project/shared";
-import { mockSuccessEmit } from "@fitzzero/quickdraw-core/client/testing";
-import { withMockSocket } from "../../stories/decorators";
-import type { MockEmitHandler } from "../../stories/mock-socket-io";
+import { qd, STORY_USER_ID } from "../../stories/quickdraw";
 import { ChatWindow } from "./ChatWindow";
 
-const ME = { id: "user-ada", name: "Ada Lovelace", image: null };
+const ME = { id: STORY_USER_ID, name: "Ada Lovelace", image: null };
 const OTHER = { id: "user-grace", name: "Grace Hopper", image: null };
 
-const MESSAGES: MessageDTO[] = [
-  {
-    id: "msg-1",
+function message(id: number, user: typeof ME, content: string, createdAt: string): MessageDTO {
+  return {
+    id: `msg-${String(id)}`,
     chatId: "chat-1",
-    userId: OTHER.id,
-    content: "The new collection subscriptions are live on dev.",
+    userId: user.id,
+    content,
     role: "user",
-    createdAt: "2026-08-30T09:00:00.000Z",
-    user: OTHER,
-  },
-  {
-    id: "msg-2",
-    chatId: "chat-1",
-    userId: ME.id,
-    content: "Great — reconnect re-snapshots are working in my test too.",
-    role: "user",
-    createdAt: "2026-08-30T09:02:00.000Z",
-    user: ME,
-  },
-  {
-    id: "msg-3",
-    chatId: "chat-1",
-    userId: OTHER.id,
-    content: "Shipping it.",
-    role: "user",
-    createdAt: "2026-08-30T09:03:00.000Z",
-    user: OTHER,
-  },
-];
-
-/** Answers the byChat collection subscribe with a message snapshot. */
-function chatEmit(items: MessageDTO[]): MockEmitHandler {
-  return (event, _payload, callback) => {
-    if (event === "messageService:collection:subscribe") {
-      mockSuccessEmit({
-        items,
-        rev: 1,
-        totalCount: items.length,
-        nextCursor: null,
-      })(event, _payload, callback);
-    }
-    // Other emits (unsubscribes, postMessage) need no story response
+    createdAt,
+    user,
   };
 }
+
+// byChat's order: newest first (the window shows them oldest first)
+const MESSAGES: MessageDTO[] = [
+  message(3, OTHER, "Shipping it.", "2026-08-30T09:03:00.000Z"),
+  message(
+    2,
+    ME,
+    "Great — reconnect re-snapshots are working in my test too.",
+    "2026-08-30T09:02:00.000Z",
+  ),
+  message(
+    1,
+    OTHER,
+    "The new collection subscriptions are live on dev.",
+    "2026-08-30T09:00:00.000Z",
+  ),
+];
 
 const meta = {
   title: "Chat/ChatWindow",
   component: ChatWindow,
   decorators: [
-    withMockSocket,
     (Story) => (
       <Box sx={{ height: 520, display: "flex", flexDirection: "column" }}>
         <Story />
@@ -66,8 +47,17 @@ const meta = {
     ),
   ],
   args: { chatId: "chat-1" },
-  parameters: {
-    mockSocket: { userId: ME.id, emit: chatEmit(MESSAGES) },
+  // What the byChat collection shows for each story's chat (scopes no story
+  // sets stay loading). A message sent here stays on its way (postMessage's
+  // stub never answers), and the mock shows no optimistic adds: MessageList's
+  // Sending and NotSent stories show those states.
+  beforeEach: () => {
+    qd.messageService.byChat.mockScope("chat-1", MESSAGES);
+    qd.messageService.byChat.mockScope("chat-empty", []);
+    qd.messageService.byChat.mockScope("chat-history", MESSAGES, {
+      totalCount: 120,
+      hasMore: true,
+    });
   },
 } satisfies Meta<typeof ChatWindow>;
 
@@ -77,12 +67,21 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {};
 
 export const EmptyChat: Story = {
-  parameters: {
-    mockSocket: { userId: ME.id, emit: chatEmit([]) },
-  },
+  args: { chatId: "chat-empty" },
+};
+
+export const WithOlderHistory: Story = {
+  args: { chatId: "chat-history" },
+};
+
+export const Loading: Story = {
+  args: { chatId: "chat-loading" },
+};
+
+export const Disconnected: Story = {
+  parameters: { quickdraw: { session: { isConnected: false, isKnown: false } } },
 };
 
 export const NoChatSelected: Story = {
   args: { chatId: "" },
-  parameters: { mockSocket: { userId: ME.id } },
 };

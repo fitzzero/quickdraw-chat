@@ -1,357 +1,171 @@
-import type { GameWorld, Prisma, PrismaClient } from "@project/db";
-import type {
-  AccessLevel,
-  GameBootstrap,
-  GameDeathEvent,
-  GameServiceChannels,
-  GameServiceMethods,
-  HighScoreEntry,
-  WorldBootstrap,
-} from "@project/shared";
-import { GAME_EVENTS, GLOBAL_WORLD_ID, GAME_TICK_RATE, serviceRoom } from "@project/shared";
-import { BaseService, type QuickdrawSocket } from "@fitzzero/quickdraw-core/server";
-import { z } from "zod";
-import { GameWorldSim, isNpcId, type GameTunables } from "./world.js";
-import { GameLoop, type GameLoopDeps } from "./loop.js";
+import type { GameBootstrap, HighScoreEntry, WorldBootstrap } from "@project/shared";
+import { GLOBAL_WORLD_ID, GLOBAL_WORLD_ROOM, GAME_TICK_RATE, gameContract } from "@project/shared";
+import { QuickdrawError } from "@fitzzero/quickdraw-core";
+import { admin, everyone } from "@fitzzero/quickdraw-core/server";
+import type { db as appDb } from "../../db.js";
+import { qd } from "../../quickdraw.js";
+import {
+  activeGameRuntime,
+  gameRuntime,
+  onGameRoomLeave,
+  removePlayer,
+  type GameRuntime,
+} from "./runtime.js";
 
-// Zod schemas for validation
-const worldScopedSchema = z.object({
-  worldId: z.string().min(1),
-});
+type Db = typeof appDb;
 
-const getWorldSchema = z.object({
-  slug: z.string().min(1).max(64),
-});
+function unknownWorld(): never {
+  throw new QuickdrawError("NOT_FOUND", "Unknown world");
+}
 
-const highScoresSchema = z.object({
-  worldId: z.string().min(1),
-  limit: z.number().int().min(1).max(100).optional(),
-});
+/** The world's chat (the in-game chat overlay), read for a caller who is not signed in. */
+async function worldChatId(db: Db): Promise<string | null> {
+  const world = await db.gameWorld.findUnique({
+    where: { id: GLOBAL_WORLD_ID },
+    select: { chatId: true },
+  });
+  return world?.chatId ?? null;
+}
 
-const gameInputSchema = z.object({
-  seq: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-  dx: z.number().finite(),
-  dy: z.number().finite(),
-  boost: z.boolean(),
-});
+function buildWorldBootstrap(runtime: GameRuntime, chatId: string | null): WorldBootstrap {
+  const { sim } = runtime;
+  const state = sim.getBootstrapState();
+  return {
+    worldId: GLOBAL_WORLD_ID,
+    chatId,
+    tick: sim.tick,
+    tickRate: GAME_TICK_RATE,
+    bounds: { w: sim.tunables.worldWidth, h: sim.tunables.worldHeight },
+    players: state.players,
+    snaps: state.snaps,
+    food: state.food,
+  };
+}
 
-// Admin schema - defines fields available for admin CRUD
-const adminGameWorldSchema = z.object({
-  slug: z.string(),
-  name: z.string(),
-  chatId: z.string().nullable(),
-});
+/**
+ * Every signed-in user reads every world: a world is public game content,
+ * and the methods that act in one ask `{ entry: "Read" }` of it. Writes need
+ * a service-wide grant (the admin kit's Admin).
+ */
+const anyWorld = everyone("Read");
+
+/** `{ entry: "Read" }` on the world the input names: every signed-in user, by the policy above. */
+const IN_WORLD = { entry: "Read", id: "worldId" } as const;
 
 /**
  * GameService — the real-time game server for the demo snake world.
  *
- * Commands (join/respawn/leave) are ordinary typed+ACL'd methods, callable
- * identically from React and from the Godot client. The high-frequency
- * traffic uses quickdraw channels: client input arrives on the "input"
- * channel (fire-and-forget, token-bucketed), world snapshots go out as
- * volatile broadcasts to the world's service room at GAME_TICK_RATE.
- *
- * The simulation itself (GameWorldSim) is pure and in-memory — the database
- * only sees world/chat bootstrap and throttled score writes, never the tick
- * path. See .claude/rules/game-patterns.md.
+ * Commands (join/respawn/leave) are ordinary typed methods, callable
+ * identically from React and from the Godot client. watchWorld and joinGame
+ * put the calling socket in the world's room, which carries the world's
+ * events and gates the `input` channel, and whose last socket of a player
+ * takes them out of the sim when it leaves (`onRoomLeave`); snapshots go out
+ * on the `world` stream, whose subscribers start from the current world
+ * (`streams.world.seed`). The simulation itself (GameWorldSim, in
+ * runtime.ts) is pure and in-memory — the database only sees world/chat
+ * bootstrap and score writes, never the tick path. See
+ * .claude/rules/game-patterns.md.
  */
-export class GameService extends BaseService<
-  GameWorld,
-  Prisma.GameWorldCreateInput,
-  Prisma.GameWorldUpdateInput,
-  GameServiceMethods,
-  GameServiceChannels
-> {
-  private readonly prisma: PrismaClient;
-  public readonly sim: GameWorldSim;
-  public readonly loop: GameLoop;
-
-  // Users who joined the game (spawned). Presence is anchored on ROOM
-  // membership, not a specific socket: a player typically has two sockets
-  // (the React page + the Godot client) and either one keeps them alive.
-  private readonly playingUsers = new Set<string>();
-
-  constructor(
-    prisma: PrismaClient,
-    options?: {
-      simSeed?: number;
-      tunables?: Partial<GameTunables>;
-      /** Bench/observability hook — see GameLoopDeps.onTick. */
-      onTick?: GameLoopDeps["onTick"];
-    },
-  ) {
-    super({ serviceName: "gameService", hasEntryACL: false });
-    this.prisma = prisma;
-    this.setDelegate(prisma.gameWorld);
-
-    this.sim = new GameWorldSim({ seed: options?.simSeed, tunables: options?.tunables });
-    const room = serviceRoom("gameService", GLOBAL_WORLD_ID);
-    this.loop = new GameLoop({
-      sim: this.sim,
-      emitVolatile: (event, data) => this.emitToRoomVolatile(room, event, data),
-      emitReliable: (event, data) => this.emitToRoom(room, event, data),
-      onDeath: (death) => this.persistScore(death),
-      // Spectators (pre-game dialog) keep the NPC world alive
-      hasAudience: () => (this.subscribers.get(GLOBAL_WORLD_ID)?.size ?? 0) > 0,
-      ...(options?.onTick ? { onTick: options.onTick } : {}),
-    });
-
-    this.initMethods();
-    this.initChannels();
-    this.installAdmin();
-  }
-
-  public startLoop(): void {
-    this.loop.start();
-  }
-
-  public stopLoop(): void {
-    this.loop.stop();
-  }
-
-  // Worlds are public-read for any authenticated user: subscription gives
-  // room membership (snapshots + chat events), which in turn gates the
-  // input channel. Writes still require service-level access.
-  protected override checkAccess(
-    _userId: string,
-    _entryId: string,
-    requiredLevel: AccessLevel,
-    _socket: unknown,
-  ): boolean {
-    return requiredLevel === "Read";
-  }
-
-  // Remove the player only when NO subscribed socket of theirs remains in
-  // the world room. Covers both leave paths: disconnect (unsubscribeSocket)
-  // and explicit unsubscribe. The base class removes the departing socket
-  // from `subscribers` before these hooks run, so a plain scan suffices.
-  public override unsubscribeSocket(socket: QuickdrawSocket): void {
-    super.unsubscribeSocket(socket);
-    this.maybeRemovePlayer(socket.userId);
-  }
-
-  public override unsubscribe(entryId: string, socket: QuickdrawSocket): void {
-    super.unsubscribe(entryId, socket);
-    if (entryId === GLOBAL_WORLD_ID) this.maybeRemovePlayer(socket.userId);
-  }
-
-  private maybeRemovePlayer(userId: string | undefined): void {
-    if (!userId || !this.playingUsers.has(userId)) return;
-    const roomSockets = this.subscribers.get(GLOBAL_WORLD_ID);
-    if (roomSockets) {
-      for (const socket of roomSockets) {
-        // Another socket anchors them
-        if (socket.userId === userId) return;
-      }
-    }
-    this.playingUsers.delete(userId);
-    if (this.sim.removePlayer(userId)) {
-      this.emitToRoom(serviceRoom("gameService", GLOBAL_WORLD_ID), GAME_EVENTS.playerLeft, {
-        id: userId,
-      });
-    }
-  }
-
-  /** Score writes happen off the tick path; failures are logged, never thrown. */
-  private persistScore(death: GameDeathEvent): void {
-    // Bots have no User row and no high scores
-    if (isNpcId(death.id)) return;
-    void (async () => {
-      await this.prisma.gameScore.upsert({
-        where: { worldId_userId: { worldId: GLOBAL_WORLD_ID, userId: death.id } },
-        update: {},
-        create: { worldId: GLOBAL_WORLD_ID, userId: death.id, bestLength: death.len },
-      });
-      await this.prisma.gameScore.updateMany({
-        where: { worldId: GLOBAL_WORLD_ID, userId: death.id, bestLength: { lt: death.len } },
-        data: { bestLength: death.len },
-      });
-    })().catch((error: unknown) => {
-      this.logger.warn("Failed to persist game score", {
-        userId: death.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
-  }
-
-  private initMethods(): void {
-    this.initJoinMethod();
-    this.initSessionMethods();
-  }
-
-  private initJoinMethod(): void {
-    this.defineMethod(
-      "joinGame",
-      "Read",
-      async (payload, ctx): Promise<GameBootstrap> => {
-        if (!ctx.userId) throw new Error("Authentication required");
-        if (payload.worldId !== GLOBAL_WORLD_ID) throw new Error("Unknown world");
-
-        const [user, world] = await Promise.all([
-          this.prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true } }),
-          this.findById(GLOBAL_WORLD_ID),
+export const gameService = qd.defineService(gameContract, {
+  model: "gameWorld",
+  access: anyWorld,
+  // The high scores. A write to the service's model or to one in `writes`
+  // changes its service topic, which anyone may watch, and the score queries
+  // hear GameScore's only. The world chat's memberships are the chat
+  // service's (`joinWorldChat`, called through ctx.services)
+  writes: ["gameScore"],
+  methods: {
+    joinGame: {
+      // a signed-in user, on a world (the policy gives every signed-in user
+      // Read on every world)
+      access: IN_WORLD,
+      handler: async ({ input, ctx, db }): Promise<GameBootstrap> => {
+        if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
+        const runtime = gameRuntime(db);
+        // the player is in the world's chat too (written once, by the chat service)
+        const [user, { chatId }] = await Promise.all([
+          db.user.findUnique({ where: { id: ctx.principal.userId }, select: { name: true } }),
+          ctx.services.chatService.joinWorldChat({ worldId: GLOBAL_WORLD_ID }),
         ]);
-
-        const { meta, isNew } = this.sim.addPlayer(ctx.userId, user?.name ?? null);
-        this.playingUsers.add(ctx.userId);
-
-        await this.ensureChatMembership(world?.chatId, ctx.userId);
-
+        // The calling socket hears the world and may send input; the player
+        // stays while any socket of theirs is in the room (onGameRoomLeave)
+        ctx.rooms.join(GLOBAL_WORLD_ROOM);
+        const { meta, isNew } = runtime.sim.addPlayer(ctx.principal.userId, user?.name ?? null);
+        runtime.playingUsers.add(ctx.principal.userId);
         if (isNew) {
-          this.emitToRoom(
-            serviceRoom("gameService", GLOBAL_WORLD_ID),
-            GAME_EVENTS.playerJoined,
-            meta,
-          );
+          ctx.rooms.emit(GLOBAL_WORLD_ROOM, gameContract, "playerJoined", meta);
         }
-
-        return { ...this.buildWorldBootstrap(world?.chatId ?? null), you: meta };
+        return { ...buildWorldBootstrap(runtime, chatId), you: meta };
       },
-      { schema: worldScopedSchema },
-    );
-
-    // Spectate entry: full world state without spawning. The web wrapper
-    // boots Godot into this; the pre-game dialog's joinGame (from the React
-    // socket) is what actually spawns the player. Authed spectators get
-    // world-chat membership (the chat overlay works behind the dialog);
-    // ANONYMOUS spectators (signed-out /game visitors) get world-room
-    // membership granted here instead — the registry's subscribe path
-    // requires auth, but the snapshot/leaderboard streams are public and
-    // channels stay auth-gated (core drops anonymous channel input).
-    this.defineMethod(
-      "watchWorld",
-      "Public",
-      async (payload, ctx): Promise<WorldBootstrap> => {
-        if (payload.worldId !== GLOBAL_WORLD_ID) throw new Error("Unknown world");
-        const world = await this.findById(GLOBAL_WORLD_ID);
-        if (ctx.userId) {
-          await this.ensureChatMembership(world?.chatId, ctx.userId);
-        } else {
-          this.joinSpectator(ctx.socketId);
-        }
-        return this.buildWorldBootstrap(world?.chatId ?? null);
+    },
+    watchWorld: {
+      // spectating is open to everyone, signed in or not (the guest dialog
+      // sits over a live world)
+      access: "public",
+      handler: async ({ input, ctx, db }): Promise<WorldBootstrap> => {
+        if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
+        // a signed-in spectator is in the world's chat too (the overlay works
+        // before they join), written once, by the chat service
+        const chatId =
+          ctx.principal === null
+            ? await worldChatId(db)
+            : (await ctx.services.chatService.joinWorldChat({ worldId: GLOBAL_WORLD_ID })).chatId;
+        // The calling socket hears the world's events and counts as its
+        // audience, signed in or not; an anonymous one never sends input
+        // (channels need a principal)
+        ctx.rooms.join(GLOBAL_WORLD_ROOM);
+        return buildWorldBootstrap(gameRuntime(db), chatId);
       },
-      { schema: worldScopedSchema },
-    );
-  }
-
-  /**
-   * World-room membership for an anonymous socket: receives the volatile
-   * snapshot + reliable event streams and counts toward `hasAudience` (the
-   * NPC world keeps ticking for spectators). Registered in `subscribers` so
-   * the standard disconnect cleanup (`unsubscribeSocket`) applies.
-   */
-  private joinSpectator(socketId: string): void {
-    const socket = this.io?.sockets.sockets.get(socketId) as QuickdrawSocket | undefined;
-    if (!socket) return;
-    void socket.join(serviceRoom("gameService", GLOBAL_WORLD_ID));
-    let roomSockets = this.subscribers.get(GLOBAL_WORLD_ID);
-    if (!roomSockets) {
-      roomSockets = new Set();
-      this.subscribers.set(GLOBAL_WORLD_ID, roomSockets);
-    }
-    roomSockets.add(socket);
-  }
-
-  /** Idempotent membership in the world chat (the in-game chat overlay). */
-  private async ensureChatMembership(
-    chatId: string | null | undefined,
-    userId: string,
-  ): Promise<void> {
-    if (!chatId) return;
-    await this.prisma.chatMember.upsert({
-      where: { chatId_userId: { chatId, userId } },
-      update: {},
-      create: { chatId, userId, level: "Read" },
-    });
-  }
-
-  private buildWorldBootstrap(chatId: string | null): WorldBootstrap {
-    const state = this.sim.getBootstrapState();
-    return {
-      worldId: GLOBAL_WORLD_ID,
-      chatId,
-      tick: this.sim.tick,
-      tickRate: GAME_TICK_RATE,
-      bounds: { w: this.sim.tunables.worldWidth, h: this.sim.tunables.worldHeight },
-      players: state.players,
-      snaps: state.snaps,
-      food: state.food,
-    };
-  }
-
-  private initSessionMethods(): void {
-    this.defineMethod(
-      "respawn",
-      "Read",
-      (payload, ctx) => {
-        if (!ctx.userId) throw new Error("Authentication required");
-        if (payload.worldId !== GLOBAL_WORLD_ID) throw new Error("Unknown world");
-        this.sim.respawn(ctx.userId);
+    },
+    respawn: {
+      // a signed-in user, on a world, as joinGame
+      access: IN_WORLD,
+      handler: ({ input, ctx, db }) => {
+        if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
+        gameRuntime(db).sim.respawn(ctx.principal.userId);
         return Promise.resolve({ ok: true as const });
       },
-      { schema: worldScopedSchema },
-    );
-
-    this.defineMethod(
-      "leaveGame",
-      "Read",
-      (payload, ctx) => {
-        if (!ctx.userId) throw new Error("Authentication required");
-        if (payload.worldId !== GLOBAL_WORLD_ID) throw new Error("Unknown world");
-        this.playingUsers.delete(ctx.userId);
-        if (this.sim.removePlayer(ctx.userId)) {
-          this.emitToRoom(serviceRoom("gameService", GLOBAL_WORLD_ID), GAME_EVENTS.playerLeft, {
-            id: ctx.userId,
-          });
-        }
+    },
+    leaveGame: {
+      // a signed-in user, on a world, as joinGame
+      access: IN_WORLD,
+      handler: ({ input, ctx, db }) => {
+        if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
+        removePlayer(gameRuntime(db), ctx.principal.userId);
         return Promise.resolve({ ok: true as const });
       },
-      { schema: worldScopedSchema },
-    );
-
-    this.defineMethod(
-      "getWorld",
-      "Public",
-      async (payload) => {
-        const world = await this.prisma.gameWorld.findUnique({
-          where: { slug: payload.slug },
+    },
+    getWorld: {
+      access: "public",
+      handler: async ({ input, db }) => {
+        const world = await db.gameWorld.findUnique({
+          where: { slug: input.slug },
           select: { id: true, name: true, chatId: true },
         });
         return world ?? null;
       },
-      { schema: getWorldSchema },
-    );
-    this.initScoreMethods();
-  }
-
-  private initScoreMethods(): void {
-    this.defineMethod(
-      "getMyBest",
-      "Read",
-      async (payload, ctx) => {
-        if (!ctx.userId) throw new Error("Authentication required");
-        if (payload.worldId !== GLOBAL_WORLD_ID) throw new Error("Unknown world");
-        const score = await this.prisma.gameScore.findUnique({
-          where: { worldId_userId: { worldId: GLOBAL_WORLD_ID, userId: ctx.userId } },
+    },
+    getMyBest: {
+      // a signed-in user's own score, on a world
+      access: IN_WORLD,
+      handler: async ({ input, ctx, db }) => {
+        if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
+        const score = await db.gameScore.findUnique({
+          where: { worldId_userId: { worldId: GLOBAL_WORLD_ID, userId: ctx.principal.userId } },
           select: { bestLength: true },
         });
         return { bestLength: score?.bestLength ?? 0 };
       },
-      { schema: worldScopedSchema },
-    );
-
-    // Public: powers the /scores page for signed-out visitors too.
-    // NPCs never persist scores, so no filtering is needed here.
-    this.defineMethod(
-      "getHighScores",
-      "Public",
-      async (payload): Promise<HighScoreEntry[]> => {
-        if (payload.worldId !== GLOBAL_WORLD_ID) throw new Error("Unknown world");
-        const rows = await this.prisma.gameScore.findMany({
+    },
+    getHighScores: {
+      // the /scores page and the pre-game dialog, signed in or not
+      access: "public",
+      handler: async ({ input, db }): Promise<HighScoreEntry[]> => {
+        if (input.worldId !== GLOBAL_WORLD_ID) unknownWorld();
+        const rows = await db.gameScore.findMany({
           where: { worldId: GLOBAL_WORLD_ID },
           orderBy: { bestLength: "desc" },
-          take: Math.min(payload.limit ?? 25, 100),
+          take: Math.min(input.limit ?? 25, 100),
           include: { user: { select: { name: true, image: true, isGuest: true } } },
         });
         return rows.map((row) => ({
@@ -362,56 +176,39 @@ export class GameService extends BaseService<
           bestLength: row.bestLength,
         }));
       },
-      { schema: highScoresSchema },
-    );
-
-    this.verifyAllMethods([
-      "joinGame",
-      "watchWorld",
-      "respawn",
-      "leaveGame",
-      "getWorld",
-      "getMyBest",
-      "getHighScores",
-    ]);
-  }
-
-  private initChannels(): void {
-    // Client input at ~tick rate. Fire-and-forget: invalid/unauthorized/
-    // excess frames are dropped silently; the token bucket replaces the
-    // global rate limiter for this event.
-    this.defineChannel(
-      "input",
-      "Read",
-      (payload, ctx) => {
-        this.sim.applyInput(ctx.userId, payload);
-      },
-      {
-        schema: gameInputSchema,
-        ratePerSecond: GAME_TICK_RATE * 1.5,
-        burst: GAME_TICK_RATE * 3,
-        requireRoom: () => serviceRoom("gameService", GLOBAL_WORLD_ID),
-      },
-    );
-  }
-
-  private installAdmin(): void {
-    this.installAdminMethods({
-      expose: { list: true, get: true, update: true, delete: false, create: false },
-      access: {
-        list: "Admin",
-        get: "Admin",
-        create: "Admin",
-        update: "Admin",
-        delete: "Admin",
-        setEntryACL: "Admin",
-        getSubscribers: "Admin",
-        reemit: "Admin",
-        unsubscribeAll: "Admin",
-      },
-      schema: adminGameWorldSchema,
+    },
+    ...admin.handlers(gameContract, {
       displayName: "Game Worlds",
-      tableColumns: ["id", "slug", "name", "createdAt"],
-    });
-  }
-}
+      fieldOverrides: { chatId: { showInTable: false }, updatedAt: { showInTable: false } },
+    }),
+  },
+  channels: {
+    // Fire-and-forget at about the tick rate: the contract's token bucket and
+    // room requirement drop what is over the rate or from a socket outside
+    // the world; the next frame supersedes a lost one
+    input: (payload, ctx) => {
+      activeGameRuntime()?.sim.applyInput(ctx.principal.userId, payload);
+    },
+  },
+  streams: {
+    world: {
+      // Each subscriber starts from the current world (a keyframe: every
+      // snake, all the food), read from the running sim, never the
+      // database: it runs on every subscribe
+      seed: (worldId) => {
+        const runtime = activeGameRuntime();
+        return worldId === GLOBAL_WORLD_ID && runtime !== undefined ? [runtime.sim.keyframe()] : [];
+      },
+      // 20 snapshots a second the loop builds itself: checked against the
+      // schema where outputs are (development and tests), not in production
+      validate: "development",
+    },
+  },
+  // The score queries watch the service topic narrowed to GameScore (a
+  // stored score changes it; an edit of a world row changes it too, which
+  // they skip), and they are public: anyone may watch it
+  watchAccess: "public",
+  // A player whose last socket left the world's room leaves the sim, in
+  // every server this service runs in
+  onRoomLeave: onGameRoomLeave,
+});

@@ -1,44 +1,12 @@
+import type { ItemOf } from "@fitzzero/quickdraw-core";
+import type { messageContract } from "../contracts/message.js";
+
 // ============================================================================
-// Message Service Types
+// Message Service Types: named views of the message contract (contracts/message.ts)
 // ============================================================================
 
 /**
- * Wire shape of a message (subscription payloads, emitUpdate, and the
- * `byChat` collection item).
+ * A message with its author's public profile: the item of the `byChat`
+ * collection (the `withAuthor` projection), which is what a chat shows.
  */
-export interface MessageDTO {
-  id: string;
-  chatId: string;
-  userId: string;
-  content: string;
-  role: string;
-  createdAt: string;
-  user?: {
-    id: string;
-    name: string | null;
-    image: string | null;
-  };
-}
-
-/**
- * Collections served by messageService. `byChat` is scoped by chat id and
- * unbounded (no membership `ids` in snapshots — history pages in forever).
- */
-export type MessageCollections = {
-  byChat: { item: MessageDTO };
-};
-
-export interface MessageServiceMethods {
-  postMessage: {
-    payload: {
-      chatId: string;
-      content: string;
-      role?: "user" | "assistant" | "system";
-    };
-    response: { id: string };
-  };
-  deleteMessage: {
-    payload: { id: string };
-    response: { id: string; deleted: true };
-  };
-}
+export type MessageDTO = ItemOf<typeof messageContract, "byChat">;
