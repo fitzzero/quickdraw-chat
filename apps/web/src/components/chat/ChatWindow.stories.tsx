@@ -50,7 +50,7 @@ const meta = {
   // What the byChat collection shows for each story's chat (scopes no story
   // sets stay loading). A message sent here stays on its way (postMessage's
   // stub never answers), and the mock shows no optimistic adds: MessageList's
-  // Sending and NotSent stories show those states.
+  // Sending, Checking and NotSent stories show those states.
   beforeEach: () => {
     qd.messageService.byChat.mockScope("chat-1", MESSAGES);
     qd.messageService.byChat.mockScope("chat-empty", []);

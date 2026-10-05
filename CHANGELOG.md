@@ -1,5 +1,52 @@
 # Changelog
 
+## quickdraw 5.0.0-rc.6 (2026-10-05)
+
+The template on quickdraw's last 5.0 release candidate (`5.0.0-rc.6`, npm's
+`next` tag). Access is unchanged: every access matrix passes as it was. On
+its own the upgrade changed no result (check, the API reference, the API,
+web and bench tests all passed before any change); what follows adopts what
+rc.6 adds and changes.
+
+### Changed
+
+- **The sign-ins are the kit's list.** quickdraw's auth routes kit serves
+  `GET /auth/providers` itself (`{ providers: [{ id, name, kind }] }`, the
+  sign-ins served now), so the app's own route and its
+  `quickdraw-5.0 finding` marker are gone. The login page reads it with the
+  client's `authProviders()` and labels each OAuth button with the name the
+  API gives it ("Continue with Google"; an app's own provider names itself).
+- **A message whose send lost its answer resolves itself.** Each message
+  the web sends carries an id it made (a UUID, which `postMessage` accepts
+  and the create keeps; an id that exists is `CONFLICT`, never overwritten,
+  and server-made ids stay cuids). When the connection drops after a send
+  went out, or it times out, the server may have the message: it stays,
+  marked "Checking…", until the chat's next load (the reconnect's) finds it
+  by that id, and shows the server's copy, or answers without it, and keeps
+  it as not sent ("the connection dropped before the server answered") with
+  a retry that cannot post it twice. `deleteMessage` takes either kind of
+  id. A refused message's retry now runs through the send's mutation hook.
+- **The session cookie works only from the web app's pages.** A REST route
+  (`requireSession`: the service worker's push renewal) answers the cookie
+  sent from another site's page 403, as sockets and HTTP calls already did;
+  the API gives the routes and the REST route the same session store, so the
+  web app's origins apply. The Discord Activity sets no cookie any more: its
+  page and its Godot client sign in with the token it answers.
+- **Replies carry what their schemas declare** (rc.6 sends a method's own
+  output schema as declared, on every transport): every hand-written output
+  already answered exactly its schema's keys, so nothing a client reads
+  changed.
+- **A write of an unchanged value signals again** (rc.6 withdrew rc.5's
+  suppression): the writes the app repeats (the world chat's membership on
+  every watch or join, a death's score, a member set to the level they
+  hold) read first and write nothing when nothing changes, as their tests
+  pin; nothing writes on a timer through the tracked client.
+- **Game.** The Godot addon is quickdraw's rc.6 client (a comment: a
+  receiver ignores what a later protocol appends).
+- **Docs.** The README's quickdraw badge shows the release candidate the
+  template pins (npm's `next` tag), and `DEPLOYMENT.md` says the provider
+  list is the kit's and which pages may use the cookie.
+
 ## Sign-in on a hosted dev instance (2026-10-04)
 
 What the first QA of the hosted dev deploy (`quickdraw-dev.techtree.gg`,
