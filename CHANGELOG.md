@@ -3,7 +3,7 @@
 ## quickdraw 5.0 (2026-10-04)
 
 The whole template moved from `@fitzzero/quickdraw-core` 4.1 to the 5.0
-release candidate (`5.0.0-rc.4`): the server, the web app, the game and its
+release candidate (`5.0.0-rc.5`): the server, the web app, the game and its
 Godot client, the tests, CI and the docs. Everyone signs in once more
 (session tokens now name their session). Upgrading a deployed 4.x
 database: run the migrations, then follow "Upgrading to quickdraw 5.0" in
@@ -100,6 +100,44 @@ methods; `docs/api` lists every method's access).
   5.0; `docs/api` is generated from the contracts and the services by
   `quickdraw-docs` (who may call each method; `bun run docs:generate`,
   checked in CI).
+
+### On `5.0.0-rc.5`
+
+The release candidate that fixed what the final review of this migration
+found. Access is unchanged: every access matrix passes as it was. On its
+own the upgrade changed only the generated API reference (the streams'
+intro); the strict test app starts (no method's own output names a tiered
+field, `tiered-field-in-output`), and lint's wider `no-raw-socket` and
+`prefer-kit` find nothing.
+
+- **Security.** A cookie-authenticated HTTP call (`POST /qd/...`) from an
+  origin outside the allowed ones is refused (403), as a cookie socket is:
+  the web app makes none (it calls over its socket, and its REST route
+  takes `requireSession`), and tests pin the rule (allowed origin, another
+  site, no `Origin`, a bearer token). The Discord Activity's best-effort
+  cookie stays SameSite=Lax, now the helper's default: the Activity signs in
+  with its token. `DEPLOYMENT.md` says what a SameSite=Lax cookie needs: the
+  web and the API on one site (the raw `vercel.app` and `run.app` pair signs
+  no socket in), or `cookie: { sameSite: "none" }`.
+- **Game.** The high scores watch `{ service: ["gameScore"] }`: an edit of
+  a world row changes the game's topic too, and no longer makes every score
+  reader fetch them again. Admin edits of definitions reach the sim from the
+  admin kit's `onCommitted`, once the edit committed (one that failed never
+  does). The Godot addon is quickdraw's rc.5 client (a refused stream
+  subscribe is not held, so the game no longer releases it by hand), and
+  the web export is rebuilt.
+- **Web.** A refused send is kept by the client, not in component state:
+  `cache.addItem(..., { onRefused: "keep" })` and `useCollection().refused`,
+  each with `retry()` and `dismiss()`, so it outlives the chat window. A
+  join the server refuses says why and offers `useJoin().retry()`: the chat
+  roster, and the game's pre-game dialog (which no longer resets the
+  player's start). Storybook gives each story a provider of its own
+  (`<qd.$Provider session>`), so a docs page shows every story's session.
+- **Writes that change nothing** send nothing in rc.5, whatever the app
+  does. The app still reads first where it must know what a write did:
+  `joinWorldChat` counts a new member and tells the roster, and
+  `persistScore` tells a first score from a new best; the tests that pin
+  those writes sending nothing stay.
 
 ### On `5.0.0-rc.4`
 
