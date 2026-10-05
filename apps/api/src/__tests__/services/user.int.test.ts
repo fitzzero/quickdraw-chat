@@ -182,6 +182,47 @@ describe("UserService updateUser and grants", () => {
     ).toBe("FORBIDDEN");
   });
 
+  it("answers a userService Moderate the changed public profile, never the user's email (UPDATEUSER-ANSWER)", async () => {
+    const victim = await createTestUser({ name: "Victim", email: "victim@secret.example" });
+    const userModerator = await createTestUser({
+      name: "User Mod",
+      serviceAccess: { userService: "Moderate" },
+    });
+
+    const answer = await as(userModerator.id).userService.updateUser({
+      id: victim.id,
+      data: { name: "Victim Renamed" },
+    });
+    expect(answer).toEqual({ id: victim.id, name: "Victim Renamed", image: null });
+    expect(JSON.stringify(answer)).not.toContain("victim@secret.example");
+    // ...as the same caller's subscription to that user strips it
+    const socket = await app.connect({ userId: userModerator.id });
+    const reply = await subscribeEntity(socket, "userService", victim.id);
+    expect(JSON.stringify(reply)).not.toContain("victim@secret.example");
+    socket.close();
+  });
+
+  it("takes an https avatar only", async () => {
+    const self = as(users.regular.id);
+    for (const image of [
+      "http://tracker.example.com/pixel.png",
+      "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+      "javascript:alert(1)",
+    ]) {
+      expect(
+        await codeOf(self.userService.updateUser({ id: users.regular.id, data: { image } })),
+      ).toBe("VALIDATION");
+    }
+    expect(
+      await self.userService.updateUser({
+        id: users.regular.id,
+        data: { image: "https://cdn.example.com/avatar.png" },
+      }),
+    ).toMatchObject({ image: "https://cdn.example.com/avatar.png" });
+    const stored = await testPrisma.user.findUniqueOrThrow({ where: { id: users.regular.id } });
+    expect(stored.image).toBe("https://cdn.example.com/avatar.png");
+  });
+
   it("replaces a user's grants through adminUpdate and refreshes their open sockets", async () => {
     const target = await app.connect({ userId: users.regular.id });
     expect(target.hello.serviceAccess).toEqual({ userService: "Read" });

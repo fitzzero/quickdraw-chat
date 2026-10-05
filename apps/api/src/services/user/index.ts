@@ -18,7 +18,7 @@ export const userService = qd.defineService(userContract, {
       access: "authenticated",
       handler: ({ ctx, db }) => db.user.findUnique({ where: { id: ctx.principal.userId } }),
     },
-    // quickdraw: hand-written because a taken name answers { error: "name_taken" } (the profile form shows it) where the read/write kit's update answers CONFLICT, and it answers the changed profile rather than the entity
+    // quickdraw: hand-written because a taken name answers { error: "name_taken" } (the profile form shows it) where the read/write kit's update answers CONFLICT, and it answers the changed public profile rather than the entity
     updateUser: {
       // the user themself (Admin on their row) or a service-wide userService
       // Moderate grant (SERVICE_DEFAULT_ACCESS gives every signed-in user
@@ -26,10 +26,12 @@ export const userService = qd.defineService(userContract, {
       access: { service: "Moderate", entry: "Moderate" },
       handler: async ({ input, db }) => {
         try {
+          // the public profile only: the contract's field tiers do not strip
+          // a hand-written output, so `email` stays out of it
           return await db.user.update({
             where: { id: input.id },
             data: { name: input.data.name, image: input.data.image },
-            select: { id: true, email: true, name: true, image: true },
+            select: { id: true, name: true, image: true },
           });
         } catch (error) {
           // User.name is unique — surface collisions as a typed result

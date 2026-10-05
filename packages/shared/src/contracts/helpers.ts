@@ -23,6 +23,12 @@ export const paginationSchema = z.object({
 export const endpointSchema = z.string().url().max(2048);
 
 /**
+ * An https URL: an image other users' browsers load (an avatar), so never
+ * http (a tracking pixel on public pages), `data:` or `javascript:`.
+ */
+export const httpsUrlSchema = z.url({ protocol: /^https$/, error: "Must be an https URL" });
+
+/**
  * A browser push subscription: the endpoint plus its encryption keys.
  * Shared by the socket method (`subscribePush`) and the service-worker REST
  * renewal route, which carry the same payload.

@@ -44,7 +44,7 @@ Output: one row as the `entity` projection, or `null`.
 
 ### `updateUser`
 
-Changes a user's name or image; answers { error: "name_taken" } when another user has the name.
+Changes a user's name or https image; answers their public profile, or { error: "name_taken" } when another user has the name.
 
 A mutation.
 
@@ -57,7 +57,7 @@ Input:
 | `id`   | `string`                            | format cuid |
 | `data` | `{ name?: string; image?: string }` |             |
 
-Output: `{ error: "name_taken" } | { id: string; email: string; name: string | null; image: string | null }`.
+Output: `{ error: "name_taken" } | { id: string; name: string | null; image: string | null }`.
 
 ### `adminList`
 

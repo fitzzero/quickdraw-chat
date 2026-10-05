@@ -4,13 +4,20 @@
 
 import { admin, defineContract, mutation, nullable, query } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
-import { accessLevelSchema, cuidSchema, isoDateSchema } from "./helpers.js";
+import {
+  accessLevelSchema,
+  cuidSchema,
+  httpsUrlSchema,
+  isoDateSchema,
+  publicProfileSchema,
+} from "./helpers.js";
 
 const updateUserSchema = z.object({
   id: cuidSchema("user ID"),
   data: z.object({
     name: z.string().min(1).max(50).optional(),
-    image: z.string().url("Invalid image URL").optional(),
+    // shown to other users (chats, /scores): https only
+    image: httpsUrlSchema.optional(),
   }),
 });
 
@@ -50,17 +57,13 @@ export const userContract = defineContract("userService", {
     }),
     updateUser: mutation({
       input: updateUserSchema,
-      output: z.union([
-        z.object({ error: z.literal("name_taken") }),
-        z.object({
-          id: z.string(),
-          email: z.string(),
-          name: z.string().nullable(),
-          image: z.string().nullable(),
-        }),
-      ]),
+      // The changed public profile, which every signed-in user may read: a
+      // hand-written output is not stripped by `fields`, so it names nothing
+      // tiered (`email` would reach a userService Moderate who updates
+      // someone else). The new row reaches its subscribers as usual.
+      output: z.union([z.object({ error: z.literal("name_taken") }), publicProfileSchema]),
       describe:
-        'Changes a user\'s name or image; answers { error: "name_taken" } when another user has the name.',
+        'Changes a user\'s name or https image; answers their public profile, or { error: "name_taken" } when another user has the name.',
     }),
     // The admin screens: every user, for holders of a service-wide Admin
     // grant; `adminUpdate` also writes `serviceAccess` (the service passes
