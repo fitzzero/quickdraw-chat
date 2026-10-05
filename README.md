@@ -64,10 +64,10 @@ const { items, hasMore, loadMore } = qd.messageService.byChat.useCollection(chat
 
 The template shows both scope shapes end to end:
 
-| Collection                | Scope                                                 | Shows off                                                                                                                                                                                                 |
-| ------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `messageService` `byChat` | a chat id (a column of the row)                       | Deltas from every `postMessage` and delete; `loadMore` pages back through the history; the scope is opened by Read on the chat (`anchor`)                                                                 |
-| `chatService` `myChats`   | **a user id**, through the `ChatMember` table (`via`) | One chat fans out to every member's list; an invite or removal adds or removes it; `refreshEntry` keeps each list's member count live; ordered by `Chat.lastMessageAt`, which every message keeps current |
+| Collection                | Scope                                                 | Shows off                                                                                                                                                                                                                             |
+| ------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `messageService` `byChat` | a chat id (a column of the row)                       | Deltas from every `postMessage` and delete; `loadMore` pages back through the history; the scope is opened by Read on the chat (`anchor`)                                                                                             |
+| `chatService` `myChats`   | **a user id**, through the `ChatMember` table (`via`) | One chat fans out to every member's list; an invite or removal adds or removes it, and writes the chat's `memberCount` column, which keeps each list's count live; ordered by `Chat.lastMessageAt`, which every message keeps current |
 
 ## What you get
 

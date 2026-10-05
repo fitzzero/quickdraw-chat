@@ -321,14 +321,14 @@ Live lists of the service's rows, one per scope value.
 
 ### `myChats`
 
-| Option    | Value                                                                                                                                      |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Scope     | `userId` of the `chatMember` rows whose `chatId` is the item's id; a write to those rows sends the item again to every scope that holds it |
-| Item      | `listItem`                                                                                                                                 |
-| Order     | `lastMessageAt` desc, `id` desc                                                                                                            |
-| Index     | `lastMessageAt`, `title`, `memberCount`                                                                                                    |
-| Access    | the subscriber's own user id (`scopeAccess: "self"`)                                                                                       |
-| Page size | 100, at most 500                                                                                                                           |
+| Option    | Value                                                             |
+| --------- | ----------------------------------------------------------------- |
+| Scope     | `userId` of the `chatMember` rows whose `chatId` is the item's id |
+| Item      | `listItem`                                                        |
+| Order     | `lastMessageAt` desc, `id` desc                                   |
+| Index     | `lastMessageAt`, `title`, `memberCount`                           |
+| Access    | the subscriber's own user id (`scopeAccess: "self"`)              |
+| Page size | 100, at most 500                                                  |
 
 ## Events
 

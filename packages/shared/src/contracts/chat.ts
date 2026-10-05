@@ -70,9 +70,9 @@ export const chatSchema = z.object({
 });
 
 /**
- * One item of `myChats`. `memberCount` is computed (the service's projection
- * selects the members' ids and counts them in `map`), so the item is a
- * projection of its own rather than the entity.
+ * One item of `myChats`: the columns a chat list shows. `memberCount` is a
+ * column the membership writes keep (`Chat.memberCount`), so a list reads no
+ * member; the entity leaves it out (nobody edits it by hand).
  */
 export const chatListItemSchema = z.object({
   id: z.string(),
@@ -160,11 +160,10 @@ export const chatContract = defineContract("chatService", {
   collections: {
     // Each chat in the list of every member: the scope is a user id, through
     // the membership table, so one chat fans out to all of its members' lists.
-    // The item reads the membership (`memberCount`), so every membership
-    // write sends the chat again to the lists that still hold it
-    // (`refreshEntry`).
+    // A membership write also writes the chat's `memberCount`, which sends
+    // the chat again to the lists that still hold it.
     myChats: {
-      scope: via({ model: "chatMember", entry: "chatId", scope: "userId", refreshEntry: true }),
+      scope: via({ model: "chatMember", entry: "chatId", scope: "userId" }),
       item: "listItem",
       // most recent activity first
       order: [

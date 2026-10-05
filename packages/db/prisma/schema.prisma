@@ -114,9 +114,17 @@ model Chat {
   // collection can order by it (a collection's order names columns only).
   lastMessageAt DateTime @default(now()) @map("last_message_at")
 
+  // How many members (ChatMember rows) the chat has: what the `myChats` item
+  // shows, so a list never reads a chat's members. Kept by each membership
+  // write, in its transaction, through the tracked client (the lists holding
+  // the chat get the new count); a deleted user's memberships, which the
+  // database cascades, are counted out by a trigger (migration
+  // 20261004200100_chat_member_count).
+  memberCount Int @default(0) @map("member_count")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-  
+
   // Relations - access control is managed via ChatMember table
   members   ChatMember[]
   messages  Message[]
@@ -129,14 +137,16 @@ model ChatMember {
   chatId    String   @map("chat_id")
   userId    String   @map("user_id")
   level     String   @default("Read") // "Read", "Moderate", "Admin"
-  
+
   createdAt DateTime @default(now()) @map("created_at")
-  
+
   // Relations
   chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([chatId, userId])
+  // A user's chats: what myChats opens and resumes from
+  @@index([userId])
   @@map("chat_members")
 }
 

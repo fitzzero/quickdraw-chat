@@ -129,6 +129,42 @@ function isForeignKeyFailure(error: unknown): boolean {
 }
 
 /**
+ * Adds a member, counting them on the chat (`Chat.memberCount`), in the
+ * caller's transaction: through the tracked client, so the lists holding
+ * the chat get the new count.
+ */
+async function addMember(
+  tx: Prisma.TransactionClient,
+  chatId: string,
+  userId: string,
+  level: AccessLevel,
+): Promise<void> {
+  await tx.chatMember.create({ data: { chatId, userId, level }, select: { id: true } });
+  await tx.chat.update({
+    where: { id: chatId },
+    data: { memberCount: { increment: 1 } },
+    select: { id: true },
+  });
+}
+
+/** Removes a member and counts them out of the chat, in the caller's transaction. */
+async function removeMember(
+  tx: Prisma.TransactionClient,
+  chatId: string,
+  userId: string,
+): Promise<void> {
+  await tx.chatMember.delete({
+    where: { chatId_userId: { chatId, userId } },
+    select: { id: true },
+  });
+  await tx.chat.update({
+    where: { id: chatId },
+    data: { memberCount: { decrement: 1 } },
+    select: { id: true },
+  });
+}
+
+/**
  * Makes one change to a chat's members, under the sharing kit's rules
  * (`checkChange`), in a SERIALIZABLE transaction: two changes at once
  * cannot both pass the rules (two last Admins leaving together). Answers
@@ -142,7 +178,6 @@ export async function changeMembership(
   change: MembershipChange,
 ): Promise<boolean> {
   const { chatId, userId, level } = change;
-  const where = { chatId_userId: { chatId, userId } };
   try {
     return await db.$transaction(
       async (tx) => {
@@ -152,11 +187,15 @@ export async function changeMembership(
         }
         if (level === before) return false;
         if (level === null) {
-          await tx.chatMember.delete({ where, select: { id: true } });
+          await removeMember(tx, chatId, userId);
         } else if (before === null) {
-          await tx.chatMember.create({ data: { chatId, userId, level }, select: { id: true } });
+          await addMember(tx, chatId, userId, level);
         } else {
-          await tx.chatMember.update({ where, data: { level }, select: { id: true } });
+          await tx.chatMember.update({
+            where: { chatId_userId: { chatId, userId } },
+            data: { level },
+            select: { id: true },
+          });
         }
         return true;
       },
@@ -201,7 +240,10 @@ export async function joinChat(
   });
   if (existing !== null) return false;
   try {
-    await db.chatMember.create({ data: { chatId, userId, level }, select: { id: true } });
+    // the membership and the chat's count, together
+    await db.$transaction(async (tx) => {
+      await addMember(tx, chatId, userId, level);
+    });
     return true;
   } catch (error) {
     // another socket of the user joined them first (the page and the game

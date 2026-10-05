@@ -84,6 +84,13 @@ function itemOf<Item>(delta: CollectionDelta<Item>): Partial<Item> {
   throw new Error(`no item in a ${delta.t} delta`);
 }
 
+/** The id of the item a delta is about. */
+function idOf<Item extends { readonly id: string }>(delta: CollectionDelta<Item>): string {
+  if (delta.t === "added" || delta.t === "updated") return delta.item.id;
+  if (delta.t === "reset") throw new Error("a reset is about no item");
+  return delta.id;
+}
+
 describe("myChats (each member's list, through the membership table)", () => {
   it("adds a created chat to every initial member's list", async () => {
     const member = await app.connect({ userId: users.regular.id });
@@ -131,13 +138,15 @@ describe("myChats (each member's list, through the membership table)", () => {
 
     await owner.chatService.inviteUser({ id: chat.id, userId: users.moderator.id, level: "Read" });
 
+    // the invite also counts the member on the chat (`Chat.memberCount`):
+    // that write sends the new count to every list holding the chat
     const delta = await nextDelta<ChatListItem>(
       users.regular.id,
       "myChats",
       users.regular.id,
       (candidate) => candidate.t !== "removed" && itemOf(candidate).memberCount === 3,
     );
-    expect(itemOf(delta)).toMatchObject({ id: chat.id, memberCount: 3 });
+    expect(idOf(delta)).toBe(chat.id);
     member.close();
   });
 
@@ -155,15 +164,57 @@ describe("myChats (each member's list, through the membership table)", () => {
 
     await owner.chatService.removeUser({ id: chat.id, userId: users.moderator.id });
 
-    // the membership write sends the chat again to every list still holding it
+    // the removal counts the member out of the chat in the same transaction,
+    // which sends the new count to every list still holding it
     const delta = await nextDelta<ChatListItem>(
       users.regular.id,
       "myChats",
       users.regular.id,
       (candidate) => candidate.t !== "removed" && itemOf(candidate).memberCount === 2,
     );
-    expect(itemOf(delta)).toMatchObject({ id: chat.id, memberCount: 2 });
+    expect(idOf(delta)).toBe(chat.id);
     member.close();
+  });
+
+  it("keeps Chat.memberCount: created, invited, re-levelled, removed, left, and a deleted user's", async () => {
+    const countOf = async (chatId: string): Promise<number> =>
+      (await testPrisma.chat.findUniqueOrThrow({ where: { id: chatId } })).memberCount;
+    const owner = as(users.admin.id);
+    const chat = await owner.chatService.createChat({
+      title: "Counted",
+      members: [{ userId: users.regular.id, level: "Read" }],
+    });
+    expect(await countOf(chat.id)).toBe(2);
+    await owner.chatService.inviteUser({ id: chat.id, userId: users.moderator.id, level: "Read" });
+    expect(await countOf(chat.id)).toBe(3);
+    // a change of level is no new member
+    await owner.chatService.inviteUser({
+      id: chat.id,
+      userId: users.moderator.id,
+      level: "Moderate",
+    });
+    expect(await countOf(chat.id)).toBe(3);
+    await owner.chatService.removeUser({ id: chat.id, userId: users.moderator.id });
+    expect(await countOf(chat.id)).toBe(2);
+    await as(users.regular.id).chatService.leaveChat({ id: chat.id });
+    expect(await countOf(chat.id)).toBe(1);
+
+    // a user deleted through the admin screens: the database cascades their
+    // memberships, and the users_count_out_of_chats trigger counts them out
+    const leaving = await owner.userService.adminCreate({
+      data: {
+        email: "leaving@test.com",
+        name: "Leaving",
+        image: null,
+        // ── quickdraw-game:start ──
+        isGuest: false,
+        // ── quickdraw-game:end ──
+      },
+    });
+    await owner.chatService.inviteUser({ id: chat.id, userId: leaving.id, level: "Read" });
+    expect(await countOf(chat.id)).toBe(2);
+    await owner.userService.adminDelete({ id: leaving.id });
+    expect(await countOf(chat.id)).toBe(1);
   });
 
   it("sends a rename to the members' lists", async () => {

@@ -7,7 +7,8 @@ export interface TestChatMember {
 
 /**
  * Create a chat with members. The first member defaults to Admin (creator
- * semantics), the rest to Read, unless levels are given explicitly.
+ * semantics), the rest to Read, unless levels are given explicitly. Its
+ * `memberCount` counts them, as the chat service keeps it.
  */
 export async function createTestChat(options: {
   title?: string;
@@ -16,6 +17,7 @@ export async function createTestChat(options: {
   return testPrisma.chat.create({
     data: {
       title: options.title ?? "Factory Chat",
+      memberCount: options.members.length,
       members: {
         create: options.members.map((member, index) => ({
           userId: member.userId,

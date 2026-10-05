@@ -26,6 +26,13 @@ import type { Chat, Message, Prisma, PrismaClient } from "@project/db";
   `[{ userId, level }]` JSON list) and the `ChatMember` membership table.
 - A column a collection orders by must be a real column: `Chat.lastMessageAt`
   is maintained by `postMessage` (it defaults to the chat's creation time).
+- A count a list shows is a column too, never a read of the relation per
+  list: `Chat.memberCount` is kept by every membership write in its
+  transaction, through the tracked client
+  (`apps/api/src/services/chat/membership.ts`), so the lists get it. A
+  user's deletion cascades their memberships inside the database, where no
+  tracked write sees them; the `users_count_out_of_chats` trigger counts
+  them out. A seed or factory that makes chats with members sets the count.
 - **Schema changes need a migration**: after editing `schema.prisma`, run
   `bun run db:migrate` (creates the migration and regenerates the client).
   Never `db:push`: the `migrate-check` CI job

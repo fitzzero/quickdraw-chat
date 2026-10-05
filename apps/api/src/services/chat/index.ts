@@ -12,10 +12,10 @@ type Db = typeof appDb;
 
 /**
  * A membership write's follow-up: each member still in the chat gets the new
- * member list (`memberUpdate`). The tracked membership write itself decides
- * the rest: who joined or left a member's `myChats` list, who lost access to
- * the chat, and (`refreshEntry` on the collection) the new member count in
- * the lists that still hold the chat.
+ * member list (`memberUpdate`). The tracked writes decide the rest: who joined
+ * or left a member's `myChats` list and who lost access to the chat (the
+ * membership row), and the new member count in the lists that still hold the
+ * chat (its `memberCount`, written in the same transaction).
  */
 async function membersChanged(
   ctx: Pick<BaseContext, "rooms">,
@@ -58,32 +58,9 @@ export const chatService = qd.defineService(chatContract, {
   // ChatMember.level holds the level names themselves: Read, Moderate, Admin
   access: members({ model: "chatMember", entry: "chatId", user: "userId", level: "level" }),
   writes: ["chatMember"],
+  // `listItem` is columns only (`memberCount` is a maintained column): the
+  // framework selects it from the row, so a list reads no member
   collections: { myChats: { scopeAccess: "self" } },
-  project: {
-    listItem: {
-      // the members' ids, counted in `map`: a relation `_count` would group
-      // the whole membership table on every read
-      select: {
-        title: true,
-        lastMessageAt: true,
-        createdAt: true,
-        members: { select: { id: true } },
-      },
-      map: (row: {
-        id: string;
-        title: string;
-        lastMessageAt: Date;
-        createdAt: Date;
-        members: readonly { id: string }[];
-      }) => ({
-        id: row.id,
-        title: row.title,
-        memberCount: row.members.length,
-        lastMessageAt: row.lastMessageAt.toISOString(),
-        createdAt: row.createdAt.toISOString(),
-      }),
-    },
-  },
   methods: {
     // quickdraw: hand-written because it creates the chat together with its memberships (the caller as Admin, plus the members invited with it) in one transaction, where the read/write kit's create writes one row
     createChat: {
@@ -93,7 +70,10 @@ export const chatService = qd.defineService(chatContract, {
         const creator = ctx.principal.userId;
         const invited = (input.members ?? []).filter((member) => member.userId !== creator);
         return await db.$transaction(async (tx) => {
-          const chat = await tx.chat.create({ data: { title: input.title }, select: { id: true } });
+          const chat = await tx.chat.create({
+            data: { title: input.title, memberCount: 1 + invited.length },
+            select: { id: true },
+          });
           await tx.chatMember.createMany({
             data: [
               { chatId: chat.id, userId: creator, level: "Admin" },

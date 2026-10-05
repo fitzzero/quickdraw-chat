@@ -61,17 +61,14 @@ async function seedChat(ids: {
   moderatorId: string;
   userId: string;
 }): Promise<void> {
+  const members = [
+    { userId: ids.adminId, level: "Admin" },
+    { userId: ids.moderatorId, level: "Moderate" },
+    { userId: ids.userId, level: "Read" },
+  ];
   const chat = await prisma.chat.create({
-    data: {
-      title: "Welcome 👋",
-      members: {
-        create: [
-          { userId: ids.adminId, level: "Admin" },
-          { userId: ids.moderatorId, level: "Moderate" },
-          { userId: ids.userId, level: "Read" },
-        ],
-      },
-    },
+    // memberCount counts the members, as the chat service keeps it
+    data: { title: "Welcome 👋", memberCount: members.length, members: { create: members } },
   });
 
   const messages: Array<{ userId: string; content: string }> = [
@@ -137,6 +134,7 @@ async function seedGameWorld(ids: { adminId: string }): Promise<void> {
   const chat = await prisma.chat.create({
     data: {
       title: "🌍 Game Server",
+      memberCount: 1,
       members: { create: [{ userId: ids.adminId, level: "Admin" }] },
     },
   });
