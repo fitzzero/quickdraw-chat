@@ -10,7 +10,11 @@
 // These tests pin which deltas reach which scope, and what a fresh snapshot
 // holds: the client-side merge is quickdraw-core's own tested code.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import type { CollectionDelta, CollectionFrame } from "@fitzzero/quickdraw-core";
+import type {
+  CollectionDelta,
+  CollectionFrame,
+  CollectionSnapshot,
+} from "@fitzzero/quickdraw-core";
 import { expectBudget } from "@fitzzero/quickdraw-core/testing";
 import { resetDatabase, seedTestUsers, testPrisma } from "@project/db/testing";
 import type { ChatListItem, MessageDTO } from "@project/shared";
@@ -40,19 +44,19 @@ function as(userId: string): ReturnType<ApiTestApp["as"]> {
   return app.as({ userId });
 }
 
-/** A snapshot's items, or a failure for a refused subscription. */
+/** A scope's first page (a snapshot); a refused subscription or a resume fails the test. */
 async function snapshotOf<Item>(
   connection: ApiConnection,
   service: string,
   collection: string,
   scope: string,
   page?: { limit?: number; cursor?: string },
-): Promise<{ items: Item[]; total: number; cursor: string | null; index?: unknown[][] }> {
-  const reply = await subscribeScope(connection, service, collection, scope, page);
-  if (!reply.ok || !("items" in reply)) {
+): Promise<CollectionSnapshot<Item>> {
+  const reply = await subscribeScope<Item>(connection, service, collection, scope, page);
+  if (!reply.ok || reply.resumed === true) {
     throw new Error(`expected a snapshot, got ${JSON.stringify(reply)}`);
   }
-  return reply as unknown as { items: Item[]; total: number; cursor: string | null };
+  return reply;
 }
 
 /** The next delta a user's sockets get for one scope of a collection. */

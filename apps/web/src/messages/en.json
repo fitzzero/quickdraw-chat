@@ -69,7 +69,8 @@
     "chatTitleLabel": "Chat Title",
     "selectChat": "Select a chat to start messaging",
     "chatSettings": "Chat Settings",
-    "noAccess": "You don't have access to this chat",
+    "unavailableTitle": "Chat unavailable",
+    "unavailable": "This chat was deleted, or you are not a member of it",
     "notFound": "Chat not found",
     "backToChats": "Back to Chats"
   },
@@ -82,7 +83,8 @@
     "loadOlder": "Load older messages",
     "sending": "Sending…",
     "notSent": "Not sent: {reason}",
-    "retry": "Retry"
+    "retry": "Retry",
+    "dismiss": "Dismiss"
   },
   "UserMenu": {
     "profile": "Profile",

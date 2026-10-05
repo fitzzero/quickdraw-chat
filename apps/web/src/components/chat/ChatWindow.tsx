@@ -13,6 +13,14 @@ export interface ChatWindowProps {
   chatId: string;
 }
 
+/** A send the server refused: kept until the user retries or dismisses it. */
+interface RefusedSend {
+  readonly key: string;
+  readonly chatId: string;
+  readonly content: string;
+  readonly reason: string;
+}
+
 export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
   const t = useTranslations("ChatWindow");
   const errorText = useErrorText();
@@ -32,13 +40,12 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
   // Sending shows the message at once: the optimistic add puts it in byChat,
   // newest (its createdAt), flagged in `pending` while the call is on its
   // way, and the server's row takes its place. A refused send leaves the
-  // list; the window keeps it last, marked, with a retry.
-  const {
-    mutate: post,
-    variables,
-    isPending,
-    error,
-  } = qd.messageService.postMessage.useMutation({
+  // list; the window keeps each one last, marked, with a retry, until the
+  // user retries or dismisses it (the hook's onError hears every send, where
+  // a mutation's own state holds only the last one).
+  const [refused, setRefused] = React.useState<readonly RefusedSend[]>([]);
+  const refusals = React.useRef(0);
+  const { mutate: post, isPending } = qd.messageService.postMessage.useMutation({
     optimistic: (input, cache) => {
       if (userId === null) return;
       cache.addItem("byChat", input.chatId, {
@@ -50,17 +57,36 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
         user: { id: userId, name: me?.name ?? null, image: me?.image ?? null },
       });
     },
+    onError: (error, input) => {
+      refusals.current += 1;
+      const send: RefusedSend = {
+        key: `refused-${refusals.current}`,
+        chatId: input.chatId,
+        content: input.content,
+        reason: errorText(error),
+      };
+      setRefused((sends) => [...sends, send]);
+    },
   });
-  const failed = React.useMemo<FailedMessage | null>(() => {
-    if (error === null || variables === undefined || variables.chatId !== chatId) return null;
-    return {
-      content: variables.content,
-      reason: errorText(error),
-      onRetry: () => {
-        post(variables);
-      },
+  const failed = React.useMemo<FailedMessage[]>(() => {
+    const drop = (key: string): void => {
+      setRefused((sends) => sends.filter((send) => send.key !== key));
     };
-  }, [error, variables, chatId, errorText, post]);
+    return refused
+      .filter((send) => send.chatId === chatId)
+      .map((send) => ({
+        key: send.key,
+        content: send.content,
+        reason: send.reason,
+        onRetry: () => {
+          drop(send.key);
+          post({ chatId: send.chatId, content: send.content });
+        },
+        onDismiss: () => {
+          drop(send.key);
+        },
+      }));
+  }, [refused, chatId, post]);
 
   const handleSend = React.useCallback(
     (content: string) => {

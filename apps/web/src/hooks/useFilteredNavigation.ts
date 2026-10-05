@@ -52,10 +52,10 @@ export function useFilteredNavigation(): {
   // The connection's grants: these include SERVICE_DEFAULT_ACCESS, merged by the server
   const { userId, isKnown, serviceAccess: grants } = useQuickdraw();
 
-  // Guest sessions hide `hideForGuests` items. Structural probe so the hook
-  // stays generic — the field only exists when the guest-auth feature does.
+  // Guest sessions hide `hideForGuests` items. The `in` check keeps the hook
+  // generic: the field only exists when the guest-auth feature does.
   const { data: ownUser } = qd.userService.useEntity(userId);
-  const isGuestSession = (ownUser as { isGuest?: boolean } | undefined)?.isGuest === true;
+  const isGuestSession = ownUser !== undefined && "isGuest" in ownUser && ownUser.isGuest === true;
 
   // No grants at all reads as null, as an empty map would hide every item
   const serviceAccess = React.useMemo<Record<string, AccessLevel> | null>(() => {

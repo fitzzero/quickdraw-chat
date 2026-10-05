@@ -49,7 +49,9 @@ how the web app uses it.
   creates with `cache.addItem(collection, scope, item)` (give it the
   collection's `order` fields), and the list styles `useCollection().pending`
   as sending (`ChatWindow`: a message shows at once, then the server's row
-  in its place; a refused one is dropped and the window offers a retry).
+  in its place; a refused one leaves the list, and the window keeps each
+  refused send, from the mutation's own `onError`, with a retry and a
+  dismiss until the user picks one).
 - **Query-shaped reads** (a join, an aggregate): `useQuery`; an event that
   carries the new result writes it into the query's cache with
   `qd.<service>.<query>.setData(input, result)`.

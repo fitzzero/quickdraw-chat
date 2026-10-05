@@ -7,11 +7,15 @@ import type { MessageDTO } from "@project/shared";
 
 /** A message the user sent that the server refused: kept, marked, with a retry. */
 export interface FailedMessage {
+  /** Tells this refused send from the others. */
+  readonly key: string;
   readonly content: string;
   /** Why it was not sent, for people. */
   readonly reason: string;
   /** Sends it again. */
   readonly onRetry?: () => void;
+  /** Lets it go, unsent. */
+  readonly onDismiss?: () => void;
 }
 
 export interface MessageListProps {
@@ -28,17 +32,18 @@ export interface MessageListProps {
   hasMore?: boolean;
   isLoadingMore?: boolean;
   onLoadOlder?: () => void;
-  /** The user's message the server refused, shown last with a retry. */
-  failed?: FailedMessage | null;
+  /** The user's messages the server refused, oldest first, shown last with a retry each. */
+  failed?: readonly FailedMessage[];
 }
 
 const NOTHING_PENDING: ReadonlySet<string> = new Set();
+const NOTHING_FAILED: readonly FailedMessage[] = [];
 
-/** The user's own message the server refused, at the end of the list. */
+/** One of the user's own messages the server refused, at the end of the list. */
 function FailedBubble({ failed }: { failed: FailedMessage }): React.ReactElement {
   const t = useTranslations("MessageList");
   return (
-    <Box data-testid="pending-message" sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+    <Box data-testid="failed-message" sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
       <Paper
         elevation={1}
         sx={{
@@ -61,6 +66,11 @@ function FailedBubble({ failed }: { failed: FailedMessage }): React.ReactElement
               {t("retry")}
             </Button>
           )}
+          {failed.onDismiss && (
+            <Button size="small" color="inherit" onClick={failed.onDismiss}>
+              {t("dismiss")}
+            </Button>
+          )}
         </Box>
       </Paper>
     </Box>
@@ -75,7 +85,7 @@ export function MessageList({
   hasMore = false,
   isLoadingMore = false,
   onLoadOlder,
-  failed = null,
+  failed = NOTHING_FAILED,
 }: MessageListProps): React.ReactElement {
   const t = useTranslations("MessageList");
   const tCommon = useTranslations("Common");
@@ -87,7 +97,8 @@ export function MessageList({
   // (a message sent, or delivered) — paging older history in at the top
   // must not yank the scroll down.
   const lastMessageId = messages.length > 0 ? messages[messages.length - 1]?.id : undefined;
-  const newest = failed === null ? lastMessageId : `failed:${failed.content}`;
+  const lastFailed = failed.length > 0 ? failed[failed.length - 1] : undefined;
+  const newest = lastFailed === undefined ? lastMessageId : `failed:${lastFailed.key}`;
   React.useEffect(() => {
     const list = listRef.current;
     if (list && newest) {
@@ -110,7 +121,7 @@ export function MessageList({
     );
   }
 
-  if (messages.length === 0 && failed === null) {
+  if (messages.length === 0 && failed.length === 0) {
     return (
       <Box
         sx={{
@@ -198,7 +209,9 @@ export function MessageList({
           </Box>
         );
       })}
-      {failed !== null && <FailedBubble failed={failed} />}
+      {failed.map((refused) => (
+        <FailedBubble key={refused.key} failed={refused} />
+      ))}
     </Box>
   );
 }

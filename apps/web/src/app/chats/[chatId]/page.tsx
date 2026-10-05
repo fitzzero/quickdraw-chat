@@ -3,11 +3,12 @@
 import * as React from "react";
 import { useParams } from "next/navigation";
 import { Box } from "@mui/material";
+import SpeakerNotesOffIcon from "@mui/icons-material/SpeakerNotesOff";
 import { useTranslations } from "next-intl";
 import { ChatWindow, ChatSidebar } from "../../../components/chat";
 import { usePageTitle, useRightSidebar } from "../../../providers";
 import { qd } from "../../../lib/quickdraw";
-import { NotFound, NoPermission } from "../../../components/feedback";
+import { FeedbackPanel, NotFound } from "../../../components/feedback";
 
 export default function ChatPage(): React.ReactElement {
   const params = useParams();
@@ -24,10 +25,21 @@ export default function ChatPage(): React.ReactElement {
   const sidebarContent = React.useMemo(() => <ChatSidebar chatId={chatId} />, [chatId]);
   useRightSidebar(sidebarContent);
 
-  // Not a member (or removed from the chat while viewing it): FORBIDDEN;
-  // deleted, or never there: removed
+  // FORBIDDEN is the server's answer for a chat the user is no member of,
+  // and for one that does not exist (deleted while the page was offline, or
+  // never there): it never tells a stranger which chat ids exist. So the page
+  // says both. A chat deleted while open arrives as removed: that one is gone.
   if (error?.code === "FORBIDDEN") {
-    return <NoPermission message={t("noAccess")} />;
+    return (
+      <FeedbackPanel
+        icon={SpeakerNotesOffIcon}
+        iconColor="text.secondary"
+        title={t("unavailableTitle")}
+        message={t("unavailable")}
+        actionHref="/chats"
+        actionLabel={t("backToChats")}
+      />
+    );
   }
   if (error !== null || isRemoved) {
     return <NotFound message={t("notFound")} backHref="/chats" backLabel={t("backToChats")} />;

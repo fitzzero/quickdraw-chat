@@ -67,15 +67,18 @@ export async function subscribeEntity(
   });
 }
 
-/** Opens one scope of a collection over a socket (`qd:col:sub`): its first page, or why it was refused. */
-export async function subscribeScope(
+/**
+ * Opens one scope of a collection over a socket (`qd:col:sub`): its first
+ * page, or why it was refused. `Item` names the collection's item type.
+ */
+export async function subscribeScope<Item = unknown>(
   connection: ApiConnection,
   service: string,
   collection: string,
   scope: string,
   page: { readonly limit?: number; readonly cursor?: string } = {},
-): Promise<CollectionSubscribeReply> {
-  return await emitWithAck<CollectionSubscribeReply>(connection.socket, "qd:col:sub", {
+): Promise<CollectionSubscribeReply<Item>> {
+  return await emitWithAck<CollectionSubscribeReply<Item>>(connection.socket, "qd:col:sub", {
     s: service,
     c: collection,
     scope,

@@ -82,13 +82,24 @@ export const Sending: Story = {
   },
 };
 
-/** A message the server refused: kept last, marked, with a retry. */
+/** Messages the server refused: each kept last, marked, with a retry and a dismiss. */
 export const NotSent: Story = {
   args: {
-    failed: {
-      content: "Can I join this conversation?",
-      reason: "You don't have permission to do that.",
-      onRetry: fn(),
-    },
+    failed: [
+      {
+        key: "refused-1",
+        content: "Can I join this conversation?",
+        reason: "You don't have permission to do that.",
+        onRetry: fn(),
+        onDismiss: fn(),
+      },
+      {
+        key: "refused-2",
+        content: "Hello?",
+        reason: "You don't have permission to do that.",
+        onRetry: fn(),
+        onDismiss: fn(),
+      },
+    ],
   },
 };

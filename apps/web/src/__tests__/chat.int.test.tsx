@@ -181,11 +181,47 @@ describe("a chat's messages (byChat)", () => {
     });
     fireEvent.click(view.getByRole("button", { name: "Send message" }));
 
-    const pending = await view.findByTestId("pending-message");
-    await waitFor(() => {
-      expect(pending.textContent).toContain("Not sent: You don't have permission to do that.");
-    });
+    const refused = await view.findByTestId("failed-message");
+    expect(refused.textContent).toContain("Let me in");
+    expect(refused.textContent).toContain("Not sent: You don't have permission to do that.");
     expect(view.getByRole("button", { name: "Retry" })).toBeTruthy();
+  });
+
+  it("keeps each refused send until it is retried or dismissed, whatever is sent after", async () => {
+    const { ada, bo } = await twoMembers();
+    const chat = await createTestChat({ members: [{ userId: bo }] });
+    const view = await renderAs(ada, <ChatWindow chatId={chat.id} />);
+    await view.findByText("No messages yet. Start the conversation!");
+    const send = async (content: string, count: number): Promise<void> => {
+      fireEvent.change(view.getByPlaceholderText("Type a message..."), {
+        target: { value: content },
+      });
+      fireEvent.click(view.getByRole("button", { name: "Send message" }));
+      await waitFor(() => {
+        expect(view.getAllByTestId("failed-message")).toHaveLength(count);
+      });
+    };
+
+    await send("first try", 1);
+    // the next send no longer drops the first one
+    await send("second try", 2);
+    const texts = (): string[] =>
+      view.getAllByTestId("failed-message").map((bubble) => bubble.textContent ?? "");
+    expect(texts()[0]).toContain("first try");
+    expect(texts()[1]).toContain("second try");
+
+    fireEvent.click(view.getAllByRole("button", { name: "Dismiss" })[0] ?? document.body);
+    await waitFor(() => {
+      expect(view.getAllByTestId("failed-message")).toHaveLength(1);
+    });
+    expect(texts()[0]).toContain("second try");
+
+    // a retry sends it again: refused again, it is kept again, once
+    fireEvent.click(view.getByRole("button", { name: "Retry" }));
+    await waitFor(() => {
+      expect(view.getAllByTestId("failed-message")).toHaveLength(1);
+    });
+    expect(texts()[0]).toContain("second try");
   });
 });
 
@@ -238,13 +274,26 @@ describe("the chat sidebar", () => {
 });
 
 describe("the chat page", () => {
-  it("shows NoPermission for a chat the user is not a member of (FORBIDDEN)", async () => {
+  it("says deleted-or-not-a-member for a chat the server refuses (FORBIDDEN)", async () => {
     const { ada, bo } = await twoMembers();
     const chat = await createTestChat({ title: "Private", members: [{ userId: bo }] });
     route.chatId = chat.id;
 
     const view = await renderAs(ada, <ChatPage />);
-    await view.findByText("You don't have access to this chat");
+    await view.findByText("This chat was deleted, or you are not a member of it");
+  });
+
+  it("says the same for a chat deleted while the page was away (FORBIDDEN, not removed)", async () => {
+    const { ada, bo } = await twoMembers();
+    const chat = await createTestChat({ members: [{ userId: bo }, { userId: ada }] });
+    route.chatId = chat.id;
+    const view = await renderAs(ada, <ChatPage />);
+    await view.findByText("No messages yet. Start the conversation!");
+
+    await view.disconnect();
+    await as(bo).chatService.deleteChat({ id: chat.id });
+    await view.reconnect();
+    await view.findByText("This chat was deleted, or you are not a member of it");
   });
 
   it("shows NotFound once the chat is deleted while it is open", async () => {
