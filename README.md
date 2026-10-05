@@ -234,8 +234,9 @@ vs configured, plus a minimal shape illustration of the workflow.
 | `pushService`     | Web Push subscriptions (PWA)         | Owner of the row                                  | —                                   |
 
 Every service also has the admin kit's methods (the `/admin` screens). The
-API reference, generated from the contracts, is [docs/api](docs/api/README.md)
-(`bun run docs:generate`).
+API reference, generated from the contracts and the services (who may call
+each method, the row policies, the field levels), is
+[docs/api](docs/api/README.md) (`bun run docs:generate`).
 
 ## MCP Server
 
@@ -312,7 +313,7 @@ bun run test:int      # Integration tests (PGlite locally, PostgreSQL when TEST_
 bun run test:coverage # With coverage
 
 # API reference
-bun run docs:generate # Regenerate docs/api from the contracts (quickdraw-docs)
+bun run docs:generate # Regenerate docs/api from the contracts and services (quickdraw-docs)
 bun run docs:check    # Fail when docs/api is stale (CI)
 
 # Database

@@ -48,8 +48,9 @@ const meta = {
   ],
   args: { chatId: "chat-1" },
   // What the byChat collection shows for each story's chat (scopes no story
-  // sets stay loading); a message sent here stays "sending" (postMessage's
-  // stub never answers).
+  // sets stay loading). A message sent here stays on its way (postMessage's
+  // stub never answers), and the mock shows no optimistic adds: MessageList's
+  // Sending and NotSent stories show those states.
   beforeEach: () => {
     qd.messageService.byChat.mockScope("chat-1", MESSAGES);
     qd.messageService.byChat.mockScope("chat-empty", []);
@@ -78,7 +79,7 @@ export const Loading: Story = {
 };
 
 export const Disconnected: Story = {
-  parameters: { quickdraw: { session: { connected: false } } },
+  parameters: { quickdraw: { session: { isConnected: false, isKnown: false } } },
 };
 
 export const NoChatSelected: Story = {

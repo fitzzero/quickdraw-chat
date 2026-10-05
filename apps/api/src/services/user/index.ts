@@ -49,8 +49,9 @@ export const userService = qd.defineService(userContract, {
     ...admin.handlers(userContract, {
       displayName: "Users",
       grants: true,
-      // edited by the grants editor on the user's admin page, not shown as a column
-      fieldOverrides: { serviceAccess: { showInTable: false } },
+      // edited by the grants editor on the user's admin page (which finds the
+      // field by its `kind: "grants"`): neither a column nor a generic form field
+      fieldOverrides: { serviceAccess: { showInTable: false, showInForm: false } },
     }),
   },
 });

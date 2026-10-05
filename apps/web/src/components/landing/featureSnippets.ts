@@ -72,7 +72,7 @@ export const chatService = qd.defineService(chatContract, {
   // ── quickdraw-game:start ──
   featGame: {
     path: "packages/shared/src/contracts/game.ts",
-    lines: [192, 216],
+    lines: [196, 222],
     language: "ts",
     code: `// The contract: fire-and-forget input, gated on the world's room
 channels: {
@@ -83,15 +83,17 @@ channels: {
     requires: { room: GLOBAL_WORLD_ROOM },
   },
 },
-// Every tick, volatile, seeded with the latest snapshot
+// Every tick, volatile
 streams: {
-  world: { item: worldSnapshotSchema, scope: "worldId", seed: 1, volatile: true, access: "public" },
+  world: { item: worldSnapshotSchema, scope: "worldId", volatile: true, access: "public" },
 },
 
 // The service: joinGame/watchWorld put the calling socket in the room
 input: (payload, ctx) => {
   activeGameRuntime()?.sim.applyInput(ctx.principal.userId, payload);
 },
+// ...and each subscriber starts from the world now (every snake, all the food)
+streams: { world: { seed: () => [runtime.sim.keyframe()], validate: "development" } },
 
 // The Godot client speaks the same wire (quickdraw protocol v5, GDScript):
 // Net.client.send_channel("gameService", "input", {...})`,

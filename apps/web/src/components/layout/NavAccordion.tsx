@@ -16,8 +16,9 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import type { NavItem } from "../../lib/navigation";
-import { qd, useQuickdraw } from "../../lib/quickdraw";
+import { qd } from "../../lib/quickdraw";
 
 interface NavAccordionProps {
   item: NavItem;

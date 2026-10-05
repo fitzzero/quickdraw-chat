@@ -73,3 +73,22 @@ export const WithOlderHistory: Story = {
 export const LoadingOlder: Story = {
   args: { hasMore: true, isLoadingMore: true },
 };
+
+/** The user's message on its way: shown at once, marked (useCollection's `pending`). */
+export const Sending: Story = {
+  args: {
+    messages: [...CONVERSATION, message(6, USERS.ada, "Heading into the standup now.", 0)],
+    pending: new Set(["msg-6"]),
+  },
+};
+
+/** A message the server refused: kept last, marked, with a retry. */
+export const NotSent: Story = {
+  args: {
+    failed: {
+      content: "Can I join this conversation?",
+      reason: "You don't have permission to do that.",
+      onRetry: fn(),
+    },
+  },
+};

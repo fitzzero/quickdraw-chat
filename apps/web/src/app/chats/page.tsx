@@ -22,7 +22,8 @@ import AddIcon from "@mui/icons-material/Add";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { qd, useQuickdraw } from "../../lib/quickdraw";
+import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
+import { qd } from "../../lib/quickdraw";
 
 export default function ChatsPage(): React.ReactElement {
   const t = useTranslations("ChatsPage");

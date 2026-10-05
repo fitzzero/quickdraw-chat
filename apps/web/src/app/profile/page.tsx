@@ -14,7 +14,8 @@ import {
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import { useTranslations } from "next-intl";
-import { qd, useQuickdraw } from "../../lib/quickdraw";
+import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
+import { qd } from "../../lib/quickdraw";
 import { useErrorText } from "../../hooks/useErrorText";
 
 export default function ProfilePage(): React.ReactElement {

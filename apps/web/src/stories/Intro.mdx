@@ -36,8 +36,9 @@ a signed-in journey, use the dev server.
 ## Decorator cookbook
 
 The global decorator (`.storybook/preview.tsx`) already provides the MUI
-theme, `CssBaseline`, intl, toasts, and the story's quickdraw session. For
-components with more context needs, `src/stories/decorators.tsx` exports:
+theme, `CssBaseline`, intl, toasts, and the mock client's provider
+(`qd.$Provider`, with the story's session). For components with more context
+needs, `src/stories/decorators.tsx` exports:
 
 - `withLayoutProvider` — for components that call `useLayout()`
   (AppBar, Breadcrumbs, RightSidebar).
@@ -67,7 +68,10 @@ const meta = {
 - What no story sets stays loading; give each story its own ids, since a
   docs page renders several stories at once.
 - `parameters: { quickdraw: { session: { userId: null } } }` renders the
-  signed-out state; `connected: false` the state before the server's hello.
+  signed-out state; `{ isConnected: false, isKnown: false }` the state before
+  the server's hello. The real `useQuickdraw()` reads it (the mock's
+  `$session`). The session is the mock's one: a docs page that renders
+  stories with different sessions shows them all with the last one set.
 
 See `docs/storybook.md` for the full guide, including how forks strip
 Storybook out entirely.

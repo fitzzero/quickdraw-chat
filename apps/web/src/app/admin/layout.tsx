@@ -18,14 +18,14 @@ import StorageIcon from "@mui/icons-material/Storage";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useAdminServices } from "@fitzzero/quickdraw-core/client";
+import { useAdminServices, useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import { useIsMobile } from "../../hooks";
 import { useLayout } from "../../providers";
 import { AppBar, APP_BAR_HEIGHT } from "../../components/layout/AppBar";
 import { RightSidebar } from "../../components/layout/RightSidebar";
 import { AuthGate } from "../../components/layout/AuthGate";
 import { NoPermission } from "../../components/feedback";
-import { qd, useQuickdraw } from "../../lib/quickdraw";
+import { qd } from "../../lib/quickdraw";
 
 const DRAWER_WIDTH = 280;
 

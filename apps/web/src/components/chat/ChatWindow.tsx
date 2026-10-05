@@ -3,9 +3,10 @@
 import * as React from "react";
 import { Box, Typography } from "@mui/material";
 import { useTranslations } from "next-intl";
-import { MessageList, type PendingMessage } from "./MessageList";
+import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
+import { MessageList, type FailedMessage } from "./MessageList";
 import { MessageInput } from "./MessageInput";
-import { qd, useQuickdraw } from "../../lib/quickdraw";
+import { qd } from "../../lib/quickdraw";
 import { useErrorText } from "../../hooks/useErrorText";
 
 export interface ChatWindowProps {
@@ -16,40 +17,50 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
   const t = useTranslations("ChatWindow");
   const errorText = useErrorText();
   const { isConnected, userId } = useQuickdraw();
+  // The sender's own profile: the author of a message shown before the server has it
+  const { data: me } = qd.userService.useEntity(userId);
 
   // The chat's live history, the byChat collection: newest first (the
   // contract's order), so the first page is the latest 50 and loadMore walks
   // back in time by cursor. Messages anyone posts or deletes arrive as
   // deltas, and after a reconnect the scope resumes from its revision.
-  const { items, byId, isLoading, hasMore, isLoadingMore, loadMore } =
+  const { items, pending, isLoading, hasMore, isLoadingMore, loadMore } =
     qd.messageService.byChat.useCollection(chatId || null);
   // The window reads oldest first
   const messages = React.useMemo(() => [...items].reverse(), [items]);
 
-  // Sending shows the message at once, marked as sending, until byChat
-  // delivers the server's row; a refusal leaves it, marked, with a retry.
-  // quickdraw-5.0 finding: an optimistic update cannot add a row: the optimistic cache has patchEntity, removeEntity and patchItem, nothing that puts a new item into a collection, so a send (a create, the textbook optimistic case) is shown by hand from the mutation's variables until the collection holds the id it returned
+  // Sending shows the message at once: the optimistic add puts it in byChat,
+  // newest (its createdAt), flagged in `pending` while the call is on its
+  // way, and the server's row takes its place. A refused send leaves the
+  // list; the window keeps it last, marked, with a retry.
   const {
     mutate: post,
     variables,
-    data: sent,
     isPending,
     error,
-  } = qd.messageService.postMessage.useMutation();
-  const delivered = sent !== undefined && byId.has(sent.id);
-  const pending = React.useMemo<PendingMessage | null>(() => {
-    if (variables === undefined || variables.chatId !== chatId || delivered) return null;
-    if (error !== null) {
-      return {
-        content: variables.content,
-        failure: errorText(error),
-        onRetry: () => {
-          post(variables);
-        },
-      };
-    }
-    return isPending || sent !== undefined ? { content: variables.content, failure: null } : null;
-  }, [variables, chatId, delivered, error, errorText, isPending, sent, post]);
+  } = qd.messageService.postMessage.useMutation({
+    optimistic: (input, cache) => {
+      if (userId === null) return;
+      cache.addItem("byChat", input.chatId, {
+        chatId: input.chatId,
+        userId,
+        content: input.content,
+        role: input.role ?? "user",
+        createdAt: new Date().toISOString(),
+        user: { id: userId, name: me?.name ?? null, image: me?.image ?? null },
+      });
+    },
+  });
+  const failed = React.useMemo<FailedMessage | null>(() => {
+    if (error === null || variables === undefined || variables.chatId !== chatId) return null;
+    return {
+      content: variables.content,
+      reason: errorText(error),
+      onRetry: () => {
+        post(variables);
+      },
+    };
+  }, [error, variables, chatId, errorText, post]);
 
   const handleSend = React.useCallback(
     (content: string) => {
@@ -82,12 +93,13 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
       {/* Messages */}
       <MessageList
         messages={messages}
+        pending={pending}
         isLoading={isLoading}
         currentUserId={userId}
         hasMore={hasMore}
         isLoadingMore={isLoadingMore}
         onLoadOlder={handleLoadOlder}
-        pending={pending}
+        failed={failed}
       />
 
       {/* Input */}

@@ -2,6 +2,17 @@
 
 # messageService
 
+## Access
+
+| Option             | Value                                                                                                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Row policy         | `anyOf`: the highest level of (`inherit`: the level on the `chatService` row the `chatId` column names), (`owner`: Admin for the user the `userId` column names) |
+| Service-wide Admin | passes every check of the service                                                                                                                                |
+| Change topic       | closed: the service declares no `watchAccess`                                                                                                                    |
+| Field levels       | none: every caller who may read a row receives all of it                                                                                                         |
+
+Each method below says who may call it.
+
 ## Entity
 
 | Field       | Type     | Notes            |
@@ -35,6 +46,8 @@ Posts a message to a chat the caller is a member of.
 
 A mutation.
 
+Access: `{ scope: "Read", of: chatService, id: "chatId" }`: Read or more on the `chatService` row `input.chatId` names.
+
 Input:
 
 | Field     | Type                                | Notes                 |
@@ -51,6 +64,8 @@ Deletes a message: its author may, as may its chat's Admins and holders of a ser
 
 A mutation.
 
+Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or more, or Admin or more on the row `input.id` names.
+
 Input:
 
 | Field | Type     | Notes       |
@@ -64,6 +79,8 @@ Output: `{ id: string; deleted: true }`.
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -82,11 +99,13 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id?: string; chatId?: string; userId?: string; content?: string; role?: string; createdAt?: string }`.
 
@@ -95,6 +114,8 @@ Output: `{ id?: string; chatId?: string; userId?: string; content?: string; role
 Creates a row from data, the new row's field values; the database sets its id and timestamps.
 
 A mutation.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -110,12 +131,14 @@ Changes the given fields of one row; its id and timestamps cannot be changed.
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field  | Type                                                                    | Notes                 |
-| ------ | ----------------------------------------------------------------------- | --------------------- |
-| `id`   | `string`                                                                | at least 1 characters |
-| `data` | `{ chatId?: string; userId?: string; content?: string; role?: string }` |                       |
+| Field  | Type                                                                    | Notes                |
+| ------ | ----------------------------------------------------------------------- | -------------------- |
+| `id`   | `string`                                                                | at least 1 character |
+| `data` | `{ chatId?: string; userId?: string; content?: string; role?: string }` |                      |
 
 Output: `{ id?: string; chatId?: string; userId?: string; content?: string; role?: string; createdAt?: string }`.
 
@@ -125,11 +148,13 @@ Deletes one row.
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `null`.
 
@@ -139,9 +164,11 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input: `{}`.
 
-Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string }[] }`.
+Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string; kind?: "grants"; showInForm?: boolean }[] }`.
 
 ### `adminSubscribers`
 
@@ -149,11 +176,13 @@ Counts the sockets subscribed to one row, per access level.
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
 
@@ -163,11 +192,13 @@ Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
 
@@ -177,10 +208,10 @@ Live lists of the service's rows, one per scope value.
 
 ### `byChat`
 
-| Option    | Value                       |
-| --------- | --------------------------- |
-| Scope     | the `chatId` column         |
-| Item      | `withAuthor`                |
-| Order     | `createdAt` desc, `id` desc |
-| Access    | Read (default)              |
-| Page size | 50, at most 500             |
+| Option    | Value                                                 |
+| --------- | ----------------------------------------------------- |
+| Scope     | the `chatId` column                                   |
+| Item      | `withAuthor`                                          |
+| Order     | `createdAt` desc, `id` desc                           |
+| Access    | Read or more on the `chatService` row the scope names |
+| Page size | 50, at most 500                                       |

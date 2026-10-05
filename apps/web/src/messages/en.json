@@ -2,6 +2,7 @@
   "Common": {
     "loading": "Loading...",
     "connecting": "Connecting...",
+    "reconnecting": "Reconnecting…",
     "close": "Close",
     "warmingUp": "Warming up the server… (demo budget ☕)",
     "cancel": "Cancel",
@@ -48,6 +49,7 @@
   "Auth": {
     "signIn": "Sign In",
     "signOut": "Sign Out",
+    "signOutFailed": "Not signed out: {reason}",
     "completingSignIn": "Completing sign in..."
   },
   "ErrorBoundary": {

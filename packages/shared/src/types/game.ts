@@ -10,11 +10,11 @@
 //   client → server qd:ch   ["gameService", "input", GameInput]
 //                  (~20Hz, fire-and-forget; dropped unless the sending
 //                  socket is in the world's room)
-//   server → client qd:stream { s: "gameService", stream: "world",
-//                  scope: worldId, item: WorldSnapshot }
-//                  (20Hz, volatile, seeded with the latest snapshot)
+//   server → client qd:stream ["gameService", "world", worldId,
+//                  WorldSnapshot]
+//                  (20Hz, volatile; the subscribe answers the current world)
 //   server → room  qd:event ["gameService", "playerJoined" | "playerLeft" |
-//                  "death" | "leaderboard" | "scoreSaved", payload] (reliable)
+//                  "death" | "leaderboard", payload] (reliable)
 // ============================================================================
 
 /**
@@ -73,9 +73,10 @@ export interface FoodDTO {
 
 /**
  * Pushed to the world stream every tick (volatile). Food is delta-encoded;
- * players are full, so the stream's seed (the latest snapshot) places every
- * snake at once, and the full food comes from the watchWorld/joinGame
- * bootstrap.
+ * players are full. The stream's seed is one keyframe of the current world
+ * (every snake, and all the food as `foodSpawned`, with no `t`), which the
+ * ticks that follow change; the watchWorld/joinGame bootstrap holds the same
+ * world too.
  */
 export interface WorldSnapshot {
   tick: number;
@@ -108,12 +109,6 @@ export interface LeaderboardEntry {
   id: string;
   name: string | null;
   len: number;
-}
-
-/** A player's stored best changed (their first score, or a longer run): high scores are stale. */
-export interface ScoreSavedEvent {
-  userId: string;
-  bestLength: number;
 }
 
 /**

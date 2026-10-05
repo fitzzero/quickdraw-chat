@@ -2,6 +2,17 @@
 
 # chatService
 
+## Access
+
+| Option             | Value                                                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Row policy         | `members`: the role in the user's `chatMember` row (`chatId` names the row, `userId` the user, `level` the role) |
+| Service-wide Admin | passes every check of the service                                                                                |
+| Change topic       | closed: the service declares no `watchAccess`                                                                    |
+| Field levels       | none: every caller who may read a row receives all of it                                                         |
+
+Each method below says who may call it.
+
 ## Entity
 
 | Field           | Type     | Notes            |
@@ -16,13 +27,13 @@
 
 ### `listItem`
 
-| Field           | Type      | Notes                 |
-| --------------- | --------- | --------------------- |
-| `id`            | `string`  |                       |
-| `title`         | `string`  |                       |
-| `memberCount`   | `integer` | 0 to 9007199254740991 |
-| `lastMessageAt` | `string`  | format date-time      |
-| `createdAt`     | `string`  | format date-time      |
+| Field           | Type      | Notes            |
+| --------------- | --------- | ---------------- |
+| `id`            | `string`  |                  |
+| `title`         | `string`  |                  |
+| `memberCount`   | `integer` | non-negative     |
+| `lastMessageAt` | `string`  | format date-time |
+| `createdAt`     | `string`  | format date-time |
 
 ## Methods
 
@@ -31,6 +42,8 @@
 Creates a chat with the caller as its Admin, plus any members given.
 
 A mutation.
+
+Access: `"authenticated"`: any signed-in caller.
 
 Input:
 
@@ -47,6 +60,8 @@ Renames a chat.
 
 A mutation.
 
+Access: `{ service: "Moderate", entry: "Moderate" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.id` names.
+
 Input:
 
 | Field   | Type     | Notes               |
@@ -62,6 +77,8 @@ Deletes a chat with its memberships and messages.
 
 A mutation.
 
+Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or more, or Admin or more on the row `input.id` names.
+
 Input:
 
 | Field | Type     | Notes       |
@@ -76,6 +93,8 @@ Lists a chat's members, oldest first, with their level and public profile.
 
 A query.
 
+Access: `{ service: "Read", entry: "Read", id: "chatId" }`: a service-wide grant of Read or more, or Read or more on the row `input.chatId` names.
+
 Input:
 
 | Field    | Type     | Notes       |
@@ -89,6 +108,8 @@ Output: `{ id: string; userId: string; level: "Public" | "Read" | "Moderate" | "
 Adds a user to a chat at a level, or changes the level of a member.
 
 A mutation.
+
+Access: `{ service: "Moderate", entry: "Moderate" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.id` names.
 
 Input:
 
@@ -106,13 +127,15 @@ Adds a user to a chat by their unique name; answers { error: "user_not_found" } 
 
 A mutation.
 
+Access: `{ service: "Moderate", entry: "Moderate", id: "chatId" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.chatId` names.
+
 Input:
 
-| Field      | Type                              | Notes                 |
-| ---------- | --------------------------------- | --------------------- |
-| `chatId`   | `string`                          | format cuid           |
-| `userName` | `string`                          | at least 1 characters |
-| `level`    | `"Read" \| "Moderate" \| "Admin"` |                       |
+| Field      | Type                              | Notes                |
+| ---------- | --------------------------------- | -------------------- |
+| `chatId`   | `string`                          | format cuid          |
+| `userName` | `string`                          | at least 1 character |
+| `level`    | `"Read" \| "Moderate" \| "Admin"` |                      |
 
 Output: `{ id: string } | { error: "user_not_found" }`.
 
@@ -121,6 +144,8 @@ Output: `{ id: string } | { error: "user_not_found" }`.
 Removes a member from a chat.
 
 A mutation.
+
+Access: `{ service: "Moderate", entry: "Moderate" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.id` names.
 
 Input:
 
@@ -137,6 +162,8 @@ Removes the caller from a chat.
 
 A mutation.
 
+Access: `{ service: "Read", entry: "Read" }`: a service-wide grant of Read or more, or Read or more on the row `input.id` names.
+
 Input:
 
 | Field | Type     | Notes       |
@@ -150,6 +177,8 @@ Output: `{ id: string }`.
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -167,11 +196,13 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id?: string; title?: string; lastMessageAt?: string; createdAt?: string; updatedAt?: string }`.
 
@@ -180,6 +211,8 @@ Output: `{ id?: string; title?: string; lastMessageAt?: string; createdAt?: stri
 Creates a row from data, the new row's field values; the database sets its id and timestamps.
 
 A mutation.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -195,12 +228,14 @@ Changes the given fields of one row; its id and timestamps cannot be changed.
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field  | Type                                         | Notes                 |
-| ------ | -------------------------------------------- | --------------------- |
-| `id`   | `string`                                     | at least 1 characters |
-| `data` | `{ title?: string; lastMessageAt?: string }` |                       |
+| Field  | Type                                         | Notes                |
+| ------ | -------------------------------------------- | -------------------- |
+| `id`   | `string`                                     | at least 1 character |
+| `data` | `{ title?: string; lastMessageAt?: string }` |                      |
 
 Output: `{ id?: string; title?: string; lastMessageAt?: string; createdAt?: string; updatedAt?: string }`.
 
@@ -210,11 +245,13 @@ Deletes one row.
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `null`.
 
@@ -224,9 +261,11 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input: `{}`.
 
-Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string }[] }`.
+Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string; kind?: "grants"; showInForm?: boolean }[] }`.
 
 ### `adminSubscribers`
 
@@ -234,11 +273,13 @@ Counts the sockets subscribed to one row, per access level.
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
 
@@ -248,11 +289,13 @@ Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
 
@@ -268,7 +311,7 @@ Live lists of the service's rows, one per scope value.
 | Item      | `listItem`                                                                                                                                 |
 | Order     | `lastMessageAt` desc, `id` desc                                                                                                            |
 | Index     | `lastMessageAt`, `title`, `memberCount`                                                                                                    |
-| Access    | Read (default)                                                                                                                             |
+| Access    | the subscriber's own user id (`scopeAccess: "self"`)                                                                                       |
 | Page size | 100, at most 500                                                                                                                           |
 
 ## Events

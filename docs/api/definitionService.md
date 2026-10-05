@@ -2,17 +2,28 @@
 
 # definitionService
 
+## Access
+
+| Option             | Value                                                    |
+| ------------------ | -------------------------------------------------------- |
+| Row policy         | none: its methods take no `entry` form                   |
+| Service-wide Admin | passes every check of the service                        |
+| Change topic       | closed: the service declares no `watchAccess`            |
+| Field levels       | none: every caller who may read a row receives all of it |
+
+Each method below says who may call it.
+
 ## Entity
 
-| Field       | Type                      | Notes                                 |
-| ----------- | ------------------------- | ------------------------------------- |
-| `id`        | `string`                  |                                       |
-| `type`      | `string`                  |                                       |
-| `key`       | `string`                  |                                       |
-| `data`      | `Record<string, unknown>` |                                       |
-| `version`   | `integer`                 | -9007199254740991 to 9007199254740991 |
-| `enabled`   | `boolean`                 |                                       |
-| `updatedAt` | `string`                  | format date-time                      |
+| Field       | Type                      | Notes            |
+| ----------- | ------------------------- | ---------------- |
+| `id`        | `string`                  |                  |
+| `type`      | `string`                  |                  |
+| `key`       | `string`                  |                  |
+| `data`      | `Record<string, unknown>` |                  |
+| `version`   | `integer`                 |                  |
+| `enabled`   | `boolean`                 |                  |
+| `updatedAt` | `string`                  | format date-time |
 
 ## Methods
 
@@ -21,6 +32,8 @@
 Lists the enabled definitions, of one type when given, by type and key.
 
 A query.
+
+Access: `"public"`: anyone, signed in or not.
 
 Input:
 
@@ -36,6 +49,8 @@ Reads one enabled definition by type and key, or null.
 
 A query.
 
+Access: `"public"`: anyone, signed in or not.
+
 Input:
 
 | Field  | Type     | Notes              |
@@ -50,6 +65,8 @@ Output: one row as the `entity` projection, or `null`.
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -68,11 +85,13 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id?: string; type?: string; key?: string; data?: Record<string, unknown>; version?: integer; enabled?: boolean; updatedAt?: string }`.
 
@@ -81,6 +100,8 @@ Output: `{ id?: string; type?: string; key?: string; data?: Record<string, unkno
 Creates a row from data, the new row's field values; the database sets its id and timestamps.
 
 A mutation.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -96,12 +117,14 @@ Changes the given fields of one row; its id and timestamps cannot be changed.
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field  | Type                                                                                                    | Notes                 |
-| ------ | ------------------------------------------------------------------------------------------------------- | --------------------- |
-| `id`   | `string`                                                                                                | at least 1 characters |
-| `data` | `{ type?: string; key?: string; data?: Record<string, unknown>; version?: integer; enabled?: boolean }` |                       |
+| Field  | Type                                                                                                    | Notes                |
+| ------ | ------------------------------------------------------------------------------------------------------- | -------------------- |
+| `id`   | `string`                                                                                                | at least 1 character |
+| `data` | `{ type?: string; key?: string; data?: Record<string, unknown>; version?: integer; enabled?: boolean }` |                      |
 
 Output: `{ id?: string; type?: string; key?: string; data?: Record<string, unknown>; version?: integer; enabled?: boolean; updatedAt?: string }`.
 
@@ -111,11 +134,13 @@ Deletes one row.
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `null`.
 
@@ -125,9 +150,11 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input: `{}`.
 
-Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string }[] }`.
+Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string; kind?: "grants"; showInForm?: boolean }[] }`.
 
 ### `adminSubscribers`
 
@@ -135,11 +162,13 @@ Counts the sockets subscribed to one row, per access level.
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
 
@@ -149,10 +178,12 @@ Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.

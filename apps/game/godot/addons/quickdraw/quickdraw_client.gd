@@ -18,10 +18,12 @@ extends Node
 ##             Quickdraw.send_channel("gameService", "move", {"dx": 1, "dy": 0})
 ##
 ## App rooms are per socket: `connected` fires again after every reconnect,
-## and the new socket is in no room until a call joins it, so join there.
+## and the new socket is in no room until a call joins it, so join there
+## (streams are subscribed again by the client itself, rooms are not).
 ## Numbers in replies and frames arrive as floats (Godot's JSON).
 
-## `qd:hello` arrived: the socket is ready, again after each reconnect.
+## `qd:hello` arrived: the socket is ready, again after each reconnect. Each
+## time it is a new socket in no app room: make the joining calls here.
 signal connected(hello: Dictionary)
 ## The socket closed. The client reconnects unless `close()` or the server ended it.
 signal disconnected(reason: String)
@@ -73,8 +75,12 @@ const SUBSCRIPTION_EVENTS := ["qd:sub", "qd:col:sub", "qd:col:items", "qd:watch"
 enum State { IDLE, CONNECTING, HANDSHAKE, READY, CLOSED }
 
 var state := State.IDLE
-## The server's `qd:hello`: `protocol`, `server`, `limits`, `features`, `userId`, `serviceAccess`.
+## The server's `qd:hello`: `protocol`, `server`, `serverId`, `limits`, `features`, `userId`, `serviceAccess`.
 var hello: Dictionary = {}
+## The server's id from its hello: new each time a server starts. A reconnect
+## that brings another one reached a restarted server (or another node), whose
+## state (a game's world, its tick counter) starts over: compare it in `connected`.
+var server_id := ""
 ## The user the socket acts for, or null when anonymous.
 var user_id: Variant = null
 var service_access: Dictionary = {}
@@ -228,12 +234,34 @@ func unsubscribe_stream(service: String, stream: String, scope := "") -> void:
 		_emit("qd:stream:unsub", frame)
 
 
+## True while the client holds the feed: from `subscribe_stream` until
+## `unsubscribe_stream` or a `qd:revoked` for it. The client subscribes to a
+## held feed again after each reconnect, so a caller that asks first never
+## sends a second `qd:stream:sub`.
+func is_subscribed(service: String, stream: String, scope := "") -> bool:
+	return _streams.has(_stream_key(service, stream, scope))
+
+
 ## Calls `callback(payload)` for each `qd:event` of `service` named `event`.
 func on_event(service: String, event: String, callback: Callable) -> void:
 	var key := "%s/%s" % [service, event]
 	if not _handlers.has(key):
 		_handlers[key] = []
 	(_handlers[key] as Array).append(callback)
+
+
+## Stops calling `callback` for `qd:event` of `service` named `event`, once
+## per `on_event` that added it. Returns false when it was not registered.
+func off_event(service: String, event: String, callback: Callable) -> bool:
+	var key := "%s/%s" % [service, event]
+	var callbacks: Array = _handlers.get(key, [])
+	var index := callbacks.find(callback)
+	if index < 0:
+		return false
+	callbacks.remove_at(index)
+	if callbacks.is_empty():
+		_handlers.erase(key)
+	return true
 
 
 ## The users in an app room the socket is in, as its `qd:presence` frames said.
@@ -401,8 +429,7 @@ func _on_event(event: String, data: Variant) -> void:
 		"qd:event":
 			_on_room_event(data)
 		"qd:stream":
-			var item: Dictionary = data
-			stream_item.emit(item.s, item.stream, item.get("scope", ""), item.get("item"))
+			_on_stream(data)
 		"qd:presence":
 			_on_presence(data)
 		"qd:revoked":
@@ -425,6 +452,7 @@ func _on_event(event: String, data: Variant) -> void:
 
 func _on_hello(data: Variant) -> void:
 	hello = data
+	server_id = str(hello.get("serverId", ""))
 	user_id = hello.get("userId")
 	service_access = hello.get("serviceAccess", {})
 	state = State.READY
@@ -438,6 +466,15 @@ func _resubscribe(frame: Dictionary) -> void:
 	var answer := await request("qd:stream:sub", frame)
 	if answer.get("ok", false):
 		stream_seeded.emit(frame.s, frame.stream, frame.get("scope", ""), answer.get("seed", []))
+
+
+## `[service, stream, scope, item]`, `scope` null for a global stream;
+## elements after `item` belong to a later protocol and are ignored.
+func _on_stream(data: Variant) -> void:
+	if not (data is Array) or (data as Array).size() < 4:
+		return
+	var scope: Variant = data[2]
+	stream_item.emit(str(data[0]), str(data[1]), "" if scope == null else str(scope), data[3])
 
 
 func _on_room_event(data: Variant) -> void:

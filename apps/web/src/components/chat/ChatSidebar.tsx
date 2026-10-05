@@ -23,9 +23,10 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
+import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import { UserAvatar } from "../user";
 import { ConfirmDialog } from "../feedback";
-import { qd, useQuickdraw } from "../../lib/quickdraw";
+import { qd } from "../../lib/quickdraw";
 import { useErrorText } from "../../hooks/useErrorText";
 import type { ChatDTO, ChatMemberDTO, AccessLevel } from "@project/shared";
 
@@ -325,16 +326,15 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
 
   // Members roster: a query-shaped read (memberships joined to profiles).
   // The server sends memberUpdate to each member's sockets whenever the
-  // chat's members change (an invite, a removal, a leave), so the roster is
-  // read again then, from the event's handler.
+  // chat's members change (an invite, a removal, a leave), carrying the new
+  // roster, which the event's handler writes into the query's cache.
   const { data: queryMembers, isLoading: membersLoading } = qd.chatService.getChatMembers.useQuery(
     { chatId },
     { enabled: !!chatId },
   );
-  // quickdraw-5.0 finding: the event carries the new roster, but the typed client has no way to put it into the query's cache (no setData beside invalidate), so the app reads it again (or would copy it into React state)
   qd.chatService.memberUpdate.useEvent((update) => {
     if (update.chatId === chatId) {
-      qd.invalidate(qd.chatService.getChatMembers, { chatId });
+      qd.chatService.getChatMembers.setData({ chatId }, update.members);
     }
   });
   const members = React.useMemo(() => queryMembers ?? [], [queryMembers]);

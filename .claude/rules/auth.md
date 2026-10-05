@@ -74,16 +74,21 @@ third-party cookies).
 
 An app route that needs a signed-in user takes `requireSession(auth.keys)`
 (see `api-conventions.md`), never a hand-rolled JWT check: it reads the
-cookie and the bearer token by the same rule as the sockets.
+cookie and the bearer token by the same rule as the sockets. The route reads
+the session with `sessionOf(req)` and calls services as
+`qd.caller(principal)`, which loads the user's grants (`auth.loadServiceAccess`)
+as a socket's handshake does.
 
 ## The web side
 
-`apps/web/src/lib/auth.ts` builds the sign-in URL
-(`/auth/{provider}/start?returnTo=<origin>`) and POSTs `/auth/logout` and
-`/auth/logout-all`; follow either with a full page navigation so the socket
-reconnects signed out. Use these, not `@fitzzero/quickdraw-core/client`'s
-helpers of the same names, which call routes the kit does not serve (a
-framework finding, marked in that file).
+The client's helpers speak the kit's routes: `signInUrl(provider,
+AUTH_ROUTES)` is `/auth/{provider}/start?returnTo=<origin>`, and
+`signOut(AUTH_ROUTES)` and `signOutEverywhere(AUTH_ROUTES)` POST
+`/auth/logout` and `/auth/logout-all` with the cookie (`AUTH_ROUTES`, in
+`apps/web/src/lib/auth.ts`, is where the API is). A sign-out rejects when the
+API refuses or cannot be reached (the session may still be live: say so);
+follow a successful one with a full page navigation so the socket reconnects
+signed out.
 
 ## Adding a provider
 
@@ -92,4 +97,4 @@ framework finding, marked in that file).
 2. Register `{API_URL}/auth/{id}/callback` with the provider; add its client
    id and secret to `env.example` and the deploy secrets.
 3. Add its button to the login page (`apps/web/src/app/auth/login/page.tsx`)
-   with `getOAuthUrl("<id>")`.
+   with `signInUrl("<id>", AUTH_ROUTES)`.

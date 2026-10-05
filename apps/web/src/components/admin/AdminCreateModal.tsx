@@ -19,15 +19,15 @@ import {
   Box,
 } from "@mui/material";
 import { useTranslations } from "next-intl";
+import type { AdminScreen } from "@fitzzero/quickdraw-core/client";
 import type { AdminServiceMeta, AdminFieldConfig } from "@project/shared";
 import { useErrorText } from "../../hooks/useErrorText";
-import type { AdminMembers } from "./adminMembers";
 
 interface AdminCreateModalProps {
   open: boolean;
   onClose: () => void;
-  /** The service's adminCreate (the admin kit's member). */
-  adminCreate: NonNullable<AdminMembers["adminCreate"]>;
+  /** The service's adminCreate (the admin kit's member, from `adminOf(qd, key)`). */
+  adminCreate: NonNullable<AdminScreen["adminCreate"]>;
   meta: AdminServiceMeta;
   onSuccess: () => void;
 }
@@ -65,14 +65,19 @@ export function AdminCreateModal({
   const tAdmin = useTranslations("Admin");
   const errorText = useErrorText();
 
+  // The fields the form writes: the editable ones, but those an override
+  // keeps out of a generic form (a user's grants, which have their own editor)
+  const formFields = React.useMemo(
+    () => meta.fields.filter((f) => f.editable && f.showInForm !== false && f.name !== "id"),
+    [meta.fields],
+  );
+
   // Initialize form values with defaults
   const [values, setValues] = React.useState<Record<string, unknown>>(() => {
     const initial: Record<string, unknown> = {};
-    meta.fields
-      .filter((f) => f.editable && f.name !== "id")
-      .forEach((field) => {
-        initial[field.name] = getDefaultValue(field);
-      });
+    formFields.forEach((field) => {
+      initial[field.name] = getDefaultValue(field);
+    });
     return initial;
   });
 
@@ -84,15 +89,13 @@ export function AdminCreateModal({
   React.useEffect(() => {
     if (open) {
       const initial: Record<string, unknown> = {};
-      meta.fields
-        .filter((f) => f.editable && f.name !== "id")
-        .forEach((field) => {
-          initial[field.name] = getDefaultValue(field);
-        });
+      formFields.forEach((field) => {
+        initial[field.name] = getDefaultValue(field);
+      });
       setValues(initial);
       reset();
     }
-  }, [open, meta.fields, reset]);
+  }, [open, formFields, reset]);
 
   // Update a field value
   const handleFieldChange = (fieldName: string, value: unknown) => {
@@ -103,15 +106,13 @@ export function AdminCreateModal({
   const handleSubmit = (): void => {
     // Filter out empty values for optional fields
     const createData: Record<string, unknown> = {};
-    meta.fields
-      .filter((f) => f.editable && f.name !== "id")
-      .forEach((field) => {
-        const value = values[field.name];
-        // Include required fields always, optional fields only if not empty
-        if (field.required || (value !== "" && value !== null && value !== undefined)) {
-          createData[field.name] = value;
-        }
-      });
+    formFields.forEach((field) => {
+      const value = values[field.name];
+      // Include required fields always, optional fields only if not empty
+      if (field.required || (value !== "" && value !== null && value !== undefined)) {
+        createData[field.name] = value;
+      }
+    });
 
     create.mutate({ data: createData }, { onSuccess });
   };
@@ -208,10 +209,8 @@ export function AdminCreateModal({
     }
   };
 
-  // Get editable fields (excluding id, createdAt, updatedAt)
-  const editableFields = meta.fields.filter(
-    (f) => f.editable && f.name !== "id" && f.name !== "createdAt" && f.name !== "updatedAt",
-  );
+  // The inputs shown: the form's fields but the timestamps
+  const editableFields = formFields.filter((f) => f.name !== "createdAt" && f.name !== "updatedAt");
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>

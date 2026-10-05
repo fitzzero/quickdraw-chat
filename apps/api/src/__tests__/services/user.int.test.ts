@@ -115,7 +115,7 @@ describe("UserService admin kit", () => {
     expect(await testPrisma.user.findUnique({ where: { id: created.id } })).toBeNull();
   });
 
-  it("describes the user fields, grants included (edited, not shown as a column)", async () => {
+  it("describes the user fields, grants included (edited by their own editor: no column, no form field)", async () => {
     const meta = await as(users.admin.id).userService.adminMeta({});
     expect(meta.serviceName).toBe("userService");
     expect(meta.displayName).toBe("Users");
@@ -123,8 +123,10 @@ describe("UserService admin kit", () => {
     expect(names).toEqual(expect.arrayContaining(["id", "email", "name", "serviceAccess"]));
     expect(meta.fields.find((field) => field.name === "serviceAccess")).toMatchObject({
       type: "json",
+      kind: "grants",
       editable: true,
       showInTable: false,
+      showInForm: false,
     });
   });
 

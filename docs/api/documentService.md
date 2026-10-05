@@ -2,6 +2,17 @@
 
 # documentService
 
+## Access
+
+| Option             | Value                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Row policy         | `jsonAcl`: the level the `acl` column lists for the user, and Admin for the user the `ownerId` column names |
+| Service-wide Admin | passes every check of the service                                                                           |
+| Change topic       | closed: the service declares no `watchAccess`                                                               |
+| Field levels       | none: every caller who may read a row receives all of it                                                    |
+
+Each method below says who may call it.
+
 ## Entity
 
 | Field       | Type                                                                               | Notes            |
@@ -22,11 +33,13 @@ Reads one document.
 
 A query.
 
+Access: `{ service: "Read", entry: "Read" }`: a service-wide grant of Read or more, or Read or more on the row `input.id` names.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: one row as the `entity` projection.
 
@@ -35,6 +48,8 @@ Output: one row as the `entity` projection.
 Lists the rows the caller can read, a page at a time, filtered and sorted by the declared fields. Pass a page's nextCursor back as cursor for the next page.
 
 A query.
+
+Access: `"authenticated"`: any signed-in caller.
 
 Input:
 
@@ -54,6 +69,8 @@ Creates a document owned by the caller.
 
 A mutation.
 
+Access: `"authenticated"`: any signed-in caller.
+
 Input:
 
 | Field      | Type     | Notes                     |
@@ -69,11 +86,13 @@ Changes a document's title or content.
 
 A mutation.
 
+Access: `{ service: "Moderate", entry: "Moderate" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.id` names.
+
 Input:
 
 | Field      | Type     | Notes                     |
 | ---------- | -------- | ------------------------- |
-| `id`       | `string` | at least 1 characters     |
+| `id`       | `string` | at least 1 character      |
 | `title?`   | `string` | 1 to 200 characters       |
 | `content?` | `string` | at most 100000 characters |
 
@@ -85,11 +104,13 @@ Deletes a document.
 
 A mutation.
 
+Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or more, or Admin or more on the row `input.id` names.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `null`.
 
@@ -99,13 +120,15 @@ Gives a user a level on one row: Read, Moderate or Admin. A user the row is shar
 
 A mutation.
 
+Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or more, or Admin or more on the row `input.id` names.
+
 Input:
 
-| Field    | Type                              | Notes                 |
-| -------- | --------------------------------- | --------------------- |
-| `id`     | `string`                          | at least 1 characters |
-| `userId` | `string`                          | at least 1 characters |
-| `level`  | `"Read" \| "Moderate" \| "Admin"` |                       |
+| Field    | Type                              | Notes                |
+| -------- | --------------------------------- | -------------------- |
+| `id`     | `string`                          | at least 1 character |
+| `userId` | `string`                          | at least 1 character |
+| `level`  | `"Read" \| "Moderate" \| "Admin"` |                      |
 
 Output: `{ userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[]`.
 
@@ -115,12 +138,14 @@ Takes a user's level on one row away. The owner's cannot be taken away.
 
 A mutation.
 
+Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or more, or Admin or more on the row `input.id` names.
+
 Input:
 
-| Field    | Type     | Notes                 |
-| -------- | -------- | --------------------- |
-| `id`     | `string` | at least 1 characters |
-| `userId` | `string` | at least 1 characters |
+| Field    | Type     | Notes                |
+| -------- | -------- | -------------------- |
+| `id`     | `string` | at least 1 character |
+| `userId` | `string` | at least 1 character |
 
 Output: `{ userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[]`.
 
@@ -130,13 +155,15 @@ Changes the level of a user one row is already shared with.
 
 A mutation.
 
+Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or more, or Admin or more on the row `input.id` names.
+
 Input:
 
-| Field    | Type                              | Notes                 |
-| -------- | --------------------------------- | --------------------- |
-| `id`     | `string`                          | at least 1 characters |
-| `userId` | `string`                          | at least 1 characters |
-| `level`  | `"Read" \| "Moderate" \| "Admin"` |                       |
+| Field    | Type                              | Notes                |
+| -------- | --------------------------------- | -------------------- |
+| `id`     | `string`                          | at least 1 character |
+| `userId` | `string`                          | at least 1 character |
+| `level`  | `"Read" \| "Moderate" \| "Admin"` |                      |
 
 Output: `{ userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[]`.
 
@@ -146,11 +173,13 @@ Lists the users one row is shared with, and their levels.
 
 A query.
 
+Access: `{ service: "Read", entry: "Read" }`: a service-wide grant of Read or more, or Read or more on the row `input.id` names.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[]`.
 
@@ -159,6 +188,8 @@ Output: `{ userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[]`.
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -177,11 +208,13 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id?: string; title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[] | null; createdAt?: string; updatedAt?: string }`.
 
@@ -190,6 +223,8 @@ Output: `{ id?: string; title?: string; content?: string; ownerId?: string; acl?
 Creates a row from data, the new row's field values; the database sets its id and timestamps.
 
 A mutation.
+
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
@@ -205,12 +240,14 @@ Changes the given fields of one row; its id and timestamps cannot be changed.
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field  | Type                                                                                                                                             | Notes                 |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
-| `id`   | `string`                                                                                                                                         | at least 1 characters |
-| `data` | `{ title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" \| "Read" \| "Moderate" \| "Admin" }[] \| null }` |                       |
+| Field  | Type                                                                                                                                             | Notes                |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| `id`   | `string`                                                                                                                                         | at least 1 character |
+| `data` | `{ title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" \| "Read" \| "Moderate" \| "Admin" }[] \| null }` |                      |
 
 Output: `{ id?: string; title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[] | null; createdAt?: string; updatedAt?: string }`.
 
@@ -220,11 +257,13 @@ Deletes one row.
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `null`.
 
@@ -234,9 +273,11 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input: `{}`.
 
-Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string }[] }`.
+Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string; kind?: "grants"; showInForm?: boolean }[] }`.
 
 ### `adminSubscribers`
 
@@ -244,11 +285,13 @@ Counts the sockets subscribed to one row, per access level.
 
 A query.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
 
@@ -258,10 +301,12 @@ Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
 
+Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
+
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.

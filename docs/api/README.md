@@ -9,7 +9,7 @@ One page per service, generated from its contract by `quickdraw-docs`.
 | [chatService](chatService.md)             | 16      | 1           | 0       | 0        | 1      |
 | [definitionService](definitionService.md) | 10      | 0           | 0       | 0        | 0      |
 | [documentService](documentService.md)     | 17      | 0           | 0       | 0        | 0      |
-| [gameService](gameService.md)             | 13      | 0           | 1       | 1        | 5      |
+| [gameService](gameService.md)             | 13      | 0           | 1       | 1        | 4      |
 | [messageService](messageService.md)       | 10      | 1           | 0       | 0        | 0      |
 | [pushService](pushService.md)             | 9       | 0           | 0       | 0        | 0      |
 | [userService](userService.md)             | 10      | 0           | 0       | 0        | 0      |

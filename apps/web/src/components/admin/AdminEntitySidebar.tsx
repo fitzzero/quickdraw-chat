@@ -23,16 +23,16 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { useTranslations } from "next-intl";
+import type { AdminRow, AdminScreen } from "@fitzzero/quickdraw-core/client";
 import { ConfirmDialog } from "../feedback";
 import { UserServiceAccessEditor } from "./UserServiceAccessEditor";
 import { useErrorText } from "../../hooks/useErrorText";
 import { qd } from "../../lib/quickdraw";
 import type { AdminServiceMeta, AdminFieldConfig } from "@project/shared";
-import type { AdminKey, AdminMembers, AdminRow } from "./adminMembers";
 
-/** The user's grants field, which `admin.handlers(user, { grants: true })` adds to adminMeta. */
-function isGrants(field: AdminFieldConfig): boolean {
-  return field.name === "serviceAccess";
+/** Whether the generic form shows a field: not one an override kept out (the user's grants). */
+function inForm(field: AdminFieldConfig): boolean {
+  return field.showInForm !== false;
 }
 
 /** Safely convert unknown to string for display - avoids no-base-to-string for objects */
@@ -181,7 +181,7 @@ function FieldInput({
 }
 
 interface EditActionsProps {
-  adminUpdate: NonNullable<AdminMembers["adminUpdate"]>;
+  adminUpdate: NonNullable<AdminScreen["adminUpdate"]>;
   entity: AdminRow;
   meta: AdminServiceMeta;
   /** The values being edited; null while viewing. */
@@ -260,7 +260,7 @@ function DeleteAction({
   id,
   onDeleted,
 }: {
-  adminDelete: NonNullable<AdminMembers["adminDelete"]>;
+  adminDelete: NonNullable<AdminScreen["adminDelete"]>;
   id: string;
   onDeleted: () => void;
 }): React.ReactElement {
@@ -310,10 +310,10 @@ function DeleteAction({
 }
 
 interface AdminEntitySidebarProps {
-  /** The service's admin kit members. */
-  admin: AdminMembers;
-  /** The service's key on the client. */
-  serviceKey: AdminKey;
+  /** The service's admin kit members (`adminOf(qd, key)`). */
+  admin: AdminScreen;
+  /** Its `adminGet`, which the sidebar reads the row with. */
+  adminGet: NonNullable<AdminScreen["adminGet"]>;
   entryId: string;
   meta: AdminServiceMeta;
   onClose: () => void;
@@ -329,7 +329,7 @@ interface AdminEntitySidebarProps {
  */
 export function AdminEntitySidebar({
   admin,
-  serviceKey,
+  adminGet,
   entryId,
   meta,
   onClose,
@@ -339,16 +339,16 @@ export function AdminEntitySidebar({
   const tAdmin = useTranslations("Admin");
   const errorText = useErrorText();
 
-  const { data: entity, error, isLoading } = admin.adminGet.useQuery({ id: entryId });
+  const { data: entity, error, isLoading } = adminGet.useQuery({ id: entryId });
   // The values being edited (a form draft); null while viewing
   const [editedValues, setEditedValues] = React.useState<Record<string, unknown> | null>(null);
 
   const handleSaved = React.useCallback((): void => {
     setEditedValues(null);
     // The kit's rows are not live: read this row and the list again
-    qd.invalidate(admin.adminGet, { id: entryId });
+    qd.invalidate(adminGet, { id: entryId });
     onChanged();
-  }, [admin, entryId, onChanged]);
+  }, [adminGet, entryId, onChanged]);
 
   if (isLoading) {
     return (
@@ -402,9 +402,9 @@ export function AdminEntitySidebar({
         <Divider sx={{ my: 2 }} />
 
         {/* Fields (the kit leaves out hidden ones, such as acl); a user's
-            grants have their own editor below */}
+            grants are kept out of the form and have their own editor below */}
         {meta.fields
-          .filter((f) => f.name !== "id" && !(serviceKey === "userService" && isGrants(f)))
+          .filter((f) => f.name !== "id" && inForm(f))
           .map((field) => (
             <Box key={field.name} sx={{ mb: 2 }}>
               {editedValues !== null && field.editable ? (
@@ -428,8 +428,8 @@ export function AdminEntitySidebar({
             </Box>
           ))}
 
-        {/* The user's service-wide grants: only for userService */}
-        {serviceKey === "userService" && (
+        {/* A user's service-wide grants: the field the kit marks `kind: "grants"` */}
+        {meta.fields.some((f) => f.kind === "grants") && (
           <>
             <Divider sx={{ my: 2 }} />
             <UserServiceAccessEditor userId={entryId} />

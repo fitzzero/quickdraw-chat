@@ -19,6 +19,7 @@ import {
   PROTOCOL_VERSION,
   type CallReply,
   type EventFrame,
+  type HelloFrame,
   type StreamFrame,
   type StreamSubscribeReply,
 } from "@fitzzero/quickdraw-core";
@@ -139,6 +140,11 @@ export class BotClient {
     });
     this.socket = socket;
 
+    // The hello names the server, whose world the clock follows (a restarted
+    // one starts its ticks over)
+    socket.on("qd:hello", (hello: HelloFrame) => {
+      this.worldClock.followServer(hello.serverId);
+    });
     // The server is ready for calls once it said hello
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(
@@ -155,9 +161,9 @@ export class BotClient {
       });
     });
 
-    socket.on("qd:stream", (frame: StreamFrame) => {
-      if (frame.s === "gameService" && frame.stream === "world") {
-        this.onSnapshot(frame.item as WorldSnapshot);
+    socket.on("qd:stream", ([service, stream, , item]: StreamFrame) => {
+      if (service === "gameService" && stream === "world") {
+        this.onSnapshot(item as WorldSnapshot);
       }
     });
     socket.on("qd:event", ([service, event, payload]: EventFrame) => {

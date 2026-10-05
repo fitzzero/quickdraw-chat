@@ -5,7 +5,8 @@ The Godot 4.7 project for the demo game (slither-style snake against the
 wire the web app's typed client speaks too (`docs/protocol-v5.md` in
 `@fitzzero/quickdraw-core`), through `godot/addons/quickdraw/quickdraw_client.gd`:
 quickdraw's reference GDScript client (`examples/godot` in the quickdraw
-repo), copied unchanged — WebSocket only, JSON only, no Socket.IO library.
+repo, at the release the app pins), copied unchanged — WebSocket only, JSON
+only, no Socket.IO library. Copy it again whenever quickdraw is upgraded.
 
 Not a game project? Remove all of this with
 `./scripts/init-fork.sh <name> --without-game`.

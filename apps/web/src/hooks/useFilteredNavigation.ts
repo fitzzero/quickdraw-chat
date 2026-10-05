@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import { siteNavigation, type NavItem } from "../lib/navigation";
 import type { AccessLevel } from "@project/shared";
-import { qd, useQuickdraw } from "../lib/quickdraw";
+import { qd } from "../lib/quickdraw";
 /**
  * Access levels that grant visibility to a service.
  * Read or higher means the user can see the service in navigation.
@@ -49,8 +50,7 @@ export function useFilteredNavigation(): {
   hasServiceAccess: (serviceName: string) => boolean;
 } {
   // The connection's grants: these include SERVICE_DEFAULT_ACCESS, merged by the server
-  const { userId, hello, serviceAccess: grants } = useQuickdraw();
-  const isKnown = hello !== null;
+  const { userId, isKnown, serviceAccess: grants } = useQuickdraw();
 
   // Guest sessions hide `hideForGuests` items. Structural probe so the hook
   // stays generic — the field only exists when the guest-auth feature does.

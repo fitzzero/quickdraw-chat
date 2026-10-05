@@ -23,8 +23,8 @@ when a netcode improvement lands on main).
 **Tier 1 (headless, the R&D workhorse)** — one Node process runs:
 
 - the real API server (integration-test bootstrap: PGlite, the app's own
-  sign-in with development credentials, the game's `onRoomLeave`) with the
-  game loop RUNNING;
+  sign-in with development credentials, the game service's own
+  `onRoomLeave`) with the game loop RUNNING;
 - a ground-truth recorder on `GameLoop.onTick` — exact authoritative
   positions, tick duration, snapshot bytes per tick;
 - a seeded TCP latency proxy per bot (`packages/bench/src/proxy.ts`) — base
@@ -64,7 +64,7 @@ real render pipeline, including WASM frame pacing.
 | `packet.gapRate`                         | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted). | ~0 except bursty scenarios.                                                |
 | `packet.inputAckRttMs`                   | Input send → first snapshot acking it.                                                                                 | RTT + up-to-one-tick alignment.                                            |
 | `server.tickDurMs` / `effectiveTickRate` | Sim cost and loop health.                                                                                              | ≪ 50ms / 20Hz.                                                             |
-| `server.snapshotBytes`                   | The snapshot's JSON (the stream item). On the wire each `qd:stream` frame adds its envelope, ~65 bytes.                | Grows with players; add fields consciously.                                |
+| `server.snapshotBytes`                   | The snapshot's JSON (the stream item). On the wire each `qd:stream` frame adds its envelope, 59 bytes.                 | Grows with players; add fields consciously.                                |
 
 Aggregated runs (`--runs 3`) report element-wise medians plus `runVariance`
 (max−min of headline metrics across runs). `bench:compare` treats deltas

@@ -1,9 +1,12 @@
 // Definitions on 5.0: the public reads, the admin kit, and the tunables hot
 // reload its writes drive.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import type { Definition } from "@project/db";
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
-import { notifyChanged, onChanged } from "../../services/definition/index.js";
+import {
+  notifyChanged,
+  onChanged,
+  type ChangedDefinition,
+} from "../../services/definition/index.js";
 import { snakeTunablesOf } from "../../services/game/bootstrap.js";
 import { gameRuntime } from "../../services/game/runtime.js";
 import { createTestUser } from "../factories/user-factory.js";
@@ -12,7 +15,7 @@ import { startTestApp, type ApiTestApp } from "../utils/app.js";
 let app: ApiTestApp;
 
 /** The definitions every edit was announced with, since the file started. */
-const heard: Definition[] = [];
+const heard: ChangedDefinition[] = [];
 // What the API's start-up does (index.ts): an edit of the snake tunables
 // reaches the running sim
 onChanged((definition) => {
@@ -72,7 +75,7 @@ describe("DefinitionService", () => {
       data: { data: { baseSpeed: 260 } },
     });
 
-    notifyChanged(row);
+    notifyChanged({ type: row.type, key: row.key, data: { baseSpeed: 260 } });
 
     expect(heard.map((d) => d.key)).toEqual(["snake"]);
     expect(sim.tunables.baseSpeed).toBe(260);
