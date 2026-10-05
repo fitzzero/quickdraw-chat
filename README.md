@@ -18,7 +18,7 @@
 
 <p align="center">
   <a href="https://github.com/fitzzero/quickdraw-chat/actions/workflows/ci.yml"><img src="https://github.com/fitzzero/quickdraw-chat/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://www.npmjs.com/package/@fitzzero/quickdraw-core/v/next"><img src="https://img.shields.io/npm/v/%40fitzzero%2Fquickdraw-core/next?label=quickdraw-core&color=7c4dff" alt="quickdraw-core version (the 5.0 release candidate, npm's next tag)" /></a>
+  <a href="https://www.npmjs.com/package/@fitzzero/quickdraw-core"><img src="https://img.shields.io/npm/v/%40fitzzero%2Fquickdraw-core?label=quickdraw-core&color=7c4dff" alt="quickdraw-core version" /></a>
   <img src="https://img.shields.io/badge/license-MIT-7aa2f7" alt="MIT license" />
 </p>
 

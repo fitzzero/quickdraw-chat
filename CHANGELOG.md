@@ -1,5 +1,13 @@
 # Changelog
 
+## quickdraw 5.0.0 (2026-10-05)
+
+The template on the released quickdraw 5.0.0 (`@fitzzero/quickdraw-core`,
+`-lint` and `-skills` at `^5.0.0`, npm's `latest`). 5.0.0 is the code of
+`5.0.0-rc.7` with the version changed, so nothing in the app changes: the
+entries below, from "quickdraw 5.0" up, are what moving from 4.1 took and
+what a fork inherits.
+
 ## quickdraw 5.0.0-rc.7 (2026-10-05)
 
 The template on `5.0.0-rc.7`, which fixes what its move to rc.6 found in
