@@ -108,15 +108,20 @@ echo "$FILES" | xargs "${SED_I[@]}" \
 
 # ── 1b. Display brand ─────────────────────────────────────────────────
 # The web app brands itself "Quickdraw" front-facing (landing, metadata,
-# manifest, README). Rename it in the files that carry display strings.
-# Framework identifiers (QuickdrawProvider, QuickdrawHost, quickdraw-core)
-# are letter-adjacent or lowercase and never match these patterns.
+# manifest, README). Rename the word in the files that carry display
+# strings: only where no letter touches it, so framework identifiers
+# (QuickdrawProvider, useQuickdraw, renderWithQuickdraw, quickdraw-core)
+# never match. The middle pattern runs twice, since one match takes the
+# character the next would start with ("Quickdraw/Quickdraw").
 BRAND_FILES="apps/web/src/messages/en.json apps/web/src/app/layout.tsx apps/web/src/app/opengraph-image.tsx apps/web/public/site.webmanifest README.md"
 for f in $BRAND_FILES; do
   [ -f "$f" ] || continue
   "${SED_I[@]}" \
-    -e "s/Quickdraw\([^A-Za-z]\)/${DISPLAY}\1/g" \
-    -e "s/Quickdraw\$/${DISPLAY}/" \
+    -e "s/^Quickdraw\([^A-Za-z]\)/${DISPLAY}\1/" \
+    -e "s/\([^A-Za-z]\)Quickdraw\([^A-Za-z]\)/\1${DISPLAY}\2/g" \
+    -e "s/\([^A-Za-z]\)Quickdraw\([^A-Za-z]\)/\1${DISPLAY}\2/g" \
+    -e "s/\([^A-Za-z]\)Quickdraw\$/\1${DISPLAY}/" \
+    -e "s/^Quickdraw\$/${DISPLAY}/" \
     -e "s/\"appName\": \"quickdraw\"/\"appName\": \"${NAME}\"/" \
     -e "s/\"title\": \"quickdraw\"/\"title\": \"${NAME}\"/" \
     "$f"
