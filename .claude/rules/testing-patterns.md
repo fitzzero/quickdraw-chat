@@ -97,7 +97,8 @@ Close it in `afterAll`. Then:
   `dom-setup.ts`, which calls `installJsdomShims()` for what jsdom lacks).
 - Component tests without a server use `createMockClient(contracts)`; a
   component that reads `useQuickdraw()` renders inside `mock.$Provider`,
-  with the session set by `mock.$session({ userId, serviceAccess, ... })`.
+  with the session set by `mock.$session({ userId, serviceAccess, ... })`,
+  or by the provider's `session` prop for its subtree alone.
   <!-- ── quickdraw-storybook:start ── -->
-  Storybook renders on it too (`storybook.md`).
+  Storybook renders on it too, a provider per story (`storybook.md`).
   <!-- ── quickdraw-storybook:end ── -->

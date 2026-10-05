@@ -16,6 +16,7 @@ import { GameLoading } from "./GameLoading";
 import { GameHud } from "./GameHud";
 import { GameChatOverlay } from "./GameChatOverlay";
 import { qd } from "../../lib/quickdraw";
+import { useErrorText } from "../../hooks/useErrorText";
 import { PreGameDialog } from "./PreGameDialog";
 
 /** Survives the socket cycle (AuthGate remounts the page) and full reloads. */
@@ -90,6 +91,7 @@ interface GameSession {
 // oxlint-disable-next-line max-lines-per-function -- one cohesive state machine
 function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession {
   const router = useRouter();
+  const errorText = useErrorText();
   const { userId, connection } = useQuickdraw();
 
   const [loadState, setLoadState] = React.useState<GodotLoadState>({
@@ -134,11 +136,9 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
     onJoined: focusCanvas,
   });
   const hasJoined = join.data !== undefined;
-
-  // A refused first join stands until the next connection: Start asks again
-  React.useEffect(() => {
-    if (join.status === "error" && !hasJoined) setPlaying(false);
-  }, [join.status, hasJoined]);
+  // A refused join stands until the next connection: the dialog says why,
+  // and its button runs the call again at once on this socket (`retry`)
+  const joinError = join.status === "error" ? join.error : null;
 
   // Death detection: the same reliable world events Godot consumes
   qd.gameService.death.useEvent((event) => {
@@ -165,7 +165,8 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
       void createGuestAndReconnect(guestName);
       return;
     }
-    setPlaying(true);
+    if (joinError === null) setPlaying(true);
+    else join.retry();
   };
 
   async function createGuestAndReconnect(name: string): Promise<void> {
@@ -199,6 +200,7 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
     ready,
     needsGuest,
     starting: creatingGuest || join.status === "joining",
+    joinError: joinError === null ? undefined : errorText(joinError),
     // the join runs again: joinGame spawns the dead player's snake
     onRespawn: () => {
       setDeath(null);
@@ -231,13 +233,17 @@ interface DialogInputs {
   ready: boolean;
   needsGuest: boolean;
   starting: boolean;
+  /** Why the current socket's join was refused, for people. */
+  joinError: string | undefined;
   onRespawn: () => void;
   onStart: (guestName?: string) => void;
   onLogin: () => void;
 }
 
 function buildDialog(inputs: DialogInputs): React.ReactElement | null {
-  if (inputs.hasJoined && inputs.death === null) return null;
+  // Before the first join, after a death, and while a join stands refused
+  // (a respawn's, or a reconnect's after the user played)
+  if (inputs.hasJoined && inputs.death === null && inputs.joinError === undefined) return null;
   const dead = inputs.death !== null;
   return (
     <PreGameDialog
@@ -248,6 +254,7 @@ function buildDialog(inputs: DialogInputs): React.ReactElement | null {
       canStart={inputs.needsGuest ? true : inputs.ready}
       starting={inputs.starting}
       needsGuest={inputs.needsGuest}
+      joinError={inputs.joinError}
       onStart={dead ? inputs.onRespawn : inputs.onStart}
       onLogin={inputs.onLogin}
     />

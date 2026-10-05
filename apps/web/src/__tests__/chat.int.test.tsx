@@ -89,6 +89,26 @@ function holdCalls(method: string): { release: () => void } {
   return { release };
 }
 
+/**
+ * Answers the next call of `method` a socket sends with a failure
+ * (`INTERNAL`, as a failing handler's), once, without running it: a send
+ * that fails for a reason that passes. Every later call goes through.
+ */
+function refuseNextCall(method: string): void {
+  let refused = false;
+  app.server.io.on("connection", (socket) => {
+    socket.use(([event, envelope, reply], next) => {
+      const named = (envelope as { m?: unknown } | undefined)?.m;
+      if (!refused && event === "qd:call" && named === method && typeof reply === "function") {
+        refused = true;
+        reply({ ok: false, e: { code: "INTERNAL", message: "The server failed" } });
+      } else {
+        next();
+      }
+    });
+  });
+}
+
 /** The chat titles the list shows, top to bottom. */
 function listedTitles(view: RenderResult): string[] {
   return Array.from(
@@ -223,6 +243,57 @@ describe("a chat's messages (byChat)", () => {
     });
     expect(texts()[0]).toContain("second try");
   });
+
+  it("keeps a refused send when its chat is shown again, and shows it in that chat only", async () => {
+    const { ada, bo } = await twoMembers();
+    const refusing = await createTestChat({ members: [{ userId: bo }] });
+    const own = await createTestChat({ members: [{ userId: ada }] });
+    const view = await renderAs(ada, <ChatWindow chatId={refusing.id} />);
+    await view.findByText("No messages yet. Start the conversation!");
+    fireEvent.change(view.getByPlaceholderText("Type a message..."), {
+      target: { value: "Still there?" },
+    });
+    fireEvent.click(view.getByRole("button", { name: "Send message" }));
+    await view.findByTestId("failed-message");
+
+    // another chat's window: none of the first chat's refused sends
+    view.rerender(<ChatWindow key="own" chatId={own.id} />);
+    await view.findByText("No messages yet. Start the conversation!");
+    expect(view.queryByTestId("failed-message")).toBeNull();
+
+    // a new window on the first chat: the client still holds it
+    view.rerender(<ChatWindow key="again" chatId={refusing.id} />);
+    expect((await view.findByTestId("failed-message")).textContent).toContain("Still there?");
+  });
+
+  it("sends a refused message again on retry, and shows the server's row once taken", async () => {
+    const { ada, bo } = await twoMembers();
+    const chat = await createTestChat({ members: [{ userId: ada }, { userId: bo }] });
+    // the first send fails for a reason that passes; the retry goes through
+    refuseNextCall("postMessage");
+    const view = await renderAs(ada, <ChatWindow chatId={chat.id} />);
+    await view.findByText("No messages yet. Start the conversation!");
+    fireEvent.change(view.getByPlaceholderText("Type a message..."), {
+      target: { value: "Second time lucky" },
+    });
+    fireEvent.click(view.getByRole("button", { name: "Send message" }));
+    const refused = await view.findByTestId("failed-message");
+    expect(refused.textContent).toContain("Not sent: Something went wrong. Try again.");
+
+    fireEvent.click(view.getByRole("button", { name: "Retry" }));
+    await waitFor(() => {
+      expect(view.queryByTestId("failed-message")).toBeNull();
+    });
+    await view.findByText("Second time lucky");
+    await waitFor(() => {
+      expect(view.queryByTestId("pending-message")).toBeNull();
+    });
+    const stored = await testPrisma.message.findMany({
+      where: { chatId: chat.id },
+      select: { content: true, userId: true },
+    });
+    expect(stored).toEqual([{ content: "Second time lucky", userId: ada }]);
+  });
 });
 
 describe("the chat sidebar", () => {
@@ -269,6 +340,26 @@ describe("the chat sidebar", () => {
     await view.reconnect();
     const cy = await createTestUser({ name: "Cy" });
     await as(ada).chatService.inviteUser({ id: chat.id, userId: cy.id, level: "Read" });
+    await view.findByText("Cy");
+  });
+
+  it("says why the roster was refused, and its retry reads it and joins its room", async () => {
+    const { ada, bo } = await twoMembers();
+    const chat = await createTestChat({ title: "Closed", members: [{ userId: bo }] });
+
+    // Ada is no member: reading the roster (and joining its room) is refused
+    const view = await renderAs(ada, <ChatSidebar chatId={chat.id} />);
+    await view.findByText("Members not loaded: You don't have permission to do that.");
+
+    // Bo invites her; the retry runs the same call at once, on this socket
+    await as(bo).chatService.inviteUser({ id: chat.id, userId: ada, level: "Read" });
+    fireEvent.click(view.getByRole("button", { name: "Retry" }));
+    await view.findByText("Ada");
+    expect(view.queryByText(/Members not loaded/)).toBeNull();
+
+    // the socket is in the roster's room now: the next change arrives live
+    const cy = await createTestUser({ name: "Cy" });
+    await as(bo).chatService.inviteUser({ id: chat.id, userId: cy.id, level: "Read" });
     await view.findByText("Cy");
   });
 });

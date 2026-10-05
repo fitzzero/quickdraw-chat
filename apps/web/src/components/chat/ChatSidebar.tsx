@@ -234,6 +234,10 @@ function InviteSection({ chatId }: InviteSectionProps): React.ReactElement {
 interface MembersSectionProps {
   members: ChatMemberDTO[];
   isLoading: boolean;
+  /** Why reading the roster (and joining its room) was refused, for people; `null` when it was not. */
+  error: string | null;
+  /** Reads the roster again at once, after a refusal. */
+  onRetry: () => void;
   canRemoveMember: (member: ChatMemberDTO) => boolean;
   onRemoveMember: (member: ChatMemberDTO) => void;
 }
@@ -241,6 +245,8 @@ interface MembersSectionProps {
 function MembersSection({
   members,
   isLoading,
+  error,
+  onRetry,
   canRemoveMember,
   onRemoveMember,
 }: MembersSectionProps): React.ReactElement {
@@ -252,6 +258,16 @@ function MembersSection({
       <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
         {t("membersTitle")}
       </Typography>
+      {error !== null && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+          <Typography variant="caption" color="error" sx={{ flex: 1 }}>
+            {t("membersFailed", { reason: error })}
+          </Typography>
+          <Button size="small" color="error" onClick={onRetry}>
+            {t("membersRetry")}
+          </Button>
+        </Box>
+      )}
       {isLoading ? (
         <List dense disablePadding>
           {[1, 2, 3].map((i) => (
@@ -330,8 +346,9 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
   // leave), so it is read with useJoin: again on every connection (a
   // reconnected socket is in no room) and for each chat shown. Each answer
   // and each memberUpdate's roster go into the query's cache, which the
-  // roster below reads without fetching.
-  useJoin(
+  // roster below reads without fetching. A refusal stands until the next
+  // connection: the roster says why, with a retry (the same call, now).
+  const rosterJoin = useJoin(
     qd.chatService.getChatMembers,
     { chatId },
     {
@@ -351,7 +368,8 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
     }
   });
   const members = React.useMemo(() => queryMembers ?? [], [queryMembers]);
-  const membersLoading = queryMembers === undefined;
+  const rosterError = rosterJoin.status === "error" ? errorText(rosterJoin.error) : null;
+  const membersLoading = queryMembers === undefined && rosterError === null;
 
   // UI state
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
@@ -470,6 +488,8 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
       <MembersSection
         members={members}
         isLoading={membersLoading}
+        error={rosterError}
+        onRetry={rosterJoin.retry}
         canRemoveMember={canRemoveMember}
         onRemoveMember={handleRemoveMember}
       />

@@ -38,13 +38,16 @@ the build.
 - Components on quickdraw (`qd.<service>.<member>` hooks, `useQuickdraw()`)
   render over `createMockClient`: Storybook aliases `src/lib/quickdraw.ts` to
   `src/stories/quickdraw.tsx`, and the global decorator renders every story
-  inside `qd.$Provider`, where the real `useQuickdraw()` reads the mock's
-  session. Import `qd` from there and set what the hooks show in the story's
-  `beforeEach` (`qd.<service>.<collection>.mockScope`,
+  inside a `qd.$Provider` of its own, where the real `useQuickdraw()` reads
+  the story's session. Import `qd` from there and set what the hooks show in
+  the story's `beforeEach` (`qd.<service>.<collection>.mockScope`,
   `qd.<service>.useEntity.mockRow`/`mockError`, `qd.<service>.<method>.mockResolvedValue`);
   give each story its own ids (a docs page renders them together); what no
   story sets stays loading. `parameters.quickdraw.session` (`userId`,
-  `serviceAccess`, `isConnected`, `isKnown`) sets who the story renders as.
+  `serviceAccess`, `isConnected`, `isKnown`) sets who the story renders as:
+  the decorator passes it as that provider's `session`, so stories side by
+  side each keep theirs. Never set it with `qd.$session` (one session for
+  every story on the page).
 - Route-dependent components: mock the pathname with
   `parameters: { nextjs: { navigation: { pathname: "/..." } } }`.
 - Do not add ports or boot steps for Storybook to `turbo dev`, pod boot

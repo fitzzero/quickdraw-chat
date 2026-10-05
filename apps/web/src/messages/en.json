@@ -222,7 +222,9 @@
     "roleAdmin": "Admin",
     "roleModerate": "Moderator",
     "roleRead": "Member",
-    "renameFailed": "Not renamed: {reason}"
+    "renameFailed": "Not renamed: {reason}",
+    "membersFailed": "Members not loaded: {reason}",
+    "membersRetry": "Retry"
   },
   "Admin": {
     "title": "Admin",
@@ -280,6 +282,8 @@
     "playAsGuest": "Play as guest",
     "respawn": "Respawn",
     "starting": "Starting…",
+    "joinFailed": "Not joined: {reason}",
+    "tryAgain": "Try again",
     "loadingWorld": "Loading world…",
     "logIn": "Log in",
     "logInHint": "Log in for persistent stats & high scores",

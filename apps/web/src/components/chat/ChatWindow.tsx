@@ -13,14 +13,6 @@ export interface ChatWindowProps {
   chatId: string;
 }
 
-/** A send the server refused: kept until the user retries or dismisses it. */
-interface RefusedSend {
-  readonly key: string;
-  readonly chatId: string;
-  readonly content: string;
-  readonly reason: string;
-}
-
 export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
   const t = useTranslations("ChatWindow");
   const errorText = useErrorText();
@@ -32,61 +24,51 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
   // contract's order), so the first page is the latest 50 and loadMore walks
   // back in time by cursor. Messages anyone posts or deletes arrive as
   // deltas, and after a reconnect the scope resumes from its revision.
-  const { items, pending, isLoading, hasMore, isLoadingMore, loadMore } =
+  const { items, pending, refused, isLoading, hasMore, isLoadingMore, loadMore } =
     qd.messageService.byChat.useCollection(chatId || null);
   // The window reads oldest first
   const messages = React.useMemo(() => [...items].reverse(), [items]);
 
   // Sending shows the message at once: the optimistic add puts it in byChat,
   // newest (its createdAt), flagged in `pending` while the call is on its
-  // way, and the server's row takes its place. A refused send leaves the
-  // list; the window keeps each one last, marked, with a retry, until the
-  // user retries or dismisses it (the hook's onError hears every send, where
-  // a mutation's own state holds only the last one).
-  const [refused, setRefused] = React.useState<readonly RefusedSend[]>([]);
-  const refusals = React.useRef(0);
-  const { mutate: post, isPending } = qd.messageService.postMessage.useMutation({
+  // way, and the server's row takes its place. A refused send is kept
+  // (`onRefused: "keep"`): it leaves the items for the scope's `refused`,
+  // which the window shows last, marked, until the user retries it (the same
+  // call again, pending again) or dismisses it. The client holds them, not
+  // this component: they outlive the window, and no later send drops one.
+  const { mutate: post } = qd.messageService.postMessage.useMutation({
     optimistic: (input, cache) => {
       if (userId === null) return;
-      cache.addItem("byChat", input.chatId, {
-        chatId: input.chatId,
-        userId,
-        content: input.content,
-        role: input.role ?? "user",
-        createdAt: new Date().toISOString(),
-        user: { id: userId, name: me?.name ?? null, image: me?.image ?? null },
-      });
-    },
-    onError: (error, input) => {
-      refusals.current += 1;
-      const send: RefusedSend = {
-        key: `refused-${refusals.current}`,
-        chatId: input.chatId,
-        content: input.content,
-        reason: errorText(error),
-      };
-      setRefused((sends) => [...sends, send]);
+      cache.addItem(
+        "byChat",
+        input.chatId,
+        {
+          chatId: input.chatId,
+          userId,
+          content: input.content,
+          role: input.role ?? "user",
+          createdAt: new Date().toISOString(),
+          user: { id: userId, name: me?.name ?? null, image: me?.image ?? null },
+        },
+        { onRefused: "keep" },
+      );
     },
   });
-  const failed = React.useMemo<FailedMessage[]>(() => {
-    const drop = (key: string): void => {
-      setRefused((sends) => sends.filter((send) => send.key !== key));
-    };
-    return refused
-      .filter((send) => send.chatId === chatId)
-      .map((send) => ({
-        key: send.key,
-        content: send.content,
-        reason: send.reason,
+  const failed = React.useMemo<FailedMessage[]>(
+    () =>
+      refused.map((send) => ({
+        key: send.item.id,
+        content: send.item.content,
+        reason: errorText(send.error),
         onRetry: () => {
-          drop(send.key);
-          post({ chatId: send.chatId, content: send.content });
+          void send.retry();
         },
         onDismiss: () => {
-          drop(send.key);
+          send.dismiss();
         },
-      }));
-  }, [refused, chatId, post]);
+      })),
+    [refused, errorText],
+  );
 
   const handleSend = React.useCallback(
     (content: string) => {
@@ -128,8 +110,9 @@ export function ChatWindow({ chatId }: ChatWindowProps): React.ReactElement {
         failed={failed}
       />
 
-      {/* Input */}
-      <MessageInput onSend={handleSend} disabled={!isConnected} sending={isPending} />
+      {/* Input: one message on its way at a time, as the list shows it (a
+          retried one too, which the mutation's own state never sees) */}
+      <MessageInput onSend={handleSend} disabled={!isConnected} sending={pending.size > 0} />
     </Box>
   );
 }

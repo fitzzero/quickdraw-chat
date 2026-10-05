@@ -46,12 +46,15 @@ how the web app uses it.
   profile, a document). Fields tiered in the contract (`email`,
   `serviceAccess`) are optional in its `data`: guard them.
 - **A send shown at once**: the mutation's `optimistic` adds the row it
-  creates with `cache.addItem(collection, scope, item)` (give it the
-  collection's `order` fields), and the list styles `useCollection().pending`
-  as sending (`ChatWindow`: a message shows at once, then the server's row
-  in its place; a refused one leaves the list, and the window keeps each
-  refused send, from the mutation's own `onError`, with a retry and a
-  dismiss until the user picks one).
+  creates with `cache.addItem(collection, scope, item, { onRefused: "keep" })`
+  (give it the collection's `order` fields), and the list styles
+  `useCollection().pending` as sending (`ChatWindow`: a message shows at
+  once, then the server's row in its place). A refused one leaves the items
+  for `useCollection().refused`, which the window shows last, each with its
+  `error`, `retry()` (the same call again) and `dismiss()`: the client keeps
+  them, never component state, so they outlive the window. The input waits
+  while `pending` is not empty: a retry is pending too, which the
+  mutation's own `isPending` never sees.
 - **Query-shaped reads** (a join, an aggregate): `useQuery`; an event that
   carries the new result writes it into the query's cache with
   `qd.<service>.<query>.setData(input, result)`.
@@ -61,9 +64,13 @@ how the web app uses it.
   its roster this way: `getChatMembers` puts the socket in the chat's room,
   where `memberUpdate` carries each new roster; `onJoined` and the event both
   `setData` it, and the roster reads the query's cache (`enabled: false`).
+  A refusal stands until the next connection: show the join's `error` with
+  a button that calls its `retry()` (the same call, at once, on this
+  socket), never toggle `enabled` to run it again.
   <!-- ── quickdraw-game:start ── -->
   The game page joins its world room (`watchWorld`) and its player
-  (`joinGame`, while the user plays) this way.
+  (`joinGame`, while the user plays) this way; a refused `joinGame` keeps
+  the pre-game dialog open with the reason, and its button retries.
   <!-- ── quickdraw-game:end ── -->
 - **Who is signed in**: `useQuickdraw()` gives `userId`, `serviceAccess`
   (the grants), `isKnown` and `reconnecting`. `userId === null` is "signed

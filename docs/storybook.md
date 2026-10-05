@@ -71,7 +71,7 @@ points every import of the app's module at `src/stories/quickdraw.tsx`, whose
 (the typed client's shape, with stubs, and no socket or server; that entry
 names no Testing Library, for the browser bundle). The global decorator
 renders every story inside the mock's own provider, `qd.$Provider`, where the
-real `useQuickdraw()` reads the mock's session. Stories import `qd` from
+real `useQuickdraw()` reads the story's session. Stories import `qd` from
 `src/stories/quickdraw.tsx` (typed as the mock) and set what the hooks show in
 a `beforeEach`:
 
@@ -102,10 +102,9 @@ const meta = {
   sets who the story renders as (`userId: null` is signed out,
   `{ isConnected: false, isKnown: false }` the state before the server's
   hello); the default is `STORY_USER_ID`, connected, with no grants. The
-  preview's `beforeEach` gives it to the mock (`qd.$session`), so a story
-  without one gets the default back. The session is the mock's one: a docs
-  page that renders stories with different sessions shows them all with the
-  last one set.
+  global decorator gives each story a provider of its own with it
+  (`<qd.$Provider session={...}>`, laid over the default field by field),
+  so a docs page shows each story with its own session.
 - The mock shows no optimistic updates: `MessageList`'s `Sending` and
   `NotSent` stories show a send's states from props.
 

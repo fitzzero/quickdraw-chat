@@ -52,3 +52,8 @@ export const AfterDeath: Story = {
 export const EngineLoading: Story = {
   args: { canStart: false },
 };
+
+/** A join the server refused: the dialog says why, and its button tries again. */
+export const JoinRefused: Story = {
+  args: { joinError: "Something went wrong. Try again." },
+};

@@ -69,9 +69,9 @@ const meta = {
   docs page renders several stories at once.
 - `parameters: { quickdraw: { session: { userId: null } } }` renders the
   signed-out state; `{ isConnected: false, isKnown: false }` the state before
-  the server's hello. The real `useQuickdraw()` reads it (the mock's
-  `$session`). The session is the mock's one: a docs page that renders
-  stories with different sessions shows them all with the last one set.
+  the server's hello. The global decorator gives it to the story's own
+  `qd.$Provider` (`session`), where the real `useQuickdraw()` reads it, so a
+  docs page shows each story with its own session.
 
 See `docs/storybook.md` for the full guide, including how forks strip
 Storybook out entirely.

@@ -2,9 +2,10 @@
 // every import of the app's client module at this file, so components render
 // over `createMockClient` (no server, no socket) with the same name, `qd`,
 // whose hooks show what each story sets. The global decorator in
-// `.storybook/preview.tsx` renders every story inside `qd.$Provider`, where
-// the real `useQuickdraw()` reads the mock's session: the story's
-// `parameters.quickdraw.session` over the default (STORY_USER_ID, connected).
+// `.storybook/preview.tsx` renders every story inside a `qd.$Provider` of
+// its own, whose session is the story's `parameters.quickdraw.session` laid
+// over the default (STORY_USER_ID, connected): the real `useQuickdraw()`
+// reads it there, so stories side by side on a docs page each show theirs.
 //
 // A story sets what the hooks show in its `beforeEach`, on the mock's members:
 //
@@ -12,9 +13,10 @@
 //   qd.userService.useEntity.mockRow(user);                  // useEntity
 //   qd.chatService.getChatMembers.mockResolvedValue(members); // its call: useQuery, useJoin
 //
-// The mock is one module for every story, and a docs page renders several
-// stories at once: give each story its own ids (scopes, rows) so their data
-// never meets. What nobody set stays loading; mutations stay pending.
+// What a story sets (rows, scopes, answers) is shared by every story, and a
+// docs page renders several stories at once: give each story its own ids
+// (scopes, rows) so their data never meets. What nobody set stays loading;
+// mutations stay pending.
 
 import { createMockClient, type MockSession } from "@fitzzero/quickdraw-core/testing/mock";
 import { contracts } from "@project/shared";
