@@ -136,9 +136,16 @@ export function SignInOptions({
     return (
       <Alert
         severity="error"
+        sx={{ textAlign: "left" }}
         action={
           onRetry && (
-            <Button color="inherit" size="small" onClick={onRetry} disabled={retrying}>
+            <Button
+              color="inherit"
+              size="small"
+              onClick={onRetry}
+              disabled={retrying}
+              sx={{ whiteSpace: "nowrap" }}
+            >
               {t("retry")}
             </Button>
           )
@@ -161,7 +168,7 @@ export function SignInOptions({
   const demo = providers.some((provider) => provider.kind === "mock");
   if (oauth.length === 0 && !demo) {
     return (
-      <Alert severity="info">
+      <Alert severity="info" sx={{ textAlign: "left" }}>
         <AlertTitle>{t("noProviders")}</AlertTitle>
         {t("noProvidersHint")}
       </Alert>
