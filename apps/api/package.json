@@ -22,7 +22,7 @@
     "check:godot": "tsx src/bench/godot-session.ts"
   },
   "dependencies": {
-    "@fitzzero/quickdraw-core": "5.0.0-rc.7",
+    "@fitzzero/quickdraw-core": "^5.0.0",
     "@project/bench": "workspace:*",
     "@project/db": "workspace:*",
     "@project/shared": "workspace:*",
