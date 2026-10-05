@@ -419,15 +419,24 @@ export function ChatSidebar({ chatId }: ChatSidebarProps): React.ReactElement {
   // A refused removal or deletion (FORBIDDEN, say), said once under the roster
   const actionError = removeUser.error ?? deleteChat.error;
 
-  // Can remove this member? Must be Moderate+ and target must be lower level than current user
+  // The server's rules for removing a member, offered only where they pass:
+  // a Moderate removes members below their own level, an Admin anyone, and
+  // the chat keeps an Admin
+  const adminCount = React.useMemo(
+    () => members.filter((member) => member.level === "Admin").length,
+    [members],
+  );
   const canRemoveMember = React.useCallback(
     (member: ChatMemberDTO): boolean => {
       if (!canModerate) return false;
       // Can't remove self
       if (member.userId === userId) return false;
-      return !isLevelSufficient(member.level, effectiveLevel ?? "Public");
+      if (member.level === "Admin" && adminCount <= 1) return false;
+      return (
+        effectiveLevel === "Admin" || !isLevelSufficient(member.level, effectiveLevel ?? "Public")
+      );
     },
-    [canModerate, userId, effectiveLevel],
+    [canModerate, userId, effectiveLevel, adminCount],
   );
 
   return (

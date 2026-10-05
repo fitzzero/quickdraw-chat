@@ -116,26 +116,32 @@ export const chatContract = defineContract("chatService", {
       output: z.array(chatMemberSchema),
       describe: "Lists a chat's members, oldest first, with their level and public profile.",
     }),
+    // The membership changes follow the sharing kit's rules: nobody gives a
+    // level above their own, only an Admin changes or removes a member at or
+    // above the caller's level (FORBIDDEN), and the chat's last Admin is never
+    // removed, demoted or let go (CONFLICT)
     inviteUser: mutation({
       input: inviteUserSchema,
       output: idResultSchema,
-      describe: "Adds a user to a chat at a level, or changes the level of a member.",
+      describe:
+        "Adds a user to a chat at a level, or changes the level of a member: never above the caller's own level, a member at or above the caller's level only by an Admin, and never the chat's last Admin.",
     }),
     inviteByName: mutation({
       input: inviteByNameSchema,
       output: z.union([idResultSchema, z.object({ error: z.literal("user_not_found") })]),
       describe:
-        'Adds a user to a chat by their unique name; answers { error: "user_not_found" } when nobody has it.',
+        'Adds a user to a chat by their unique name, as inviteUser does; answers { error: "user_not_found" } when nobody has it.',
     }),
     removeUser: mutation({
       input: removeUserSchema,
       output: idResultSchema,
-      describe: "Removes a member from a chat.",
+      describe:
+        "Removes a member from a chat: a member at or above the caller's level only by an Admin, and never the chat's last Admin.",
     }),
     leaveChat: mutation({
       input: byIdSchema,
       output: idResultSchema,
-      describe: "Removes the caller from a chat.",
+      describe: "Removes the caller from a chat, unless they are its last Admin.",
     }),
     // The admin screens: every chat, for holders of a service-wide Admin grant
     ...admin.contract({ entity: chatSchema, sort: ["createdAt", "title", "lastMessageAt"] }),

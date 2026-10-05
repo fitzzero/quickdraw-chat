@@ -38,13 +38,13 @@ to this app.
 
 ## The services as examples
 
-| Service           | Row policy                                   | Shows                                                                                                                     |
-| ----------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `userService`     | `anyOf(owner("id"), everyone("Read"))`       | public profiles with tiered `fields` (`email`, `serviceAccess` at Admin); grants edited by the admin kit (`grants: true`) |
-| `chatService`     | `members({ model: "chatMember", ... })`      | a membership table; `myChats` as a `via` collection (`refreshEntry` keeps `memberCount` live); the `memberUpdate` event   |
-| `messageService`  | `anyOf(inherit({ from: chat }), owner(...))` | `byChat` anchored on the chat; `writes: ["chat"]` keeps `Chat.lastMessageAt` (the `myChats` order); a detached push       |
-| `documentService` | `jsonAcl("acl", { owner: "ownerId" })`       | the read/write, sharing and admin kits only, no hand-written method                                                       |
-| `pushService`     | `owner("userId")`                            | a service a REST route calls in process (`push-subscription/rest.ts`)                                                     |
+| Service           | Row policy                                   | Shows                                                                                                                                                                           |
+| ----------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `userService`     | `anyOf(owner("id"), everyone("Read"))`       | public profiles with tiered `fields` (`email`, `serviceAccess` at Admin); grants edited by the admin kit (`grants: true`)                                                       |
+| `chatService`     | `members({ model: "chatMember", ... })`      | a membership table changed under the sharing kit's rules (`membership.ts`); `myChats` as a `via` collection (`refreshEntry` keeps `memberCount` live); the `memberUpdate` event |
+| `messageService`  | `anyOf(inherit({ from: chat }), owner(...))` | `byChat` anchored on the chat; `writes: ["chat"]` keeps `Chat.lastMessageAt` (the `myChats` order); a detached push                                                             |
+| `documentService` | `jsonAcl("acl", { owner: "ownerId" })`       | the read/write, sharing and admin kits only, no hand-written method                                                                                                             |
+| `pushService`     | `owner("userId")`                            | a service a REST route calls in process (`push-subscription/rest.ts`)                                                                                                           |
 
 <!-- ── quickdraw-game:start ── -->
 

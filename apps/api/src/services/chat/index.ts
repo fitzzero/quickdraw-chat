@@ -1,36 +1,10 @@
-import { QuickdrawError } from "@fitzzero/quickdraw-core";
-import {
-  admin,
-  meetsLevel,
-  members,
-  serviceGrant,
-  type BaseContext,
-} from "@fitzzero/quickdraw-core/server";
-import { chatContract, type AccessLevel, type ChatMemberDTO } from "@project/shared";
+import { admin, members, type BaseContext, type Principal } from "@fitzzero/quickdraw-core/server";
+import { chatContract } from "@project/shared";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
+import { changeMembership, listMembers, type MembershipChange } from "./membership.js";
 
 type Db = typeof appDb;
-
-/** The most members `getChatMembers` lists, and `memberUpdate` carries. */
-const MAX_LISTED_MEMBERS = 500;
-
-/** A chat's members, oldest first, each with their level and public profile. */
-async function listMembers(db: Db, chatId: string): Promise<ChatMemberDTO[]> {
-  const rows = await db.chatMember.findMany({
-    where: { chatId },
-    select: {
-      id: true,
-      userId: true,
-      level: true,
-      user: { select: { id: true, name: true, image: true } },
-    },
-    orderBy: { createdAt: "asc" },
-    take: MAX_LISTED_MEMBERS,
-  });
-  // The column holds the level names the members policy reads
-  return rows.map((row) => ({ ...row, level: row.level as AccessLevel }));
-}
 
 /**
  * A membership write's follow-up: each member still in the chat gets the new
@@ -54,27 +28,18 @@ async function membersChanged(
 }
 
 /**
- * Refuses a level above the caller's own on the chat: their membership's
- * level, or their service-wide chatService grant when it is higher (a
- * service-wide Admin grant may give any level). The sharing kit's rule:
- * without it a Moderate could make anyone, themself included, an Admin.
+ * Changes a chat's members under the sharing kit's rules (`changeMembership`
+ * in `membership.ts`: nobody gives above their own level, only an Admin
+ * changes a member at or above the caller's level, the last Admin stays),
+ * then tells the members when anything changed.
  */
-async function checkGrantable(
-  ctx: Pick<BaseContext, "principal">,
+async function changeMembers(
+  ctx: Pick<BaseContext, "rooms"> & { readonly principal: Principal },
   db: Db,
-  chatId: string,
-  level: AccessLevel,
+  change: MembershipChange,
 ): Promise<void> {
-  const grant = serviceGrant(ctx.principal, "chatService");
-  if (meetsLevel(grant, level)) {
-    return;
-  }
-  const own = await db.chatMember.findUnique({
-    where: { chatId_userId: { chatId, userId: ctx.principal.userId } },
-    select: { level: true },
-  });
-  if (!meetsLevel(own?.level as AccessLevel | undefined, level)) {
-    throw new QuickdrawError("FORBIDDEN", "Members may invite at their own level at most");
+  if (await changeMembership(ctx.principal, db, change)) {
+    await membersChanged(ctx, db, change.chatId);
   }
 }
 
@@ -156,16 +121,15 @@ export const chatService = qd.defineService(chatContract, {
       access: { service: "Read", entry: "Read", id: "chatId" },
       handler: ({ input, db }) => listMembers(db, input.chatId),
     },
+    // quickdraw: hand-written because a Moderate invites and removes here (the sharing kit's members mode lets only Admins change members by default and caps no change to a member above the caller), and one method both invites and changes a member's level, as the web app's invite box expects; the kit's three rules apply in changeMembership
     inviteUser: {
       access: { service: "Moderate", entry: "Moderate" },
       handler: async ({ input, ctx, db }) => {
-        await checkGrantable(ctx, db, input.id, input.level);
-        await db.chatMember.upsert({
-          where: { chatId_userId: { chatId: input.id, userId: input.userId } },
-          update: { level: input.level },
-          create: { chatId: input.id, userId: input.userId, level: input.level },
+        await changeMembers(ctx, db, {
+          chatId: input.id,
+          userId: input.userId,
+          level: input.level,
         });
-        await membersChanged(ctx, db, input.id);
         return { id: input.id };
       },
     },
@@ -180,33 +144,30 @@ export const chatService = qd.defineService(chatContract, {
         if (!user) {
           return { error: "user_not_found" as const };
         }
-        await checkGrantable(ctx, db, input.chatId, input.level);
-        await db.chatMember.upsert({
-          where: { chatId_userId: { chatId: input.chatId, userId: user.id } },
-          update: { level: input.level },
-          create: { chatId: input.chatId, userId: user.id, level: input.level },
+        await changeMembers(ctx, db, {
+          chatId: input.chatId,
+          userId: user.id,
+          level: input.level,
         });
-        await membersChanged(ctx, db, input.chatId);
         return { id: input.chatId };
       },
     },
     removeUser: {
       access: { service: "Moderate", entry: "Moderate" },
       handler: async ({ input, ctx, db }) => {
-        await db.chatMember.delete({
-          where: { chatId_userId: { chatId: input.id, userId: input.userId } },
-        });
-        await membersChanged(ctx, db, input.id);
+        await changeMembers(ctx, db, { chatId: input.id, userId: input.userId, level: null });
         return { id: input.id };
       },
     },
     leaveChat: {
       access: { service: "Read", entry: "Read" },
       handler: async ({ input, ctx, db }) => {
-        await db.chatMember.delete({
-          where: { chatId_userId: { chatId: input.id, userId: ctx.principal.userId } },
+        await changeMembers(ctx, db, {
+          chatId: input.id,
+          userId: ctx.principal.userId,
+          level: null,
+          leaving: true,
         });
-        await membersChanged(ctx, db, input.id);
         return { id: input.id };
       },
     },

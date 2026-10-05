@@ -105,7 +105,7 @@ Output: `{ id: string; userId: string; level: "Public" | "Read" | "Moderate" | "
 
 ### `inviteUser`
 
-Adds a user to a chat at a level, or changes the level of a member.
+Adds a user to a chat at a level, or changes the level of a member: never above the caller's own level, a member at or above the caller's level only by an Admin, and never the chat's last Admin.
 
 A mutation.
 
@@ -123,7 +123,7 @@ Output: `{ id: string }`.
 
 ### `inviteByName`
 
-Adds a user to a chat by their unique name; answers { error: "user_not_found" } when nobody has it.
+Adds a user to a chat by their unique name, as inviteUser does; answers { error: "user_not_found" } when nobody has it.
 
 A mutation.
 
@@ -141,7 +141,7 @@ Output: `{ id: string } | { error: "user_not_found" }`.
 
 ### `removeUser`
 
-Removes a member from a chat.
+Removes a member from a chat: a member at or above the caller's level only by an Admin, and never the chat's last Admin.
 
 A mutation.
 
@@ -158,7 +158,7 @@ Output: `{ id: string }`.
 
 ### `leaveChat`
 
-Removes the caller from a chat.
+Removes the caller from a chat, unless they are its last Admin.
 
 A mutation.
 

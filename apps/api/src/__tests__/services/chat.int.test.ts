@@ -354,20 +354,139 @@ describe("ChatService permission cascade (updateTitle needs Moderate)", () => {
   });
 });
 
+describe("ChatService membership rules (the sharing kit's three)", () => {
+  /** A chat with `owner` as its one Admin and `mod` at Moderate. */
+  async function chatWithModerator(): Promise<{ chatId: string; owner: string; mod: string }> {
+    const owner = await createTestUser({ name: "Owner" });
+    const mod = await createTestUser({ name: "Mod" });
+    const chat = await as(owner.id).chatService.createChat({ title: "Levels" });
+    await as(owner.id).chatService.inviteUser({ id: chat.id, userId: mod.id, level: "Moderate" });
+    return { chatId: chat.id, owner: owner.id, mod: mod.id };
+  }
+
+  async function adminsOf(chatId: string): Promise<number> {
+    return await testPrisma.chatMember.count({ where: { chatId, level: "Admin" } });
+  }
+
+  it("refuses a Moderate demoting the chat's Admin, then removing them (COUP)", async () => {
+    const { chatId, owner, mod } = await chatWithModerator();
+
+    expect(
+      await codeOf(as(mod).chatService.inviteUser({ id: chatId, userId: owner, level: "Read" })),
+    ).toBe("FORBIDDEN");
+    expect((await membership(chatId, owner))?.level).toBe("Admin");
+    expect(await codeOf(as(mod).chatService.removeUser({ id: chatId, userId: owner }))).toBe(
+      "FORBIDDEN",
+    );
+    expect(await adminsOf(chatId)).toBe(1);
+  });
+
+  it("refuses removing the last Admin, and the last Admin leaving (REMOVE-ADMIN)", async () => {
+    const { chatId, owner, mod } = await chatWithModerator();
+    expect(await codeOf(as(mod).chatService.removeUser({ id: chatId, userId: owner }))).toBe(
+      "FORBIDDEN",
+    );
+    // the chat's Admin removing themself, or leaving: the chat keeps its Admin
+    expect(await codeOf(as(owner).chatService.removeUser({ id: chatId, userId: owner }))).toBe(
+      "CONFLICT",
+    );
+    expect(await codeOf(as(owner).chatService.leaveChat({ id: chatId }))).toBe("CONFLICT");
+    // a service-wide Admin grant may change anyone, but not empty the chat of Admins
+    expect(
+      await codeOf(as(users.admin.id).chatService.removeUser({ id: chatId, userId: owner })),
+    ).toBe("CONFLICT");
+    expect(await adminsOf(chatId)).toBe(1);
+
+    // with a second Admin, the first may leave
+    await as(owner).chatService.inviteUser({ id: chatId, userId: mod, level: "Admin" });
+    expect(await codeOf(as(owner).chatService.leaveChat({ id: chatId }))).toBe("allow");
+    expect(await adminsOf(chatId)).toBe(1);
+  });
+
+  it("refuses a Moderate changing another Moderate, and themself", async () => {
+    const { chatId, mod } = await chatWithModerator();
+    const otherMod = await createTestUser({ name: "Other Mod" });
+    await as(mod).chatService.inviteUser({ id: chatId, userId: otherMod.id, level: "Moderate" });
+
+    expect(
+      await codeOf(
+        as(mod).chatService.inviteUser({ id: chatId, userId: otherMod.id, level: "Read" }),
+      ),
+    ).toBe("FORBIDDEN");
+    expect(await codeOf(as(mod).chatService.removeUser({ id: chatId, userId: otherMod.id }))).toBe(
+      "FORBIDDEN",
+    );
+    expect(
+      await codeOf(as(mod).chatService.inviteUser({ id: chatId, userId: mod, level: "Read" })),
+    ).toBe("FORBIDDEN");
+    expect((await membership(chatId, otherMod.id))?.level).toBe("Moderate");
+  });
+
+  it("lets a Moderate manage Read members, and an Admin manage Moderates and other Admins", async () => {
+    const { chatId, owner, mod } = await chatWithModerator();
+    const reader = await createTestUser({ name: "Reader" });
+    const coAdmin = await createTestUser({ name: "Co-Admin" });
+    await as(mod).chatService.inviteUser({ id: chatId, userId: reader.id, level: "Read" });
+    await as(mod).chatService.removeUser({ id: chatId, userId: reader.id });
+    expect(await membership(chatId, reader.id)).toBeNull();
+
+    await as(owner).chatService.inviteUser({ id: chatId, userId: coAdmin.id, level: "Admin" });
+    await as(owner).chatService.inviteUser({ id: chatId, userId: mod, level: "Read" });
+    expect((await membership(chatId, mod))?.level).toBe("Read");
+    // an Admin manages another Admin
+    await as(owner).chatService.removeUser({ id: chatId, userId: coAdmin.id });
+    expect(await membership(chatId, coAdmin.id)).toBeNull();
+  });
+
+  it("answers NOT_FOUND for removing a non-member and for inviting an unknown user", async () => {
+    const { chatId, owner } = await chatWithModerator();
+    const stranger = await createTestUser({ name: "Not In It" });
+    expect(
+      await codeOf(as(owner).chatService.removeUser({ id: chatId, userId: stranger.id })),
+    ).toBe("NOT_FOUND");
+    expect(
+      await codeOf(
+        as(owner).chatService.inviteUser({
+          id: chatId,
+          userId: "ckzzzzzzzzzzzzzzzzzzzzzzz",
+          level: "Read",
+        }),
+      ),
+    ).toBe("NOT_FOUND");
+  });
+});
+
 describe("ChatService access matrix", () => {
   it("admits each method's callers", async () => {
     // Users without service grants: the chat's membership alone decides
-    const [owner, member, stranger, extra] = await Promise.all([
+    const [owner, moderator, member, stranger, extra] = await Promise.all([
       createTestUser({ name: "Owner" }),
+      createTestUser({ name: "Moderator" }),
       createTestUser({ name: "Member" }),
       createTestUser({ name: "Stranger" }),
       createTestUser({ name: "Extra" }),
     ]);
-    const ownerCaller = as(owner.id);
-    const chat = await ownerCaller.chatService.createChat({ title: "Matrix" });
-    await ownerCaller.chatService.inviteUser({ id: chat.id, userId: member.id, level: "Read" });
+    /** A chat with the owner as its one Admin, the moderator and the member. */
+    const newChat = async (): Promise<string> => {
+      const chat = await as(owner.id).chatService.createChat({
+        title: "Matrix",
+        members: [
+          { userId: moderator.id, level: "Moderate" },
+          { userId: member.id, level: "Read" },
+        ],
+      });
+      return chat.id;
+    };
+    const chatId = await newChat();
+    /** An invite of the extra user at Admin, into a chat of its own. */
+    const inviteAtAdmin = async (): Promise<{ id: string; userId: string; level: "Admin" }> => ({
+      id: await newChat(),
+      userId: extra.id,
+      level: "Admin",
+    });
     const principals = {
       owner: { userId: owner.id },
+      moderator: { userId: moderator.id },
       member: { userId: member.id },
       stranger: { userId: stranger.id },
     };
@@ -376,22 +495,57 @@ describe("ChatService access matrix", () => {
       service: chatService,
       principals,
       cases: [
-        { method: "createChat", input: { title: "Mine" }, allow: ["owner", "member", "stranger"] },
-        { method: "getChatMembers", input: { chatId: chat.id }, allow: ["owner", "member"] },
-        { method: "updateTitle", input: { id: chat.id, title: "Renamed" }, allow: ["owner"] },
+        {
+          method: "createChat",
+          input: { title: "Mine" },
+          allow: ["owner", "moderator", "member", "stranger"],
+        },
+        { method: "getChatMembers", input: { chatId }, allow: ["owner", "moderator", "member"] },
+        {
+          method: "updateTitle",
+          input: { id: chatId, title: "Renamed" },
+          allow: ["owner", "moderator"],
+        },
+        {
+          method: "deleteChat",
+          input: async () => ({ id: await newChat() }),
+          allow: ["owner"],
+        },
         {
           method: "inviteUser",
-          input: { id: chat.id, userId: extra.id, level: "Read" },
+          input: { id: chatId, userId: extra.id, level: "Read" },
+          allow: ["owner", "moderator"],
+        },
+        {
+          label: "inviteUser (at Admin)",
+          method: "inviteUser",
+          input: inviteAtAdmin,
           allow: ["owner"],
         },
         {
           method: "inviteByName",
-          input: { chatId: chat.id, userName: "Extra", level: "Read" },
-          allow: ["owner"],
+          input: { chatId, userName: "Extra", level: "Read" },
+          allow: ["owner", "moderator"],
         },
-        { method: "removeUser", input: { id: chat.id, userId: extra.id }, allow: ["owner"] },
+        {
+          label: "removeUser (a Read member)",
+          method: "removeUser",
+          input: async () => ({ id: await newChat(), userId: member.id }),
+          allow: ["owner", "moderator"],
+        },
+        {
+          label: "removeUser (the chat's last Admin)",
+          method: "removeUser",
+          input: async () => ({ id: await newChat(), userId: owner.id }),
+          expect: { owner: "CONFLICT" },
+        },
+        {
+          method: "leaveChat",
+          input: async () => ({ id: await newChat() }),
+          allow: ["moderator", "member"],
+          expect: { owner: "CONFLICT" },
+        },
         { method: "adminList", input: {}, allow: [] },
-        { method: "leaveChat", input: { id: chat.id }, allow: ["owner", "member"] },
       ],
     });
   });
