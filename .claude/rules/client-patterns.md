@@ -54,10 +54,13 @@ how the web app uses it.
   carries the new result writes it into the query's cache with
   `qd.<service>.<query>.setData(input, result)` (`memberUpdate` carries the
   chat's roster for `getChatMembers`).
-- **Rooms joined by a call** (the game page's world room, its player):
-  `useJoin(qd.<service>.<method>, input, { enabled })`, which runs the call
-  again on every connection (a new socket is in no app room), never an
-  effect on `hello` or `isConnected`.
+- **Rooms joined by a call**: `useJoin(qd.<service>.<method>, input, { enabled })`,
+  which runs the call again on every connection (a new socket is in no app
+  room), never an effect on `hello` or `isConnected`.
+  <!-- ── quickdraw-game:start ── -->
+  The game page joins its world room (`watchWorld`) and its player
+  (`joinGame`, while the user plays) this way.
+  <!-- ── quickdraw-game:end ── -->
 - **Who is signed in**: `useQuickdraw()` gives `userId`, `serviceAccess`
   (the grants), `isKnown` and `reconnecting`. `userId === null` is "signed
   out" only once `isKnown` (see `AuthGate`): gate on it before showing
