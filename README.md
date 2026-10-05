@@ -375,7 +375,8 @@ Real env vars (e.g. CI) always take precedence.
   serves a real OAuth code flow from the API itself with a seeded-user picker.
   Refused in production (the API will not boot with the flag set).
 - **Google / Discord OAuth**: set the client id and secret in `.env.local`;
-a provider without credentials is simply left out.
+a provider without credentials is left out, and one with only its id or only
+its secret refuses to boot.
 <!-- ── quickdraw-game:start ── -->
 - **Guest sessions**: `POST /auth/guest` creates a real (marked `isGuest`)
   user and session so signed-out visitors can play the game.
@@ -408,7 +409,8 @@ renders real pages against the same server (`renderWithQuickdraw`).
 ## Production Deployment
 
 See [DEPLOYMENT.md](DEPLOYMENT.md). The short version: fill in the
-placeholders in `.github/workflows/deploy.yml` + `apps/api/env.cloudrun.yaml`,
+placeholders in `.github/workflows/deploy.yml` + `apps/api/env.cloudrun.yaml`
+(`CLIENT_URL`, `API_URL` and `ADMIN_EMAILS` there are the template's own),
 create the GitHub/GCP secrets it lists, and run the Deploy workflow
 (TruffleHog scan → prisma migrate → Cloud Run API → Vercel web). Prefer
 self-hosting? The Dockerfiles + `docker-compose.yml` cover that path too.

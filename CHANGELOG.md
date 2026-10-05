@@ -5,7 +5,56 @@
 The whole template moved from `@fitzzero/quickdraw-core` 4.1 to the 5.0
 release candidate (`5.0.0-rc.4`): the server, the web app, the game and its
 Godot client, the tests, CI and the docs. Everyone signs in once more
-(session tokens now name their session).
+(session tokens now name their session). Upgrading a deployed 4.x
+database: run the migrations, then follow "Upgrading to quickdraw 5.0" in
+`DEPLOYMENT.md` (bootstrap admins sign in once through a provider that
+verifies their address).
+
+### Access changes a fork inherits
+
+Who may do what, against 4.x (each service's access matrix pins its
+methods; `docs/api` lists every method's access).
+
+- **Narrower**
+  - Invites are capped at the inviter's own level on the chat (4.x let a
+    Moderate invite anyone, themself included, at Admin).
+  - Chat memberships follow the sharing kit's three rules: nobody gives a
+    level above their own; only an Admin changes or removes a member at or
+    above the caller's own level (a Moderate manages Read members, an
+    Admin anyone, other Admins included); the chat's last Admin cannot be
+    removed, demoted or leave (`CONFLICT`), whoever asks.
+  - `updateUser` needs the user themself or a userService Moderate grant
+    (4.x let any userService grant, so every signed-in user in
+    development), and answers the public profile only: no `email`.
+  - A user's email counts only once a sign-in provider verified it: an
+    unverified address is never stored (the user gets
+    `<id>@<provider>.local`), never links another sign-in, and never
+    matches `ADMIN_EMAILS`; an `ADMIN_EMAILS` row whose address no provider
+    verified gets the default grants only, not the grants stored on it. A
+    verified sign-in to a user someone signed in to with that address
+    unverified is refused.
+  - GitHub Codespaces origins are allowed outside production only (the
+    sign-in's `returnTo`, CORS and cookie-authenticated sockets).
+  - A chat's live row opens to its members and a chatService Admin grant
+    only (4.x: any chatService grant); `memberUpdate` reaches only the
+    sockets showing the chat's members (4.x: everyone subscribed, never
+    revoked), and a removed member hears no more.
+  - Document sharing follows the sharing kit's rules (no share above the
+    caller's level, the owner never changed).
+- **Wider**
+  - A chat's Admins delete any message in it (4.x: its author and a
+    messageService Admin grant).
+  - A messageService Admin grant posts to any chat (`postMessage`) and
+    opens any chat's live history (`byChat`), as it read every message
+    through 4.x's admin list.
+  - A chat's members open its messages' live rows (4.x: the author and a
+    messageService grant).
+  - Every signed-in user receives `createdAt`, `updatedAt` and `isGuest`
+    of every profile (name and image as before; email and grants stay the
+    user's own and a userService Admin grant's).
+- **New**: `chatService.joinWorldChat` (game only) puts the caller in a
+  world's chat, as `watchWorld` and `joinGame` did; the game's change topic
+  is open to anyone (`watchAccess: "public"`) for the score queries.
 
 ### Changed
 
@@ -16,8 +65,20 @@ Godot client, the tests, CI and the docs. Everyone signs in once more
   writes instead of hand-sent events, and the read/write, sharing and admin
   kits (documents are kits only; grants are edited through the admin kit).
 - **Live lists** are contract collections: `byChat` (anchored on the chat)
-  and `myChats` (through the `ChatMember` table, `refreshEntry` for its
-  member counts), ordered by a maintained `Chat.lastMessageAt` column.
+  and `myChats` (through the `ChatMember` table, indexed by user, with a
+  maintained `Chat.memberCount`), ordered by a maintained
+  `Chat.lastMessageAt` column (deleting the latest message moves it back).
+- **Database.** Migrations `chat_last_message_at` and `auth_route_sessions`
+  (4.x sessions end; `Message.acl` goes, the author's Admin is a policy
+  now), `user_email_verified` (every existing user starts unverified),
+  `chat_member_count` (the count backfilled, `chat_members(user_id)`
+  indexed, and a trigger that counts a deleted user's cascaded memberships
+  out of their chats) and `document_acl_without_owner` (drops the owner's
+  own entry 4.x wrote into each document's access list).
+- **Writes that change nothing write nothing**: a repeat `watchWorld` or
+  `joinGame` (the world chat's membership is written once, by the chat
+  service), and a death without a new best; only the game's own writes
+  change its public topic.
 - **The server** is `qd.createServer` on the app's Express app (Socket.IO
   protocol 5, HTTP calls and MCP from one dispatcher) with the default
   socket rate limit; sign-in is the auth routes kit over the `Session`
@@ -42,8 +103,14 @@ Godot client, the tests, CI and the docs. Everyone signs in once more
 
 ### On `5.0.0-rc.4`
 
-The release candidate that fixed what this migration found; every
-temporary workaround is gone.
+The release candidate that fixed what this migration found: the findings'
+workarounds are gone. What the app still does for itself, the framework
+not (yet) doing it: it reads before a write that may change nothing (a
+tracked write signals its topics even when it changes nothing), counts a
+deleted user's cascaded memberships with a database trigger (the admin
+kit's `onWrite` runs after the delete, when they are gone), and keeps one
+roster room per socket (rooms are joined by methods, and nothing leaves
+one when a page closes).
 
 - **Wire.** `qd:stream` frames are positional
   (`[service, stream, scope, item]`): the Godot addon is quickdraw's rc.4
@@ -55,8 +122,11 @@ temporary workaround is gone.
   "Reconnecting…" notice shows while `reconnecting`; the admin screens use
   `adminOf(qd, key)` and keep the grants field out of their forms
   (`showInForm: false`, the editor finds it by `kind: "grants"`); the chat
-  roster arrives with `setData`; the game page joins its rooms with
-  `useJoin`; Storybook and component tests use the mock's own provider.
+  roster is read with `useJoin` (it joins the chat's room) and arrives with
+  `setData`; the game page joins its rooms with
+  `useJoin`; Storybook and component tests use the mock's own provider. A
+  refused send stays, with a retry and a dismiss, until the user acts on
+  it.
 - **Game.** The game service brings its own `onRoomLeave`; the world
   stream's seed is the current world, computed per subscriber, and checked
   in development only; the audience is `qd.rooms.size`; the high scores

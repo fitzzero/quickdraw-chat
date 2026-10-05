@@ -32,7 +32,7 @@ DATABASE_URL=postgresql://user:password@host:5432/dbname
 JWT_SECRET=your-secure-random-secret-here  # 32+ characters: openssl rand -base64 32
 CLIENT_URL=https://your-domain.com         # Frontend URL — CORS + sign-in returns depend on it
 API_URL=https://api.your-domain.com        # The API's public URL: OAuth callbacks are {API_URL}/auth/{provider}/callback
-ENCRYPTION_KEY=<64-char hex>               # Encrypts stored OAuth tokens at rest: openssl rand -hex 32
+ENCRYPTION_KEY=<64-char hex>               # Encrypts stored OAuth tokens at rest: openssl rand -hex 32 (any other shape refuses to boot)
 
 # Server
 NODE_ENV=production
@@ -52,7 +52,8 @@ NEXT_PUBLIC_API_URL=https://api.your-domain.com
 DB_POOL_MAX=20  # Max connections (default: 20)
 DB_POOL_MIN=5   # Min connections (default: 5)
 
-# OAuth (if using; a provider without both values is left out). Register
+# OAuth (if using: a provider with neither value is left out, and one with
+# only its id or only its secret refuses to boot). Register
 # {API_URL}/auth/google/callback and {API_URL}/auth/discord/callback with them.
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
@@ -178,7 +179,11 @@ gcloud secrets add-iam-policy-binding JWT_SECRET \
 ### 3. Placeholders
 
 - `.github/workflows/deploy.yml`: `SERVICE_NAME`, region (+ `CLOUD_SQL_INSTANCE` if using Cloud SQL)
-- `apps/api/env.cloudrun.yaml`: `CLIENT_URL` (+ optional `EXTRA_ALLOWED_ORIGINS`, `COOKIE_DOMAIN`)
+- `apps/api/env.cloudrun.yaml`: `CLIENT_URL`, `API_URL` and `ADMIN_EMAILS`
+  (+ optional `EXTRA_ALLOWED_ORIGINS`, `COOKIE_DOMAIN`). The file ships the
+  template's own deploy (its domains and its admin): a fork replaces all
+  three, or its sign-ins return to the template's site and its OAuth
+  callbacks point at the template's API.
 
 ### 4. Vercel
 
@@ -217,7 +222,8 @@ cross-site).
   `gcloud beta run domain-mappings create --service=<APP>-api --domain=<api-domain> --region=us-central1`
   and CNAME `<api-sub>` → `ghs.googlehosted.com` (DNS-only). Managed cert
   takes ~15–60 min.
-- Point `CLIENT_URL` + redirect URIs (`apps/api/env.cloudrun.yaml`) and
+- Point `CLIENT_URL` and `API_URL` (`apps/api/env.cloudrun.yaml`; the OAuth
+  redirect URIs are `{API_URL}/auth/{provider}/callback`) and
   `NEXT_PUBLIC_API_URL` (Vercel) at these domains, and register the redirect
   URIs in the Google/Discord consoles.
 

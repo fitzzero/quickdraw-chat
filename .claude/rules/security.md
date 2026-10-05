@@ -45,7 +45,8 @@ closed) is the linked `quickdraw-access.md`.
 ## Required in production (the API refuses to boot without them)
 
 `DATABASE_URL`, `JWT_SECRET` (32 characters or more), `CLIENT_URL`,
-`API_URL`, `ENCRYPTION_KEY`.
+`API_URL`, `ENCRYPTION_KEY` (64 hex characters; a set key of any other shape
+refuses to boot in every environment).
 
 ## Fork checklist
 
