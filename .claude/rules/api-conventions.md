@@ -18,7 +18,9 @@ CORS from the auth's allowed origins, cookie-parser, a 100 kB JSON body,
 
 <!-- ── quickdraw-game:start ── -->
 
-It also passes the game's `onRoomLeave` (`game-patterns.md`).
+Before it, the game's world row and chat are made (`ensureGlobalWorld`);
+after it, the game's runtime and loop start (`game-patterns.md`). The game
+service brings its own room-leave hook, so no root passes one.
 
 <!-- ── quickdraw-game:end ── -->
 

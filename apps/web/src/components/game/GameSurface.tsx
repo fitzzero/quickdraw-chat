@@ -110,8 +110,8 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
   const { data: world } = qd.gameService.getWorld.useQuery(GET_WORLD_PAYLOAD);
 
   // Personal best, and the all-time top runs shown inside the dialog
-  // (public — works signed-out too); both are read again when a stored score
-  // changes (scoreSaved, below)
+  // (public — works signed-out too); both watch the game's service topic
+  // (`watch: "service"`), so a stored score reads them again
   const { data: myBest } = qd.gameService.getMyBest.useQuery(WORLD_PAYLOAD, {
     enabled: !!userId,
   });
@@ -142,11 +142,6 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
   // Death detection: the same reliable world events Godot consumes
   qd.gameService.death.useEvent((event) => {
     if (event.id === userId) setDeath(event);
-  });
-  // quickdraw-5.0 finding: a query over a model no service owns (GameScore, which gameService only `writes`) can declare no watch: a watch names a collection scope or a service topic, and a write to a `writes` model signals neither, so the server sends its own scoreSaved event and the page invalidates by hand
-  qd.gameService.scoreSaved.useEvent((saved) => {
-    qd.invalidate(qd.gameService.getHighScores);
-    if (saved.userId === userId) qd.invalidate(qd.gameService.getMyBest);
   });
 
   // The guest socket cycle doesn't remount this component (public route), so

@@ -23,8 +23,8 @@ when a netcode improvement lands on main).
 **Tier 1 (headless, the R&D workhorse)** — one Node process runs:
 
 - the real API server (integration-test bootstrap: PGlite, the app's own
-  sign-in with development credentials, the game's `onRoomLeave`) with the
-  game loop RUNNING;
+  sign-in with development credentials, the game service's own
+  `onRoomLeave`) with the game loop RUNNING;
 - a ground-truth recorder on `GameLoop.onTick` — exact authoritative
   positions, tick duration, snapshot bytes per tick;
 - a seeded TCP latency proxy per bot (`packages/bench/src/proxy.ts`) — base

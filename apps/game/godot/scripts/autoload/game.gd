@@ -4,7 +4,7 @@ extends Node
 ##
 ## Client ordering contract (see .claude/rules/game-patterns.md), on every
 ## (re)connect — a new socket is in no room until a call joins it:
-##   world stream (gameService "world")  → snapshots, seeded with the latest
+##   world stream (gameService "world")  → snapshots, seeded with the world now
 ##   watchWorld / joinGame              → bootstrap state; puts THIS socket in
 ##                                        the world's room (its events, and
 ##                                        the input channel's requirement)
@@ -44,11 +44,11 @@ const CLOCK_TAU_S := 0.3
 const CLOCK_WINDOW_S := 4.0
 const CLOCK_MAX_SLEW_TICKS_PER_S := 2.0
 const INTERP_DELAY_TICKS := 2.5
-## A tick this far behind the newest one seen is a new world (the server
-## restarted, and its tick counter with it): the clock starts over.
-# quickdraw-5.0 finding: qd:hello names no server instance, so a client cannot tell a reconnect to a restarted server (a new world, ticks from 0) from a network blip; this clock guesses from ticks going backwards
-const CLOCK_RESET_TICKS := 40.0
 
+## The server whose world the clock follows (its hello's `serverId`): a
+## reconnect to another one reached a restarted server (a new world, ticks
+## from 0), and the clock starts over; a network blip keeps it.
+var _clock_server_id := ""
 var _clock_est := 0.0
 var _clock_latest := 0.0
 var _clock_has_est := false
@@ -62,8 +62,6 @@ var _clock_has_timestamps := false
 
 
 func clock_observe(tick: int, send_t: float) -> void:
-	if _clock_has_est and float(tick) < _clock_latest - CLOCK_RESET_TICKS:
-		_clock_reset()
 	_clock_latest = maxf(_clock_latest, float(tick))
 	if not _clock_has_est:
 		_clock_est = float(tick)
@@ -81,6 +79,14 @@ func clock_observe(tick: int, send_t: float) -> void:
 	while not _clock_arrivals.is_empty() and _clock_arrivals[0] < cutoff:
 		_clock_arrivals.remove_at(0)
 		_clock_delays.remove_at(0)
+
+
+## Follows the world of the server `server_id` names: another server's ticks
+## start over, so the clock forgets its timeline.
+func clock_follow_server(server_id: String) -> void:
+	if server_id != _clock_server_id:
+		_clock_server_id = server_id
+		_clock_reset()
 
 
 ## Forgets the timeline: the next snapshot anchors it again.
@@ -138,8 +144,10 @@ func _ready() -> void:
 
 
 func _on_ready_to_join() -> void:
-	# The hello names the user the socket acts for (null when anonymous);
-	# spectate mode never calls joinGame, so this is where my_id comes from.
+	# The hello names the server (a restarted one has a new id and a new
+	# world) and the user the socket acts for (null when anonymous); spectate
+	# mode never calls joinGame, so this is where my_id comes from.
+	clock_follow_server(Net.client.server_id)
 	my_id = "" if Net.client.user_id == null else str(Net.client.user_id)
 	_enter_world()
 
@@ -148,8 +156,6 @@ func _on_disconnected(_reason: String) -> void:
 	is_in_world = false
 
 
-# quickdraw-5.0 finding: the GDScript client has no is_subscribed (subscribe_stream again sends a second qd:stream:sub) and no off_event, so the game keeps its own flag and never removes a handler
-var _streaming := false
 var _entering := false
 
 
@@ -173,14 +179,15 @@ func _enter_world_once() -> void:
 	world_id = str((world["d"] as Dictionary)["id"])
 
 	# The world stream first, so its snapshots supersede the bootstrap below.
-	# Once: after a reconnect the client subscribes again by itself (and
-	# stream_seeded replays the seed).
-	if not _streaming:
+	# Once: the client holds the feed, subscribes again by itself after a
+	# reconnect, and stream_seeded hands over the current world each time.
+	if not Net.client.is_subscribed("gameService", "world", world_id):
 		var sub: Dictionary = await Net.client.subscribe_stream("gameService", "world", world_id)
 		if not sub.get("ok", false):
+			# A refused feed stays held until released: the retry asks again
+			Net.client.unsubscribe_stream("gameService", "world", world_id)
 			join_failed.emit(_error_of(sub, "The world stream refused"))
 			return
-		_streaming = true
 
 	# Web: spectate (the wrapper's dialog decides when to spawn).
 	# Editor/desktop: auto-join for fast gameplay iteration. Either one puts
@@ -234,9 +241,10 @@ func _on_stream_item(service: String, stream: String, _scope: String, item: Vari
 		snapshot_received.emit(snapshot)
 
 
-## The world stream's seed (its latest snapshot), on subscribing and after
-## every reconnect: every snake at once, before the bootstrap lands. Not an
-## arrival: it may be old (a world nobody watched), so the clock skips it.
+## The world stream's seed, on subscribing and after every reconnect: the
+## world now (every snake, all the food), which the snapshots that follow
+## change, before the bootstrap lands. Not a tick's arrival (it carries no
+## send time), so the clock skips it.
 func _on_stream_seeded(service: String, stream: String, _scope: String, seed: Array) -> void:
 	if service != "gameService" or stream != "world":
 		return

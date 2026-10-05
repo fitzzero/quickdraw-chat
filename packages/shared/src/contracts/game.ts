@@ -17,7 +17,6 @@ import {
   type HighScoreEntry,
   type LeaderboardEntry,
   type PlayerSnap,
-  type ScoreSavedEvent,
   type WorldBootstrap,
   type WorldSnapshot,
 } from "../types/game.js";
@@ -164,14 +163,19 @@ export const gameContract = defineContract("gameService", {
         .nullable(),
       describe: "Reads a world by its slug (its id, name and chat), or null.",
     }),
+    // The scores are GameScore rows, which no service owns: gameService
+    // writes them, so a stored score changes its service topic, which both
+    // queries watch (the client reads them again then)
     getMyBest: query({
       input: worldScopedSchema,
       output: z.object({ bestLength: z.number().int() }),
+      watch: "service",
       describe: "The caller's best length in a world (0 before their first death).",
     }),
     getHighScores: query({
       input: highScoresSchema,
       output: z.array(highScoreEntrySchema),
+      watch: "service",
       describe: "A world's best lengths, highest first (25 unless a limit is given).",
     }),
     // The admin screens: the world rows (their names and chats), for holders
@@ -191,8 +195,9 @@ export const gameContract = defineContract("gameService", {
   },
   channels: {
     // Player input at about the tick rate: dropped unless the sending socket
-    // is in the world's room (watchWorld or joinGame over that socket)
-    // quickdraw-5.0 finding: requires: { room } is a fixed name or a function of the payload, and the handler is not told which room passed, so a game with many worlds must repeat the world id in every 20 Hz input frame; a room prefix ("world:") with the matched room on ctx is missing
+    // is in the world's room (watchWorld or joinGame over that socket). One
+    // world, so one room by name; a game of many would require
+    // `{ room: { prefix: "world:" } }` and read the world from `ctx.room`.
     input: {
       payload: gameInputSchema,
       ratePerSecond: GAME_TICK_RATE * 1.5,
@@ -201,15 +206,16 @@ export const gameContract = defineContract("gameService", {
     },
   },
   streams: {
-    // Every tick of a world, volatile (a backed-up client drops frames), and
-    // seeded with the latest one, so a new subscriber places every snake at
-    // once. Public: signed-out visitors spectate.
-    // quickdraw-5.0 finding: a seed is only the last N items pushed, so a keyframe-plus-delta stream (food spawned/eaten) cannot hand a joiner the current world (the bootstrap call still has to), and the seed of a world that stopped ticking may be minutes old with nothing saying so: a service-computed seed (or stream.setSeed) is missing
-    // quickdraw-5.0 finding: stream access has no room form, so a feed cannot be limited to the sockets in a room the way a channel's requires: { room } limits input; this world is public, a private match would have to repeat its membership as an entry policy
+    // Every tick of a world, volatile (a backed-up client drops frames). Its
+    // seed is the current world, which the service computes for each
+    // subscriber (every snake, and all the food as `foodSpawned`), so a new
+    // subscriber places everything at once and the ticks that follow are
+    // deltas. Public: signed-out visitors spectate, and clients subscribe
+    // before they join the world's room (a room form, `access: { room }`,
+    // would refuse them until then).
     world: {
       item: worldSnapshotSchema,
       scope: "worldId",
-      seed: 1,
       volatile: true,
       access: "public",
     },
@@ -221,11 +227,5 @@ export const gameContract = defineContract("gameService", {
     death: { payload: gameDeathSchema },
     // 1Hz while the world runs
     leaderboard: { payload: z.array(leaderboardEntrySchema) },
-    scoreSaved: {
-      payload: z.object({
-        userId: z.string(),
-        bestLength: z.number().int(),
-      }) satisfies z.ZodType<ScoreSavedEvent>,
-    },
   },
 });

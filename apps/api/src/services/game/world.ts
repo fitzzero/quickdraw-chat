@@ -503,6 +503,19 @@ export class GameWorldSim {
     };
   }
 
+  /**
+   * The world now as one snapshot (a keyframe): every snake's head and all
+   * the food, as spawned. The world stream's seed: the snapshots that follow
+   * are deltas of it.
+   */
+  public keyframe(): WorldSnapshot {
+    return {
+      tick: this.tick,
+      players: this.buildSnaps(),
+      foodSpawned: Array.from(this.food.values()).map((f) => ({ ...f })),
+    };
+  }
+
   public leaderboard(limit = 10): LeaderboardEntry[] {
     return Array.from(this.players.values())
       .filter((s) => s.alive)

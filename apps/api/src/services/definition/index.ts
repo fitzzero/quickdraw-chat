@@ -1,12 +1,11 @@
-import type { Definition } from "@project/db";
-import { admin, type KitHandler, type KitHandlerArgs } from "@fitzzero/quickdraw-core/server";
-import { definitionContract } from "@project/shared";
-import type { db as appDb } from "../../db.js";
+import { admin } from "@fitzzero/quickdraw-core/server";
+import { definitionContract, type DefinitionDTO } from "@project/shared";
 import { qd } from "../../quickdraw.js";
 
-type Db = typeof appDb;
+/** What a listener hears of an edited definition: its type, key and data. */
+export type ChangedDefinition = Pick<DefinitionDTO, "type" | "key" | "data">;
 
-type DefinitionChangedListener = (definition: Definition) => void;
+type DefinitionChangedListener = (definition: ChangedDefinition) => void;
 
 /** The most definitions listDefinitions answers. */
 const MAX_LISTED_DEFINITIONS = 500;
@@ -20,7 +19,7 @@ export function onChanged(listener: DefinitionChangedListener): void {
 }
 
 /** Tells the listeners about an edited definition; a listener's error never breaks the write. */
-export function notifyChanged(definition: Definition): void {
+export function notifyChanged(definition: ChangedDefinition): void {
   for (const listener of changedListeners) {
     try {
       listener(definition);
@@ -29,35 +28,6 @@ export function notifyChanged(definition: Definition): void {
     }
   }
 }
-
-/** The id of the row an admin write answered. */
-function writtenId(row: unknown): string | undefined {
-  const id: unknown = typeof row === "object" && row !== null ? Reflect.get(row, "id") : undefined;
-  return typeof id === "string" ? id : undefined;
-}
-
-/**
- * An admin kit write that tells the listeners about the row it wrote, read
- * back once the write is done (wraps the kit's adminCreate and adminUpdate).
- */
-// quickdraw-5.0 finding: the admin kit has no write hook (the sharing kit has onChange), so reacting to an admin edit means wrapping the kit's handler by hand, and KitHandler returns Promise<never>, so the wrapper reads the written row's id through unknown and returns its own cast
-function announcing<Out>(handler: KitHandler<unknown, Out>): KitHandler<unknown, Out> {
-  return async (args: KitHandlerArgs): Promise<Out> => {
-    const row = await handler(args);
-    const id = writtenId(row);
-    const db = args.db as Db;
-    const written = id === undefined ? null : await db.definition.findUnique({ where: { id } });
-    if (written !== null) notifyChanged(written);
-    return row;
-  };
-}
-
-// Definitions edited through the generic admin screens: every row, enabled
-// or not, for holders of a service-wide Admin grant
-const definitionAdmin = admin.handlers(definitionContract, {
-  displayName: "Definitions",
-  fieldOverrides: { data: { showInTable: false } },
-});
 
 /**
  * DefinitionService — data-driven game content.
@@ -93,14 +63,16 @@ export const definitionService = qd.defineService(definitionContract, {
         return row?.enabled ? row : null;
       },
     },
-    ...definitionAdmin,
-    adminCreate: {
-      ...definitionAdmin.adminCreate,
-      handler: announcing(definitionAdmin.adminCreate.handler),
-    },
-    adminUpdate: {
-      ...definitionAdmin.adminUpdate,
-      handler: announcing(definitionAdmin.adminUpdate.handler),
-    },
+    // Definitions edited through the generic admin screens: every row,
+    // enabled or not, for holders of a service-wide Admin grant. A created or
+    // updated row reaches the listeners (the running sim's tunables), from
+    // inside the write's transaction.
+    ...admin.handlers(definitionContract, {
+      displayName: "Definitions",
+      fieldOverrides: { data: { showInTable: false } },
+      onWrite: ({ method, after }) => {
+        if (method !== "adminDelete" && after !== null) notifyChanged(after);
+      },
+    }),
   },
 });

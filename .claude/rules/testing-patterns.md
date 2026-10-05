@@ -56,8 +56,9 @@ through the untracked `testPrisma`.
 - `strictWarnings: true`, so an N+1 read, an unbounded read or a nested
   write in a call fails the test that made it.
   <!-- ── quickdraw-game:start ── -->
-  With the game: its `onRoomLeave`, and a game runtime with a fixed seed
-  and no NPCs (tests drive `loop.tickOnce()`; the loop never starts).
+  With the game: a game runtime with a fixed seed and no NPCs (tests drive
+  `loop.tickOnce()`; the loop never starts); the game service's own
+  `onRoomLeave` runs in it as in production.
   <!-- ── quickdraw-game:end ── -->
 
 Close it in `afterAll`. Then:

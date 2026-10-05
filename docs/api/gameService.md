@@ -89,7 +89,7 @@ Output: `{ id: string; name: string; chatId: string | null } | null`.
 
 The caller's best length in a world (0 before their first death).
 
-A query.
+A query that watches its service: a cached result is fetched again after every change to the service's rows, collections or the models it writes.
 
 Input:
 
@@ -103,7 +103,7 @@ Output: `{ bestLength: integer }`.
 
 A world's best lengths, highest first (25 unless a limit is given).
 
-A query.
+A query that watches its service: a cached result is fetched again after every change to the service's rows, collections or the models it writes.
 
 Input:
 
@@ -207,7 +207,7 @@ Feeds of items the server appends, each subscriber starting from the latest few.
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Item     | `{ tick: integer; t?: number; players: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; foodSpawned?: { id: string; x: number; y: number; v: number }[]; foodEaten?: string[] }` |
 | Scope    | one feed per `worldId`                                                                                                                                                                                                                     |
-| Seed     | the latest item                                                                                                                                                                                                                            |
+| Seed     | none (default)                                                                                                                                                                                                                             |
 | Volatile | yes                                                                                                                                                                                                                                        |
 | Access   | `"public"`                                                                                                                                                                                                                                 |
 
@@ -251,9 +251,3 @@ Typed events the server sends to the sockets in a room.
 | Option  | Value                                                 |
 | ------- | ----------------------------------------------------- |
 | Payload | `{ id: string; name: string \| null; len: number }[]` |
-
-### `scoreSaved`
-
-| Option  | Value                                     |
-| ------- | ----------------------------------------- |
-| Payload | `{ userId: string; bestLength: integer }` |

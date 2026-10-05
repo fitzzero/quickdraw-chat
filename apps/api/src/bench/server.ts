@@ -23,12 +23,7 @@ import { createAppAuth } from "../auth/index.js";
 import { qd } from "../quickdraw.js";
 import { serviceNames, services } from "../services/index.js";
 import { ensureGlobalWorld } from "../services/game/bootstrap.js";
-import {
-  createGameRuntime,
-  onGameRoomLeave,
-  worldAudience,
-  type GameRuntime,
-} from "../services/game/runtime.js";
+import { createGameRuntime, type GameRuntime } from "../services/game/runtime.js";
 import { createGroundTruthRecorder, type GroundTruthRecorder } from "./ground-truth.js";
 
 export interface BenchServer {
@@ -105,14 +100,13 @@ export async function startBenchServer(
     cors: { origin: [process.env.CLIENT_URL ?? "http://localhost:3000"], credentials: true },
     // bots sign in with development credentials (auth.userId)
     auth: createAppAuth({ prisma: testPrisma, serviceNames }).server,
-    // a bot whose socket left the world leaves the sim, as a player does
-    onRoomLeave: onGameRoomLeave,
   });
   await ensureGlobalWorld(testDb);
+  // anyone in the world's room keeps it running; a bot whose socket left the
+  // world leaves the sim (the game service's onRoomLeave), as a player does
   const game = createGameRuntime(testDb, {
     simSeed: scenario.seed,
     tunables: scenario.tunables ?? {},
-    hasAudience: worldAudience(server),
     onTick: recorder.onTick,
   });
   await new Promise<void>((resolvePort) => {

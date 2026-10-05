@@ -3,14 +3,26 @@
 // the world's events, players anchored on their sockets, spectators) and the
 // admin kit.
 import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } from "vitest";
-import { QuickdrawError, type EventFrame, type StreamFrame } from "@fitzzero/quickdraw-core";
-import { describeAccessMatrix, emitWithAck, expectBudget } from "@fitzzero/quickdraw-core/testing";
+import { QuickdrawError, type EventPayloadOf } from "@fitzzero/quickdraw-core";
+import {
+  describeAccessMatrix,
+  emitWithAck,
+  eventFrames,
+  expectBudget,
+  streamFrames,
+} from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import type { GameBootstrap, WorldSnapshot } from "@project/shared";
-import { GLOBAL_WORLD_ID, GLOBAL_WORLD_ROOM, GLOBAL_WORLD_SLUG } from "@project/shared";
+import {
+  GLOBAL_WORLD_ID,
+  GLOBAL_WORLD_ROOM,
+  GLOBAL_WORLD_SLUG,
+  gameContract,
+} from "@project/shared";
 import { ensureGlobalWorld } from "../../services/game/bootstrap.js";
 import { gameService } from "../../services/game/index.js";
 import { gameRuntime } from "../../services/game/runtime.js";
+import { qd } from "../../quickdraw.js";
 import { createTestUser } from "../factories/user-factory.js";
 import { startTestApp, type ApiConnection, type ApiTestApp } from "../utils/app.js";
 
@@ -54,7 +66,7 @@ afterEach(async () => {
   opened = [];
   // Every socket has left the world's room (the server heard the disconnects)
   await vi.waitFor(() => {
-    expect(app.server.io.sockets.adapter.rooms.get(GLOBAL_WORLD_ROOM)?.size ?? 0).toBe(0);
+    expect(app.server.rooms.size(GLOBAL_WORLD_ROOM)).toBe(0);
   });
 });
 
@@ -99,32 +111,26 @@ async function subscribeWorld(connection: ApiConnection): Promise<WorldSnapshot[
 }
 
 /** Runs one tick of the world; answers the snapshot `connection` received on the world stream. */
-// quickdraw-5.0 finding: app.frames.waitFor is typed by event only for a query object; a predicate (this frame, this tick) gets untyped data, so every realtime test casts StreamFrame/EventFrame by hand
 async function tickTo(connection: ApiConnection): Promise<WorldSnapshot> {
   const tick = must(gameRuntime(testDb).loop.tickOnce()).snapshot.tick;
-  const frame = await app.frames.waitFor((recorded) => {
-    const data = recorded.data as StreamFrame;
-    return (
-      recorded.event === "qd:stream" &&
-      recorded.socketId === connection.socket.id &&
-      (data[3] as WorldSnapshot).tick === tick
-    );
+  const { data } = await app.frames.waitFor({
+    ...streamFrames(gameContract, "world", (snapshot) => snapshot.tick === tick, GLOBAL_WORLD_ID),
+    socketId: connection.socket.id,
   });
-  return (frame.data as StreamFrame)[3] as WorldSnapshot;
+  return data[3];
 }
 
 /** The next `event` of the world `connection` receives (one received already counts). */
-async function worldEvent<T>(
+async function worldEvent<K extends "playerJoined" | "playerLeft" | "death" | "leaderboard">(
   connection: ApiConnection,
-  event: string,
-  match: (payload: T) => boolean,
-): Promise<T> {
-  const frame = await app.frames.waitFor((recorded) => {
-    if (recorded.event !== "qd:event" || recorded.socketId !== connection.socket.id) return false;
-    const [service, name, payload] = recorded.data as EventFrame;
-    return service === "gameService" && name === event && match(payload as T);
+  event: K,
+  match: (payload: EventPayloadOf<typeof gameContract, K>) => boolean,
+): Promise<EventPayloadOf<typeof gameContract, K>> {
+  const { data } = await app.frames.waitFor({
+    ...eventFrames(gameContract, event, match),
+    socketId: connection.socket.id,
   });
-  return (frame.data as EventFrame)[2] as T;
+  return data[2];
 }
 
 describe("GameService", () => {
@@ -242,6 +248,26 @@ describe("GameService spectating and scores", () => {
     expect(await player.gameService.getMyBest(WORLD)).toEqual({ bestLength: 42 });
   });
 
+  it("a stored score changes the service topic the score queries watch, open to anyone", async () => {
+    // getHighScores and getMyBest declare watch: "service"; watchAccess opens it to anyone
+    const watcher = await connect(null);
+    const watched = await emitWithAck<{ ok: boolean }>(watcher.socket, "qd:watch", {
+      s: "gameService",
+      topic: "service",
+    });
+    expect(watched.ok).toBe(true);
+
+    // a score written as the game stores one after a death (GameScore is in
+    // gameService's `writes`, so the write changes its topic)
+    await qd.run(async () => {
+      await testDb.gameScore.create({
+        data: { worldId: GLOBAL_WORLD_ID, userId: users.regular.id, bestLength: 12 },
+      });
+    });
+
+    await app.frames.waitFor({ event: "qd:changed", socketId: watcher.socket.id });
+  });
+
   it("getHighScores is public, ordered, limited, and joins user info", async () => {
     await testPrisma.gameScore.createMany({
       data: [
@@ -289,7 +315,7 @@ describe("GameService on the realtime kit", () => {
   it("channel input moves the snake; the snapshot echoes the ack seq", async () => {
     const { socket, bootstrap } = await joined(users.regular.id);
     const me = must(bootstrap.snaps.find((s) => s.id === users.regular.id));
-    // the seed is the latest snapshot: every snake, at once
+    // the seed is the current world: every snake, at once
     await subscribeWorld(socket);
 
     sendInput(socket, { seq: 7, dx: 1, dy: 0, boost: false });
@@ -300,16 +326,34 @@ describe("GameService on the realtime kit", () => {
     expect(mine.ack).toBe(7);
     expect(Math.hypot(mine.x - me.x, mine.y - me.y)).toBeGreaterThan(0);
     expect(typeof snapshot.t).toBe("number");
-    // a later subscriber's seed is that snapshot
+    // a later subscriber's seed is the world as of that tick
     const late = await connect(users.moderator.id);
     expect((await subscribeWorld(late)).map((seeded) => seeded.tick)).toEqual([snapshot.tick]);
+  });
+
+  it("seeds a subscriber with the current world, food included, computed from the running sim", async () => {
+    await as(users.regular.id).gameService.joinGame(WORLD);
+    const runtime = gameRuntime(testDb);
+    for (let i = 0; i < 3; i++) runtime.loop.tickOnce();
+
+    const [seed, ...rest] = await subscribeWorld(await connect(null));
+    expect(rest).toEqual([]);
+    const world = runtime.sim.getBootstrapState();
+    expect(must(seed).tick).toBe(runtime.sim.tick);
+    expect(must(seed).players.map((p) => p.id)).toEqual(world.snaps.map((s) => s.id));
+    // every piece of food, as spawned: the ticks that follow are deltas of it
+    expect(
+      must(seed)
+        .foodSpawned?.map((f) => f.id)
+        .sort(),
+    ).toEqual(world.food.map((f) => f.id).sort());
   });
 
   it("a second joiner arrives at the first player as a playerJoined event", async () => {
     const { socket: first } = await joined(users.regular.id);
     const { bootstrap } = await joined(users.moderator.id);
 
-    const meta = await worldEvent<{ id: string; hue: number }>(
+    const meta = await worldEvent(
       first,
       "playerJoined",
       (payload) => payload.id === users.moderator.id,
@@ -374,14 +418,10 @@ describe("GameService on the realtime kit", () => {
 
     expect(await leaves.call.gameService.leaveGame(WORLD)).toEqual({ ok: true });
 
-    await worldEvent<{ id: string }>(stays, "playerLeft", (left) => left.id === users.moderator.id);
+    await worldEvent(stays, "playerLeft", (left) => left.id === users.moderator.id);
     expect(gameRuntime(testDb).sim.hasPlayer(users.moderator.id)).toBe(false);
     // the socket stays in the world's room, spectating
-    await worldEvent<{ id: string }>(
-      leaves,
-      "playerLeft",
-      (left) => left.id === users.moderator.id,
-    );
+    await worldEvent(leaves, "playerLeft", (left) => left.id === users.moderator.id);
   });
 
   it("a disconnect takes the player out of the sim", async () => {
@@ -391,11 +431,8 @@ describe("GameService on the realtime kit", () => {
 
     socket.close();
 
-    await worldEvent<{ id: string }>(
-      watcher,
-      "playerLeft",
-      (left) => left.id === users.moderator.id,
-    );
+    // the game service's own onRoomLeave: the test app was given none
+    await worldEvent(watcher, "playerLeft", (left) => left.id === users.moderator.id);
     expect(gameRuntime(testDb).sim.hasPlayer(users.moderator.id)).toBe(false);
     expect(gameRuntime(testDb).sim.hasPlayer(users.regular.id)).toBe(true);
   });
@@ -409,7 +446,7 @@ describe("GameService on the realtime kit", () => {
     // The page reloads: the Godot socket keeps the player in the world
     page.close();
     await vi.waitFor(() => {
-      expect(app.server.io.sockets.adapter.rooms.get(GLOBAL_WORLD_ROOM)?.size).toBe(1);
+      expect(app.server.rooms.size(GLOBAL_WORLD_ROOM)).toBe(1);
     });
     await settled(godot);
     expect(gameRuntime(testDb).sim.hasPlayer(users.regular.id)).toBe(true);
@@ -443,7 +480,7 @@ describe("GameService on the realtime kit", () => {
     // The spectator leaves: nobody watches, the world freezes again
     spectator.close();
     await vi.waitFor(() => {
-      expect(app.server.io.sockets.adapter.rooms.get(GLOBAL_WORLD_ROOM)?.size ?? 0).toBe(0);
+      expect(app.server.rooms.size(GLOBAL_WORLD_ROOM)).toBe(0);
     });
     expect(runtime.loop.tickOnce()).toBeNull();
   });

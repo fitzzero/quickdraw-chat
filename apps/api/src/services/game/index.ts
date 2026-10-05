@@ -4,7 +4,13 @@ import { QuickdrawError } from "@fitzzero/quickdraw-core";
 import { admin, everyone } from "@fitzzero/quickdraw-core/server";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
-import { activeGameRuntime, gameRuntime, removePlayer, type GameRuntime } from "./runtime.js";
+import {
+  activeGameRuntime,
+  gameRuntime,
+  onGameRoomLeave,
+  removePlayer,
+  type GameRuntime,
+} from "./runtime.js";
 
 type Db = typeof appDb;
 
@@ -57,10 +63,13 @@ const IN_WORLD = { entry: "Read", id: "worldId" } as const;
  * Commands (join/respawn/leave) are ordinary typed methods, callable
  * identically from React and from the Godot client. watchWorld and joinGame
  * put the calling socket in the world's room, which carries the world's
- * events and gates the `input` channel; snapshots go out on the `world`
- * stream. The simulation itself (GameWorldSim, in runtime.ts) is pure and
- * in-memory — the database only sees world/chat bootstrap and score writes,
- * never the tick path. See .claude/rules/game-patterns.md.
+ * events and gates the `input` channel, and whose last socket of a player
+ * takes them out of the sim when it leaves (`onRoomLeave`); snapshots go out
+ * on the `world` stream, whose subscribers start from the current world
+ * (`streams.world.seed`). The simulation itself (GameWorldSim, in
+ * runtime.ts) is pure and in-memory — the database only sees world/chat
+ * bootstrap and score writes, never the tick path. See
+ * .claude/rules/game-patterns.md.
  */
 export const gameService = qd.defineService(gameContract, {
   model: "gameWorld",
@@ -184,4 +193,24 @@ export const gameService = qd.defineService(gameContract, {
       activeGameRuntime()?.sim.applyInput(ctx.principal.userId, payload);
     },
   },
+  streams: {
+    world: {
+      // Each subscriber starts from the current world (a keyframe: every
+      // snake, all the food), read from the running sim, never the
+      // database: it runs on every subscribe
+      seed: (worldId) => {
+        const runtime = activeGameRuntime();
+        return worldId === GLOBAL_WORLD_ID && runtime !== undefined ? [runtime.sim.keyframe()] : [];
+      },
+      // 20 snapshots a second the loop builds itself: checked against the
+      // schema where outputs are (development and tests), not in production
+      validate: "development",
+    },
+  },
+  // The score queries watch the service topic (a stored score changes it),
+  // and they are public: anyone may watch it
+  watchAccess: "public",
+  // A player whose last socket left the world's room leaves the sim, in
+  // every server this service runs in
+  onRoomLeave: onGameRoomLeave,
 });
