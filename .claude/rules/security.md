@@ -10,7 +10,9 @@ closed) is the linked `quickdraw-access.md`.
   sign-in's `returnTo` and cookie-authenticated sockets (`CLIENT_URL` and
   `EXTRA_ALLOWED_ORIGINS`; GitHub Codespaces and localhost outside
   production only, in `auth/config.ts`: anyone can open a Codespace); an
-  explicit 100 kB JSON body limit; `trust proxy` in production only.
+  explicit 100 kB JSON body limit; `trust proxy` from `TRUST_PROXY`, else
+  1 in production and behind an `https:` `API_URL`, else off (the rate
+  limits count the address it gives).
 - **Auth** (quickdraw's auth routes kit): an httpOnly, Secure, SameSite
   session cookie (`__Host-session` over HTTPS) holding a JWT that names a
   revocable `Session` row (7 days); OAuth state cookies compared timing-safe;
@@ -47,6 +49,11 @@ closed) is the linked `quickdraw-access.md`.
 `DATABASE_URL`, `JWT_SECRET` (32 characters or more), `CLIENT_URL`,
 `API_URL`, `ENCRYPTION_KEY` (64 hex characters; a set key of any other shape
 refuses to boot in every environment).
+
+In every environment the API also refuses to boot without `API_URL` while
+`CLIENT_URL` or an `EXTRA_ALLOWED_ORIGINS` entry is off localhost (sign-ins
+would be sent to `http://localhost:<port>`), and with a `TRUST_PROXY` that
+is not a number of hops, `true` or `false`.
 
 ## Fork checklist
 

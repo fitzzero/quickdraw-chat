@@ -32,6 +32,12 @@ server root (the API, the tests) signs in the same way:
   `discord.optional(...)` from the environment (nothing without
   credentials; one of the pair alone refuses to boot), and `mock(...)` for
   development.
+- **What is served** (`providers.ts`): `GET /auth/providers` answers
+  `{ providers: [{ id, kind }] }`, the sign-ins the routes serve
+  (`AppAuth.providers()`, from the array the kit is given: the mock only
+  while `isMockOAuthEnabled()`), public and never cached. The login page
+  reads it. A `quickdraw-5.0 finding` marks it: the kit's own route
+  replaces it at quickdraw 5.0.0.
 - **Users** (`users.ts`): `onLogin` → `upsertOAuthUser` finds the user by
   provider account, or creates one; provider tokens are stored `encrypt`ed
   when `ENCRYPTION_KEY` is set; avatars go through `safeImageUrl`. Only an
@@ -59,7 +65,9 @@ server root (the API, the tests) signs in the same way:
   (the admin screens' grants editor) reaches the user's open sockets.
 - **Settings** (`config.ts`): `jwtSecretFromEnv`, `apiUrl`, `clientUrl` and
   `allowedOriginsFromEnv` (CORS, sign-in returns and cookie-authenticated
-  sockets share one list).
+  sockets share one list); `apiUrlProblem` (no `API_URL` for a web app off
+  localhost refuses to boot, in every `NODE_ENV`) and `trustProxyFromEnv`
+  (`TRUST_PROXY`, else 1 in production or for an `https:` `API_URL`).
 
 ## The one credential
 
@@ -100,11 +108,19 @@ API refuses or cannot be reached (the session may still be live: say so);
 follow a successful one with a full page navigation so the socket reconnects
 signed out.
 
+The login page offers the sign-ins the API serves, never a `NEXT_PUBLIC_*`
+flag (baked in at build time, it drifts from the server): it reads
+`GET /auth/providers` (`fetchSignInProviders`, a plain TanStack `useQuery`)
+and renders `SignInOptions` (`apps/web/src/components/auth/`): a button per
+OAuth provider, the demo-user picker for the mock, a retry when the request
+fails, and a notice when nothing is served.
+
 ## Adding a provider
 
 1. Add it in `providersFor`: the kit's `google`/`discord` builders, or an
    object implementing `OAuthSignInProvider` (`authorizeUrl`, `profile`).
 2. Register `{API_URL}/auth/{id}/callback` with the provider; add its client
    id and secret to `env.example` and the deploy secrets.
-3. Add its button to the login page (`apps/web/src/app/auth/login/page.tsx`)
-   with `signInUrl("<id>", AUTH_ROUTES)`.
+3. The login page offers it once the API serves it (`GET /auth/providers`),
+   as "Continue with <Id>"; for a button in its colors, add its id to
+   `ProviderButton` in `apps/web/src/components/auth/SignInOptions.tsx`.
