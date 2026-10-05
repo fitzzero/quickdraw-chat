@@ -5,20 +5,23 @@ import { useSearchParams } from "next/navigation";
 import { Box, Paper, Typography, Alert, CircularProgress } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { authProviders } from "@fitzzero/quickdraw-core/client";
 import { SignInOptions } from "../../../components/auth";
-import { fetchSignInProviders, SIGN_IN_PROVIDERS_KEY } from "../../../lib/auth";
+import { AUTH_ROUTES, SIGN_IN_PROVIDERS_KEY } from "../../../lib/auth";
 
 function LoginContent(): React.ReactElement {
   const t = useTranslations("LoginPage");
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
 
-  // The sign-ins the API serves (GET /auth/providers): a button for each of
-  // those and no other, since a provider the API has no credentials for
-  // answers 404. Asked once more on a failure before saying so.
+  // The sign-ins the API serves (the auth routes kit's GET /auth/providers):
+  // a button for each of those and no other, since a provider the API has
+  // no credentials for answers 404. Asked of the API, never read from
+  // NEXT_PUBLIC_* flags, which are baked in at build time and drift from the
+  // server's configuration. Asked once more on a failure before saying so.
   const providers = useQuery({
     queryKey: SIGN_IN_PROVIDERS_KEY,
-    queryFn: fetchSignInProviders,
+    queryFn: () => authProviders(AUTH_ROUTES),
     retry: 1,
   });
 

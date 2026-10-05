@@ -7,9 +7,10 @@ closed) is the linked `quickdraw-access.md`.
 ## Protected out of the box
 
 - **HTTP**: helmet on the API; one allowlist of web origins for CORS, the
-  sign-in's `returnTo` and cookie-authenticated sockets (`CLIENT_URL` and
-  `EXTRA_ALLOWED_ORIGINS`; GitHub Codespaces and localhost outside
-  production only, in `auth/config.ts`: anyone can open a Codespace); an
+  sign-in's `returnTo`, cookie-authenticated sockets, HTTP calls and REST
+  routes (`requireSession`: the cookie from another site's page answers 403) (`CLIENT_URL` and `EXTRA_ALLOWED_ORIGINS`; GitHub Codespaces and
+  localhost outside production only, in `auth/config.ts`: anyone can open
+  a Codespace); an
   explicit 100 kB JSON body limit; `trust proxy` from `TRUST_PROXY`, else
   1 in production and behind an `https:` `API_URL`, else off (the rate
   limits count the address it gives).

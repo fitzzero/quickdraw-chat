@@ -26,6 +26,13 @@ export interface MessageListProps {
    * sending: `useCollection`'s `pending` (the optimistic adds in flight).
    */
   pending?: ReadonlySet<string>;
+  /**
+   * The ids among `pending` whose send lost its answer (the connection
+   * dropped after it went out, or it timed out), shown as checking until the
+   * chat's next load says whether the server has them: `useCollection`'s
+   * `checking`.
+   */
+  checking?: ReadonlySet<string>;
   isLoading: boolean;
   currentUserId?: string | null;
   /** Older history exists beyond the loaded window */
@@ -80,6 +87,7 @@ function FailedBubble({ failed }: { failed: FailedMessage }): React.ReactElement
 export function MessageList({
   messages,
   pending = NOTHING_PENDING,
+  checking = NOTHING_PENDING,
   isLoading,
   currentUserId,
   hasMore = false,
@@ -147,8 +155,10 @@ export function MessageList({
       )}
       {messages.map((message) => {
         const isOwnMessage = message.userId === currentUserId;
-        // On its way: shown at once, marked, until the server has it
+        // On its way: shown at once, marked, until the server has it; checking
+        // while a lost answer leaves open whether it does
         const isSending = pending.has(message.id);
+        const sendingStatus = checking.has(message.id) ? t("checking") : t("sending");
 
         return (
           <Box
@@ -202,7 +212,7 @@ export function MessageList({
                   color="text.secondary"
                   sx={{ display: "block", mt: 0.5 }}
                 >
-                  {isSending ? t("sending") : new Date(message.createdAt).toLocaleTimeString()}
+                  {isSending ? sendingStatus : new Date(message.createdAt).toLocaleTimeString()}
                 </Typography>
               </Paper>
             </Box>

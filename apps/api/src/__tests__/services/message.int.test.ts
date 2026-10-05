@@ -82,6 +82,69 @@ describe("MessageService", () => {
     socket.close();
   });
 
+  it("keeps the id the sender made, and answers it again CONFLICT without writing twice", async () => {
+    const regular = as(users.regular.id);
+    const chat = await regular.chatService.createChat({ title: "Client ids" });
+    const id = crypto.randomUUID();
+    expect(
+      await regular.messageService.postMessage({ id, chatId: chat.id, content: "Once" }),
+    ).toEqual({ id });
+
+    // the same send again, as a retry after a lost answer: nothing written
+    expect(
+      await codeOf(regular.messageService.postMessage({ id, chatId: chat.id, content: "Twice" })),
+    ).toBe("CONFLICT");
+    const stored = await testPrisma.message.findMany({
+      where: { chatId: chat.id },
+      select: { id: true, content: true },
+    });
+    expect(stored).toEqual([{ id, content: "Once" }]);
+  });
+
+  it("never lets a sender's id name another message: neither a server-made one nor someone else's", async () => {
+    const author = await createTestUser();
+    const other = await createTestUser();
+    const mine = await createTestChat({ members: [{ userId: author.id }] });
+    const theirs = await createTestChat({ members: [{ userId: other.id }] });
+
+    // a server-made id is a cuid, never a UUID: refused before anything runs
+    const serverMade = await createTestMessage({ chatId: theirs.id, userId: other.id });
+    expect(
+      await codeOf(
+        as(author.id).messageService.postMessage({
+          id: serverMade.id,
+          chatId: mine.id,
+          content: "Mine now",
+        }),
+      ),
+    ).toBe("VALIDATION");
+
+    // another sender's id: CONFLICT, and their message stays theirs, where it was
+    const id = crypto.randomUUID();
+    await as(other.id).messageService.postMessage({ id, chatId: theirs.id, content: "Theirs" });
+    expect(
+      await codeOf(
+        as(author.id).messageService.postMessage({ id, chatId: mine.id, content: "Mine now" }),
+      ),
+    ).toBe("CONFLICT");
+    expect(
+      await testPrisma.message.findUniqueOrThrow({
+        where: { id },
+        select: { chatId: true, userId: true, content: true },
+      }),
+    ).toEqual({ chatId: theirs.id, userId: other.id, content: "Theirs" });
+  });
+
+  it("deletes a message by the id its sender made", async () => {
+    const regular = as(users.regular.id);
+    const chat = await regular.chatService.createChat({ title: "Client id delete" });
+    const id = crypto.randomUUID();
+    await regular.messageService.postMessage({ id, chatId: chat.id, content: "Short-lived" });
+
+    expect(await regular.messageService.deleteMessage({ id })).toEqual({ id, deleted: true });
+    expect(await testPrisma.message.findUnique({ where: { id } })).toBeNull();
+  });
+
   it("refuses a post to a chat the caller is no member of", async () => {
     const chat = await as(users.admin.id).chatService.createChat({ title: "Private" });
     expect(

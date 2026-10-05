@@ -105,8 +105,8 @@ const meta = {
   global decorator gives each story a provider of its own with it
   (`<qd.$Provider session={...}>`, laid over the default field by field),
   so a docs page shows each story with its own session.
-- The mock shows no optimistic updates: `MessageList`'s `Sending` and
-  `NotSent` stories show a send's states from props.
+- The mock shows no optimistic updates: `MessageList`'s `Sending`,
+  `Checking` and `NotSent` stories show a send's states from props.
 
 ## Story tiers
 

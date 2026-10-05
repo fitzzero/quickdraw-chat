@@ -20,9 +20,10 @@ provider, development credentials, env layering) is in
 server root (the API, the tests) signs in the same way:
 
 - **Routes** (`createAuthRoutes`, one Express middleware): each provider's
-  `/auth/{provider}/start` and `/callback`, `/auth/me`, `/auth/logout` and
-  `/auth/logout-all` (POST, rate limited by the kit). A sign-in returns to
-  the web app's `/auth/callback`, or to `/auth/login?error=...`.
+  `/auth/{provider}/start` and `/callback`, `/auth/providers`, `/auth/me`,
+  `/auth/logout` and `/auth/logout-all` (POST, rate limited by the kit). A
+  sign-in returns to the web app's `/auth/callback`, or to
+  `/auth/login?error=...`.
   <!-- ── quickdraw-game:start ── -->
   Plus `POST /auth/guest` (`guest.ts`): a real user marked `isGuest`, so
   signed-out visitors can play; it answers `{ userId, name, token }` (the
@@ -32,12 +33,11 @@ server root (the API, the tests) signs in the same way:
   `discord.optional(...)` from the environment (nothing without
   credentials; one of the pair alone refuses to boot), and `mock(...)` for
   development.
-- **What is served** (`providers.ts`): `GET /auth/providers` answers
-  `{ providers: [{ id, kind }] }`, the sign-ins the routes serve
-  (`AppAuth.providers()`, from the array the kit is given: the mock only
-  while `isMockOAuthEnabled()`), public and never cached. The login page
-  reads it. A `quickdraw-5.0 finding` marks it: the kit's own route
-  replaces it at quickdraw 5.0.0.
+- **What is served**: the kit's `GET /auth/providers` answers
+  `{ providers: [{ id, name, kind }] }`, the sign-ins the routes serve now,
+  in `providersFor`'s order (the mock only while `isMockOAuthEnabled()`),
+  public and never cached; `auth.routes.providers()` answers the same in
+  process. The login page reads it.
 - **Users** (`users.ts`): `onLogin` → `upsertOAuthUser` finds the user by
   provider account, or creates one; provider tokens are stored `encrypt`ed
   when `ENCRYPTION_KEY` is set; avatars go through `safeImageUrl`. Only an
@@ -83,8 +83,9 @@ ends that session's sockets (`server.access.disconnectUser`).
 
 The Discord Activity (`discord-activity.ts`) is the one sign-in outside the
 kit's providers: its page POSTs the Embedded App SDK's code, and the route
-starts a session with `issueSession` and answers its token (the iframe drops
-third-party cookies).
+starts a session with `issueSession` and answers its token, which the page
+and its Godot client send as `auth.token`. It sets no cookie: the page never
+uses one (the iframe drops third-party cookies).
 
 <!-- ── quickdraw-game:end ── -->
 
@@ -92,7 +93,9 @@ third-party cookies).
 
 An app route that needs a signed-in user takes `requireSession(auth.keys)`
 (see `api-conventions.md`), never a hand-rolled JWT check: it reads the
-cookie and the bearer token by the same rule as the sockets. The route reads
+cookie and the bearer token by the same rule as the sockets, and answers the
+cookie from a page outside the auth routes' allowed origins 403 (the routes
+writing to the same `auth.keys.sessions` object give the list). The route reads
 the session with `sessionOf(req)` and calls services as
 `qd.caller(principal)`, which loads the user's grants (`auth.loadServiceAccess`)
 as a socket's handshake does.
@@ -110,17 +113,19 @@ signed out.
 
 The login page offers the sign-ins the API serves, never a `NEXT_PUBLIC_*`
 flag (baked in at build time, it drifts from the server): it reads
-`GET /auth/providers` (`fetchSignInProviders`, a plain TanStack `useQuery`)
-and renders `SignInOptions` (`apps/web/src/components/auth/`): a button per
-OAuth provider, the demo-user picker for the mock, a retry when the request
+`authProviders(AUTH_ROUTES)` (the kit's `GET /auth/providers`, under a plain
+TanStack `useQuery`) and renders `SignInOptions`
+(`apps/web/src/components/auth/`): a button per OAuth provider labelled with
+its `name`, the demo-user picker for the mock, a retry when the request
 fails, and a notice when nothing is served.
 
 ## Adding a provider
 
 1. Add it in `providersFor`: the kit's `google`/`discord` builders, or an
-   object implementing `OAuthSignInProvider` (`authorizeUrl`, `profile`).
+   object implementing `OAuthSignInProvider` (`authorizeUrl`, `profile`, and
+   a `name` for its button: without one the button shows its id).
 2. Register `{API_URL}/auth/{id}/callback` with the provider; add its client
    id and secret to `env.example` and the deploy secrets.
 3. The login page offers it once the API serves it (`GET /auth/providers`),
-   as "Continue with <Id>"; for a button in its colors, add its id to
+   as "Continue with <name>"; for a button in its colors, add its id to
    `ProviderButton` in `apps/web/src/components/auth/SignInOptions.tsx`.

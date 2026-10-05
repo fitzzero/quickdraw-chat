@@ -36,6 +36,7 @@
     "validationGeneric": "Check what you entered and try again.",
     "rateLimited": "Too many requests. Wait a moment and try again.",
     "timeout": "The server took too long. Try again.",
+    "connectionLost": "The connection dropped before the server answered. Try again.",
     "generic": "Something went wrong. Try again."
   },
   "Nav": {
@@ -82,6 +83,7 @@
     "noMessages": "No messages yet. Start the conversation!",
     "loadOlder": "Load older messages",
     "sending": "Sending…",
+    "checking": "Checking…",
     "notSent": "Not sent: {reason}",
     "retry": "Retry",
     "dismiss": "Dismiss"
@@ -195,11 +197,9 @@
   "LoginPage": {
     "title": "Welcome",
     "subtitle": "Sign in to Quickdraw",
-    "continueWithDiscord": "Continue with Discord",
     "errorCancelled": "Authentication was cancelled",
     "errorFailed": "Authentication failed. Please try again.",
     "errorGeneric": "An error occurred during login",
-    "continueWithGoogle": "Continue with Google",
     "continueWith": "Continue with {provider}",
     "continueAsDemoUser": "Continue as demo user",
     "demoLoginHint": "Development only — sign in as a seeded demo account",

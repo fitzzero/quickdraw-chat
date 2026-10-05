@@ -18,7 +18,7 @@
 
 <p align="center">
   <a href="https://github.com/fitzzero/quickdraw-chat/actions/workflows/ci.yml"><img src="https://github.com/fitzzero/quickdraw-chat/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://www.npmjs.com/package/@fitzzero/quickdraw-core"><img src="https://img.shields.io/npm/v/%40fitzzero%2Fquickdraw-core?label=quickdraw-core&color=7c4dff" alt="quickdraw-core version" /></a>
+  <a href="https://www.npmjs.com/package/@fitzzero/quickdraw-core/v/next"><img src="https://img.shields.io/npm/v/%40fitzzero%2Fquickdraw-core/next?label=quickdraw-core&color=7c4dff" alt="quickdraw-core version (the 5.0 release candidate, npm's next tag)" /></a>
   <img src="https://img.shields.io/badge/license-MIT-7aa2f7" alt="MIT license" />
 </p>
 
@@ -366,15 +366,17 @@ Real env vars (e.g. CI) always take precedence.
 ## Authentication
 
 - **The auth routes kit**: `/auth/{provider}/start` and `/callback`,
-  `/auth/me`, `/auth/logout` and `/auth/logout-all`, over the app's `Session`
-  table (`apps/api/src/auth/`). A session is a JWT naming a revocable
-  session row, carried in an httpOnly cookie (`__Host-session` over HTTPS) —
-  the one credential for sockets, HTTP calls and REST routes; no token ever
-  appears in a URL or in localStorage.
-- **The login page offers what the API serves**: it asks
-  `GET /auth/providers` and shows a button for each sign-in listed (and
-  says so when there is none), so a provider without credentials never
-  shows a button that leads to a 404.
+  `/auth/providers`, `/auth/me`, `/auth/logout` and `/auth/logout-all`, over
+  the app's `Session` table (`apps/api/src/auth/`). A session is a JWT naming
+  a revocable session row, carried in an httpOnly cookie (`__Host-session`
+  over HTTPS) — the one credential for sockets, HTTP calls and REST routes,
+  usable only from the web app's own origins; no token ever appears in a URL
+  or in localStorage.
+- **The login page offers what the API serves**: it asks the kit's
+  `GET /auth/providers` (the client's `authProviders()`) and shows a button
+  for each sign-in listed, by the name the API gives it (and says so when
+  there is none), so a provider without credentials never shows a button
+  that leads to a 404.
 - **Mock OAuth (dev only)**: `ENABLE_MOCK_OAUTH=true` (default in `.env.infra`)
   serves a real OAuth code flow from the API itself with a seeded-user picker.
   Refused in production (the API will not boot with the flag set).

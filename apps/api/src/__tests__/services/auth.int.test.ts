@@ -1,7 +1,8 @@
 // Sign-in on the auth routes kit: sessions in the Session table, checked on
 // every handshake by the server's real `authenticate` (not the test app's
 // trusting one), signed out by the routes with the open sockets ended; and
-// GET /auth/providers, which lists exactly the sign-ins the routes serve.
+// the kit's GET /auth/providers as this app configures it: what the login
+// page offers.
 import { once } from "node:events";
 import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } from "vitest";
 import express from "express";
@@ -14,7 +15,6 @@ import type { AccessLevel } from "@project/shared";
 import { allowedOriginsFromEnv } from "../../auth/config.js";
 import { createGrantsLoader } from "../../auth/grants.js";
 import { createAppAuth } from "../../auth/index.js";
-import { registerProvidersRoute } from "../../auth/providers.js";
 import { upsertOAuthUser, type SignInProfile } from "../../auth/users.js";
 import { services, serviceNames } from "../../services/index.js";
 import { createTestAuth, TEST_JWT_SECRET, TEST_WEB_ORIGIN } from "../utils/auth.js";
@@ -493,7 +493,10 @@ describe("the production allow-list on the sign-in routes and cookie sockets", (
   });
 });
 
-describe("GET /auth/providers: the sign-ins the routes serve, and no other", () => {
+// The list and the start routes are the kit's (its own tests pin the rules:
+// the order, the mock only while it is enabled, a provider without
+// credentials left out); these pin what this app's configuration answers.
+describe("GET /auth/providers: what the login page offers, as the API configures the kit", () => {
   const GOOGLE = { GOOGLE_CLIENT_ID: "google-id", GOOGLE_CLIENT_SECRET: "google-secret" };
   const DISCORD = { DISCORD_CLIENT_ID: "discord-id", DISCORD_CLIENT_SECRET: "discord-secret" };
   /** What decides the sign-ins: unset unless a test sets it. */
@@ -512,7 +515,6 @@ describe("GET /auth/providers: the sign-ins the routes serve, and no other", () 
     for (const name of SIGN_IN_VARIABLES) vi.stubEnv(name, env[name]);
     const appAuth = createTestAuth();
     const routes = express();
-    registerProvidersRoute(routes, appAuth);
     routes.use(appAuth.routes);
     const server = routes.listen(0, "127.0.0.1");
     await once(server, "listening");
@@ -544,62 +546,36 @@ describe("GET /auth/providers: the sign-ins the routes serve, and no other", () 
     return response.status;
   }
 
-  it("lists none without credentials or the mock: nothing the login page could offer", async () => {
-    const url = await serveWith({});
+  it("offers the hosted dev instance's demo user (no Google or Discord credentials), and starts only it", async () => {
+    // quickdraw-dev.techtree.gg: ENABLE_MOCK_OAUTH on, no provider credentials
+    const url = await serveWith({ ENABLE_MOCK_OAUTH: "true" });
     expect(await listed(url)).toEqual({
       providers: [
+        { id: "mock", name: "Mock", kind: "mock" },
         // ── quickdraw-game:start ──
-        { id: "guest", kind: "guest" },
+        { id: "guest", name: "Guest", kind: "guest" },
         // ── quickdraw-game:end ──
       ],
     });
-    for (const provider of ["google", "discord", "mock"]) {
-      expect(await startStatus(url, provider)).toBe(404);
-    }
-  });
-
-  it("lists the one provider with credentials", async () => {
-    const url = await serveWith(GOOGLE);
-    expect(await listed(url)).toEqual({
-      providers: [
-        { id: "google", kind: "oauth" },
-        // ── quickdraw-game:start ──
-        { id: "guest", kind: "guest" },
-        // ── quickdraw-game:end ──
-      ],
-    });
-    expect(await startStatus(url, "google")).toBe(302);
+    expect(await startStatus(url, "mock")).toBe(302);
+    expect(await startStatus(url, "google")).toBe(404);
     expect(await startStatus(url, "discord")).toBe(404);
-    expect(await startStatus(url, "mock")).toBe(404);
   });
 
-  it("lists every provider configured, the mock only while it is enabled", async () => {
+  it("names each provider configured for its button, in the login page's order, and starts each", async () => {
     const url = await serveWith({ ...GOOGLE, ...DISCORD, ENABLE_MOCK_OAUTH: "true" });
     expect(await listed(url)).toEqual({
       providers: [
-        { id: "google", kind: "oauth" },
-        { id: "discord", kind: "oauth" },
-        { id: "mock", kind: "mock" },
+        { id: "google", name: "Google", kind: "oauth" },
+        { id: "discord", name: "Discord", kind: "oauth" },
+        { id: "mock", name: "Mock", kind: "mock" },
         // ── quickdraw-game:start ──
-        { id: "guest", kind: "guest" },
+        { id: "guest", name: "Guest", kind: "guest" },
         // ── quickdraw-game:end ──
       ],
     });
     for (const provider of ["google", "discord", "mock"]) {
       expect(await startStatus(url, provider)).toBe(302);
     }
-
-    // the kit checks the mock's flag on every request, and so does the list
-    vi.stubEnv("ENABLE_MOCK_OAUTH", undefined);
-    expect(await listed(url)).toEqual({
-      providers: [
-        { id: "google", kind: "oauth" },
-        { id: "discord", kind: "oauth" },
-        // ── quickdraw-game:start ──
-        { id: "guest", kind: "guest" },
-        // ── quickdraw-game:end ──
-      ],
-    });
-    expect(await startStatus(url, "mock")).toBe(404);
   });
 });

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useTranslations } from "next-intl";
 import { QuickdrawError } from "@fitzzero/quickdraw-core";
+import { isUnknownOutcome } from "@fitzzero/quickdraw-core/client";
 
 /** The first problem a `VALIDATION` error names (the schema's own message), if any. */
 function firstIssue(error: QuickdrawError): string | undefined {
@@ -18,8 +19,10 @@ function firstIssue(error: QuickdrawError): string | undefined {
 /**
  * Turns a failed call into a sentence for people, by its code: the same
  * wording wherever a mutation or a read fails (`FORBIDDEN`, `VALIDATION`
- * with the schema's message, `RATE_LIMITED`, ...). Anything that is not a
- * `QuickdrawError` (a `catch` block's error) reads as the generic sentence.
+ * with the schema's message, `RATE_LIMITED`, ...). A call whose connection
+ * dropped after it went out (`isUnknownOutcome`, an `INTERNAL` without an
+ * answer) says so. Anything that is not a `QuickdrawError` (a `catch`
+ * block's error) reads as the generic sentence.
  *
  * @example
  * const errorText = useErrorText();
@@ -30,6 +33,8 @@ export function useErrorText(): (error: unknown) => string {
   return React.useCallback(
     (error: unknown): string => {
       if (!(error instanceof QuickdrawError)) return t("generic");
+      // a TIMEOUT leaves the outcome unknown too, and reads as one below
+      if (error.code === "INTERNAL" && isUnknownOutcome(error)) return t("connectionLost");
       switch (error.code) {
         case "UNAUTHENTICATED":
           return t("unauthenticated");

@@ -226,7 +226,10 @@ sends to the API only from a page on the same site: on the raw `vercel.app`
 ↔ `run.app` pairing (two sites) the web app's socket is never signed in. A
 fork that must serve the web from another site passes
 `cookie: { sameSite: "none" }` to `createAuthRoutes` (`apps/api/src/auth/index.ts`),
-which browsers that block third-party cookies (Safari) still refuse.
+which browsers that block third-party cookies (Safari) still refuse. Either
+way the cookie works only from the web app's origins (`CLIENT_URL`,
+`EXTRA_ALLOWED_ORIGINS`): a socket, an HTTP call or a REST route such as the
+service worker's push renewal answers it 403 from any other page.
 
 - **Vercel**: add the domain to the project (dashboard/API), then
   CNAME `<web-sub>` → `cname.vercel-dns.com` (DNS-only if your DNS proxies).
@@ -301,7 +304,11 @@ ENABLE_MOCK_OAUTH=true                             # the demo-user picker: run b
   `NODE_ENV`, and says why:
   `API_URL is required: CLIENT_URL is https://dev.your-domain.com, not this
 machine, so sign-in redirects would point at http://localhost:4000. Set
-API_URL to the API's public URL — refusing to start`.
+API_URL to the API's public URL — refusing to start`. quickdraw's auth
+  routes kit also warns about a loopback `publicUrl`: at startup when every
+  allowed origin is a public page, and once when a request arrives for
+  another host. Without `API_URL` the API refuses to boot first; the kit's
+  warnings catch an `API_URL` set to a loopback address.
 - **`TRUST_PROXY`**: behind a proxy every request reaches the API from the
   proxy's address. Trusting it gives the rate limits each visitor's own IP
   (from `X-Forwarded-For`) and `req.secure` from `X-Forwarded-Proto`, and
@@ -311,12 +318,16 @@ API_URL to the API's public URL — refusing to start`.
   the number of proxies in front when there are more (2 for a CDN in front
   of a reverse proxy); a value that is not a number, `true` or `false`
   refuses to boot.
-- **The login page offers what the API serves**, from its
-  `GET /auth/providers`: Google and Discord once their client id and secret
+- **The login page offers what the API serves**, from the auth routes
+  kit's `GET /auth/providers` (`{ providers: [{ id, name, kind }] }`, the
+  sign-ins served now): Google and Discord once their client id and secret
   are set (register `{API_URL}/auth/{provider}/callback` with each), the
   demo-user picker while `ENABLE_MOCK_OAUTH=true` (never in production),
   and nothing else; with none of them it says no sign-in is configured. No
-  `NEXT_PUBLIC_*` flag decides it: the page asks the running API.
+  `NEXT_PUBLIC_*` flag decides it: the page asks the running API. The list
+  is public and never cached, and counts against the kit's session-route
+  limit (120 requests per 15 minutes per address, with `/auth/me` and the
+  sign-outs).
   <!-- ── quickdraw-game:start ── -->
   The list also names the guest sign-in (`kind: "guest"`), which the game's
   pre-game dialog uses; the login page does not offer it.

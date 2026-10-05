@@ -109,6 +109,55 @@ function refuseNextCall(method: string): void {
   });
 }
 
+/** A message send as the chat window makes it: `postMessage`'s input. */
+interface SentMessage {
+  readonly id: string;
+  readonly chatId: string;
+  readonly content: string;
+}
+
+/**
+ * Takes the next call of `method` a socket sends and answers nothing, once:
+ * the server has the call, and the connection can drop before its answer.
+ * Resolves with the call's input once the server has it; the call runs only
+ * if the test runs it. Every later call goes through.
+ */
+function holdNextCall(method: string): Promise<unknown> {
+  let taken = false;
+  return new Promise<unknown>((resolve) => {
+    app.server.io.on("connection", (socket) => {
+      socket.use(([event, envelope], next) => {
+        const call = envelope as { m?: unknown; i?: unknown } | undefined;
+        if (!taken && event === "qd:call" && call?.m === method) {
+          taken = true;
+          resolve(call.i);
+        } else {
+          next();
+        }
+      });
+    });
+  });
+}
+
+/** Types `content` in the chat window's input and sends it. */
+function sendMessage(view: RenderResult, content: string): void {
+  fireEvent.change(view.getByPlaceholderText("Type a message..."), {
+    target: { value: content },
+  });
+  fireEvent.click(view.getByRole("button", { name: "Send message" }));
+}
+
+/** A version 4 UUID: the id the chat window makes for each message it sends. */
+const CLIENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+/** The chat's stored messages: their ids and contents. */
+async function storedMessages(chatId: string): Promise<{ id: string; content: string }[]> {
+  return await testPrisma.message.findMany({
+    where: { chatId },
+    select: { id: true, content: true },
+  });
+}
+
 /** The chat titles the list shows, top to bottom. */
 function listedTitles(view: RenderResult): string[] {
   return Array.from(
@@ -293,6 +342,73 @@ describe("a chat's messages (byChat)", () => {
       select: { content: true, userId: true },
     });
     expect(stored).toEqual([{ content: "Second time lucky", userId: ada }]);
+  });
+});
+
+describe("a send whose connection drops before its answer", () => {
+  it("shows it checking, then the server's one message, with nothing to retry, once the server wrote it", async () => {
+    const { ada, bo } = await twoMembers();
+    const chat = await createTestChat({ members: [{ userId: ada }, { userId: bo }] });
+    const received = holdNextCall("postMessage");
+    const view = await renderAs(ada, <ChatWindow chatId={chat.id} />);
+    await view.findByText("No messages yet. Start the conversation!");
+    sendMessage(view, "Cut off");
+    const sent = (await received) as SentMessage;
+    expect(sent.id).toMatch(CLIENT_ID);
+
+    // the connection drops before the answer: the server may have it, so the
+    // message stays, checking, and nothing offers to send it again
+    await view.disconnect();
+    expect((await view.findByTestId("pending-message")).textContent).toContain("Checking…");
+    expect(view.queryByTestId("failed-message")).toBeNull();
+
+    // the server goes on and writes it, as the held call would
+    await as(ada).messageService.postMessage(sent);
+
+    // the reconnect's load holds it, by the id the window made: one message, the server's
+    await view.reconnect();
+    await waitFor(() => {
+      expect(view.queryByTestId("pending-message")).toBeNull();
+    });
+    expect(view.getAllByText("Cut off")).toHaveLength(1);
+    expect(view.queryByTestId("failed-message")).toBeNull();
+    expect(await storedMessages(chat.id)).toEqual([{ id: sent.id, content: "Cut off" }]);
+  });
+
+  it("refuses it once the reconnect's load answers without it, and its retry posts it once", async () => {
+    const { ada, bo } = await twoMembers();
+    const chat = await createTestChat({ members: [{ userId: ada }, { userId: bo }] });
+    // the call reaches the server, which never runs it
+    const received = holdNextCall("postMessage");
+    const view = await renderAs(ada, <ChatWindow chatId={chat.id} />);
+    await view.findByText("No messages yet. Start the conversation!");
+    sendMessage(view, "Lost on the way");
+    await received;
+
+    await view.disconnect();
+    expect((await view.findByTestId("pending-message")).textContent).toContain("Checking…");
+
+    // the chat's next load (the reconnect's) has no such message: not sent, and why
+    await view.reconnect();
+    const refused = await view.findByTestId("failed-message");
+    expect(refused.textContent).toContain("Lost on the way");
+    expect(refused.textContent).toContain(
+      "Not sent: The connection dropped before the server answered. Try again.",
+    );
+    expect(view.queryByTestId("pending-message")).toBeNull();
+
+    // the retry is the same call, with the same id: one message
+    fireEvent.click(view.getByRole("button", { name: "Retry" }));
+    await waitFor(() => {
+      expect(view.queryByTestId("failed-message")).toBeNull();
+    });
+    await waitFor(() => {
+      expect(view.queryByTestId("pending-message")).toBeNull();
+    });
+    expect(view.getAllByText("Lost on the way")).toHaveLength(1);
+    const stored = await storedMessages(chat.id);
+    expect(stored.map((message) => message.content)).toEqual(["Lost on the way"]);
+    expect(stored[0]?.id).toMatch(CLIENT_ID);
   });
 });
 

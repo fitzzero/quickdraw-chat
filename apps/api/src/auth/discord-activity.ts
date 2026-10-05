@@ -8,9 +8,10 @@
  * Discord sign-in route (same provider+providerAccountId, so an existing
  * Discord-linked user resolves to the same account), start a session on the
  * auth routes kit's store (`issueSession`), and RETURN its JWT in the body:
- * third-party cookie restrictions inside the Discord iframe make
- * token-in-handshake (`auth.token`) the primary auth there (the cookie is
- * still set best-effort).
+ * the Activity's page and its Godot client sign in with it
+ * (token-in-handshake, `auth.token`). No cookie is set: the page never
+ * sends one (an iframe on Discord's site rarely keeps it), and a cookie is
+ * only for a page that calls the API with it.
  *
  * Note: `authorize()` in Activities grants the `identify` scope (no email),
  * so first-time Activity users get the placeholder address
@@ -25,7 +26,6 @@
 import type { Express, Request, Response } from "express";
 import {
   issueSession,
-  setSessionCookie,
   type OAuthTokenResponse,
   type SessionKeys,
 } from "@fitzzero/quickdraw-core/server/auth";
@@ -132,12 +132,8 @@ export function registerDiscordActivityRoutes(app: Express, deps: DiscordActivit
           SESSION_TTL_MS,
         );
         // The Activity signs in with the body's token (its socket's and the
-        // Godot client's auth.token), never the cookie, which its iframe on
-        // Discord's site may drop. The cookie is best effort, and Lax (the
-        // helper's default, as the auth routes' own cookie): it never rides
-        // a request another site's page makes. quickdraw's guide passes
-        // "none" for an iframe that needs the cookie, which this one does not
-        setSessionCookie(res, token, { maxAgeMs: SESSION_TTL_MS, sameSite: "lax" });
+        // Godot client's auth.token): no cookie, which its page never uses
+        // (quickdraw's guide since 5.0.0-rc.6 sets none here either)
         res.json({ token });
       } catch (error) {
         logger.warn("Discord Activity auth failed", {

@@ -5,7 +5,6 @@
 import { admin, defineContract, mutation } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
 import {
-  byIdSchema,
   cuidSchema,
   deletedResultSchema,
   idResultSchema,
@@ -13,7 +12,23 @@ import {
   publicProfileSchema,
 } from "./helpers.js";
 
+/**
+ * The id a sending client makes for its message (`crypto.randomUUID()`): a
+ * UUID, so it can never name a message the server made, whose ids are cuids.
+ */
+const clientMessageIdSchema = z.uuid("Invalid message ID");
+
+/** A message's id: a cuid when the server made it, a UUID when its sender did. */
+const messageIdSchema = z.union([cuidSchema("message ID"), clientMessageIdSchema], {
+  error: "Invalid message ID",
+});
+
 const postMessageSchema = z.object({
+  // The message's id, made by the sending client, which the message keeps:
+  // a send whose answer was lost (the connection dropped, or it timed out)
+  // is found by the chat's next load, and sending it again fails CONFLICT
+  // instead of writing it twice. Left out, the server makes one.
+  id: clientMessageIdSchema.optional(),
   chatId: cuidSchema("chat ID"),
   content: z
     .string()
@@ -50,10 +65,11 @@ export const messageContract = defineContract("messageService", {
     postMessage: mutation({
       input: postMessageSchema,
       output: idResultSchema,
-      describe: "Posts a message to a chat the caller is a member of.",
+      describe:
+        "Posts a message to a chat the caller is a member of, under the id the caller made for it (a UUID) if it gave one: an id that exists answers CONFLICT and writes nothing.",
     }),
     deleteMessage: mutation({
-      input: byIdSchema,
+      input: z.object({ id: messageIdSchema }),
       output: deletedResultSchema,
       describe:
         "Deletes a message: its author may, as may its chat's Admins and holders of a service-wide Admin grant.",

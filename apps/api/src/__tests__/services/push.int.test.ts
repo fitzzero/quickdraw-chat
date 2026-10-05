@@ -5,11 +5,10 @@ import { issueSession } from "@fitzzero/quickdraw-core/server/auth";
 import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import type { PushNotificationPayload } from "@project/shared";
-import { prismaSessions } from "../../auth/sessions.js";
 import { pushService, type PushTransport } from "../../services/push-subscription/index.js";
 import { registerPushRoutes } from "../../services/push-subscription/rest.js";
 import { startTestApp, type ApiTestApp } from "../utils/app.js";
-import { TEST_JWT_SECRET } from "../utils/auth.js";
+import { createTestAuth, TEST_WEB_ORIGIN } from "../utils/auth.js";
 import { createTestChat } from "../factories/chat-factory.js";
 
 const KEYS = { p256dh: "test-p256dh-key", auth: "test-auth-secret" };
@@ -33,7 +32,10 @@ const transport: PushTransport = async (subscription, payload) => {
   });
 };
 
-const keys = { sessions: prismaSessions(testPrisma), jwtSecret: TEST_JWT_SECRET };
+// The app's sign-in, as index.ts builds it: the REST route takes the same
+// session keys as the auth routes, whose allowed origins its cookie check
+// applies (the web app's, TEST_WEB_ORIGIN)
+const { keys } = createTestAuth();
 
 let app: ApiTestApp;
 let users: Users;
@@ -287,21 +289,59 @@ describe("Push resubscribe REST", () => {
     expect(row?.userId).toBe(users.regular.id);
   });
 
-  it("takes the session cookie the service worker sends", async () => {
-    const { token } = await issueSession(keys, users.regular.id, { provider: "test" });
-
-    const response = await fetch(`${app.url}/api/push/resubscribe`, {
+  /** The renewal with the session cookie and `headers`, as a page or a service worker sends it. */
+  async function resubscribeWithCookie(
+    token: string,
+    endpoint: string,
+    headers: Record<string, string>,
+  ): Promise<Response> {
+    return await fetch(`${app.url}/api/push/resubscribe`, {
       method: "POST",
       // plain HTTP: the cookie is `session` (`__Host-session` over HTTPS)
-      headers: { "Content-Type": "application/json", Cookie: `session=${token}` },
-      body: JSON.stringify({ endpoint: "https://push.example.com/from-cookie", keys: KEYS }),
+      headers: { "Content-Type": "application/json", Cookie: `session=${token}`, ...headers },
+      body: JSON.stringify({ endpoint, keys: KEYS }),
     });
+  }
+
+  it("takes the session cookie the service worker sends, from the web app's origin", async () => {
+    const { token } = await issueSession(keys, users.regular.id, { provider: "test" });
+
+    const endpoint = "https://push.example.com/from-cookie";
+    const response = await resubscribeWithCookie(token, endpoint, { Origin: TEST_WEB_ORIGIN });
     expect(response.status).toBe(200);
 
-    const row = await testPrisma.pushSubscription.findUnique({
-      where: { endpoint: "https://push.example.com/from-cookie" },
-    });
+    const row = await testPrisma.pushSubscription.findUnique({ where: { endpoint } });
     expect(row?.userId).toBe(users.regular.id);
+  });
+
+  it("refuses the session cookie from another site's page (403), writing nothing", async () => {
+    const { token } = await issueSession(keys, users.regular.id, { provider: "test" });
+
+    // a cross-site page's fetch (or form) carrying the user's cookie
+    const endpoint = "https://push.example.com/cross-site";
+    const crossSite = await resubscribeWithCookie(token, endpoint, {
+      Origin: "http://evil.example.com",
+    });
+    expect(crossSite.status).toBe(403);
+    expect(await crossSite.json()).toMatchObject({ error: "FORBIDDEN" });
+    // without an Origin, but saying another site sent it
+    const flagged = await resubscribeWithCookie(token, endpoint, {
+      "Sec-Fetch-Site": "cross-site",
+    });
+    expect(flagged.status).toBe(403);
+    expect(await testPrisma.pushSubscription.findUnique({ where: { endpoint } })).toBeNull();
+
+    // a bearer token is no ambient credential: no Origin rule
+    const bearer = await fetch(`${app.url}/api/push/resubscribe`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        Origin: "http://evil.example.com",
+      },
+      body: JSON.stringify({ endpoint, keys: KEYS }),
+    });
+    expect(bearer.status).toBe(200);
   });
 
   it("rejects unauthenticated requests, and signed-out sessions, with 401", async () => {
