@@ -200,8 +200,14 @@
     "errorFailed": "Authentication failed. Please try again.",
     "errorGeneric": "An error occurred during login",
     "continueWithGoogle": "Continue with Google",
+    "continueWith": "Continue with {provider}",
     "continueAsDemoUser": "Continue as demo user",
-    "demoLoginHint": "Development only — sign in as a seeded demo account"
+    "demoLoginHint": "Development only — sign in as a seeded demo account",
+    "loadingProviders": "Loading the ways to sign in",
+    "providersFailed": "Couldn't reach the server to load the ways to sign in.",
+    "retry": "Try again",
+    "noProviders": "No way to sign in yet",
+    "noProvidersHint": "This server has no sign-in provider configured. Whoever runs it can turn on Google or Discord sign-in."
   },
   "Sidebar": {
     "appName": "quickdraw"

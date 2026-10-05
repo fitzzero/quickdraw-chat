@@ -1,7 +1,9 @@
 // Sign-in on the auth routes kit: sessions in the Session table, checked on
 // every handshake by the server's real `authenticate` (not the test app's
-// trusting one), signed out by the routes with the open sockets ended.
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+// trusting one), signed out by the routes with the open sockets ended; and
+// GET /auth/providers, which lists exactly the sign-ins the routes serve.
+import { once } from "node:events";
+import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } from "vitest";
 import express from "express";
 import { io, type Socket } from "socket.io-client";
 import { PROTOCOL_VERSION, type HelloFrame } from "@fitzzero/quickdraw-core";
@@ -12,6 +14,7 @@ import type { AccessLevel } from "@project/shared";
 import { allowedOriginsFromEnv } from "../../auth/config.js";
 import { createGrantsLoader } from "../../auth/grants.js";
 import { createAppAuth } from "../../auth/index.js";
+import { registerProvidersRoute } from "../../auth/providers.js";
 import { upsertOAuthUser, type SignInProfile } from "../../auth/users.js";
 import { services, serviceNames } from "../../services/index.js";
 import { createTestAuth, TEST_JWT_SECRET, TEST_WEB_ORIGIN } from "../utils/auth.js";
@@ -487,5 +490,116 @@ describe("the production allow-list on the sign-in routes and cookie sockets", (
       });
     expect((await call(WEB)).status).toBe(200);
     expect((await call(CODESPACE)).status).toBe(403);
+  });
+});
+
+describe("GET /auth/providers: the sign-ins the routes serve, and no other", () => {
+  const GOOGLE = { GOOGLE_CLIENT_ID: "google-id", GOOGLE_CLIENT_SECRET: "google-secret" };
+  const DISCORD = { DISCORD_CLIENT_ID: "discord-id", DISCORD_CLIENT_SECRET: "discord-secret" };
+  /** What decides the sign-ins: unset unless a test sets it. */
+  const SIGN_IN_VARIABLES = [...Object.keys(GOOGLE), ...Object.keys(DISCORD), "ENABLE_MOCK_OAUTH"];
+
+  let api: { url: string; close: () => Promise<void> } | undefined;
+
+  afterEach(async () => {
+    await api?.close();
+    api = undefined;
+    vi.unstubAllEnvs();
+  });
+
+  /** The app's sign-in made in this environment, as index.ts mounts it, on a free port. */
+  async function serveWith(env: Readonly<Record<string, string>>): Promise<string> {
+    for (const name of SIGN_IN_VARIABLES) vi.stubEnv(name, env[name]);
+    const appAuth = createTestAuth();
+    const routes = express();
+    registerProvidersRoute(routes, appAuth);
+    routes.use(appAuth.routes);
+    const server = routes.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("expected a TCP port");
+    api = {
+      url: `http://127.0.0.1:${address.port}`,
+      close: async () => {
+        server.closeAllConnections();
+        await new Promise<void>((resolve) => {
+          server.close(() => resolve());
+        });
+      },
+    };
+    return api.url;
+  }
+
+  /** What GET /auth/providers answers, checking that the answer is never cached. */
+  async function listed(url: string): Promise<unknown> {
+    const response = await fetch(`${url}/auth/providers`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    return await response.json();
+  }
+
+  /** What the routes answer a sign-in started with `provider`: 302 to it, or 404. */
+  async function startStatus(url: string, provider: string): Promise<number> {
+    const response = await fetch(`${url}/auth/${provider}/start`, { redirect: "manual" });
+    return response.status;
+  }
+
+  it("lists none without credentials or the mock: nothing the login page could offer", async () => {
+    const url = await serveWith({});
+    expect(await listed(url)).toEqual({
+      providers: [
+        // ── quickdraw-game:start ──
+        { id: "guest", kind: "guest" },
+        // ── quickdraw-game:end ──
+      ],
+    });
+    for (const provider of ["google", "discord", "mock"]) {
+      expect(await startStatus(url, provider)).toBe(404);
+    }
+  });
+
+  it("lists the one provider with credentials", async () => {
+    const url = await serveWith(GOOGLE);
+    expect(await listed(url)).toEqual({
+      providers: [
+        { id: "google", kind: "oauth" },
+        // ── quickdraw-game:start ──
+        { id: "guest", kind: "guest" },
+        // ── quickdraw-game:end ──
+      ],
+    });
+    expect(await startStatus(url, "google")).toBe(302);
+    expect(await startStatus(url, "discord")).toBe(404);
+    expect(await startStatus(url, "mock")).toBe(404);
+  });
+
+  it("lists every provider configured, the mock only while it is enabled", async () => {
+    const url = await serveWith({ ...GOOGLE, ...DISCORD, ENABLE_MOCK_OAUTH: "true" });
+    expect(await listed(url)).toEqual({
+      providers: [
+        { id: "google", kind: "oauth" },
+        { id: "discord", kind: "oauth" },
+        { id: "mock", kind: "mock" },
+        // ── quickdraw-game:start ──
+        { id: "guest", kind: "guest" },
+        // ── quickdraw-game:end ──
+      ],
+    });
+    for (const provider of ["google", "discord", "mock"]) {
+      expect(await startStatus(url, provider)).toBe(302);
+    }
+
+    // the kit checks the mock's flag on every request, and so does the list
+    vi.stubEnv("ENABLE_MOCK_OAUTH", undefined);
+    expect(await listed(url)).toEqual({
+      providers: [
+        { id: "google", kind: "oauth" },
+        { id: "discord", kind: "oauth" },
+        // ── quickdraw-game:start ──
+        { id: "guest", kind: "guest" },
+        // ── quickdraw-game:end ──
+      ],
+    });
+    expect(await startStatus(url, "mock")).toBe(404);
   });
 });
