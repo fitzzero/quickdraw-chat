@@ -107,10 +107,10 @@ async function tickTo(connection: ApiConnection): Promise<WorldSnapshot> {
     return (
       recorded.event === "qd:stream" &&
       recorded.socketId === connection.socket.id &&
-      (data.item as WorldSnapshot).tick === tick
+      (data[3] as WorldSnapshot).tick === tick
     );
   });
-  return (frame.data as StreamFrame).item as WorldSnapshot;
+  return (frame.data as StreamFrame)[3] as WorldSnapshot;
 }
 
 /** The next `event` of the world `connection` receives (one received already counts). */

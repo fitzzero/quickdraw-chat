@@ -84,9 +84,9 @@ A query.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id?: string; chatId?: string; userId?: string; content?: string; role?: string; createdAt?: string }`.
 
@@ -112,10 +112,10 @@ A mutation.
 
 Input:
 
-| Field  | Type                                                                    | Notes                 |
-| ------ | ----------------------------------------------------------------------- | --------------------- |
-| `id`   | `string`                                                                | at least 1 characters |
-| `data` | `{ chatId?: string; userId?: string; content?: string; role?: string }` |                       |
+| Field  | Type                                                                    | Notes                |
+| ------ | ----------------------------------------------------------------------- | -------------------- |
+| `id`   | `string`                                                                | at least 1 character |
+| `data` | `{ chatId?: string; userId?: string; content?: string; role?: string }` |                      |
 
 Output: `{ id?: string; chatId?: string; userId?: string; content?: string; role?: string; createdAt?: string }`.
 
@@ -127,9 +127,9 @@ A mutation.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `null`.
 
@@ -141,7 +141,7 @@ A query.
 
 Input: `{}`.
 
-Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string }[] }`.
+Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string; kind?: "grants"; showInForm?: boolean }[] }`.
 
 ### `adminSubscribers`
 
@@ -151,9 +151,9 @@ A query.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
 
@@ -165,9 +165,9 @@ A mutation.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
 

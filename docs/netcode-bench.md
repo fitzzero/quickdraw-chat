@@ -64,7 +64,7 @@ real render pipeline, including WASM frame pacing.
 | `packet.gapRate`                         | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted). | ~0 except bursty scenarios.                                                |
 | `packet.inputAckRttMs`                   | Input send → first snapshot acking it.                                                                                 | RTT + up-to-one-tick alignment.                                            |
 | `server.tickDurMs` / `effectiveTickRate` | Sim cost and loop health.                                                                                              | ≪ 50ms / 20Hz.                                                             |
-| `server.snapshotBytes`                   | The snapshot's JSON (the stream item). On the wire each `qd:stream` frame adds its envelope, ~65 bytes.                | Grows with players; add fields consciously.                                |
+| `server.snapshotBytes`                   | The snapshot's JSON (the stream item). On the wire each `qd:stream` frame adds its envelope, 59 bytes.                 | Grows with players; add fields consciously.                                |
 
 Aggregated runs (`--runs 3`) report element-wise medians plus `runVariance`
 (max−min of headline metrics across runs). `bench:compare` treats deltas

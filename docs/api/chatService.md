@@ -16,13 +16,13 @@
 
 ### `listItem`
 
-| Field           | Type      | Notes                 |
-| --------------- | --------- | --------------------- |
-| `id`            | `string`  |                       |
-| `title`         | `string`  |                       |
-| `memberCount`   | `integer` | 0 to 9007199254740991 |
-| `lastMessageAt` | `string`  | format date-time      |
-| `createdAt`     | `string`  | format date-time      |
+| Field           | Type      | Notes            |
+| --------------- | --------- | ---------------- |
+| `id`            | `string`  |                  |
+| `title`         | `string`  |                  |
+| `memberCount`   | `integer` | non-negative     |
+| `lastMessageAt` | `string`  | format date-time |
+| `createdAt`     | `string`  | format date-time |
 
 ## Methods
 
@@ -108,11 +108,11 @@ A mutation.
 
 Input:
 
-| Field      | Type                              | Notes                 |
-| ---------- | --------------------------------- | --------------------- |
-| `chatId`   | `string`                          | format cuid           |
-| `userName` | `string`                          | at least 1 characters |
-| `level`    | `"Read" \| "Moderate" \| "Admin"` |                       |
+| Field      | Type                              | Notes                |
+| ---------- | --------------------------------- | -------------------- |
+| `chatId`   | `string`                          | format cuid          |
+| `userName` | `string`                          | at least 1 character |
+| `level`    | `"Read" \| "Moderate" \| "Admin"` |                      |
 
 Output: `{ id: string } | { error: "user_not_found" }`.
 
@@ -169,9 +169,9 @@ A query.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id?: string; title?: string; lastMessageAt?: string; createdAt?: string; updatedAt?: string }`.
 
@@ -197,10 +197,10 @@ A mutation.
 
 Input:
 
-| Field  | Type                                         | Notes                 |
-| ------ | -------------------------------------------- | --------------------- |
-| `id`   | `string`                                     | at least 1 characters |
-| `data` | `{ title?: string; lastMessageAt?: string }` |                       |
+| Field  | Type                                         | Notes                |
+| ------ | -------------------------------------------- | -------------------- |
+| `id`   | `string`                                     | at least 1 character |
+| `data` | `{ title?: string; lastMessageAt?: string }` |                      |
 
 Output: `{ id?: string; title?: string; lastMessageAt?: string; createdAt?: string; updatedAt?: string }`.
 
@@ -212,9 +212,9 @@ A mutation.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `null`.
 
@@ -226,7 +226,7 @@ A query.
 
 Input: `{}`.
 
-Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string }[] }`.
+Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string; kind?: "grants"; showInForm?: boolean }[] }`.
 
 ### `adminSubscribers`
 
@@ -236,9 +236,9 @@ A query.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
 
@@ -250,9 +250,9 @@ A mutation.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
 

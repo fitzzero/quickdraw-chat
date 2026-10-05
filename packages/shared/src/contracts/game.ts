@@ -206,7 +206,6 @@ export const gameContract = defineContract("gameService", {
     // once. Public: signed-out visitors spectate.
     // quickdraw-5.0 finding: a seed is only the last N items pushed, so a keyframe-plus-delta stream (food spawned/eaten) cannot hand a joiner the current world (the bootstrap call still has to), and the seed of a world that stopped ticking may be minutes old with nothing saying so: a service-computed seed (or stream.setSeed) is missing
     // quickdraw-5.0 finding: stream access has no room form, so a feed cannot be limited to the sockets in a room the way a channel's requires: { room } limits input; this world is public, a private match would have to repeat its membership as an entry policy
-    // quickdraw-5.0 finding: each qd:stream frame repeats {"s","stream","scope","item"} keys: 87 bytes of framing against 20 for a 4.x room event, +67 bytes per snapshot per client (+1.3 KB/s per client at 20 Hz, +29% on a two-player snapshot) where qd:event and qd:ch already use arrays
     world: {
       item: worldSnapshotSchema,
       scope: "worldId",

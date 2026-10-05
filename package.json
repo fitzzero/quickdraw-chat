@@ -38,8 +38,8 @@
     "prepare": "husky && conveyor-skills link && quickdraw-skills link"
   },
   "devDependencies": {
-    "@fitzzero/quickdraw-lint": "5.0.0-rc.3",
-    "@fitzzero/quickdraw-skills": "5.0.0-rc.3",
+    "@fitzzero/quickdraw-lint": "5.0.0-rc.4",
+    "@fitzzero/quickdraw-skills": "5.0.0-rc.4",
     "@rallycry/conveyor-skills": "^1.0.4",
     "@types/node": "^24.0.0",
     "@typescript/native-preview": "^7.0.0-dev",

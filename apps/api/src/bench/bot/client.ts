@@ -155,9 +155,9 @@ export class BotClient {
       });
     });
 
-    socket.on("qd:stream", (frame: StreamFrame) => {
-      if (frame.s === "gameService" && frame.stream === "world") {
-        this.onSnapshot(frame.item as WorldSnapshot);
+    socket.on("qd:stream", ([service, stream, , item]: StreamFrame) => {
+      if (service === "gameService" && stream === "world") {
+        this.onSnapshot(item as WorldSnapshot);
       }
     });
     socket.on("qd:event", ([service, event, payload]: EventFrame) => {

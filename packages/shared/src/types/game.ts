@@ -10,8 +10,8 @@
 //   client → server qd:ch   ["gameService", "input", GameInput]
 //                  (~20Hz, fire-and-forget; dropped unless the sending
 //                  socket is in the world's room)
-//   server → client qd:stream { s: "gameService", stream: "world",
-//                  scope: worldId, item: WorldSnapshot }
+//   server → client qd:stream ["gameService", "world", worldId,
+//                  WorldSnapshot]
 //                  (20Hz, volatile, seeded with the latest snapshot)
 //   server → room  qd:event ["gameService", "playerJoined" | "playerLeft" |
 //                  "death" | "leaderboard" | "scoreSaved", payload] (reliable)

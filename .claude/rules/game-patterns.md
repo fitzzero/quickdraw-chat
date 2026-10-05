@@ -70,7 +70,7 @@ spectators behind the pre-game dialog keep the NPC world running.
   it.
 - Only snake heads go on the wire — bodies are derived from head-path history
   on both sides. Keep snapshots small; add fields consciously (each stream
-  frame also carries its `{ s, stream, scope }` envelope).
+  frame also carries its `[service, stream, scope]` envelope).
 - The world row (`GameWorld`) exists for its chat and the admin screen. It
   uses the deterministic id `GLOBAL_WORLD_ID` from `@project/shared` so boot,
   seed, and tests converge on the same row (`ensureGlobalWorld`, tracked

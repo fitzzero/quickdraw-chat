@@ -23,9 +23,9 @@ A mutation.
 
 Input:
 
-| Field     | Type     | Notes                 |
-| --------- | -------- | --------------------- |
-| `worldId` | `string` | at least 1 characters |
+| Field     | Type     | Notes                |
+| --------- | -------- | -------------------- |
+| `worldId` | `string` | at least 1 character |
 
 Output: `{ worldId: string; chatId: string | null; tick: integer; tickRate: number; bounds: { w: number; h: number }; players: { id: string; name: string | null; hue: number }[]; snaps: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; food: { id: string; x: number; y: number; v: number }[]; you: { id: string; name: string | null; hue: number } }`.
 
@@ -37,9 +37,9 @@ A query.
 
 Input:
 
-| Field     | Type     | Notes                 |
-| --------- | -------- | --------------------- |
-| `worldId` | `string` | at least 1 characters |
+| Field     | Type     | Notes                |
+| --------- | -------- | -------------------- |
+| `worldId` | `string` | at least 1 character |
 
 Output: `{ worldId: string; chatId: string | null; tick: integer; tickRate: number; bounds: { w: number; h: number }; players: { id: string; name: string | null; hue: number }[]; snaps: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; food: { id: string; x: number; y: number; v: number }[] }`.
 
@@ -51,9 +51,9 @@ A mutation.
 
 Input:
 
-| Field     | Type     | Notes                 |
-| --------- | -------- | --------------------- |
-| `worldId` | `string` | at least 1 characters |
+| Field     | Type     | Notes                |
+| --------- | -------- | -------------------- |
+| `worldId` | `string` | at least 1 character |
 
 Output: `{ ok: true }`.
 
@@ -65,9 +65,9 @@ A mutation.
 
 Input:
 
-| Field     | Type     | Notes                 |
-| --------- | -------- | --------------------- |
-| `worldId` | `string` | at least 1 characters |
+| Field     | Type     | Notes                |
+| --------- | -------- | -------------------- |
+| `worldId` | `string` | at least 1 character |
 
 Output: `{ ok: true }`.
 
@@ -93,9 +93,9 @@ A query.
 
 Input:
 
-| Field     | Type     | Notes                 |
-| --------- | -------- | --------------------- |
-| `worldId` | `string` | at least 1 characters |
+| Field     | Type     | Notes                |
+| --------- | -------- | -------------------- |
+| `worldId` | `string` | at least 1 character |
 
 Output: `{ bestLength: integer }`.
 
@@ -107,10 +107,10 @@ A query.
 
 Input:
 
-| Field     | Type      | Notes                 |
-| --------- | --------- | --------------------- |
-| `worldId` | `string`  | at least 1 characters |
-| `limit?`  | `integer` | 1 to 100              |
+| Field     | Type      | Notes                |
+| --------- | --------- | -------------------- |
+| `worldId` | `string`  | at least 1 character |
+| `limit?`  | `integer` | 1 to 100             |
 
 Output: `{ userId: string; name: string | null; image: string | null; isGuest: boolean; bestLength: integer }[]`.
 
@@ -138,9 +138,9 @@ A query.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id?: string; slug?: string; name?: string; chatId?: string | null; createdAt?: string; updatedAt?: string }`.
 
@@ -152,10 +152,10 @@ A mutation.
 
 Input:
 
-| Field  | Type                                                        | Notes                 |
-| ------ | ----------------------------------------------------------- | --------------------- |
-| `id`   | `string`                                                    | at least 1 characters |
-| `data` | `{ slug?: string; name?: string; chatId?: string \| null }` |                       |
+| Field  | Type                                                        | Notes                |
+| ------ | ----------------------------------------------------------- | -------------------- |
+| `id`   | `string`                                                    | at least 1 character |
+| `data` | `{ slug?: string; name?: string; chatId?: string \| null }` |                      |
 
 Output: `{ id?: string; slug?: string; name?: string; chatId?: string | null; createdAt?: string; updatedAt?: string }`.
 
@@ -167,7 +167,7 @@ A query.
 
 Input: `{}`.
 
-Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string }[] }`.
+Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string; kind?: "grants"; showInForm?: boolean }[] }`.
 
 ### `adminSubscribers`
 
@@ -177,9 +177,9 @@ A query.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
 
@@ -191,9 +191,9 @@ A mutation.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
 
@@ -207,7 +207,7 @@ Feeds of items the server appends, each subscriber starting from the latest few.
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Item     | `{ tick: integer; t?: number; players: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; foodSpawned?: { id: string; x: number; y: number; v: number }[]; foodEaten?: string[] }` |
 | Scope    | one feed per `worldId`                                                                                                                                                                                                                     |
-| Seed     | the latest 1 items                                                                                                                                                                                                                         |
+| Seed     | the latest item                                                                                                                                                                                                                            |
 | Volatile | yes                                                                                                                                                                                                                                        |
 | Access   | `"public"`                                                                                                                                                                                                                                 |
 

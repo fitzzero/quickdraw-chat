@@ -21,7 +21,7 @@
     "docs:check": "quickdraw-docs src/index.ts --out ../../docs/api --check"
   },
   "dependencies": {
-    "@fitzzero/quickdraw-core": "5.0.0-rc.3",
+    "@fitzzero/quickdraw-core": "5.0.0-rc.4",
     "zod": "^4.2.0"
   },
   "devDependencies": {

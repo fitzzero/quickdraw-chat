@@ -52,10 +52,13 @@ function statusOf(session: StorySession = {}): QuickdrawStatus {
     connection: idleConnection,
     status: connected ? "connected" : "connecting",
     isConnected: connected,
+    isKnown: connected,
+    reconnecting: false,
     hello: connected
       ? {
           protocol: PROTOCOL_VERSION,
           server: QUICKDRAW_VERSION,
+          serverId: "storybook",
           limits: {
             maxInFlightQueries: 8,
             maxQueuedQueries: 64,

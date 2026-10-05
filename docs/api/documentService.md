@@ -24,9 +24,9 @@ A query.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: one row as the `entity` projection.
 
@@ -73,7 +73,7 @@ Input:
 
 | Field      | Type     | Notes                     |
 | ---------- | -------- | ------------------------- |
-| `id`       | `string` | at least 1 characters     |
+| `id`       | `string` | at least 1 character      |
 | `title?`   | `string` | 1 to 200 characters       |
 | `content?` | `string` | at most 100000 characters |
 
@@ -87,9 +87,9 @@ A mutation.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `null`.
 
@@ -101,11 +101,11 @@ A mutation.
 
 Input:
 
-| Field    | Type                              | Notes                 |
-| -------- | --------------------------------- | --------------------- |
-| `id`     | `string`                          | at least 1 characters |
-| `userId` | `string`                          | at least 1 characters |
-| `level`  | `"Read" \| "Moderate" \| "Admin"` |                       |
+| Field    | Type                              | Notes                |
+| -------- | --------------------------------- | -------------------- |
+| `id`     | `string`                          | at least 1 character |
+| `userId` | `string`                          | at least 1 character |
+| `level`  | `"Read" \| "Moderate" \| "Admin"` |                      |
 
 Output: `{ userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[]`.
 
@@ -117,10 +117,10 @@ A mutation.
 
 Input:
 
-| Field    | Type     | Notes                 |
-| -------- | -------- | --------------------- |
-| `id`     | `string` | at least 1 characters |
-| `userId` | `string` | at least 1 characters |
+| Field    | Type     | Notes                |
+| -------- | -------- | -------------------- |
+| `id`     | `string` | at least 1 character |
+| `userId` | `string` | at least 1 character |
 
 Output: `{ userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[]`.
 
@@ -132,11 +132,11 @@ A mutation.
 
 Input:
 
-| Field    | Type                              | Notes                 |
-| -------- | --------------------------------- | --------------------- |
-| `id`     | `string`                          | at least 1 characters |
-| `userId` | `string`                          | at least 1 characters |
-| `level`  | `"Read" \| "Moderate" \| "Admin"` |                       |
+| Field    | Type                              | Notes                |
+| -------- | --------------------------------- | -------------------- |
+| `id`     | `string`                          | at least 1 character |
+| `userId` | `string`                          | at least 1 character |
+| `level`  | `"Read" \| "Moderate" \| "Admin"` |                      |
 
 Output: `{ userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[]`.
 
@@ -148,9 +148,9 @@ A query.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[]`.
 
@@ -179,9 +179,9 @@ A query.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id?: string; title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[] | null; createdAt?: string; updatedAt?: string }`.
 
@@ -207,10 +207,10 @@ A mutation.
 
 Input:
 
-| Field  | Type                                                                                                                                             | Notes                 |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
-| `id`   | `string`                                                                                                                                         | at least 1 characters |
-| `data` | `{ title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" \| "Read" \| "Moderate" \| "Admin" }[] \| null }` |                       |
+| Field  | Type                                                                                                                                             | Notes                |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| `id`   | `string`                                                                                                                                         | at least 1 character |
+| `data` | `{ title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" \| "Read" \| "Moderate" \| "Admin" }[] \| null }` |                      |
 
 Output: `{ id?: string; title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[] | null; createdAt?: string; updatedAt?: string }`.
 
@@ -222,9 +222,9 @@ A mutation.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `null`.
 
@@ -236,7 +236,7 @@ A query.
 
 Input: `{}`.
 
-Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string }[] }`.
+Output: `{ serviceName: string; displayName: string; fields: { name: string; type: "string" | "number" | "boolean" | "date" | "enum" | "json" | "relation"; label: string; required: boolean; editable: boolean; showInTable: boolean; sortable: boolean; filterable?: boolean; enumValues?: string[]; relationService?: string; kind?: "grants"; showInForm?: boolean }[] }`.
 
 ### `adminSubscribers`
 
@@ -246,9 +246,9 @@ A query.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
 
@@ -260,8 +260,8 @@ A mutation.
 
 Input:
 
-| Field | Type     | Notes                 |
-| ----- | -------- | --------------------- |
-| `id`  | `string` | at least 1 characters |
+| Field | Type     | Notes                |
+| ----- | -------- | -------------------- |
+| `id`  | `string` | at least 1 character |
 
 Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: integer; Admin: integer }; complete: boolean }`.
