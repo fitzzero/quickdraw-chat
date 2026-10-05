@@ -6,7 +6,8 @@ extends Node
 ## 1. Web export: the wrapper page sets `window.QuickdrawHost` BEFORE the
 ##    engine starts: { apiUrl, socketPath, authToken|null, worldSlug }.
 ##    Cookie auth needs no token — the browser attaches the session cookie
-##    to the websocket handshake (same-site in dev, SameSite=None in prod).
+##    to the websocket handshake (SameSite=Lax: the page and the API share a
+##    site, see DEPLOYMENT.md).
 ## 2. Editor/desktop: QUICKDRAW_DEV_USER_ID env var or user://dev.json
 ##    ({"api_url": ..., "user_id": ...}) against the local API's dev
 ##    credentials (ENABLE_DEV_CREDENTIALS=true, the dev default). An unknown

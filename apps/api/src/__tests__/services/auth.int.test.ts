@@ -110,6 +110,56 @@ describe("sessions on sockets", () => {
   });
 });
 
+describe("HTTP calls (POST /qd) with the session cookie", () => {
+  /** `userService.getMe` over HTTP with the session cookie (`session` over plain HTTP) and `headers`. */
+  async function getMe(token: string, headers: Record<string, string> = {}): Promise<Response> {
+    return await fetch(`${app.url}/qd/userService/getMe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: `session=${token}`, ...headers },
+      body: "{}",
+    });
+  }
+
+  it("answers a call from an allowed page, and refuses another site's page (403)", async () => {
+    const { token } = await issueSession(auth.keys, users.regular.id, { provider: "test" });
+
+    const allowed = await getMe(token, { Origin: TEST_WEB_ORIGIN });
+    expect(allowed.status).toBe(200);
+    expect(await allowed.json()).toMatchObject({ ok: true, d: { id: users.regular.id } });
+
+    // a page elsewhere calling with the user's cookie, as the socket test above
+    const crossSite = await getMe(token, { Origin: "http://evil.example.com" });
+    expect(crossSite.status).toBe(403);
+    expect(await crossSite.json()).toMatchObject({ ok: false, e: { code: "FORBIDDEN" } });
+  });
+
+  it("answers a call without Origin (a server forwarding the cookie), unless it says another site sent it", async () => {
+    const { token } = await issueSession(auth.keys, users.regular.id, { provider: "test" });
+
+    // what createServerCaller sends from a server rendering a page
+    const forwarded = await getMe(token);
+    expect(forwarded.status).toBe(200);
+    expect(await forwarded.json()).toMatchObject({ ok: true, d: { id: users.regular.id } });
+
+    expect((await getMe(token, { "Sec-Fetch-Site": "cross-site" })).status).toBe(403);
+  });
+
+  it("checks no Origin for a bearer token, which no other page can send", async () => {
+    const { token } = await issueSession(auth.keys, users.regular.id, { provider: "test" });
+    const response = await fetch(`${app.url}/qd/userService/getMe`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        Origin: "http://evil.example.com",
+      },
+      body: "{}",
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, d: { id: users.regular.id } });
+  });
+});
+
 describe("the session routes", () => {
   it("answers /auth/me, then signs out: the session ends and its sockets close", async () => {
     const { session, token } = await issueSession(auth.keys, users.regular.id, {
@@ -421,5 +471,21 @@ describe("the production allow-list on the sign-in routes and cookie sockets", (
     socket.disconnect();
 
     await expect(connect({}, { cookie, origin: CODESPACE }, production.url)).rejects.toThrow();
+  });
+
+  it("refuses the session cookie on an HTTP call from a Codespace page (403)", async () => {
+    const { token } = await issueSession(auth.keys, users.regular.id, { provider: "test" });
+    const call = (origin: string): Promise<Response> =>
+      fetch(`${production.url}/qd/userService/getMe`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `__Host-session=${token}`,
+          Origin: origin,
+        },
+        body: "{}",
+      });
+    expect((await call(WEB)).status).toBe(200);
+    expect((await call(CODESPACE)).status).toBe(403);
   });
 });

@@ -37,7 +37,8 @@ signal stream_item(service: String, stream: String, scope: String, item: Variant
 signal stream_seeded(service: String, stream: String, scope: String, seed: Array)
 ## Who is in an app room the socket is in, after a `qd:presence` frame.
 signal presence_changed(room: String, users: Array)
-## The server ended a subscription (`qd:revoked`).
+## The server ended a subscription (`qd:revoked`), or refused to subscribe a
+## held feed again after a reconnect (`reason` "refused", with its `error`).
 signal revoked(frame: Dictionary)
 ## The server asked the client to reconnect (`qd:rotate`): the socket stays
 ## open, calls still answered, until a random moment within `within_ms`; then
@@ -215,15 +216,21 @@ func send_channel(service: String, channel: String, payload: Variant) -> bool:
 
 ## Subscribes to a stream (one scope of it, for a scoped stream) and returns
 ## the acknowledgement, {ok: true, seed: [...]}. Items then arrive as
-## `stream_item`; after a reconnect the client subscribes again by itself.
+## `stream_item`; after a reconnect the client subscribes again by itself. A
+## refusal on a live connection ({ok: false}: FORBIDDEN, NOT_FOUND, ...)
+## leaves the feed not held (`is_subscribed` is false); one lost with the
+## connection is held, and subscribed again after the reconnect.
 func subscribe_stream(service: String, stream: String, scope := "") -> Dictionary:
 	var frame := {"s": service, "stream": stream}
 	if scope != "":
 		frame["scope"] = scope
-	_streams[_stream_key(service, stream, scope)] = frame
+	var key := _stream_key(service, stream, scope)
+	_streams[key] = frame
 	var answer := await request("qd:stream:sub", frame)
 	if answer.get("ok", false):
 		stream_seeded.emit(service, stream, scope, answer.get("seed", []))
+	else:
+		_drop_refused(key, frame)
 	return answer
 
 
@@ -235,9 +242,10 @@ func unsubscribe_stream(service: String, stream: String, scope := "") -> void:
 
 
 ## True while the client holds the feed: from `subscribe_stream` until
-## `unsubscribe_stream` or a `qd:revoked` for it. The client subscribes to a
-## held feed again after each reconnect, so a caller that asks first never
-## sends a second `qd:stream:sub`.
+## `unsubscribe_stream`, a `qd:revoked` for it, or a refusal of its
+## subscribe on a live connection (then false at once). The client
+## subscribes to a held feed again after each reconnect, so a caller that
+## asks first never sends a second `qd:stream:sub`.
 func is_subscribed(service: String, stream: String, scope := "") -> bool:
 	return _streams.has(_stream_key(service, stream, scope))
 
@@ -464,8 +472,26 @@ func _on_hello(data: Variant) -> void:
 
 func _resubscribe(frame: Dictionary) -> void:
 	var answer := await request("qd:stream:sub", frame)
+	var scope: String = frame.get("scope", "")
 	if answer.get("ok", false):
-		stream_seeded.emit(frame.s, frame.stream, frame.get("scope", ""), answer.get("seed", []))
+		stream_seeded.emit(frame.s, frame.stream, scope, answer.get("seed", []))
+	elif _drop_refused(_stream_key(frame.s, frame.stream, scope), frame):
+		# The feed held before the reconnect is gone (access lost meanwhile): say so.
+		var ended := {"kind": "stream", "reason": "refused", "s": frame.s, "stream": frame.stream, "error": answer.get("e", {})}
+		if scope != "":
+			ended["scope"] = scope
+		revoked.emit(ended)
+
+
+## Forgets a feed whose `qd:stream:sub` the server refused on a live
+## connection, unless another subscribe replaced its frame meanwhile; a
+## failure that came with a lost connection keeps it, for the reconnect.
+## Returns true when it forgot it.
+func _drop_refused(key: String, frame: Dictionary) -> bool:
+	if state != State.READY or not is_same(_streams.get(key), frame):
+		return false
+	_streams.erase(key)
+	return true
 
 
 ## `[service, stream, scope, item]`, `scope` null for a global stream;

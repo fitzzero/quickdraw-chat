@@ -207,12 +207,15 @@ Merge to `main` and the workflow runs itself. To deploy without a merge, start
 the **Deploy** workflow from the Actions tab; its inputs let you run migrations
 only, skip the scan, or deploy a single side.
 
-### 6. Custom domains (recommended)
+### 6. Custom domains (required for cookie sign-in)
 
 Serve web and API from the same parent domain (`app.example.com` +
-`app-io.example.com`): the session cookie then stays same-site, which keeps
-cookie auth working in Safari (the raw `vercel.app` ↔ `run.app` pairing is
-cross-site).
+`app-io.example.com`). The session cookie is SameSite=Lax, which a browser
+sends to the API only from a page on the same site: on the raw `vercel.app`
+↔ `run.app` pairing (two sites) the web app's socket is never signed in. A
+fork that must serve the web from another site passes
+`cookie: { sameSite: "none" }` to `createAuthRoutes` (`apps/api/src/auth/index.ts`),
+which browsers that block third-party cookies (Safari) still refuse.
 
 - **Vercel**: add the domain to the project (dashboard/API), then
   CNAME `<web-sub>` → `cname.vercel-dns.com` (DNS-only if your DNS proxies).

@@ -184,8 +184,9 @@ func _enter_world_once() -> void:
 	if not Net.client.is_subscribed("gameService", "world", world_id):
 		var sub: Dictionary = await Net.client.subscribe_stream("gameService", "world", world_id)
 		if not sub.get("ok", false):
-			# A refused feed stays held until released: the retry asks again
-			Net.client.unsubscribe_stream("gameService", "world", world_id)
+			# A refused feed is not held (is_subscribed is false): the retry
+			# subscribes again. One lost with the connection stays held, and
+			# the client subscribes it again after the reconnect
 			join_failed.emit(_error_of(sub, "The world stream refused"))
 			return
 
