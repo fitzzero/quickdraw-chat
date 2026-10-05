@@ -109,6 +109,25 @@ function refuseNextCall(method: string): void {
   });
 }
 
+/**
+ * Runs the next call of `method` a socket sends and drops its answer, once:
+ * the server wrote what the call asked for and told the rooms, and the caller
+ * never hears back. Every later call goes through.
+ */
+function dropNextAnswer(method: string): void {
+  let dropped = false;
+  app.server.io.on("connection", (socket) => {
+    socket.use((packet, next) => {
+      const call = packet[1] as { m?: unknown } | undefined;
+      if (!dropped && packet[0] === "qd:call" && call?.m === method) {
+        dropped = true;
+        packet.splice(2, 1, () => undefined);
+      }
+      next();
+    });
+  });
+}
+
 /** A message send as the chat window makes it: `postMessage`'s input. */
 interface SentMessage {
   readonly id: string;
@@ -373,6 +392,40 @@ describe("a send whose connection drops before its answer", () => {
     expect(view.getAllByText("Cut off")).toHaveLength(1);
     expect(view.queryByTestId("failed-message")).toBeNull();
     expect(await storedMessages(chat.id)).toEqual([{ id: sent.id, content: "Cut off" }]);
+  });
+
+  it("shows the server's one message, sent, when only the answer was lost and the reconnect brings nothing new", async () => {
+    const { ada, bo } = await twoMembers();
+    const chat = await createTestChat({ members: [{ userId: ada }, { userId: bo }] });
+    dropNextAnswer("postMessage");
+    const view = await renderAs(ada, <ChatWindow chatId={chat.id} />);
+    await view.findByText("No messages yet. Start the conversation!");
+    sendMessage(view, "Answer lost");
+
+    // the server ran it and told the chat's room; give its frame the moment
+    // it needs to reach this window, which still waits for the answer (the
+    // window shows the same either way, so there is nothing to wait on)
+    await waitFor(async () => {
+      expect(await storedMessages(chat.id)).toHaveLength(1);
+    });
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 150);
+    });
+    expect((await view.findByTestId("pending-message")).textContent).toContain("Sending…");
+
+    // the connection drops with the answer still owed: checking
+    await view.disconnect();
+    expect((await view.findByTestId("pending-message")).textContent).toContain("Checking…");
+
+    // the reconnect's load has nothing new to bring (the row came before the
+    // drop), and still ends the wait: one message, sent, nothing to retry
+    await view.reconnect();
+    await waitFor(() => {
+      expect(view.queryByTestId("pending-message")).toBeNull();
+    });
+    expect(view.getAllByText("Answer lost")).toHaveLength(1);
+    expect(view.queryByTestId("failed-message")).toBeNull();
+    expect(await storedMessages(chat.id)).toHaveLength(1);
   });
 
   it("refuses it once the reconnect's load answers without it, and its retry posts it once", async () => {
