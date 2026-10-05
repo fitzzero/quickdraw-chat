@@ -1,5 +1,29 @@
 # Changelog
 
+## quickdraw 5.0.0-rc.7 (2026-10-05)
+
+The template on `5.0.0-rc.7`, which fixes what its move to rc.6 found in
+the framework (quickdraw's findings F11.1 to F11.4). Nothing an app must
+change.
+
+### Changed
+
+- **Ids come from the framework.** `newId()` is quickdraw's
+  (`@fitzzero/quickdraw-core/client`, the same UUID with the same fallback
+  for plain-http pages); the template's own `lib/ids.ts` is gone.
+
+### Fixed
+
+- **A message whose answer was lost no longer stays on "Checking…".** When
+  the server wrote a message and told the chat before the connection
+  dropped, the reconnect had nothing new to bring, and the window was never
+  told the wait had ended: the bubble stayed on "Checking…" with the input
+  disabled until the window was opened again (quickdraw F11.1). rc.7 ends
+  it; a test here plays that case.
+- **Loading the login page cannot use up sign-outs.** The provider list has
+  a rate limit of its own in rc.7 (it shared the 120 per 15 minutes of
+  `/auth/me` and the sign-outs: quickdraw F11.3).
+
 ## quickdraw 5.0.0-rc.6 (2026-10-05)
 
 The template on quickdraw's last 5.0 release candidate (`5.0.0-rc.6`, npm's

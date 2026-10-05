@@ -50,8 +50,8 @@ how the web app uses it.
   (give it the collection's `order` fields), and the list styles
   `useCollection().pending` as sending (`ChatWindow`: a message shows at
   once, then the server's row in its place). The row carries an id the
-  client made (`newId()` from `lib/ids.ts`, a UUID: `crypto.randomUUID()`
-  is missing on a plain-http page), sent in the input and written by the
+  client made (`newId()` from `@fitzzero/quickdraw-core/client`, a UUID:
+  `crypto.randomUUID()` is missing on a plain-http page), sent in the input and written by the
   create: when the connection drops after the call went out, or it times
   out, the server may have the row, so it stays, in
   `useCollection().checking` too (shown as checking), until the scope's

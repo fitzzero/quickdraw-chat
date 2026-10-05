@@ -3,10 +3,9 @@
 import * as React from "react";
 import { Box, Typography } from "@mui/material";
 import { useTranslations } from "next-intl";
-import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
+import { newId, useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import { MessageList, type FailedMessage } from "./MessageList";
 import { MessageInput } from "./MessageInput";
-import { newId } from "../../lib/ids";
 import { qd } from "../../lib/quickdraw";
 import { useErrorText } from "../../hooks/useErrorText";
 
