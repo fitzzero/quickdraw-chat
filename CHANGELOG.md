@@ -3,7 +3,7 @@
 ## quickdraw 5.0 (2026-10-04)
 
 The whole template moved from `@fitzzero/quickdraw-core` 4.1 to the 5.0
-release candidate (`5.0.0-rc.3`): the server, the web app, the game and its
+release candidate (`5.0.0-rc.4`): the server, the web app, the game and its
 Godot client, the tests, CI and the docs. Everyone signs in once more
 (session tokens now name their session).
 
@@ -36,8 +36,38 @@ Godot client, the tests, CI and the docs. Everyone signs in once more
 - **Tooling.** Lint extends `@fitzzero/quickdraw-lint`'s template config;
   quickdraw's agent rules and skills are linked into `.claude/` by
   `@fitzzero/quickdraw-skills`, and this app's own rules were rewritten for
-  5.0; `docs/api` is generated from the contracts by `quickdraw-docs`
-  (`bun run docs:generate`, checked in CI).
+  5.0; `docs/api` is generated from the contracts and the services by
+  `quickdraw-docs` (who may call each method; `bun run docs:generate`,
+  checked in CI).
+
+### On `5.0.0-rc.4`
+
+The release candidate that fixed what this migration found; every
+temporary workaround is gone.
+
+- **Wire.** `qd:stream` frames are positional
+  (`[service, stream, scope, item]`): the Godot addon is quickdraw's rc.4
+  reference client again, and the bench bots read frames by position.
+- **Web.** A sent message shows at once through the mutation's optimistic
+  add (`cache.addItem`, `useCollection().pending`); sign-in and sign-out use
+  the client's `signInUrl`, `signOut` and `signOutEverywhere` (a refused
+  sign-out now says so and stays); the gates read `isKnown`, and a
+  "Reconnecting…" notice shows while `reconnecting`; the admin screens use
+  `adminOf(qd, key)` and keep the grants field out of their forms
+  (`showInForm: false`, the editor finds it by `kind: "grants"`); the chat
+  roster arrives with `setData`; the game page joins its rooms with
+  `useJoin`; Storybook and component tests use the mock's own provider.
+- **Game.** The game service brings its own `onRoomLeave`; the world
+  stream's seed is the current world, computed per subscriber, and checked
+  in development only; the audience is `qd.rooms.size`; the high scores
+  watch the service topic (the `scoreSaved` event is gone, and `/scores`
+  updates live); admin edits of definitions reach the sim through the admin
+  kit's `onWrite`; the Godot clock follows the hello's `server_id`.
+- **Server and tests.** REST routes read `sessionOf(req)` and call services
+  as `qd.caller(principal)`, with the user's grants; the world is made
+  before `createServer`; the realtime tests match frames with
+  `streamFrames`/`eventFrames`; PGlite workers open their database with
+  `openPgliteFromTemplate`, and the web tests add `installJsdomShims()`.
 
 ## August 2026 — netcode R&D, PWA, and the move to a `dev` integration branch (2026-08-29)
 
