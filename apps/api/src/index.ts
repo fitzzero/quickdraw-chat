@@ -70,8 +70,8 @@ const auth = createAppAuth({
 
 /**
  * CORS for Express and Socket.IO alike: the auth's allowed origins (CLIENT_URL,
- * EXTRA_ALLOWED_ORIGINS, Codespaces, localhost in dev). Requests without an
- * Origin header (curl, same-origin) pass through.
+ * EXTRA_ALLOWED_ORIGINS, and Codespaces and localhost outside production).
+ * Requests without an Origin header (curl, same-origin) pass through.
  */
 function corsOrigin(
   origin: string | undefined,

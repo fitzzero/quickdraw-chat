@@ -9,10 +9,12 @@ import { issueSession, type OAuthTokenResponse } from "@fitzzero/quickdraw-core/
 import { createTestApp, type TestApp } from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import type { AccessLevel } from "@project/shared";
+import { allowedOriginsFromEnv } from "../../auth/config.js";
 import { createGrantsLoader } from "../../auth/grants.js";
+import { createAppAuth } from "../../auth/index.js";
 import { upsertOAuthUser, type SignInProfile } from "../../auth/users.js";
 import { services, serviceNames } from "../../services/index.js";
-import { createTestAuth, TEST_WEB_ORIGIN } from "../utils/auth.js";
+import { createTestAuth, TEST_JWT_SECRET, TEST_WEB_ORIGIN } from "../utils/auth.js";
 import { createTestUser } from "../factories/user-factory.js";
 
 type Users = Awaited<ReturnType<typeof seedTestUsers>>;
@@ -44,8 +46,9 @@ beforeEach(async () => {
 async function connect(
   handshake: Record<string, unknown>,
   headers: Record<string, string> = {},
+  url: string = app.url,
 ): Promise<{ socket: Socket; hello: HelloFrame }> {
-  const socket = io(app.url, {
+  const socket = io(url, {
     forceNew: true,
     reconnection: false,
     transports: ["websocket"],
@@ -346,5 +349,77 @@ describe("sign-in accounts and verified emails", () => {
       email: "later@example.com",
       emailVerified: true,
     });
+  });
+});
+
+describe("the production allow-list on the sign-in routes and cookie sockets", () => {
+  const CODESPACE = "https://someone-else-3000.app.github.dev";
+  const WEB = "https://app.example.com";
+  let production: TestApp<typeof services>;
+  const mockBefore = process.env.ENABLE_MOCK_OAUTH;
+
+  /** Sets one environment variable, or removes it for `undefined`. */
+  function setEnv(name: string, value: string | undefined): void {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+
+  /** The allowed origins as the API computes them at boot in production. */
+  function productionOrigins(): ReturnType<typeof allowedOriginsFromEnv> {
+    const nodeEnv = process.env.NODE_ENV;
+    const clientUrl = process.env.CLIENT_URL;
+    process.env.NODE_ENV = "production";
+    process.env.CLIENT_URL = WEB;
+    try {
+      return allowedOriginsFromEnv();
+    } finally {
+      setEnv("NODE_ENV", nodeEnv);
+      setEnv("CLIENT_URL", clientUrl);
+    }
+  }
+
+  beforeAll(async () => {
+    // the mock provider's start route checks returnTo as every provider's does
+    process.env.ENABLE_MOCK_OAUTH = "true";
+    const productionAuth = createAppAuth({
+      prisma: testPrisma,
+      serviceNames,
+      jwtSecret: TEST_JWT_SECRET,
+      allowedOrigins: productionOrigins(),
+    });
+    const routes = express();
+    routes.use(express.json());
+    routes.use(productionAuth.routes);
+    production = await createTestApp({
+      services,
+      db: testDb,
+      app: routes,
+      auth: productionAuth.server,
+    });
+  });
+
+  afterAll(async () => {
+    await production.close();
+    setEnv("ENABLE_MOCK_OAUTH", mockBefore);
+  });
+
+  it("refuses a Codespace as a sign-in's returnTo, as any other site", async () => {
+    const start = (returnTo: string): Promise<Response> =>
+      fetch(`${production.url}/auth/mock/start?returnTo=${encodeURIComponent(returnTo)}`, {
+        redirect: "manual",
+      });
+    expect((await start(WEB)).status).toBe(302);
+    expect((await start(CODESPACE)).status).toBe(422);
+    expect((await start("https://evil.example.com")).status).toBe(422);
+  });
+
+  it("refuses the session cookie on a socket from a Codespace page", async () => {
+    const { token } = await issueSession(auth.keys, users.regular.id, { provider: "test" });
+    const cookie = `__Host-session=${token}`;
+    const { socket, hello } = await connect({}, { cookie, origin: WEB }, production.url);
+    expect(hello.userId).toBe(users.regular.id);
+    socket.disconnect();
+
+    await expect(connect({}, { cookie, origin: CODESPACE }, production.url)).rejects.toThrow();
   });
 });
