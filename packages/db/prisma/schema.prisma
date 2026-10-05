@@ -110,8 +110,9 @@ model Chat {
   title     String
 
   // The time of the chat's latest message, or its creation time before the
-  // first one: maintained by messageService.postMessage, so the `myChats`
-  // collection can order by it (a collection's order names columns only).
+  // first one: maintained by messageService (postMessage moves it forward,
+  // deleting the latest message moves it back), so the `myChats` collection
+  // can order by it (a collection's order names columns only).
   lastMessageAt DateTime @default(now()) @map("last_message_at")
 
   // How many members (ChatMember rows) the chat has: what the `myChats` item

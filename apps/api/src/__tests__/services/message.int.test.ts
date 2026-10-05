@@ -150,6 +150,32 @@ describe("MessageService", () => {
     const result = await as(chatAdmin.id).messageService.deleteMessage({ id: message.id });
     expect(result.deleted).toBe(true);
   });
+
+  it("moves the chat's latest activity back when its latest message is deleted", async () => {
+    const author = as(users.regular.id);
+    const chat = await author.chatService.createChat({ title: "Rewind" });
+    const first = await author.messageService.postMessage({ chatId: chat.id, content: "first" });
+    const second = await author.messageService.postMessage({ chatId: chat.id, content: "second" });
+    const third = await author.messageService.postMessage({ chatId: chat.id, content: "third" });
+    const createdAt = async (id: string): Promise<number> =>
+      (await testPrisma.message.findUniqueOrThrow({ where: { id } })).createdAt.getTime();
+    const activity = async (): Promise<number> =>
+      (await testPrisma.chat.findUniqueOrThrow({ where: { id: chat.id } })).lastMessageAt.getTime();
+    const [firstAt, secondAt] = [await createdAt(first.id), await createdAt(second.id)];
+
+    // an older message: the latest activity stays the third's
+    const thirdAt = await createdAt(third.id);
+    await author.messageService.deleteMessage({ id: second.id });
+    expect(await activity()).toBe(thirdAt);
+    // the latest message: back to the one left
+    await author.messageService.deleteMessage({ id: third.id });
+    expect(await activity()).toBe(firstAt);
+    expect(secondAt).toBeGreaterThanOrEqual(firstAt);
+    // the last one, through the admin screens: back to the chat's creation
+    await as(users.admin.id).messageService.adminDelete({ id: first.id });
+    const stored = await testPrisma.chat.findUniqueOrThrow({ where: { id: chat.id } });
+    expect(stored.lastMessageAt.getTime()).toBe(stored.createdAt.getTime());
+  });
 });
 
 describe("MessageService access matrix", () => {

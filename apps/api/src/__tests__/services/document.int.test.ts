@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { QuickdrawError } from "@fitzzero/quickdraw-core";
 import { describeAccessMatrix, expectBudget } from "@fitzzero/quickdraw-core/testing";
@@ -217,6 +219,45 @@ describe("DocumentService budgets", () => {
   });
 });
 
+describe("documents written before 5.0", () => {
+  it("lose the owner's own access-list entry to the 5.0 data migration; listShares lists the shares", async () => {
+    const [owner, reader] = await Promise.all([createTestUser(), createTestUser()]);
+    // as 4.x's createDocument wrote them: the owner listed as Admin
+    const shared = await testPrisma.document.create({
+      data: {
+        title: "Shared",
+        ownerId: owner.id,
+        acl: [
+          { userId: owner.id, level: "Admin" },
+          { userId: reader.id, level: "Read" },
+        ],
+      },
+    });
+    const owned = await testPrisma.document.create({
+      data: { title: "Owned", ownerId: owner.id, acl: [{ userId: owner.id, level: "Admin" }] },
+    });
+    const migration = readFileSync(
+      resolve(
+        process.cwd(),
+        "../../packages/db/prisma/migrations/20261004200200_document_acl_without_owner/migration.sql",
+      ),
+      "utf8",
+    );
+
+    await testPrisma.$executeRawUnsafe(migration);
+
+    const aclOf = async (id: string): Promise<unknown> =>
+      (await testPrisma.document.findUniqueOrThrow({ where: { id } })).acl;
+    expect(await aclOf(shared.id)).toEqual([{ userId: reader.id, level: "Read" }]);
+    expect(await aclOf(owned.id)).toEqual([]);
+    expect(await as(owner.id).documentService.listShares({ id: shared.id })).toEqual([
+      { userId: reader.id, level: "Read" },
+    ]);
+    // the owner keeps Admin, from owner_id
+    expect(await codeOf(as(owner.id).documentService.delete({ id: owned.id }))).toBe("allow");
+  });
+});
+
 describe("DocumentService access matrix", () => {
   it("admits each method's callers", async () => {
     const [ownerUser, editorUser, readerUser, stranger] = await Promise.all([
@@ -230,6 +271,18 @@ describe("DocumentService access matrix", () => {
     await owner.documentService.share({ id: doc.id, userId: editorUser.id, level: "Moderate" });
     await owner.documentService.share({ id: doc.id, userId: readerUser.id, level: "Read" });
     const toDelete = await owner.documentService.create({ title: "Gone" });
+    /** A share with a user of its own, for one share cell. */
+    const shareWithNewcomer = async (): Promise<{ id: string; userId: string; level: "Read" }> => ({
+      id: doc.id,
+      userId: (await createTestUser()).id,
+      level: "Read",
+    });
+    /** A user the document is shared with, for one unshare cell. */
+    const sharedWithSomeone = async (): Promise<string> => {
+      const shared = await createTestUser();
+      await owner.documentService.share({ id: doc.id, userId: shared.id, level: "Read" });
+      return shared.id;
+    };
 
     await describeAccessMatrix(app, {
       service: documentService,
@@ -252,6 +305,12 @@ describe("DocumentService access matrix", () => {
         {
           method: "setLevel",
           input: { id: doc.id, userId: readerUser.id, level: "Read" },
+          allow: ["owner"],
+        },
+        { method: "share", input: shareWithNewcomer, allow: ["owner"] },
+        {
+          method: "unshare",
+          input: async () => ({ id: doc.id, userId: await sharedWithSomeone() }),
           allow: ["owner"],
         },
         { method: "delete", input: { id: toDelete.id }, allow: ["owner"] },

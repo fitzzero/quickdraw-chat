@@ -124,7 +124,7 @@ function isWriteConflict(error: unknown): boolean {
 }
 
 /** Prisma's foreign-key failure: the user (or the chat) does not exist. */
-function isForeignKeyFailure(error: unknown): boolean {
+export function isForeignKeyFailure(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "P2003";
 }
 

@@ -60,7 +60,7 @@ bun run build-storybook # Static Storybook build (also a CI gate)
 
 # Database (from root)
 bun run db:generate   # Regenerate Prisma client after schema changes
-bun run db:migrate    # Create + apply a migration (required for schema changes)
+bun run db:migrate    # Create + apply a migration (required for schema changes; db:generate after it)
 bun run db:seed       # Seed demo users (powers the mock OAuth login picker)
 bun run db:studio     # Open Prisma Studio (from packages/db)
 

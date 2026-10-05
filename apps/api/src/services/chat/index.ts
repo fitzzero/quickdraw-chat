@@ -1,3 +1,4 @@
+import { QuickdrawError } from "@fitzzero/quickdraw-core";
 import {
   admin,
   members,
@@ -8,7 +9,12 @@ import {
 import { chatContract } from "@project/shared";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
-import { changeMembership, listMembers, type MembershipChange } from "./membership.js";
+import {
+  changeMembership,
+  isForeignKeyFailure,
+  listMembers,
+  type MembershipChange,
+} from "./membership.js";
 // ── quickdraw-game:start ──
 import { gameContract } from "@project/shared";
 import { joinChat } from "./membership.js";
@@ -112,23 +118,33 @@ export const chatService = qd.defineService(chatContract, {
       handler: async ({ input, ctx, db }) => {
         const creator = ctx.principal.userId;
         const invited = (input.members ?? []).filter((member) => member.userId !== creator);
-        return await db.$transaction(async (tx) => {
-          const chat = await tx.chat.create({
-            data: { title: input.title, memberCount: 1 + invited.length },
-            select: { id: true },
+        try {
+          return await db.$transaction(async (tx) => {
+            const chat = await tx.chat.create({
+              data: { title: input.title, memberCount: 1 + invited.length },
+              select: { id: true },
+            });
+            await tx.chatMember.createMany({
+              data: [
+                { chatId: chat.id, userId: creator, level: "Admin" },
+                ...invited.map((member) => ({
+                  chatId: chat.id,
+                  userId: member.userId,
+                  level: member.level,
+                })),
+              ],
+            });
+            return { id: chat.id };
           });
-          await tx.chatMember.createMany({
-            data: [
-              { chatId: chat.id, userId: creator, level: "Admin" },
-              ...invited.map((member) => ({
-                chatId: chat.id,
-                userId: member.userId,
-                level: member.level,
-              })),
-            ],
-          });
-          return { id: chat.id };
-        });
+        } catch (error) {
+          // a member to add who is no user: the input's fault, nothing written
+          if (isForeignKeyFailure(error)) {
+            throw new QuickdrawError("VALIDATION", "A member to add is not a user", {
+              issues: [{ path: ["members"], message: "A member to add is not a user" }],
+            });
+          }
+          throw error;
+        }
       },
     },
     updateTitle: {
@@ -228,7 +244,7 @@ export const chatService = qd.defineService(chatContract, {
     // ── quickdraw-game:end ──
     ...admin.handlers(chatContract, {
       displayName: "Chats",
-      // kept by messageService.postMessage, not edited by hand
+      // kept by messageService (its posts and deletes), not edited by hand
       fieldOverrides: { lastMessageAt: { editable: false } },
     }),
   },

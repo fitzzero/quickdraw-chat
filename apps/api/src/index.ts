@@ -8,7 +8,7 @@ import { validateEnv } from "@fitzzero/quickdraw-core/server";
 import { createAuthLimiter, createCallLimiter } from "@fitzzero/quickdraw-core/server/express";
 import { disconnectPrisma, prisma } from "@project/db";
 import { createAppAuth } from "./auth/index.js";
-import { isAllowedOrigin } from "./auth/config.js";
+import { encryptionKeyProblem, isAllowedOrigin } from "./auth/config.js";
 import { deleteExpiredSessions } from "./auth/sessions.js";
 import { db } from "./db.js";
 import { qd } from "./quickdraw.js";
@@ -52,6 +52,14 @@ if (process.env.NODE_ENV === "production") {
       process.exit(1);
     }
   }
+}
+
+// A set ENCRYPTION_KEY that is not 64 hex characters would fail every
+// sign-in at its first token encryption: refuse to boot instead
+const encryptionKeyError = encryptionKeyProblem(process.env.ENCRYPTION_KEY);
+if (encryptionKeyError !== null) {
+  logger.error(`${encryptionKeyError} — refusing to start`);
+  process.exit(1);
 }
 
 const PORT = Number(process.env.BACKEND_PORT ?? process.env.PORT ?? 4000);
@@ -110,10 +118,11 @@ app.get("/api", (_req, res) => {
   res.json({ message: "API is running", version: "0.0.1" });
 });
 
-// /auth/{google,discord,mock}/start and /callback, /auth/guest, /auth/me,
-// /auth/logout, /auth/logout-all (each rate-limited by the kit)
+// /auth/{google,discord,mock}/start and /callback, /auth/me, /auth/logout and
+// /auth/logout-all (each rate-limited by the kit)
 app.use(auth.routes);
 // ── quickdraw-game:start ──
+// (the kit serves the guest sign-in there too, POST /auth/guest)
 // Discord Activity (Embedded App SDK) code exchange, on the kit's sessions
 app.use("/auth/discord/activity", createAuthLimiter());
 registerDiscordActivityRoutes(app, { keys: auth.keys, db: prisma });
@@ -166,9 +175,12 @@ onChanged((definition) => {
 // ── quickdraw-game:end ──
 
 // Expired-session cleanup: expired Session rows are already refused at sign-in;
-// this hourly sweep is hygiene so the table doesn't grow unbounded. Plain
-// timer, deliberately not the game loop (no DB in the tick path — see
-// game-patterns.md).
+// this hourly sweep is hygiene so the table doesn't grow unbounded. A plain
+// timer.
+// ── quickdraw-game:start ──
+// Deliberately not the game loop: no database in the tick path
+// (game-patterns.md).
+// ── quickdraw-game:end ──
 const SESSION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 async function cleanupExpiredSessions(): Promise<void> {
   try {

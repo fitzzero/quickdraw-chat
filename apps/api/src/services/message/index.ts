@@ -1,7 +1,37 @@
 import { admin, anyOf, inherit, owner } from "@fitzzero/quickdraw-core/server";
+import type { Prisma } from "@project/db";
 import { chatContract, messageContract } from "@project/shared";
 import { qd } from "../../quickdraw.js";
 import { notifyNewMessage } from "../push-subscription/index.js";
+
+/**
+ * A message is gone: when it was its chat's latest, the chat's latest
+ * activity (`Chat.lastMessageAt`, the myChats order) moves back to the
+ * latest message left, or to the chat's creation. In the delete's
+ * transaction, through its tracked client.
+ */
+async function messageDeleted(
+  tx: Prisma.TransactionClient,
+  chatId: string,
+  createdAt: Date,
+): Promise<void> {
+  const chat = await tx.chat.findUnique({
+    where: { id: chatId },
+    select: { lastMessageAt: true, createdAt: true },
+  });
+  // a message older than the chat's latest leaves it as it is
+  if (chat === null || chat.lastMessageAt > createdAt) return;
+  const latest = await tx.message.findFirst({
+    where: { chatId },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { createdAt: true },
+  });
+  await tx.chat.update({
+    where: { id: chatId },
+    data: { lastMessageAt: latest?.createdAt ?? chat.createdAt },
+    select: { id: true },
+  });
+}
 
 /**
  * Messages: access inherited from the chat a message belongs to, which is
@@ -73,15 +103,29 @@ export const messageService = qd.defineService(messageContract, {
         return { id: message.id };
       },
     },
-    // quickdraw: hand-written because it answers { id, deleted } as the chat window expects; the read/write kit's delete answers null
+    // quickdraw: hand-written because it answers { id, deleted } as the chat window expects, and moves the chat's latest activity back when its latest message goes; the read/write kit's delete answers null
     deleteMessage: {
       // its author, the chat's Admins, or a service-wide Admin grant
       access: { service: "Admin", entry: "Admin" },
       handler: async ({ input, db }) => {
-        await db.message.delete({ where: { id: input.id }, select: { id: true } });
+        await db.$transaction(async (tx) => {
+          const deleted = await tx.message.delete({
+            where: { id: input.id },
+            select: { chatId: true, createdAt: true },
+          });
+          await messageDeleted(tx, deleted.chatId, deleted.createdAt);
+        });
         return { id: input.id, deleted: true as const };
       },
     },
-    ...admin.handlers(messageContract, { displayName: "Messages" }),
+    ...admin.handlers(messageContract, {
+      displayName: "Messages",
+      // a message the admin screens delete moves its chat's activity back too
+      onWrite: async ({ method, before }, _ctx, tx: Prisma.TransactionClient) => {
+        if (method === "adminDelete" && before !== undefined) {
+          await messageDeleted(tx, before.chatId, new Date(before.createdAt));
+        }
+      },
+    }),
   },
 });

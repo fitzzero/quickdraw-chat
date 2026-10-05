@@ -133,7 +133,9 @@ export function registerDiscordActivityRoutes(app: Express, deps: DiscordActivit
         );
         // Best-effort cookie for browsers that allow it; the body token is
         // what the Activity client actually uses (socket auth.token).
-        setSessionCookie(res, token, { maxAgeMs: SESSION_TTL_MS });
+        // SameSite=Lax, as the auth routes' own sign-in sets it (the
+        // helper's production default is None, which rides cross-site requests)
+        setSessionCookie(res, token, { maxAgeMs: SESSION_TTL_MS, sameSite: "lax" });
         res.json({ token });
       } catch (error) {
         logger.warn("Discord Activity auth failed", {

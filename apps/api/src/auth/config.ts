@@ -21,6 +21,21 @@ export function jwtSecretFromEnv(): string {
   return DEV_JWT_SECRET;
 }
 
+/** ENCRYPTION_KEY's shape: 32 bytes as 64 hex characters (`openssl rand -hex 32`). */
+const ENCRYPTION_KEY_FORMAT = /^[0-9a-f]{64}$/i;
+
+/**
+ * What is wrong with ENCRYPTION_KEY, which encrypts stored provider tokens
+ * (AES-256-GCM), or `null` when nothing is: unset is fine here (production
+ * requires it through `validateEnv` in `index.ts`; development then stores
+ * tokens plain), but a set key must be 64 hex characters, or every sign-in
+ * fails at its first encryption. The server refuses to boot on an answer.
+ */
+export function encryptionKeyProblem(key: string | undefined): string | null {
+  if (key === undefined || key === "" || ENCRYPTION_KEY_FORMAT.test(key)) return null;
+  return "ENCRYPTION_KEY must be 64 hex characters (32 bytes: openssl rand -hex 32)";
+}
+
 /** The web app's origin: where sign-ins return, and the first allowed origin. */
 export function clientUrl(): string {
   return process.env.CLIENT_URL ?? "http://localhost:3000";

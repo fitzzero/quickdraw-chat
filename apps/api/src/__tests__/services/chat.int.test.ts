@@ -188,6 +188,19 @@ describe("ChatService", () => {
     });
     expect((await membership(chat.id, users.admin.id))?.level).toBe("Read");
   });
+
+  it("answers VALIDATION for a chat created with a member who is no user, and writes nothing", async () => {
+    const before = await testPrisma.chat.count();
+    expect(
+      await codeOf(
+        as(users.regular.id).chatService.createChat({
+          title: "Ghost",
+          members: [{ userId: "ckzzzzzzzzzzzzzzzzzzzzzzz", level: "Read" }],
+        }),
+      ),
+    ).toBe("VALIDATION");
+    expect(await testPrisma.chat.count()).toBe(before);
+  });
 });
 
 describe("ChatService live updates", () => {

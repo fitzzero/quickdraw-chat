@@ -93,6 +93,18 @@ describe("Discord Activity auth", () => {
     expect(stored.provider).toBe("discord-activity");
   });
 
+  it("sets its best-effort cookie SameSite=Lax, in production too", async () => {
+    const nodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const response = await exchange("good-code");
+      expect(response.status).toBe(200);
+      expect(response.headers.get("set-cookie")).toMatch(/SameSite=Lax/i);
+    } finally {
+      process.env.NODE_ENV = nodeEnv;
+    }
+  });
+
   it("reuses the same user across repeated activity logins", async () => {
     await exchange("good-code");
     await exchange("good-code");

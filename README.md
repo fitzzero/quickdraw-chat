@@ -343,7 +343,8 @@ Ask your agent to use the `quickdraw-new-service` skill (linked into
 2. The service in `apps/api/src/services/<name>/index.ts`
    (`qd.defineService(contract, { model, access, methods })`), added to the
    list in `apps/api/src/services/index.ts`.
-3. A Prisma model and migration if it has rows (`bun run db:migrate`).
+3. A Prisma model and migration if it has rows (`bun run db:migrate`, then
+   `bun run db:generate`: Prisma 7's `migrate dev` leaves the client as it was).
 4. The web app's hooks: `qd.<name>.<member>` is typed already.
 5. Its tests: an access matrix, a live-behavior test, budgets for hot
    methods; then `bun run docs:generate`.

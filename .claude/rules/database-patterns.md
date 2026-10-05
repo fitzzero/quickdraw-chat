@@ -25,7 +25,8 @@ import type { Chat, Message, Prisma, PrismaClient } from "@project/db";
   `User.serviceAccess` (service-wide grants, JSON), `Document.acl` (a
   `[{ userId, level }]` JSON list) and the `ChatMember` membership table.
 - A column a collection orders by must be a real column: `Chat.lastMessageAt`
-  is maintained by `postMessage` (it defaults to the chat's creation time).
+  is maintained by `postMessage`, and by deleting the chat's latest message
+  (it defaults to the chat's creation time).
 - A count a list shows is a column too, never a read of the relation per
   list: `Chat.memberCount` is kept by every membership write in its
   transaction, through the tracked client
@@ -34,7 +35,9 @@ import type { Chat, Message, Prisma, PrismaClient } from "@project/db";
   tracked write sees them; the `users_count_out_of_chats` trigger counts
   them out. A seed or factory that makes chats with members sets the count.
 - **Schema changes need a migration**: after editing `schema.prisma`, run
-  `bun run db:migrate` (creates the migration and regenerates the client).
+  `bun run db:migrate` (creates and applies the migration), then
+  `bun run db:generate`: on Prisma 7 `migrate dev` no longer regenerates the
+  client, and typecheck fails on the new fields until it is.
   Never `db:push`: the `migrate-check` CI job
   (`prisma migrate diff --exit-code`) fails a schema without its migration.
   Commit `packages/db/prisma/migrations/` with the schema.

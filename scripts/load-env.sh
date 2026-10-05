@@ -6,7 +6,10 @@ set -euo pipefail
 #   2. Secrets layer (optional): plug in your secret manager here
 #   3. Local overrides (gitignored): .env.local
 #
-# Pre-existing env vars (e.g. CI) always take precedence over file layers.
+# Pre-existing env vars (e.g. CI) always take precedence over file layers:
+# `DATABASE_URL=... scripts/load-env.sh prisma migrate deploy` uses that
+# DATABASE_URL whatever .env.local says (apps/api/src/__tests__/load-env.test.ts
+# checks the order).
 #
 # Usage:
 #   scripts/load-env.sh <command> [args...]
@@ -14,6 +17,22 @@ set -euo pipefail
 #   ../../scripts/load-env.sh prisma migrate dev
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# The variables .env.local sets that the environment already has: their
+# values now, restored after .env.local is sourced (step 3), so the real
+# environment wins over it as it does over .env.infra
+_keep=""
+_name='^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)='
+if [ -f "$ROOT/.env.local" ]; then
+  while IFS= read -r _line || [ -n "$_line" ]; do
+    if [[ $_line =~ $_name ]]; then
+      _var="${BASH_REMATCH[2]}"
+      if [ -n "${!_var+x}" ]; then
+        _keep+="export $_var=$(printf '%q' "${!_var}");"
+      fi
+    fi
+  done < "$ROOT/.env.local"
+fi
 
 # 1. Infra config (defaults — pre-existing env vars take precedence, e.g. CI)
 # Container detection includes Conveyor contexts: CONVEYOR_CONTAINER_ROLE is set
@@ -55,7 +74,9 @@ set -a
 # Conveyor's GCP Secret Manager variant lives at scripts/secrets-pull.sh in
 # the conveyor repo if you want a reference implementation.
 
-# 3. Local overrides (optional, gitignored)
+# 3. Local overrides (optional, gitignored): over .env.infra, never over the
+# environment the script was started with
 [ -f "$ROOT/.env.local" ] && . "$ROOT/.env.local"
 set +a
+eval "$_keep"
 exec "$@"
