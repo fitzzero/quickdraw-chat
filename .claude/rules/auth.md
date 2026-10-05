@@ -83,8 +83,9 @@ ends that session's sockets (`server.access.disconnectUser`).
 
 The Discord Activity (`discord-activity.ts`) is the one sign-in outside the
 kit's providers: its page POSTs the Embedded App SDK's code, and the route
-starts a session with `issueSession` and answers its token (the iframe drops
-third-party cookies).
+starts a session with `issueSession` and answers its token, which the page
+and its Godot client send as `auth.token`. It sets no cookie: the page never
+uses one (the iframe drops third-party cookies).
 
 <!-- ── quickdraw-game:end ── -->
 
@@ -92,7 +93,9 @@ third-party cookies).
 
 An app route that needs a signed-in user takes `requireSession(auth.keys)`
 (see `api-conventions.md`), never a hand-rolled JWT check: it reads the
-cookie and the bearer token by the same rule as the sockets. The route reads
+cookie and the bearer token by the same rule as the sockets, and answers the
+cookie from a page outside the auth routes' allowed origins 403 (the routes
+writing to the same `auth.keys.sessions` object give the list). The route reads
 the session with `sessionOf(req)` and calls services as
 `qd.caller(principal)`, which loads the user's grants (`auth.loadServiceAccess`)
 as a socket's handshake does.

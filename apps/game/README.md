@@ -152,8 +152,8 @@ entry: the Embedded App SDK handshakes, `authorize()` yields a code, the API
 exchanges it at `POST /auth/discord/activity` (reusing the regular Discord
 OAuth user upsert — existing Discord-linked users resolve to the same
 account), and the returned session JWT authenticates both the socket and the
-Godot client (third-party cookies don't survive the Activity iframe, so
-token-in-handshake is primary there).
+Godot client (third-party cookies don't survive the Activity iframe, so the
+token in the handshake is how it signs in, and the route sets no cookie).
 
 Setup in the [Discord developer portal](https://discord.com/developers/applications):
 
