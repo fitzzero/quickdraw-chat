@@ -123,6 +123,15 @@ jobs:
 
       - run: bun run typecheck
 
+      # The committed .claude/ links into @fitzzero/quickdraw-skills (the 5.0
+      # agent rules and skills) are all there and point at the installed package
+      - name: Agent rules and skills linked
+        run: node_modules/.bin/quickdraw-skills link --check
+
+      # docs/api is generated from the contracts (bun run docs:generate)
+      - name: API reference up to date
+        run: bun run docs:check
+
   build:
     runs-on: ubuntu-latest
     # The db package build now depends on db:generate, so prisma needs a
@@ -251,3 +260,10 @@ jobs:
         run: cd apps/web && bun run test
         env:
           JWT_SECRET: test-secret-for-ci
+
+      # ── quickdraw-game:start ──
+      # The netcode bench's scoring (metrics, scenarios, comparisons)
+      - name: Test bench
+        if: matrix.shard == 2
+        run: cd packages/bench && bun run test
+      # ── quickdraw-game:end ──

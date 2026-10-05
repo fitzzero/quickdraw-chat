@@ -14,28 +14,33 @@ import {
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import { useTranslations } from "next-intl";
-import { useSocket } from "../../providers";
-import { useService, useSubscription } from "../../hooks";
+import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
+import { qd } from "../../lib/quickdraw";
+import { useErrorText } from "../../hooks/useErrorText";
 
 export default function ProfilePage(): React.ReactElement {
   const t = useTranslations("ProfilePage");
   const tCommon = useTranslations("Common");
-  const { userId } = useSocket();
-  const { data: user, isLoading } = useSubscription("userService", userId ?? "");
+  const errorText = useErrorText();
+  const { userId } = useQuickdraw();
+  const { data: user, isLoading } = qd.userService.useEntity(userId);
 
   const [editing, setEditing] = React.useState(false);
   const [draftName, setDraftName] = React.useState("");
   const [nameError, setNameError] = React.useState<string | null>(null);
 
-  const updateUser = useService("userService", "updateUser", {
+  const updateUser = qd.userService.updateUser.useMutation({
     onSuccess: (result) => {
       if ("error" in result) {
         setNameError(t("nameTaken"));
         return;
       }
-      // The subscription refreshes the displayed name automatically
+      // The live row (useEntity) shows the new name on its own
       setEditing(false);
       setNameError(null);
+    },
+    onError: (error) => {
+      setNameError(errorText(error));
     },
   });
 

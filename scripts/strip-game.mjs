@@ -12,14 +12,15 @@
  * 2. Strip marked blocks from shared files — every game insertion into a
  *    shared file sits between the markers
  *    `── quickdraw-game:start ──` / `── quickdraw-game:end ──`
- *    (any comment syntax). JSON files that can't carry comments (en.json,
- *    package.json, .oxlintrc.json) get targeted key removal below.
+ *    (any comment syntax). JSON files (en.json, package.json, the
+ *    lint baseline, and .oxlintrc.json, whose JSONC comments are dropped)
+ *    get targeted key removal below.
  *
  * Self-deletes on success.
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -44,11 +45,14 @@ const DELETE_PATHS = [
   "apps/api/src/auth/discord-activity.ts",
   "apps/api/src/auth/guest.ts",
   "apps/api/src/__tests__/services/game.int.test.ts",
+  "apps/api/src/__tests__/services/__budgets__/game.int.test.ts.json",
   "apps/api/src/__tests__/services/definition.int.test.ts",
   "apps/api/src/__tests__/services/discord-activity.int.test.ts",
   "apps/api/src/__tests__/services/guest-auth.int.test.ts",
   "packages/shared/src/types/game.ts",
   "packages/shared/src/types/definition.ts",
+  "packages/shared/src/contracts/game.ts",
+  "packages/shared/src/contracts/definition.ts",
   "packages/shared/src/game",
   "packages/bench",
   "apps/api/src/bench",
@@ -59,8 +63,8 @@ const DELETE_PATHS = [
   "docs/netcode-rd",
   ".claude/skills/netcode-rd",
   ".claude/rules/game-patterns.md",
-  "docs/api/GameService.md",
-  "docs/api/DefinitionService.md",
+  "docs/api/gameService.md",
+  "docs/api/definitionService.md",
 ];
 
 for (const path of DELETE_PATHS) {
@@ -81,10 +85,12 @@ for (const name of gameMigrations) {
 }
 
 // ── 2. Marker-stripped blocks in shared files ───────────────────────────
+// Regular files only: the tracked skill and rule links (.claude/) are
+// symlinks, dangling in a fresh clone and directories once installed
 const tracked = execSync("git ls-files", { encoding: "utf8" })
   .split("\n")
   .filter(Boolean)
-  .filter((file) => existsSync(file));
+  .filter((file) => existsSync(file) && lstatSync(file).isFile());
 
 let strippedCount = 0;
 const SELF = "scripts/strip-game.mjs";
@@ -113,8 +119,43 @@ for (const file of tracked) {
 }
 
 // ── 3. JSON files (no comment markers possible) ─────────────────────────
+/**
+ * Parses JSON with comments and trailing commas, as .oxlintrc.json is
+ * written (oxlint reads JSONC). The file is written back as plain JSON, so
+ * its comments are dropped: the formatter then lays it out.
+ */
+function parseJsonc(text) {
+  let json = "";
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (inString) {
+      json += char;
+      if (char === "\\") {
+        i += 1;
+        json += text[i] ?? "";
+      } else if (char === '"') {
+        inString = false;
+      }
+    } else if (char === '"') {
+      inString = true;
+      json += char;
+    } else if (char === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+      json += "\n";
+    } else if (char === "/" && text[i + 1] === "*") {
+      i += 2;
+      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i++;
+      i += 1;
+    } else {
+      json += char;
+    }
+  }
+  return JSON.parse(json.replace(/,(\s*[}\]])/g, "$1"));
+}
+
 function editJson(path, edit) {
-  const data = JSON.parse(readFileSync(path, "utf8"));
+  const data = parseJsonc(readFileSync(path, "utf8"));
   edit(data);
   writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);
   console.log(`  edited ${path}`);
@@ -139,15 +180,15 @@ editJson("apps/web/src/messages/en.json", (data) => {
     // Copy that names the game needs replacing, not deleting — these keys
     // are rendered on the landing page.
     data.Landing.subtitle =
-      "Typed Socket.IO services, two-tier access control, and a full auth suite — already wired together. Fork it and build the interesting part.";
+      "Typed realtime services, access policies on every row, and a full auth suite — already wired together. Fork it and build the interesting part.";
     data.Landing.featAuthDesc =
       "Google & Discord OAuth, revocable sessions, and a mock OAuth flow so local dev never needs real credentials.";
     data.Landing.featAuthDetail =
-      "Sessions are JWTs paired with revocable database rows, carried only in an httpOnly cookie — the same credential authenticates REST and every socket. The mock OAuth provider runs a genuine code flow against seeded users and hard-blocks production boot.";
+      "quickdraw's auth routes kit: sessions are JWTs naming revocable database rows, carried in an httpOnly cookie — the same credential authenticates every socket, HTTP call and REST route. The mock OAuth provider runs a genuine code flow against seeded users and refuses to run in production.";
     data.Landing.featAdminDesc =
       "Every service gets an admin CRUD surface for free — no per-service admin pages to build.";
     data.Landing.featAdminDetail =
-      "installAdminMethods exposes list/get/create/update/delete with per-action access levels, and the generic /admin UI renders tables and editors from the schema.";
+      "The admin kit adds list/get/create/update/delete to a service in one spread, and the generic /admin UI renders tables and editors from each service's metadata — no per-service admin pages to build. Grants are edited there too.";
     // init-fork.sh self-deletes after it runs, so its copy has to stop
     // describing options the reader no longer has.
     data.Landing.featForkDesc =
@@ -172,22 +213,36 @@ editJson("package.json", (data) => {
   delete data.scripts?.["bench:netcode"];
   delete data.scripts?.["bench:server"];
   delete data.scripts?.["bench:compare"];
+  delete data.scripts?.["check:godot"];
 });
 
 editJson("apps/api/package.json", (data) => {
   delete data.scripts?.["bench:netcode"];
   delete data.scripts?.["bench:server"];
+  delete data.scripts?.["check:godot"];
   delete data.dependencies?.["@project/bench"];
 });
 
-// docs/api/README.md is generated (scripts/generate-docs.ts) and indexes the
-// service pages. Drop the two whose pages DELETE_PATHS just removed; a later
-// `bun run docs:generate` rewrites the whole file anyway.
+// Lint allowances recorded for files DELETE_PATHS removed (a fork that adopted
+// a new rule with `quickdraw-lint baseline` has one)
+if (existsSync(".quickdraw-lint-baseline.json")) {
+  editJson(".quickdraw-lint-baseline.json", (data) => {
+    for (const file of Object.keys(data.files ?? {})) {
+      if (!existsSync(file)) delete data.files[file];
+    }
+  });
+}
+
+// docs/api/README.md is generated (`bun run docs:generate`, quickdraw-docs)
+// and indexes the service pages. Drop the rows of the two whose pages
+// DELETE_PATHS just removed; init-fork.sh then generates the whole reference
+// again (run `bun run docs:generate` yourself after running this alone), which
+// also lays the table out for the services left.
 const apiDocsIndex = "docs/api/README.md";
 if (existsSync(apiDocsIndex)) {
   const kept = readFileSync(apiDocsIndex, "utf8")
     .split("\n")
-    .filter((line) => !/^- \[(Game|Definition)Service\]/.test(line))
+    .filter((line) => !/^\| \[(game|definition)Service\]/.test(line))
     .join("\n");
   writeFileSync(apiDocsIndex, kept);
   console.log(`  edited ${apiDocsIndex}`);
@@ -230,8 +285,11 @@ const LEFTOVER_PATTERN = [
   "high-scores",
 ].join("\\|");
 
+// docs/api is generated from the contracts, whose game-only methods (the chat
+// service's joinWorldChat) are gone now: init-fork.sh generates it again next
+// (as whoever runs this script alone must, with `bun run docs:generate`)
 const leftovers = execSync(
-  `git grep -lIi "${LEFTOVER_PATTERN}" -- . ":!scripts/strip-game.mjs" ":!scripts/init-fork.sh" || true`,
+  `git grep -lIi "${LEFTOVER_PATTERN}" -- . ":!scripts/strip-game.mjs" ":!scripts/init-fork.sh" ":!docs/api" || true`,
   { encoding: "utf8" },
 )
   .split("\n")

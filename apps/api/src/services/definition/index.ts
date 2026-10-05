@@ -1,28 +1,43 @@
-import type { Definition, Prisma, PrismaClient } from "@project/db";
-import type { DefinitionDTO, DefinitionServiceMethods } from "@project/shared";
-import { BaseService } from "@fitzzero/quickdraw-core/server";
-import { z } from "zod";
+import { admin } from "@fitzzero/quickdraw-core/server";
+import { definitionContract, type DefinitionDTO } from "@project/shared";
+import { qd } from "../../quickdraw.js";
+import { createServiceLogger, errorMeta } from "../../utils/logger.js";
 
-// Zod schemas for validation
-const listDefinitionsSchema = z.object({
-  type: z.string().min(1).max(64).optional(),
-});
+const logger = createServiceLogger("definitionService");
 
-const getDefinitionSchema = z.object({
-  type: z.string().min(1).max(64),
-  key: z.string().min(1).max(64),
-});
+/** What a listener hears of an edited definition: its type, key and data. */
+export type ChangedDefinition = Pick<DefinitionDTO, "type" | "key" | "data">;
 
-// Admin schema - defines fields available for admin CRUD
-const adminDefinitionSchema = z.object({
-  type: z.string(),
-  key: z.string(),
-  data: z.record(z.string(), z.unknown()),
-  version: z.number(),
-  enabled: z.boolean(),
-});
+type DefinitionChangedListener = (definition: ChangedDefinition) => void;
 
-type DefinitionChangedListener = (definition: DefinitionDTO) => void;
+/** The most definitions listDefinitions answers. */
+const MAX_LISTED_DEFINITIONS = 500;
+
+/** Who hears about definition edits, as module state. */
+const changedListeners: DefinitionChangedListener[] = [];
+
+/** Subscribe to admin edits (e.g. the game sim hot-reloads tunables). */
+export function onChanged(listener: DefinitionChangedListener): void {
+  changedListeners.push(listener);
+}
+
+/**
+ * Tells the listeners about an edited definition, after its write
+ * committed: a listener that throws is logged and stops none of the others.
+ */
+export function notifyChanged(definition: ChangedDefinition): void {
+  for (const listener of changedListeners) {
+    try {
+      listener(definition);
+    } catch (error) {
+      logger.warn("A definition listener failed", {
+        type: definition.type,
+        key: definition.key,
+        error: errorMeta(error),
+      });
+    }
+  }
+}
 
 /**
  * DefinitionService — data-driven game content.
@@ -30,125 +45,45 @@ type DefinitionChangedListener = (definition: DefinitionDTO) => void;
  * The furnace lesson ("make everything resource-driven") applied to a
  * quickdraw backend: instead of baked Godot .tres resources, content lives
  * in Definition rows. Reads are Public (the Godot client fetches tunables
- * at load, pre- or post-auth); writes go through the generic admin UI
- * (installAdminMethods), so balance changes never require re-exporting
- * the game — the server sim also re-reads on change (see onChanged).
+ * at load, pre- or post-auth); writes go through the generic admin UI, so
+ * balance changes never require re-exporting the game — the server sim also
+ * re-reads on change (see onChanged).
  */
-export class DefinitionService extends BaseService<
-  Definition,
-  Prisma.DefinitionCreateInput,
-  Prisma.DefinitionUpdateInput,
-  DefinitionServiceMethods,
-  Record<string, never>,
-  DefinitionDTO
-> {
-  private readonly prisma: PrismaClient;
-  private readonly changedListeners: DefinitionChangedListener[] = [];
-
-  constructor(prisma: PrismaClient) {
-    super({ serviceName: "definitionService", hasEntryACL: false });
-    this.prisma = prisma;
-    this.setDelegate(prisma.definition);
-    this.initMethods();
-    this.installAdmin();
-  }
-
-  /** Subscribe to admin edits (e.g. the game sim hot-reloads tunables). */
-  public onChanged(listener: DefinitionChangedListener): void {
-    this.changedListeners.push(listener);
-  }
-
-  private notifyChanged(definition: Definition): void {
-    const dto = this.toDto(definition);
-    for (const listener of this.changedListeners) {
-      try {
-        listener(dto);
-      } catch {
-        // Listener errors must never break admin writes
-      }
-    }
-  }
-
-  // Wire shape: dates as ISO strings (what SubscriptionDataMap advertises).
-  // This overrides the base hook, so subscribe payloads and emitUpdate use it
-  // too -- a private helper named toDTO did not, and leaked raw Prisma rows.
-  protected override toDto(definition: Definition): DefinitionDTO {
-    return {
-      id: definition.id,
-      type: definition.type,
-      key: definition.key,
-      data: (definition.data ?? {}) as Record<string, unknown>,
-      version: definition.version,
-      enabled: definition.enabled,
-      updatedAt: definition.updatedAt.toISOString(),
-    };
-  }
-
-  private initMethods(): void {
-    // Public: game clients fetch content at load, before auth completes.
-    // Definitions are game content — never store secrets in them.
-    this.defineMethod(
-      "listDefinitions",
-      "Public",
-      async (payload) => {
-        const rows = await this.prisma.definition.findMany({
-          where: { enabled: true, ...(payload.type ? { type: payload.type } : {}) },
+export const definitionService = qd.defineService(definitionContract, {
+  model: "definition",
+  methods: {
+    // quickdraw: hand-written because it lists only the enabled rows, to anyone signed in or not, in (type, key) order, where the read/write kit's list pages every row a policy grants
+    listDefinitions: {
+      access: "public",
+      handler: async ({ input, db }) =>
+        await db.definition.findMany({
+          where: { enabled: true, ...(input.type ? { type: input.type } : {}) },
           orderBy: [{ type: "asc" }, { key: "asc" }],
+          // bounded: 5.0 refuses an unbounded read in development (unbounded-read)
+          take: MAX_LISTED_DEFINITIONS,
+        }),
+    },
+    // quickdraw: hand-written because a definition is addressed by (type, key), not by id, and a disabled one reads as null, where the read/write kit's get takes an id
+    getDefinition: {
+      access: "public",
+      handler: async ({ input, db }) => {
+        const row = await db.definition.findUnique({
+          where: { type_key: { type: input.type, key: input.key } },
         });
-        return rows.map((row) => this.toDto(row));
+        return row?.enabled ? row : null;
       },
-      { schema: listDefinitionsSchema },
-    );
-
-    this.defineMethod(
-      "getDefinition",
-      "Public",
-      async (payload) => {
-        const row = await this.prisma.definition.findUnique({
-          where: { type_key: { type: payload.type, key: payload.key } },
-        });
-        return row && row.enabled ? this.toDto(row) : null;
-      },
-      { schema: getDefinitionSchema },
-    );
-
-    this.verifyAllMethods(["listDefinitions", "getDefinition"]);
-  }
-
-  // Admin writes flow through the generic admin surface; hook them so
-  // consumers (the game sim) can hot-reload.
-  protected override async adminCreate(data: Prisma.DefinitionCreateInput): Promise<Definition> {
-    const created = await super.adminCreate(data);
-    this.notifyChanged(created);
-    return created;
-  }
-
-  protected override async adminUpdate(
-    id: string,
-    data: Prisma.DefinitionUpdateInput,
-  ): Promise<Definition | null> {
-    const updated = await super.adminUpdate(id, data);
-    if (updated) this.notifyChanged(updated);
-    return updated;
-  }
-
-  private installAdmin(): void {
-    this.installAdminMethods({
-      expose: { list: true, get: true, create: true, update: true, delete: true },
-      access: {
-        list: "Admin",
-        get: "Admin",
-        create: "Admin",
-        update: "Admin",
-        delete: "Admin",
-        setEntryACL: "Admin",
-        getSubscribers: "Admin",
-        reemit: "Admin",
-        unsubscribeAll: "Admin",
-      },
-      schema: adminDefinitionSchema,
+    },
+    // Definitions edited through the generic admin screens: every row,
+    // enabled or not, for holders of a service-wide Admin grant. A created or
+    // updated row reaches the listeners (the running sim's tunables) once
+    // the write committed, in a unit of work of its own the reply does not
+    // wait for: an edit that failed or rolled back never reaches the sim.
+    ...admin.handlers(definitionContract, {
       displayName: "Definitions",
-      tableColumns: ["id", "type", "key", "version", "enabled", "updatedAt"],
-    });
-  }
-}
+      fieldOverrides: { data: { showInTable: false } },
+      onCommitted: ({ method, after }) => {
+        if (method !== "adminDelete" && after !== null) notifyChanged(after);
+      },
+    }),
+  },
+});

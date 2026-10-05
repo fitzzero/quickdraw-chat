@@ -17,9 +17,14 @@ datasource db {
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
+  // Whether a sign-in provider verified `email` for this user. Only a
+  // verified address links a second provider or matches ADMIN_EMAILS; a
+  // provider that did not verify its address gets a placeholder
+  // (`<id>@<provider>.local`) instead (apps/api/src/auth/users.ts)
+  emailVerified Boolean   @default(false) @map("email_verified")
   name          String?   @unique
   image         String?
-  
+
   // Service-level access control: { "chatService": "Admin", "userService": "Read" }
   serviceAccess Json?     @map("service_access")
 
@@ -66,17 +71,27 @@ model Account {
   @@map("accounts")
 }
 
+// A signed-in session, stored by the auth routes' SessionStore
+// (apps/api/src/auth/sessions.ts). The session cookie carries a JWT naming the
+// user and this row's id (`sid`); revoking the row signs the session out at
+// once, whatever the JWT's own expiry.
 model Session {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")
-  token     String   @unique
+  // How the user signed in: "google", "discord", "mock", "guest", "discord-activity"
+  provider  String
+  // The sign-in request's User-Agent and IP, for a list of where a user is signed in
+  userAgent String?  @map("user_agent")
+  ip        String?
   expiresAt DateTime @map("expires_at")
-  
+
   createdAt DateTime @default(now()) @map("created_at")
-  
+
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([expiresAt])
   @@map("sessions")
 }
 
@@ -93,10 +108,24 @@ model Session {
 model Chat {
   id        String   @id @default(cuid())
   title     String
-  
+
+  // The time of the chat's latest message, or its creation time before the
+  // first one: maintained by messageService (postMessage moves it forward,
+  // deleting the latest message moves it back), so the `myChats` collection
+  // can order by it (a collection's order names columns only).
+  lastMessageAt DateTime @default(now()) @map("last_message_at")
+
+  // How many members (ChatMember rows) the chat has: what the `myChats` item
+  // shows, so a list never reads a chat's members. Kept by each membership
+  // write, in its transaction, through the tracked client (the lists holding
+  // the chat get the new count); a deleted user's memberships, which the
+  // database cascades, are counted out by a trigger (migration
+  // 20261004200100_chat_member_count).
+  memberCount Int @default(0) @map("member_count")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-  
+
   // Relations - access control is managed via ChatMember table
   members   ChatMember[]
   messages  Message[]
@@ -109,28 +138,28 @@ model ChatMember {
   chatId    String   @map("chat_id")
   userId    String   @map("user_id")
   level     String   @default("Read") // "Read", "Moderate", "Admin"
-  
+
   createdAt DateTime @default(now()) @map("created_at")
-  
+
   // Relations
   chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([chatId, userId])
+  // A user's chats: what myChats opens and resumes from
+  @@index([userId])
   @@map("chat_members")
 }
 
+// Access to a message is its chat's (messageService inherits it through
+// chatId), plus Admin for its author (owner on userId), who may delete it.
 model Message {
   id        String   @id @default(cuid())
   chatId    String   @map("chat_id")
   userId    String   @map("user_id")
   content   String
   role      String   @default("user") // "user", "assistant", "system"
-  
-  // Entry-level ACL - creator gets Admin access for delete permissions
-  // Format: [{ "userId": "...", "level": "Admin" }]
-  acl       Json?
-  
+
   createdAt DateTime @default(now()) @map("created_at")
   
   // Relations

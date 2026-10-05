@@ -19,18 +19,28 @@ import LoginIcon from "@mui/icons-material/Login";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useSocket } from "../../providers";
-import { useSubscription, useAdminServices, useSlowLoadHint } from "../../hooks";
-import { logout } from "../../lib/auth";
+import { signOut, useAdminServices, useQuickdraw } from "@fitzzero/quickdraw-core/client";
+import { useSlowLoadHint } from "../../hooks";
+import { useErrorText } from "../../hooks/useErrorText";
+import { useToast } from "../../providers/ToastProvider";
+import { qd } from "../../lib/quickdraw";
+import { AUTH_ROUTES } from "../../lib/auth";
 
 export function UserMenu(): React.ReactElement {
   const t = useTranslations("UserMenu");
   const tCommon = useTranslations("Common");
   const tAuth = useTranslations("Auth");
-  const { userId, isConnected } = useSocket();
-  const showWarmingHint = useSlowLoadHint(!isConnected);
-  const { data: user } = useSubscription("userService", userId ?? "");
-  const { hasAdminAccess } = useAdminServices();
+  const errorText = useErrorText();
+  const { showToast } = useToast();
+  // isKnown: the server's hello named the user (userId null: signed out);
+  // it stays true while the socket reconnects
+  const { userId, isKnown } = useQuickdraw();
+  const showWarmingHint = useSlowLoadHint(!isKnown);
+  const { data: user } = qd.userService.useEntity(userId);
+  // The services whose admin screens answer this user (their adminMeta),
+  // asked only where the hello's grants allow it (Admin, the kit's default)
+  const { services: adminServices } = useAdminServices(qd, { enabled: userId !== null });
+  const hasAdminAccess = adminServices.length > 0;
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
 
   const handleOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -41,15 +51,22 @@ export function UserMenu(): React.ReactElement {
     setAnchorEl(null);
   };
 
-  const handleLogout = async () => {
+  const handleSignOut = async (): Promise<void> => {
     handleClose();
-    await logout();
-    // Force full page reload to clear socket connection
+    try {
+      // Revokes this session (the API ends its sockets) and clears the cookie
+      await signOut(AUTH_ROUTES);
+    } catch (error) {
+      // Refused or unreachable: the session may still be live, so stay
+      showToast(tAuth("signOutFailed", { reason: errorText(error) }), "error");
+      return;
+    }
+    // A full page load: the socket reconnects signed out
     window.location.href = "/";
   };
 
   // Not connected yet — a long wait is (in production) a cold start
-  if (!isConnected) {
+  if (!isKnown) {
     return (
       <Box sx={{ p: 2, opacity: 0.5 }}>
         <Typography variant="body2" color="text.secondary">
@@ -149,7 +166,7 @@ export function UserMenu(): React.ReactElement {
         <Divider />
         <MenuItem
           onClick={() => {
-            void handleLogout();
+            void handleSignOut();
           }}
         >
           <ListItemIcon>

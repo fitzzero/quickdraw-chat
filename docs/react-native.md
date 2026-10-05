@@ -1,11 +1,11 @@
 # React Native Port Path
 
-Findings from the 2026-08 spike on maintaining a native iOS/Android app
-alongside this web template. **Verdict: very feasible.** The data layer
-(core client hooks, project hook wrappers, `@project/shared`) is
-runtime-agnostic; only the view layer needs rewriting, and the genuinely
-portable surface (chat) is ~1,000 lines of MUI JSX. Landing and admin would
-not ship on mobile as-is.
+How a native iOS/Android app would sit beside this web template, from the
+2026-08 spike (on quickdraw 4.1), brought up to date for quickdraw 5.0.
+**Verdict: very feasible.** The data layer (the contracts in
+`@project/shared` and quickdraw's typed client) is runtime-agnostic; only
+the view layer needs rewriting, and the genuinely portable surface (chat) is
+~1,000 lines of MUI JSX. Landing and admin would not ship on mobile as-is.
 
 <!-- ── quickdraw-game:start ── -->
 
@@ -13,21 +13,18 @@ Neither would the Godot canvas.
 
 <!-- ── quickdraw-game:end ── -->
 
-Requires `@fitzzero/quickdraw-core` **≥ 4.1.0** (non-DOM guard in
-`useSubscription`, `transports` prop).
-
 ## What shares, what doesn't
 
 Shares unmodified:
 
-- `packages/shared` — pure TS (types, zod, room helpers). Runs on Hermes.
-- `@fitzzero/quickdraw-core/client` — deps are only `react`,
-  `socket.io-client`, `@tanstack/react-query`; every hook is pure React.
-- `apps/web/src/hooks/` — the typed wrappers (`useMyChats`, `useService`,
-  `useServiceQuery`, `useSubscription`, admin hooks) are UI-free. Only
-  `useIsMobile` is MUI-bound (→ `useWindowDimensions` in RN). If a mobile
-  app materializes, extract these to a `packages/client-core` both apps
-  consume.
+- `packages/shared` — the contracts and their Zod schemas, pure TS. Runs on
+  Hermes.
+- `@fitzzero/quickdraw-core/client` — `createQuickdrawClient`,
+  `QuickdrawProvider` and every `qd.<service>.<member>` hook need no DOM
+  (deps: `react`, `socket.io-client`, `@tanstack/react-query`). The web
+  app's client is two lines (`apps/web/src/lib/quickdraw.ts`); a native app
+  makes the same one from the same contracts, so web/mobile drift is a
+  typecheck failure rather than a runtime bug.
 
 Does not share:
 
@@ -35,53 +32,55 @@ Does not share:
   `<Box sx>` → `<View style>` translation; the theme tokens in
   `apps/web/src/theme/index.ts` lift cleanly.
 - `next/navigation` (16 files) → Expo Router, near 1:1 mapping.
+- `useIsMobile` (MUI-bound) → `useWindowDimensions`.
 <!-- ── quickdraw-game:start ── -->
 - The Godot web embed (see below).
 <!-- ── quickdraw-game:end ── -->
 
-## Auth: token-in-handshake, already first-class
+## Auth: a token in the handshake
 
-The server's auth contract is `handshake.auth.token = <session JWT>`, with
-the httpOnly cookie as a browser convenience — the token wins when both are
-present (`apps/api/src/auth/middleware.ts`). The cookie-less path is already
-proven in production.
+The server's `socketAuth` takes a session token in the handshake
+(`auth.token`) as readily as the browser's httpOnly cookie, and the HTTP
+transport and `requireSession` take it as a bearer header: a cookie-less
+client is a first-class case.
 
 <!-- ── quickdraw-game:start ── -->
 
-Three consumers use it: the Discord Activity, the Godot client, and the bench
-bots. `DiscordActivityShell.tsx` is the closest reference implementation.
+The Discord Activity already does (its page and its Godot client send
+`auth.token`): `DiscordActivityShell.tsx` is the closest reference
+implementation.
 
 <!-- ── quickdraw-game:end ── -->
 
 An RN client follows three steps:
 
-1. Obtain a session JWT:
-   - **Guest**: `POST /auth/guest` returns `{ userId, name, token }` — the
-     token is in the body precisely for cookie-less clients.
-   - **OAuth**: run the existing `/auth/<provider>` flow in
-     `expo-auth-session` / an in-app browser. The current callback is
-     cookie-and-redirect only, so native OAuth needs a token-returning
-     completion added.
+1. Obtain a session token. The auth routes kit's OAuth callback sets a
+   cookie and redirects, so native OAuth needs a completion that answers
+   the token instead: an app route on `issueSession`, as
+   `apps/api/src/auth/discord-activity.ts` does, driven from
+   `expo-auth-session` or an in-app browser.
+   <!-- ── quickdraw-game:start ── -->
+   For guests, `POST /auth/guest` already answers `{ userId, name, token }`
+   (`guest({ createUser, token: true })`): the token is in the body
+   precisely for cookie-less clients.
+   <!-- ── quickdraw-game:end ── -->
 2. Store it in `expo-secure-store`.
-3. Pass it to `<QuickdrawProvider serverUrl={...} authToken={token}
-transports={["websocket"]} autoConnect>`.
+3. Pass it as the provider's `auth`:
+   `<QuickdrawProvider client={qd} url={API_URL} auth={token} transports={["websocket"]}>`.
+   Changing it reconnects; a hello naming another user empties the cache.
 
-## Gotchas (learned in the spike)
+## Gotchas
 
-- **Don't import core's `Socket*` input components** (`SocketTextField`
-  etc.) in RN — they render DOM `<input>`. The headless `useSocketInput`
-  is fine.
-- **Don't use core's `getAuthToken`/`setAuthToken`** in RN — they're
-  `localStorage`-backed and silently no-op off-browser (SSR guards). Pass
-  the token as a prop from SecureStore instead.
-- Always pass `apiUrl` explicitly to core's `getOAuthUrl`/`logout` — their
-  env fallback is Next-specific.
+- Sign-out is `POST /auth/logout` with the token as a bearer header, then
+  drop the stored token (the web's `apps/web/src/lib/auth.ts` sends the
+  cookie instead).
+- Read the API's URL from your app config: the web's fallbacks read
+  `NEXT_PUBLIC_*` variables, which only Next.js inlines.
 - The one unverified assumption is Metro bundling
-  `@fitzzero/quickdraw-core/client` cleanly (its barrel re-exports the
-  MUI-based inputs; they're inert unless rendered, but confirm). The
-  half-day de-risk spike: scaffold Expo, install core + shared, connect to
-  the dev API with a token, render one `useCollection` list. That proves
-  the entire shared stack.
+  `@fitzzero/quickdraw-core/client` cleanly. The half-day de-risk spike:
+  scaffold Expo, install core and shared, connect to the dev API with a
+  token, render one `useCollection` list. That proves the entire shared
+  stack.
 
 <!-- ── quickdraw-game:start ── -->
 
@@ -89,8 +88,9 @@ transports={["websocket"]} autoConnect>`.
 
 The 38MB WASM embed (`GodotCanvas.tsx`) is only the _web delivery_ of the
 game — the Godot project (`apps/game/godot`) exports natively to
-iOS/Android, and its netcode speaks Socket.IO directly with token auth
-(`addons/quickdraw/quickdraw_client.gd`); it never depended on a browser.
+iOS/Android, and its netcode speaks quickdraw's protocol 5 directly with
+token auth (`addons/quickdraw/quickdraw_client.gd`); it never depended on a
+browser.
 
 Options, best-first:
 
@@ -111,7 +111,6 @@ Options, best-first:
 
 ## Recommended v1 scope
 
-Expo (managed) + Expo Router, chat-only: guest/OAuth sign-in, chat list
-(`useMyChats`), chat window (`useCollection("messageService", "byChat")` +
-`FlatList`), account. Shared `ServiceMethodsMap` types make web/mobile
-drift a typecheck failure rather than a runtime bug.
+Expo (managed) + Expo Router, chat-only: OAuth sign-in, the chat list
+(`qd.chatService.myChats.useCollection(userId)`), the chat window
+(`qd.messageService.byChat.useCollection(chatId)` + `FlatList`), account.

@@ -7,7 +7,8 @@ export interface TestChatMember {
 
 /**
  * Create a chat with members. The first member defaults to Admin (creator
- * semantics), the rest to Read, unless levels are given explicitly.
+ * semantics), the rest to Read, unless levels are given explicitly. Its
+ * `memberCount` counts them, as the chat service keeps it.
  */
 export async function createTestChat(options: {
   title?: string;
@@ -16,6 +17,7 @@ export async function createTestChat(options: {
   return testPrisma.chat.create({
     data: {
       title: options.title ?? "Factory Chat",
+      memberCount: options.members.length,
       members: {
         create: options.members.map((member, index) => ({
           userId: member.userId,
@@ -27,7 +29,7 @@ export async function createTestChat(options: {
   });
 }
 
-/** Create a message authored by userId; creator gets entry-level Admin. */
+/** Create a message authored by userId (who holds Admin on it, as its author). */
 export async function createTestMessage(options: {
   chatId: string;
   userId: string;
@@ -38,7 +40,6 @@ export async function createTestMessage(options: {
       chatId: options.chatId,
       userId: options.userId,
       content: options.content ?? "Factory message",
-      acl: [{ userId: options.userId, level: "Admin" }],
     },
     select: { id: true },
   });

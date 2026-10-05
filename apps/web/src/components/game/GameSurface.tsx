@@ -3,20 +3,20 @@
 import * as React from "react";
 import { Box } from "@mui/material";
 import { useRouter } from "next/navigation";
+import { useJoin, useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import {
-  GAME_EVENTS,
   GLOBAL_WORLD_ID,
   GLOBAL_WORLD_SLUG,
   type GameDeathEvent,
   type HighScoreEntry,
   type QuickdrawHostConfig,
 } from "@project/shared";
-import { useRoomEvents, useService, useServiceQuery, useSubscription } from "../../hooks";
-import { useSocket } from "../../providers";
 import { GodotCanvas, type GodotLoadState } from "./GodotCanvas";
 import { GameLoading } from "./GameLoading";
 import { GameHud } from "./GameHud";
 import { GameChatOverlay } from "./GameChatOverlay";
+import { qd } from "../../lib/quickdraw";
+import { useErrorText } from "../../hooks/useErrorText";
 import { PreGameDialog } from "./PreGameDialog";
 
 /** Survives the socket cycle (AuthGate remounts the page) and full reloads. */
@@ -41,8 +41,9 @@ const TOP_SCORES_PAYLOAD = { worldId: GLOBAL_WORLD_ID, limit: 5 };
  * dialog, HUD, chat). Shared by /game and the Discord Activity shell.
  *
  * The dialog is the template's showcase: the game world runs in Godot
- * (spectate boot via watchWorld), while Start/Respawn are ordinary quickdraw
- * method calls from THIS React component's socket — the Godot client notices
+ * (spectate boot via watchWorld), while Start/Respawn are an ordinary
+ * quickdraw method call (joinGame, joined again on every connection with
+ * `useJoin`) from THIS React component's socket — the Godot client notices
  * the spawn in the next snapshot. Web components and the game engine drive
  * one shared, ACL'd game state through the same typed API.
  */
@@ -90,13 +91,16 @@ interface GameSession {
 // oxlint-disable-next-line max-lines-per-function -- one cohesive state machine
 function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession {
   const router = useRouter();
-  const { userId, isConnected, connect, disconnect } = useSocket();
+  const errorText = useErrorText();
+  const { userId, connection } = useQuickdraw();
 
   const [loadState, setLoadState] = React.useState<GodotLoadState>({
     phase: "loading",
     progress: null,
   });
-  const [hasJoined, setHasJoined] = React.useState(false);
+  // The user asked to play (Start, or a start that outlived the guest socket
+  // cycle or a reload)
+  const [playing, setPlaying] = React.useState(false);
   const [death, setDeath] = React.useState<GameDeathEvent | null>(null);
   const [creatingGuest, setCreatingGuest] = React.useState(false);
 
@@ -105,47 +109,40 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
   // ride Godot's websocket handshake) — bootCanvas below keys on userId.
   const needsGuest = guestFlow && !userId;
 
-  const { data: world } = useServiceQuery("gameService", "getWorld", GET_WORLD_PAYLOAD);
+  const { data: world } = qd.gameService.getWorld.useQuery(GET_WORLD_PAYLOAD);
 
-  // Personal best — refreshed automatically when a death lands
-  const { data: myBest } = useServiceQuery("gameService", "getMyBest", WORLD_PAYLOAD, {
+  // Personal best, and the all-time top runs shown inside the dialog
+  // (public — works signed-out too); both watch the game's service topic
+  // narrowed to the scores (`watch: { service: ["gameScore"] }`), so a
+  // stored score reads them again
+  const { data: myBest } = qd.gameService.getMyBest.useQuery(WORLD_PAYLOAD, {
     enabled: !!userId,
-    invalidateOn: [GAME_EVENTS.death],
   });
+  const { data: topScores } = qd.gameService.getHighScores.useQuery(TOP_SCORES_PAYLOAD);
 
-  // All-time top runs shown inside the dialog (public — works signed-out too)
-  const { data: topScores } = useServiceQuery("gameService", "getHighScores", TOP_SCORES_PAYLOAD, {
-    invalidateOn: [GAME_EVENTS.death],
-  });
+  // This page's socket in the world's room, on every connection (a new
+  // socket is in no room until a call joins it): the world's events reach
+  // the page (deaths here, the leaderboard in the HUD). watchWorld is
+  // public, so signed-out visitors spectate too.
+  useJoin(qd.gameService.watchWorld, WORLD_PAYLOAD);
 
-  // Death detection on the page socket: world-room membership + the reliable
-  // death stream (the same events Godot consumes)
-  useSubscription("gameService", GLOBAL_WORLD_ID, { enabled: !!userId });
+  // The player: joinGame over this socket once the user plays, and again on
+  // every connection while they are alive (a socket blip, or a new world
+  // after a server restart), which anchors the player in the world's room.
+  // Not while the death dialog is open: joinGame spawns a dead player's
+  // snake, which is what Respawn lets it do.
+  const join = useJoin(qd.gameService.joinGame, WORLD_PAYLOAD, {
+    enabled: playing && death === null && userId !== null,
+    onJoined: focusCanvas,
+  });
+  const hasJoined = join.data !== undefined;
+  // A refused join stands until the next connection: the dialog says why,
+  // and its button runs the call again at once on this socket (`retry`)
+  const joinError = join.status === "error" ? join.error : null;
 
-  // Anonymous spectate: subscribe requires auth, but a Public watchWorld
-  // call grants this (page) socket world-room membership so the live
-  // leaderboard streams in behind the guest dialog
-  useServiceQuery("gameService", "watchWorld", WORLD_PAYLOAD, {
-    enabled: guestFlow && !userId,
-  });
-  useRoomEvents({
-    [GAME_EVENTS.death]: (event: GameDeathEvent) => {
-      if (event.id === userId) setDeath(event);
-    },
-  });
-
-  const joinGame = useService("gameService", "joinGame", {
-    onSuccess: () => {
-      setHasJoined(true);
-      setDeath(null);
-      focusCanvas();
-    },
-  });
-  const respawn = useService("gameService", "respawn", {
-    onSuccess: () => {
-      setDeath(null);
-      focusCanvas();
-    },
+  // Death detection: the same reliable world events Godot consumes
+  qd.gameService.death.useEvent((event) => {
+    if (event.id === userId) setDeath(event);
   });
 
   // The guest socket cycle doesn't remount this component (public route), so
@@ -159,29 +156,17 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
   React.useEffect(() => {
     if (ready && userId && !hasJoined && sessionStorage.getItem(PENDING_START_KEY)) {
       sessionStorage.removeItem(PENDING_START_KEY);
-      joinGame.mutate(WORLD_PAYLOAD);
+      setPlaying(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire on readiness edges only
   }, [ready, userId, hasJoined]);
-
-  // Reconnect nicety: a socket blip while playing re-anchors the player.
-  // Never while the death dialog is open — joinGame revives dead players.
-  const wasConnectedRef = React.useRef(isConnected);
-  React.useEffect(() => {
-    const cameBack = isConnected && !wasConnectedRef.current;
-    wasConnectedRef.current = isConnected;
-    if (cameBack && hasJoined && !death) {
-      joinGame.mutate(WORLD_PAYLOAD);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- edge-triggered
-  }, [isConnected]);
 
   const handleStart = (guestName?: string): void => {
     if (needsGuest && guestName) {
       void createGuestAndReconnect(guestName);
       return;
     }
-    joinGame.mutate(WORLD_PAYLOAD);
+    if (joinError === null) setPlaying(true);
+    else join.retry();
   };
 
   async function createGuestAndReconnect(name: string): Promise<void> {
@@ -192,12 +177,13 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
       setCreatingGuest(false);
       return;
     }
-    // The new session cookie only applies to a fresh handshake. AuthGate
-    // remounts the page during the cycle, so the resume flag carries the
-    // "start the game" intent across the remount.
+    // The new session cookie only applies to a fresh handshake; the resume
+    // flag carries the "start the game" intent across the socket cycle (and
+    // the canvas's reboot as the new user)
     sessionStorage.setItem(PENDING_START_KEY, "1");
-    disconnect();
-    connect();
+    // A fresh handshake carries the new cookie
+    connection.close();
+    connection.open();
   }
 
   const handleLogin = (): void => {
@@ -213,8 +199,12 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
     topScores,
     ready,
     needsGuest,
-    starting: creatingGuest || joinGame.isPending || respawn.isPending,
-    onRespawn: () => respawn.mutate(WORLD_PAYLOAD),
+    starting: creatingGuest || join.status === "joining",
+    joinError: joinError === null ? undefined : errorText(joinError),
+    // the join runs again: joinGame spawns the dead player's snake
+    onRespawn: () => {
+      setDeath(null);
+    },
     onStart: handleStart,
     onLogin: handleLogin,
   });
@@ -243,13 +233,17 @@ interface DialogInputs {
   ready: boolean;
   needsGuest: boolean;
   starting: boolean;
+  /** Why the current socket's join was refused, for people. */
+  joinError: string | undefined;
   onRespawn: () => void;
   onStart: (guestName?: string) => void;
   onLogin: () => void;
 }
 
 function buildDialog(inputs: DialogInputs): React.ReactElement | null {
-  if (inputs.hasJoined && inputs.death === null) return null;
+  // Before the first join, after a death, and while a join stands refused
+  // (a respawn's, or a reconnect's after the user played)
+  if (inputs.hasJoined && inputs.death === null && inputs.joinError === undefined) return null;
   const dead = inputs.death !== null;
   return (
     <PreGameDialog
@@ -260,6 +254,7 @@ function buildDialog(inputs: DialogInputs): React.ReactElement | null {
       canStart={inputs.needsGuest ? true : inputs.ready}
       starting={inputs.starting}
       needsGuest={inputs.needsGuest}
+      joinError={inputs.joinError}
       onStart={dead ? inputs.onRespawn : inputs.onStart}
       onLogin={inputs.onLogin}
     />

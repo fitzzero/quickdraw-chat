@@ -1,11 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useSocket } from "../providers";
+import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import { siteNavigation, type NavItem } from "../lib/navigation";
 import type { AccessLevel } from "@project/shared";
-import { useSubscription } from "./useSubscription";
-
+import { qd } from "../lib/quickdraw";
 /**
  * Access levels that grant visibility to a service.
  * Read or higher means the user can see the service in navigation.
@@ -26,8 +25,9 @@ function hasVisibleAccess(level: AccessLevel | undefined): boolean {
  * access to that service. Items without a `serviceName` are always shown
  * (e.g., Home).
  *
- * Uses serviceAccess from the socket connection (which includes merged defaults
- * from SERVICE_DEFAULT_ACCESS) rather than the raw database value.
+ * Uses the grants the server's hello (and later `qd:access` pushes) gave the
+ * connection, which include the defaults merged from SERVICE_DEFAULT_ACCESS,
+ * rather than the raw database value.
  *
  * @returns Object containing filtered navigation, loading state, and service access map
  *
@@ -42,26 +42,26 @@ function hasVisibleAccess(level: AccessLevel | undefined): boolean {
 export function useFilteredNavigation(): {
   /** Filtered navigation items based on user's service access */
   navigation: NavItem[];
-  /** Whether socket is still connecting */
+  /** Whether the server's hello (who the user is) has not arrived yet */
   isLoading: boolean;
   /** Service access map (includes merged defaults from server) */
   serviceAccess: Record<string, AccessLevel> | null;
   /** Check if user has access to a specific service */
   hasServiceAccess: (serviceName: string) => boolean;
 } {
-  // Use serviceAccess from socket - this includes merged SERVICE_DEFAULT_ACCESS from server
-  const { userId, isConnected, serviceAccess: socketServiceAccess } = useSocket();
+  // The connection's grants: these include SERVICE_DEFAULT_ACCESS, merged by the server
+  const { userId, isKnown, serviceAccess: grants } = useQuickdraw();
 
-  // Guest sessions hide `hideForGuests` items. Structural probe so the hook
-  // stays generic — the field only exists when the guest-auth feature does.
-  const { data: ownUser } = useSubscription("userService", userId ?? "");
-  const isGuestSession = (ownUser as { isGuest?: boolean } | null)?.isGuest === true;
+  // Guest sessions hide `hideForGuests` items. The `in` check keeps the hook
+  // generic: the field only exists when the guest-auth feature does.
+  const { data: ownUser } = qd.userService.useEntity(userId);
+  const isGuestSession = ownUser !== undefined && "isGuest" in ownUser && ownUser.isGuest === true;
 
-  // Convert to proper type (socket returns it as unknown)
+  // No grants at all reads as null, as an empty map would hide every item
   const serviceAccess = React.useMemo<Record<string, AccessLevel> | null>(() => {
-    if (!socketServiceAccess || Object.keys(socketServiceAccess).length === 0) return null;
-    return socketServiceAccess as Record<string, AccessLevel>;
-  }, [socketServiceAccess]);
+    if (!grants || Object.keys(grants).length === 0) return null;
+    return { ...grants };
+  }, [grants]);
 
   // Helper to check if user has access to a service
   const hasServiceAccess = React.useCallback(
@@ -81,8 +81,8 @@ export function useFilteredNavigation(): {
       return items.filter((item) => !item.requireAuth);
     }
 
-    // If socket is still connecting, show ALL items to prevent flash
-    if (!isConnected) {
+    // Until the hello arrives, show ALL items to prevent flash
+    if (!isKnown) {
       return items;
     }
 
@@ -99,11 +99,11 @@ export function useFilteredNavigation(): {
       // Check if user has Read or higher access to the service
       return hasVisibleAccess(serviceAccess[item.serviceName]);
     });
-  }, [userId, isConnected, serviceAccess, isGuestSession]);
+  }, [userId, isKnown, serviceAccess, isGuestSession]);
 
   return {
     navigation,
-    isLoading: !isConnected,
+    isLoading: !isKnown,
     serviceAccess,
     hasServiceAccess,
   };

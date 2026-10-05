@@ -19,20 +19,25 @@ import SecurityIcon from "@mui/icons-material/Security";
 import LogoutIcon from "@mui/icons-material/Logout";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useTranslations } from "next-intl";
-import { useSocket, useToast } from "../../providers";
-import { usePushNotifications, useService, useSubscription } from "../../hooks";
+import { signOutEverywhere, useQuickdraw } from "@fitzzero/quickdraw-core/client";
+import { useToast } from "../../providers";
+import { usePushNotifications } from "../../hooks";
+import { useErrorText } from "../../hooks/useErrorText";
 import { ConfirmDialog } from "../../components/feedback";
-import { logoutAllDevices } from "../../lib/auth";
+import { qd } from "../../lib/quickdraw";
+import { AUTH_ROUTES } from "../../lib/auth";
 
 export default function AccountPage(): React.ReactElement {
   const t = useTranslations("AccountPage");
   const tCommon = useTranslations("Common");
-  const { userId } = useSocket();
-  const { data: user } = useSubscription("userService", userId ?? "");
+  const tAuth = useTranslations("Auth");
+  const errorText = useErrorText();
+  const { userId } = useQuickdraw();
+  const { data: user } = qd.userService.useEntity(userId);
   const { showToast } = useToast();
 
   const push = usePushNotifications();
-  const sendTestPush = useService("pushService", "sendTestPush", {
+  const sendTestPush = qd.pushService.sendTestPush.useMutation({
     onSuccess: (data) => {
       showToast(t(data.sent > 0 ? "testNotificationSent" : "testNotificationNone"), "info");
     },
@@ -44,9 +49,13 @@ export default function AccountPage(): React.ReactElement {
   const handleSignOutAllDevices = async (): Promise<void> => {
     setIsSigningOut(true);
     try {
-      await logoutAllDevices();
+      // Revokes every session of the user; the API ends their open sockets
+      await signOutEverywhere(AUTH_ROUTES);
       // Full page navigation so the socket reconnects unauthenticated
       window.location.assign("/auth/login");
+    } catch (error) {
+      // Refused or unreachable: the sessions may still be live, so stay
+      showToast(tAuth("signOutFailed", { reason: errorText(error) }), "error");
     } finally {
       setIsSigningOut(false);
       setShowSignOutAllDialog(false);

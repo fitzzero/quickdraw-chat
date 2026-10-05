@@ -5,6 +5,8 @@ let userCounter = 0;
 
 export interface TestUserOverrides {
   email?: string;
+  /** Whether a sign-in provider verified the email: false, as for a row nobody signed in to. */
+  emailVerified?: boolean;
   name?: string;
   serviceAccess?: Record<string, AccessLevel>;
 }
@@ -20,6 +22,7 @@ export async function createTestUser(
   return testPrisma.user.create({
     data: {
       email: overrides.email ?? `factory-user-${userCounter}@test.com`,
+      emailVerified: overrides.emailVerified ?? false,
       name: overrides.name ?? `Factory User ${userCounter}`,
       ...(overrides.serviceAccess && { serviceAccess: overrides.serviceAccess }),
     },

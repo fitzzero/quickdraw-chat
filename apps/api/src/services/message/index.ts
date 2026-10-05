@@ -1,239 +1,136 @@
-import type { Message, Prisma, PrismaClient } from "@project/db";
-import type {
-  MessageCollections,
-  MessageDTO,
-  MessageServiceMethods,
-  AccessLevel,
-} from "@project/shared";
-import { BaseService } from "@fitzzero/quickdraw-core/server";
-import type { CollectionSnapshotPage } from "@fitzzero/quickdraw-core";
-import { z } from "zod";
-import type { ChatService } from "../chat/index.js";
-import type { PushService } from "../push-subscription/index.js";
-import {
-  byIdSchema,
-  cuidSchema,
-  cursorPageArgs,
-  requireAuth,
-  sliceCursorPage,
-} from "../shared/index.js";
+import { admin, anyOf, inherit, owner } from "@fitzzero/quickdraw-core/server";
+import type { Prisma } from "@project/db";
+import { chatContract, messageContract } from "@project/shared";
+import { qd } from "../../quickdraw.js";
+import { notifyNewMessage } from "../push-subscription/index.js";
 
-// Zod schemas for validation
-const postMessageSchema = z.object({
-  chatId: cuidSchema("chat ID"),
-  content: z
-    .string()
-    .min(1, "Content is required")
-    .max(10000, "Content must be 10000 characters or less"),
-  role: z.enum(["user", "assistant", "system"]).optional(),
-});
+/**
+ * A message is gone: when it was its chat's latest, the chat's latest
+ * activity (`Chat.lastMessageAt`, the myChats order) moves back to the
+ * latest message left, or to the chat's creation. In the delete's
+ * transaction, through its tracked client.
+ */
+async function messageDeleted(
+  tx: Prisma.TransactionClient,
+  chatId: string,
+  createdAt: Date,
+): Promise<void> {
+  const chat = await tx.chat.findUnique({
+    where: { id: chatId },
+    select: { lastMessageAt: true, createdAt: true },
+  });
+  // a message older than the chat's latest leaves it as it is
+  if (chat === null || chat.lastMessageAt > createdAt) return;
+  const latest = await tx.message.findFirst({
+    where: { chatId },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { createdAt: true },
+  });
+  await tx.chat.update({
+    where: { id: chatId },
+    data: { lastMessageAt: latest?.createdAt ?? chat.createdAt },
+    select: { id: true },
+  });
+}
 
-// Admin schema - defines fields available for admin CRUD
-const adminMessageSchema = z.object({
-  chatId: z.string(),
-  userId: z.string(),
-  content: z.string(),
-  role: z.enum(["user", "assistant", "system"]),
-});
-
-export class MessageService extends BaseService<
-  Message,
-  // Unchecked input: services address relations by scalar FK (chatId/userId)
-  Prisma.MessageUncheckedCreateInput,
-  Prisma.MessageUpdateInput,
-  MessageServiceMethods,
-  Record<string, never>,
-  MessageDTO,
-  MessageCollections
-> {
-  private readonly prisma: PrismaClient;
-  private readonly chatService: ChatService | undefined;
-  private readonly pushService: PushService | undefined;
-
-  constructor(prisma: PrismaClient, chatService?: ChatService, pushService?: PushService) {
-    // Enable entry ACL - message creator gets Admin in their message's ACL
-    super({ serviceName: "messageService", hasEntryACL: true });
-    this.prisma = prisma;
-    // Optional so the service can run standalone (e.g. MCP); when present,
-    // write hooks keep chatService's `myChats` items live (lastMessageAt)
-    this.chatService = chatService;
-    // Optional: web-push new-message notifications to offline members
-    this.pushService = pushService;
-    this.setDelegate(prisma.message);
-
-    // The live message history of one chat. Scope = chat id; membership is a
-    // pure function of the row (message.chatId), so the CRUD trio emits
-    // added/removed deltas with zero extra code. `ids` is deliberately never
-    // returned (unbounded history — see byChatSnapshot), so reconnecting
-    // clients merge without pruning and keep their paged-in history.
-    this.defineCollection("byChat", {
-      resolveScopeId: (message) => message.chatId,
-      checkScopeAccess: (userId, chatId) => this.checkChatAccess(userId, chatId, "Read"),
-      snapshot: (chatId, opts) => this.byChatSnapshot(chatId, opts),
-      defaultLimit: 50,
-      // toItem omitted: defaults to this service's toDto
-    });
-
-    this.initMethods();
-
-    // Install admin CRUD methods
-    this.installAdminMethods({
-      expose: {
-        list: true,
-        get: true,
-        create: true,
-        update: true,
-        delete: true,
-      },
-      access: {
-        list: "Admin",
-        get: "Admin",
-        create: "Admin",
-        update: "Admin",
-        delete: "Admin",
-        setEntryACL: "Admin",
-        getSubscribers: "Admin",
-        reemit: "Admin",
-        unsubscribeAll: "Admin",
-      },
-      schema: adminMessageSchema,
-      displayName: "Messages",
-      tableColumns: ["id", "chatId", "userId", "role", "createdAt"],
-    });
-  }
-
-  // Wire shape: ISO createdAt + the author's public profile. The user fetch
-  // makes this async — fine, toDto may return a promise.
-  protected override async toDto(message: Message): Promise<MessageDTO> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: message.userId },
-      select: { id: true, name: true, image: true },
-    });
-    return {
-      id: message.id,
-      chatId: message.chatId,
-      userId: message.userId,
-      content: message.content,
-      role: message.role,
-      createdAt: message.createdAt.toISOString(),
-      user: user ?? undefined,
-    };
-  }
-
-  // Check chat membership for posting/listing messages
-  private async checkChatAccess(
-    userId: string,
-    chatId: string,
-    requiredLevel: AccessLevel,
-  ): Promise<boolean> {
-    const member = await this.prisma.chatMember.findUnique({
-      where: { chatId_userId: { chatId, userId } },
-      select: { level: true },
-    });
-
-    if (!member) return false;
-    return this.isLevelSufficient(member.level as AccessLevel, requiredLevel);
-  }
-
-  /**
-   * First page + reconnect re-snapshot for `byChat`: newest messages first,
-   * cursor = oldest message id of the page (loadMore walks into history).
-   * No `ids` — chat history is unbounded, so deletion pruning is traded for
-   * keeping paged-in history across reconnects.
-   */
-  private async byChatSnapshot(
-    chatId: string,
-    opts: { cursor: string | null; limit: number },
-  ): Promise<CollectionSnapshotPage<MessageDTO>> {
-    const messages = await this.prisma.message.findMany({
-      where: { chatId },
-      include: {
+/**
+ * Messages: access inherited from the chat a message belongs to, which is
+ * also what opens a chat's `byChat` history (its anchor), so everyone who may
+ * read the chat sees every message in it, and nobody else does. The author
+ * holds Admin on their own messages on top (`owner("userId")`), so they may
+ * delete them.
+ */
+export const messageService = qd.defineService(messageContract, {
+  model: "message",
+  access: anyOf(inherit({ from: chatContract, via: "chatId" }), owner("userId")),
+  // postMessage keeps its chat's lastMessageAt current
+  writes: ["chat"],
+  collections: { byChat: { anchor: chatContract } },
+  project: {
+    withAuthor: {
+      select: {
+        chatId: true,
+        userId: true,
+        content: true,
+        role: true,
+        createdAt: true,
         user: { select: { id: true, name: true, image: true } },
       },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      ...cursorPageArgs(opts.cursor, opts.limit),
-    });
-
-    const { page, nextCursor } = sliceCursorPage(messages, opts.limit);
-    const items = page.map((m) => ({
-      id: m.id,
-      chatId: m.chatId,
-      userId: m.userId,
-      content: m.content,
-      role: m.role,
-      createdAt: m.createdAt.toISOString(),
-      user: m.user,
-    }));
-    const totalCount = await this.prisma.message.count({ where: { chatId } });
-
-    return { items, nextCursor, totalCount };
-  }
-
-  // Write lifecycle hooks: keep the parent chat's `myChats` items fresh
-  // (lastMessageAt drives sidebar ordering) without touching the write paths
-
-  protected override async afterCreate(message: Message): Promise<void> {
-    await this.chatService?.refreshMyChatsItem(message.chatId);
-    // Fire-and-forget web push to offline chat members (no-op without VAPID)
-    this.pushService?.notifyNewMessage(message);
-  }
-
-  protected override async afterDelete(message: Message): Promise<void> {
-    await this.chatService?.refreshMyChatsItem(message.chatId);
-  }
-
-  private initMethods(): void {
-    this.initWriteMethods();
-    // Fail fast at construction if the method map and definitions drift
-    this.verifyAllMethods(["postMessage", "deleteMessage"]);
-  }
-
-  private initWriteMethods(): void {
-    // Post a new message
-    this.defineMethod(
-      "postMessage",
-      "Read",
-      async (payload, ctx) => {
-        requireAuth(ctx);
-
-        // Check chat access
-        const hasAccess = await this.checkChatAccess(ctx.userId, payload.chatId, "Read");
-        if (!hasAccess) throw new Error("Access denied to chat");
-
-        // The CRUD trio does all the realtime work: entity event to message
-        // subscribers, `byChat` `added` delta to everyone watching the chat,
-        // and afterCreate refreshes the chat's `myChats` items. (Before 4.0
-        // this method hand-emitted a "chat:message" room event — that whole
-        // compensation layer is what collections replace.)
-        const message = await this.create({
-          chatId: payload.chatId,
-          userId: ctx.userId,
-          content: payload.content,
-          role: payload.role ?? "user",
-          // Creator gets Admin access in ACL for delete permissions
-          acl: [{ userId: ctx.userId, level: "Admin" }],
+      map: (row: {
+        id: string;
+        chatId: string;
+        userId: string;
+        content: string;
+        role: string;
+        createdAt: Date;
+        user: { id: string; name: string | null; image: string | null };
+      }) => ({
+        id: row.id,
+        chatId: row.chatId,
+        userId: row.userId,
+        content: row.content,
+        role: row.role,
+        createdAt: row.createdAt.toISOString(),
+        user: row.user,
+      }),
+    },
+  },
+  methods: {
+    postMessage: {
+      // a member of the chat, at Read or above: the chat's policy decides
+      access: { scope: "Read", of: chatContract, id: "chatId" },
+      handler: async ({ input, ctx, db }) => {
+        const message = await db.$transaction(async (tx) => {
+          const created = await tx.message.create({
+            data: {
+              // The id the sender made (the web's sends carry one), else the
+              // database's. A create never overwrites: an id that exists fails
+              // it as a unique violation, which reaches the caller as CONFLICT,
+              // so a send repeated after a lost answer writes nothing twice
+              id: input.id,
+              chatId: input.chatId,
+              userId: ctx.principal.userId,
+              content: input.content,
+              role: input.role ?? "user",
+            },
+            select: { id: true, chatId: true, userId: true, content: true, createdAt: true },
+          });
+          // The chat's latest activity: the myChats lists order by it
+          await tx.chat.update({
+            where: { id: input.chatId },
+            data: { lastMessageAt: created.createdAt },
+            select: { id: true },
+          });
+          return created;
         });
-
+        // Web push to the members with no live socket; never fails the post
+        notifyNewMessage(db, message);
         return { id: message.id };
       },
-      { schema: postMessageSchema },
-    );
-
-    // Delete a message - requires Admin in message ACL (owner) or service-level access
-    // Framework handles ACL check automatically via hasEntryACL: true; the
-    // CRUD trio emits the {id, deleted: true} tombstone itself
-    this.defineMethod(
-      "deleteMessage",
-      "Admin",
-      async (payload, _ctx) => {
-        const deleted = await this.delete(payload.id);
-        if (!deleted) throw new Error("Message not found");
-        return { id: payload.id, deleted: true as const };
+    },
+    // quickdraw: hand-written because it answers { id, deleted } as the chat window expects, and moves the chat's latest activity back when its latest message goes; the read/write kit's delete answers null
+    deleteMessage: {
+      // its author, the chat's Admins, or a service-wide Admin grant
+      access: { service: "Admin", entry: "Admin" },
+      handler: async ({ input, db }) => {
+        await db.$transaction(async (tx) => {
+          const deleted = await tx.message.delete({
+            where: { id: input.id },
+            select: { chatId: true, createdAt: true },
+          });
+          await messageDeleted(tx, deleted.chatId, deleted.createdAt);
+        });
+        return { id: input.id, deleted: true as const };
       },
-      {
-        schema: byIdSchema,
-        resolveEntryId: (p) => p.id,
+    },
+    ...admin.handlers(messageContract, {
+      displayName: "Messages",
+      // a message the admin screens delete moves its chat's activity back too
+      onWrite: async ({ method, before }, _ctx, tx: Prisma.TransactionClient) => {
+        if (method === "adminDelete" && before !== undefined) {
+          await messageDeleted(tx, before.chatId, new Date(before.createdAt));
+        }
       },
-    );
-  }
-}
+    }),
+  },
+});

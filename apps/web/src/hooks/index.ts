@@ -1,21 +1,12 @@
-// Re-export typed hooks from quickdraw-core
-// These wrap the generic hooks with project-specific types
-
-export { useService } from "./useService";
-export { useServiceQuery } from "./useServiceQuery";
-export { useSubscription } from "./useSubscription";
-export { useCollection, useRoomEvents } from "@fitzzero/quickdraw-core/client";
+// The app's own hooks. Server data has none here: components read it through
+// the typed client (`qd.<service>.<member>` from lib/quickdraw) and the
+// connection's state through `useQuickdraw()`.
 export { useIsMobile } from "./useIsMobile";
-export { useMyChats } from "./useMyChats";
 export { useFilteredNavigation } from "./useFilteredNavigation";
 export { useSlowLoadHint } from "./useSlowLoadHint";
 export { useServiceWorker } from "./useServiceWorker";
 export { usePushNotifications, type UsePushNotificationsResult } from "./usePushNotifications";
-
-// Admin hooks
-export { useAdminServices, type AdminServiceInfo } from "./useAdminServices";
-export { useAdminMeta } from "./useAdminMeta";
-export { useAdminList, type AdminListResponse } from "./useAdminList";
+export { useErrorText } from "./useErrorText";
 
 // Re-export i18n hook from next-intl
 export { useTranslations } from "next-intl";

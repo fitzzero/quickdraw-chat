@@ -5,7 +5,8 @@
     "": {
       "name": "quickdraw-chat",
       "devDependencies": {
-        "@fitzzero/quickdraw-core": "^4.1.0",
+        "@fitzzero/quickdraw-lint": "^5.0.0",
+        "@fitzzero/quickdraw-skills": "^5.0.0",
         "@rallycry/conveyor-skills": "^1.0.4",
         "@types/node": "^24.0.0",
         "@typescript/native-preview": "^7.0.0-dev",
@@ -23,7 +24,7 @@
       "name": "@project/api",
       "version": "0.0.1",
       "dependencies": {
-        "@fitzzero/quickdraw-core": "^4.1.0",
+        "@fitzzero/quickdraw-core": "^5.0.0",
         "@project/bench": "workspace:*",
         "@project/db": "workspace:*",
         "@project/shared": "workspace:*",
@@ -33,11 +34,10 @@
         "express": "^4.18.0",
         "express-rate-limit": "^8.3.1",
         "helmet": "^8.1.0",
-        "jose": "^5.2.0",
-        "socket.io": "^4.7.4",
+        "socket.io": "^4.8.0",
         "web-push": "^3.6.7",
         "winston": "^3.11.0",
-        "zod": "^3.25.76",
+        "zod": "^4.2.0",
       },
       "devDependencies": {
         "@electric-sql/pglite": "^0.3.16",
@@ -51,7 +51,7 @@
         "dotenv-cli": "^11.0.0",
         "pg": "^8.13.0",
         "pglite-prisma-adapter": "^0.7.2",
-        "socket.io-client": "^4.7.4",
+        "socket.io-client": "^4.8.0",
         "tsup": "^8.0.0",
         "tsx": "^4.7.0",
         "typescript": "^5.3.0",
@@ -81,7 +81,7 @@
         "@emotion/cache": "^11.11.0",
         "@emotion/react": "^11.11.0",
         "@emotion/styled": "^11.11.0",
-        "@fitzzero/quickdraw-core": "^4.1.0",
+        "@fitzzero/quickdraw-core": "^5.0.0",
         "@mui/icons-material": "^7.0.0",
         "@mui/material": "^7.0.0",
         "@project/shared": "workspace:*",
@@ -90,12 +90,15 @@
         "next-intl": "^4.7.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
-        "socket.io-client": "^4.7.4",
+        "socket.io-client": "^4.8.0",
       },
       "devDependencies": {
+        "@project/db": "workspace:*",
         "@storybook/addon-a11y": "^10.5.0",
         "@storybook/addon-docs": "^10.5.0",
         "@storybook/nextjs-vite": "^10.5.0",
+        "@testing-library/dom": "^10.4.1",
+        "@testing-library/react": "^16.3.0",
         "@types/node": "^24.0.0",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
@@ -125,7 +128,7 @@
       "name": "@project/db",
       "version": "0.0.1",
       "dependencies": {
-        "@fitzzero/quickdraw-core": "^4.1.0",
+        "@fitzzero/quickdraw-core": "^5.0.0",
         "@prisma/adapter-pg": "^7.0.0",
         "@prisma/client": "^7.0.0",
         "pg": "^8.13.0",
@@ -144,7 +147,8 @@
       "name": "@project/shared",
       "version": "0.0.1",
       "dependencies": {
-        "@fitzzero/quickdraw-core": "^4.1.0",
+        "@fitzzero/quickdraw-core": "^5.0.0",
+        "zod": "^4.2.0",
       },
       "devDependencies": {
         "tsup": "^8.0.0",
@@ -313,7 +317,11 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.27.3", "", { "os": "win32", "cpu": "x64" }, "sha512-4uJGhsxuptu3OcpVAzli+/gWusVGwZZHTlS63hh++ehExkVT8SgiEf7/uC/PclrPPkLhZqGgCTjd0VWLo6xMqA=="],
 
-    "@fitzzero/quickdraw-core": ["@fitzzero/quickdraw-core@4.1.0", "", { "dependencies": { "jose": "^5.2.0", "zod": "^3.22.0" }, "peerDependencies": { "@electric-sql/pglite": ">=0.3.0", "@eslint/js": ">=9.0.0", "@prisma/client": ">=5.0.0", "@tanstack/react-query": ">=5.0.0", "eslint": ">=9.0.0", "eslint-config-next": ">=16.0.0", "express-rate-limit": ">=8.0.0", "globals": ">=16.0.0", "pg": ">=8.0.0", "react": ">=18.0.0", "socket.io": ">=4.0.0", "socket.io-client": ">=4.0.0", "typescript-eslint": ">=8.0.0" }, "optionalPeers": ["@electric-sql/pglite", "@eslint/js", "@prisma/client", "@tanstack/react-query", "eslint", "eslint-config-next", "express-rate-limit", "globals", "pg", "react", "socket.io", "socket.io-client", "typescript-eslint"] }, "sha512-lZyl530FB98zSN5OIm7dqdvA8WXKmhhKi6RWyahMjQIHdliIvZ3FU7opKbNDJyBl8KSart0JH4lAIOJWnfbCIw=="],
+    "@fitzzero/quickdraw-core": ["@fitzzero/quickdraw-core@5.0.0", "", { "dependencies": { "jose": "^6.0.0", "socket.io-parser": "^4.2.4" }, "peerDependencies": { "@electric-sql/pglite": "^0.3.16 || ^0.4.0 || ^0.5.0", "@opentelemetry/api": "^1.7.0", "@prisma/client": "^7.0.0", "@socket.io/redis-adapter": "^8.0.0", "@tanstack/react-query": "^5.20.0", "@testing-library/react": "^16.0.0", "express": "^4.18.0 || ^5.0.0", "express-rate-limit": "^8.0.0", "pg": "^8.13.0", "react": "^19.0.0", "redis": "^4.6.0 || ^5.0.0 || ^6.0.0", "socket.io": "^4.8.0", "socket.io-client": "^4.8.0", "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["@electric-sql/pglite", "@opentelemetry/api", "@prisma/client", "@socket.io/redis-adapter", "@tanstack/react-query", "@testing-library/react", "express", "express-rate-limit", "pg", "react", "redis", "socket.io", "socket.io-client", "zod"], "bin": { "quickdraw-docs": "dist/cli/quickdraw-docs.js" } }, "sha512-kq9es4l1wautm8/+1ge62+w+BwS40VEbMTpxxjb7wFTVb7RHQhf1SL2WTj71rmueDp60Xkq4gVEGVkumsLteyA=="],
+
+    "@fitzzero/quickdraw-lint": ["@fitzzero/quickdraw-lint@5.0.0", "", { "peerDependencies": { "oxlint": "^1.52.0" }, "bin": { "quickdraw-lint": "bin/quickdraw-lint.mjs" } }, "sha512-rVkYQqTi+j3yopIMHqa5lcxjsayFvobtPU2s3hqQm799ZZPj2WTj7lCkd+Ip7FCkdxD5KhBEEBwWxCEDxwLOkQ=="],
+
+    "@fitzzero/quickdraw-skills": ["@fitzzero/quickdraw-skills@5.0.0", "", { "bin": { "quickdraw-skills": "bin/cli.mjs" } }, "sha512-zPCf9BuyeGau43xhhDG1waRD+1gUoANKz2A2eygeCY23iKUhnW+a1/oVTqxDHAlX/++3yafm+NoWD+TX0/ggDA=="],
 
     "@formatjs/ecma402-abstract": ["@formatjs/ecma402-abstract@3.1.1", "", { "dependencies": { "@formatjs/fast-memoize": "3.1.0", "@formatjs/intl-localematcher": "0.8.1", "decimal.js": "^10.6.0", "tslib": "^2.8.1" } }, "sha512-jhZbTwda+2tcNrs4kKvxrPLPjx8QsBCLCUgrrJ/S+G9YrGHWLhAyFMMBHJBnBoOwuLHd7L14FgYudviKaxkO2Q=="],
 
@@ -774,6 +782,8 @@
     "@testing-library/dom": ["@testing-library/dom@10.4.1", "", { "dependencies": { "@babel/code-frame": "^7.10.4", "@babel/runtime": "^7.12.5", "@types/aria-query": "^5.0.1", "aria-query": "5.3.0", "dom-accessibility-api": "^0.5.9", "lz-string": "^1.5.0", "picocolors": "1.1.1", "pretty-format": "^27.0.2" } }, "sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg=="],
 
     "@testing-library/jest-dom": ["@testing-library/jest-dom@6.9.1", "", { "dependencies": { "@adobe/css-tools": "^4.4.0", "aria-query": "^5.0.0", "css.escape": "^1.5.1", "dom-accessibility-api": "^0.6.3", "picocolors": "^1.1.1", "redent": "^3.0.0" } }, "sha512-zIcONa+hVtVSSep9UT3jZ5rizo2BsxgyDYU7WFD5eICBE7no3881HGeb/QkGfsJs6JTkY1aQhT7rIPC7e+0nnA=="],
+
+    "@testing-library/react": ["@testing-library/react@16.3.3", "", { "dependencies": { "@babel/runtime": "^7.12.5" }, "peerDependencies": { "@testing-library/dom": "^10.0.0", "@types/react": "^18.0.0 || ^19.0.0", "@types/react-dom": "^18.0.0 || ^19.0.0", "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" }, "optionalPeers": ["@types/react", "@types/react-dom"] }, "sha512-Uo193NgQbPMz6lrrhtRQQFcMC6Re/ELLFbbuVL30WDlZxlpZf9/lMHTAVxPRLw1q1iu9OJmR1c2BLiENRstdBg=="],
 
     "@testing-library/user-event": ["@testing-library/user-event@14.6.6", "", { "peerDependencies": { "@testing-library/dom": ">=7.21.4" } }, "sha512-Jbs9FpkkIDw8FgSc6kOVsOv8JuuqGAL7J4X1oot77JxAoDlkNn2GRkd0aYRVuQ+pVQAiHWVkE4rX/dkF5fBiCw=="],
 
@@ -1249,7 +1259,7 @@
 
     "jiti": ["jiti@2.6.1", "", { "bin": { "jiti": "lib/jiti-cli.mjs" } }, "sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ=="],
 
-    "jose": ["jose@5.10.0", "", {}, "sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg=="],
+    "jose": ["jose@6.2.12", "", {}, "sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw=="],
 
     "joycon": ["joycon@3.1.1", "", {}, "sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw=="],
 
@@ -1737,7 +1747,7 @@
 
     "zeptomatch": ["zeptomatch@2.1.0", "", { "dependencies": { "grammex": "^3.1.11", "graphmatch": "^1.1.0" } }, "sha512-KiGErG2J0G82LSpniV0CtIzjlJ10E04j02VOudJsPyPwNZgGnRKQy7I1R7GMyg/QswnE4l7ohSGrQbQbjXPPDA=="],
 
-    "zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+    "zod": ["zod@4.6.5", "", {}, "sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q=="],
 
     "@asamuzakjp/css-color/lru-cache": ["lru-cache@10.4.3", "", {}, "sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ=="],
 
@@ -1746,6 +1756,8 @@
     "@babel/core/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 
     "@babel/helper-compilation-targets/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
+
+    "@discord/embedded-app-sdk/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@electric-sql/pglite-socket/@electric-sql/pglite": ["@electric-sql/pglite@0.3.15", "", {}, "sha512-Cj++n1Mekf9ETfdc16TlDi+cDDQF0W7EcbyRHYOAeZdsAe8M/FJg18itDTSwyHfar2WIezawM9o0EKaRGVKygQ=="],
 

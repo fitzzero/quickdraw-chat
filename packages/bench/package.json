@@ -18,6 +18,7 @@
     "lint": "oxlint -c ../../.oxlintrc.json src",
     "lint:fix": "oxlint --fix -c ../../.oxlintrc.json src",
     "typecheck": "tsgo --noEmit",
+    "test": "vitest run",
     "test:unit": "vitest run"
   },
   "dependencies": {

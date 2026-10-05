@@ -1,63 +1,29 @@
-/**
- * Client-side auth helpers.
- *
- * Authentication is cookie-based: the API sets an httpOnly session cookie on
- * OAuth completion, the socket handshake carries it (withCredentials), and
- * the server reports identity via the `auth:info` event — consume it through
- * `useSocket().userId`. No tokens are stored client-side.
- */
+import type { AuthRoutesTarget } from "@fitzzero/quickdraw-core/client";
 
+/** The API's URL, baked into the bundle at build time. */
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 /**
- * Get the API URL for OAuth redirect
+ * Where the API's auth routes are (quickdraw's auth routes kit, mounted
+ * under `/auth`), for the client's helpers: `authProviders(AUTH_ROUTES)`
+ * lists the sign-ins the API serves, `signInUrl(provider, AUTH_ROUTES)`
+ * starts one, `signOut(AUTH_ROUTES)` and `signOutEverywhere(AUTH_ROUTES)`
+ * end one session or every session of the user (all three reject when the
+ * API refuses or cannot be reached: after a sign-out, the session may still
+ * be live).
+ *
+ * Authentication is cookie-based: the API sets an httpOnly session cookie when
+ * a sign-in completes, the socket's handshake carries it, and the server's
+ * hello names the user (`useQuickdraw().userId`). No tokens are stored
+ * client-side. After a sign-out, navigate with a full page load so the
+ * socket reconnects signed out.
  */
-export function getOAuthUrl(provider: "discord" | "google" | "mock"): string {
-  return `${API_URL}/auth/${provider}`;
-}
+export const AUTH_ROUTES: AuthRoutesTarget = {
+  apiUrl: API_URL,
+};
 
 /**
- * Whether the dev-only mock OAuth login is enabled (never in production —
- * the API hard-blocks it server-side as well).
+ * The served sign-ins' query key: the login page reads `authProviders` with
+ * plain TanStack Query, since no quickdraw method serves them.
  */
-export function isMockLoginEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_ENABLE_MOCK_OAUTH === "true";
-}
-
-/**
- * Logout from current session (invalidates the session server-side and
- * clears the session cookie). Callers must follow with a full page
- * navigation (window.location) so the socket reconnects unauthenticated.
- */
-export async function logout(): Promise<void> {
-  try {
-    await fetch(`${API_URL}/auth/logout`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-  } catch {
-    // Ignore network errors — the session cookie may already be gone
-  }
-}
-
-/**
- * Logout from all devices (invalidates every session for the user).
- * Returns the number of sessions that were invalidated. Callers must follow
- * with a full page navigation, same as logout().
- */
-export async function logoutAllDevices(): Promise<number> {
-  try {
-    const response = await fetch(`${API_URL}/auth/sessions`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-
-    if (response.ok) {
-      const data = (await response.json()) as { sessionsDeleted?: number };
-      return data.sessionsDeleted ?? 0;
-    }
-  } catch {
-    // Ignore network errors
-  }
-  return 0;
-}
+export const SIGN_IN_PROVIDERS_KEY = ["auth", "providers"] as const;

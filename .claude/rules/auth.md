@@ -1,88 +1,131 @@
 ---
 paths:
   - "apps/api/src/auth/**/*"
+  - "apps/web/src/lib/auth.ts"
+  - "apps/web/src/app/auth/**/*"
 ---
 
 # Auth
 
-How identity works in production. Dev-only sign-in (mock OAuth, dev
-credentials, env layering) lives in [dev-auth.md](dev-auth.md); the hardening
-inventory lives in [security.md](security.md).
+How identity works in production, on quickdraw's auth routes kit
+(`@fitzzero/quickdraw-core/server/auth`). Development sign-in (the mock
+provider, development credentials, env layering) is in
+[dev-auth.md](dev-auth.md); the hardening inventory in
+[security.md](security.md).
+
+## The pieces
+
+`createAppAuth({ prisma, serviceNames, onRevoke })` in
+`apps/api/src/auth/index.ts` builds everything, once per database, so every
+server root (the API, the tests) signs in the same way:
+
+- **Routes** (`createAuthRoutes`, one Express middleware): each provider's
+  `/auth/{provider}/start` and `/callback`, `/auth/providers`, `/auth/me`,
+  `/auth/logout` and `/auth/logout-all` (POST, rate limited by the kit). A
+  sign-in returns to the web app's `/auth/callback`, or to
+  `/auth/login?error=...`.
+  <!-- ── quickdraw-game:start ── -->
+  Plus `POST /auth/guest` (`guest.ts`): a real user marked `isGuest`, so
+  signed-out visitors can play; it answers `{ userId, name, token }` (the
+  token for clients without cookies; the web uses the cookie).
+  <!-- ── quickdraw-game:end ── -->
+- **Providers** (`providersFor`): `google.optional(...)` and
+  `discord.optional(...)` from the environment (nothing without
+  credentials; one of the pair alone refuses to boot), and `mock(...)` for
+  development.
+- **What is served**: the kit's `GET /auth/providers` answers
+  `{ providers: [{ id, name, kind }] }`, the sign-ins the routes serve now,
+  in `providersFor`'s order (the mock only while `isMockOAuthEnabled()`),
+  public and never cached; `auth.routes.providers()` answers the same in
+  process. The login page reads it.
+- **Users** (`users.ts`): `onLogin` → `upsertOAuthUser` finds the user by
+  provider account, or creates one; provider tokens are stored `encrypt`ed
+  when `ENCRYPTION_KEY` is set; avatars go through `safeImageUrl`. Only an
+  address the provider verified is ever stored as a user's email
+  (`User.emailVerified` records it): a profile without one gets the
+  placeholder `<providerAccountId>@<provider>.local`, which never links or
+  matches `ADMIN_EMAILS`. A verified address links the user holding it (a
+  seeded or pre-provisioned user, a second provider), except a user someone
+  signed in to before without a provider verifying that address (any address
+  was stored before 5.0): that sign-in is refused. A known account's later
+  sign-in records an address its provider now verifies (the stored one, or
+  in place of its placeholder).
+- **Sessions** (`sessions.ts`): `prismaSessions(prisma)`, the kit's
+  `SessionStore` over the `Session` table (untracked writes: sessions are
+  not live data). An hourly sweep in `index.ts` deletes expired rows.
+- **Sockets and HTTP calls**: `createServer`'s `auth.authenticate` is
+  `socketAuth(...)` over the same session keys, the allowed origins and
+  the development credentials (`dev-credentials.ts`).
+- **Grants** (`grants.ts`): `createGrantsLoader` is `auth.loadServiceAccess`:
+  the user's `User.serviceAccess` over `SERVICE_DEFAULT_ACCESS`, or Admin on
+  every service for an `ADMIN_EMAILS` user whose address a provider verified
+  (stored on their row the first time). An `ADMIN_EMAILS` address no
+  provider verified gets the defaults only, without the grants on its row.
+  `auth.serviceAccessSource` names that column, so a tracked write to it
+  (the admin screens' grants editor) reaches the user's open sockets.
+- **Settings** (`config.ts`): `jwtSecretFromEnv`, `apiUrl`, `clientUrl` and
+  `allowedOriginsFromEnv` (CORS, sign-in returns and cookie-authenticated
+  sockets share one list); `apiUrlProblem` (no `API_URL` for a web app off
+  localhost refuses to boot, in every `NODE_ENV`) and `trustProxyFromEnv`
+  (`TRUST_PROXY`, else 1 in production or for an `https:` `API_URL`).
 
 ## The one credential
 
-A session is a **JWT paired with a `Session` row**. The JWT proves the claim,
-the row makes it revocable, and the same credential authenticates both REST
-and every socket:
+A session is a JWT naming a `Session` row (`sid`): the JWT proves the claim,
+the row makes it revocable. The same credential authenticates every socket,
+HTTP call and REST route, carried in an httpOnly cookie (`__Host-session`
+over HTTPS, `session` over plain HTTP or when `COOKIE_DOMAIN` shares it with
+subdomains) or as a token (`auth.token` in a handshake, a bearer header).
+No token ever appears in a URL. Signing out revokes the row, and `onRevoke`
+ends that session's sockets (`server.access.disconnectUser`).
 
-- `jwt.ts` — `createJWT` / `verifyJWT`. Payload is `JWTPayload`.
-- `session-store.ts` — `deleteSessionByToken`, `deleteSessionsForUser`,
-  `deleteExpiredSessions` (an hourly sweep runs the last one).
-- `oauth-callback.ts` — `SESSION_EXPIRY_DAYS` = 7. The cookie `maxAge`, the
-  JWT expiry and the `Session` row expiry are all derived from
-  `SESSION_MAX_AGE_MS`. Change one and you change all three; never let them
-  drift apart.
+<!-- ── quickdraw-game:start ── -->
 
-The token reaches the server two ways, and **the token wins when both are
-present**: `handshake.auth.token` for sockets, and an httpOnly cookie for
-browsers. A cookie-less client (a native app, a game client, a bench bot) is
-therefore a first-class case, not a workaround.
+The Discord Activity (`discord-activity.ts`) is the one sign-in outside the
+kit's providers: its page POSTs the Embedded App SDK's code, and the route
+starts a session with `issueSession` and answers its token, which the page
+and its Godot client send as `auth.token`. It sets no cookie: the page never
+uses one (the iframe drops third-party cookies).
 
-## OAuth providers
+<!-- ── quickdraw-game:end ── -->
 
-Each provider is a thin router over shared machinery. `google.ts` is the
-reference; mirror it for a new one:
+## REST routes
 
-1. `registerXRoutes(router)` mounts the start and callback routes.
-2. `issueOAuthState(res, cookieName)` before the redirect,
-   `validateOAuthState(req, res, cookieName)` on the way back. State cookies
-   are compared timing-safe.
-3. `completeOAuthLogin` / `createSessionForProfile` in `oauth-callback.ts`
-   mints the user, the account, the JWT and the `Session` row.
+An app route that needs a signed-in user takes `requireSession(auth.keys)`
+(see `api-conventions.md`), never a hand-rolled JWT check: it reads the
+cookie and the bearer token by the same rule as the sockets, and answers the
+cookie from a page outside the auth routes' allowed origins 403 (the routes
+writing to the same `auth.keys.sessions` object give the list). The route reads
+the session with `sessionOf(req)` and calls services as
+`qd.caller(principal)`, which loads the user's grants (`auth.loadServiceAccess`)
+as a socket's handshake does.
 
-**No token ever appears in a redirect URL.** The callback sets the httpOnly
-cookie and redirects. A flow that must hand a token back to a caller returns
-it in a response body instead.
+## The web side
 
-Provider access and refresh tokens are AES-256-GCM encrypted at rest.
+The client's helpers speak the kit's routes: `signInUrl(provider,
+AUTH_ROUTES)` is `/auth/{provider}/start?returnTo=<origin>`, and
+`signOut(AUTH_ROUTES)` and `signOutEverywhere(AUTH_ROUTES)` POST
+`/auth/logout` and `/auth/logout-all` with the cookie (`AUTH_ROUTES`, in
+`apps/web/src/lib/auth.ts`, is where the API is). A sign-out rejects when the
+API refuses or cannot be reached (the session may still be live: say so);
+follow a successful one with a full page navigation so the socket reconnects
+signed out.
 
-## Sockets
+The login page offers the sign-ins the API serves, never a `NEXT_PUBLIC_*`
+flag (baked in at build time, it drifts from the server): it reads
+`authProviders(AUTH_ROUTES)` (the kit's `GET /auth/providers`, under a plain
+TanStack `useQuery`) and renders `SignInOptions`
+(`apps/web/src/components/auth/`): a button per OAuth provider labelled with
+its `name`, the demo-user picker for the mock, a retry when the request
+fails, and a notice when nothing is served.
 
-`createSocketAuth({ prisma, getServiceNames })` in `middleware.ts` returns the
-two hooks core's `createQuickdrawServer` expects:
+## Adding a provider
 
-- `authenticate(socket, auth)` — dev auth first (it no-ops outside dev), then
-  token auth.
-- `loadServiceAccess(userId)` — reads `user.serviceAccess`, merges
-  `SERVICE_DEFAULT_ACCESS`, and applies `ADMIN_EMAILS` bootstrap promotion.
-
-Production (`src/index.ts`) runs those hooks inside its own middleware because
-it needs its own Express app for the OAuth routes; the test server passes the
-same hooks straight to `createQuickdrawServer`. **Change auth in the hooks,
-never in either runner** — that is what keeps the test suite exercising the
-real path.
-
-Identity reaches the client as an `auth:info` event
-(`{ userId, serviceAccess, principalType }`), emitted for anonymous sockets
-too.
-
-## REST
-
-REST is only for OAuth flows, health checks and inbound webhooks — never for
-data. Every REST surface authenticates through `createRestRequireAuth(db)` in
-`rest-middleware.ts`, which is cookie-first with a Bearer fallback and sets
-`req.userId`. Use that factory rather than calling core's `createRequireAuth`
-again, so there is one session-lookup path to audit.
-
-`routes.ts` owns session management: `DELETE /auth/logout` revokes the
-current token, `DELETE /auth/sessions` revokes every session for the user.
-Both are rate limited at 60 per 15 minutes; the OAuth and guest routes get the
-tighter 20 per 15 minutes.
-
-## Adding a provider — checklist
-
-1. Copy `google.ts`; register in `routes.ts`.
-2. Reuse `issueOAuthState` / `validateOAuthState` and `completeOAuthLogin`.
-3. Wrap the new routes with `createAuthLimiter()`.
-4. Store provider tokens through `encrypt()`; never write them raw.
-5. Add the client id and secret to `env.example` and the deploy secrets list.
+1. Add it in `providersFor`: the kit's `google`/`discord` builders, or an
+   object implementing `OAuthSignInProvider` (`authorizeUrl`, `profile`, and
+   a `name` for its button: without one the button shows its id).
+2. Register `{API_URL}/auth/{id}/callback` with the provider; add its client
+   id and secret to `env.example` and the deploy secrets.
+3. The login page offers it once the API serves it (`GET /auth/providers`),
+   as "Continue with <name>"; for a button in its colors, add its id to
+   `ProviderButton` in `apps/web/src/components/auth/SignInOptions.tsx`.

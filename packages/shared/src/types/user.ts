@@ -1,55 +1,13 @@
-import type { AccessLevel } from "./access.js";
+import type { EntityOf } from "@fitzzero/quickdraw-core";
+import type { userContract } from "../contracts/user.js";
 
 // ============================================================================
-// User Service Types
+// User Service Types: named views of the user contract (contracts/user.ts)
 // ============================================================================
 
 /**
- * Wire shape of a user entity (subscription payloads + emitUpdate).
- * `email` and `serviceAccess` are protected fields — stripped for
- * subscribers without elevated access.
+ * A user as a reader receives it. `email` and `serviceAccess` reach only the
+ * user themself and holders of a service-wide Admin grant (the contract's
+ * `fields`), so `EntityOf` types them optional.
  */
-export interface UserDTO {
-  id: string;
-  email: string;
-  name: string | null;
-  image: string | null;
-  serviceAccess: Record<string, AccessLevel> | null;
-  // ── quickdraw-game:start ──
-  /** Anonymous game guest session (see apps/api/src/auth/guest.ts) */
-  isGuest?: boolean;
-  // ── quickdraw-game:end ──
-}
-
-export interface UserServiceMethods {
-  updateUser: {
-    payload: {
-      id: string;
-      data: {
-        name?: string | null;
-        image?: string | null;
-      };
-    };
-    response:
-      | { error: "name_taken" }
-      | {
-          id: string;
-          email: string;
-          name: string | null;
-          image: string | null;
-        };
-  };
-  getMe: {
-    payload: Record<string, never>;
-    response:
-      | { error: "name_taken" }
-      | {
-          id: string;
-          email: string;
-          name: string | null;
-          image: string | null;
-          serviceAccess: Record<string, AccessLevel> | null;
-        }
-      | null;
-  };
-}
+export type UserDTO = EntityOf<typeof userContract>;

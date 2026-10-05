@@ -4,29 +4,38 @@
  * Inside a Discord Activity iframe the client calls
  * `sdk.commands.authorize()` and receives an authorization code, then POSTs
  * it here (through Discord's proxy: `/.proxy/api/auth/discord/activity`).
- * We exchange the code server-side, upsert the user exactly like the normal
- * Discord OAuth flow (same provider+providerAccountId, so an existing
- * Discord-linked user resolves to the same account), and RETURN the session
- * JWT in the body: third-party cookie restrictions inside the Discord iframe
- * make token-in-handshake the primary auth there (the cookie is still set
- * best-effort).
+ * We exchange the code server-side, find or create the user exactly like the
+ * Discord sign-in route (same provider+providerAccountId, so an existing
+ * Discord-linked user resolves to the same account), start a session on the
+ * auth routes kit's store (`issueSession`), and RETURN its JWT in the body:
+ * the Activity's page and its Godot client sign in with it
+ * (token-in-handshake, `auth.token`). No cookie is set: the page never
+ * sends one (an iframe on Discord's site rarely keeps it), and a cookie is
+ * only for a page that calls the API with it.
  *
  * Note: `authorize()` in Activities grants the `identify` scope (no email),
- * so first-time Activity users get a synthetic `<id>@discord.activity`
- * email. Users who previously signed in via regular Discord OAuth match on
- * providerAccountId and keep their real account.
+ * so first-time Activity users get the placeholder address
+ * `<id>@discord.local` (as any sign-in without a verified email does, see
+ * `upsertOAuthUser`). Users who previously signed in via regular Discord
+ * OAuth match on providerAccountId and keep their real account.
  *
- * Unlike other data, this is REST (not a service method): it must run before
- * any authenticated socket can exist.
+ * An app route rather than an auth routes kit provider: the kit's providers
+ * redirect, and this flow answers a POST from the Activity's own page.
  */
 
 import type { Express, Request, Response } from "express";
-import type { OAuthTokenResponse } from "@fitzzero/quickdraw-core/server";
-import { setSessionCookie } from "@fitzzero/quickdraw-core/server";
+import {
+  issueSession,
+  type OAuthTokenResponse,
+  type SessionKeys,
+} from "@fitzzero/quickdraw-core/server/auth";
 import type { PrismaClient } from "@project/db";
 import { logger } from "../utils/logger.js";
 import { validateRequest, z } from "../utils/validate-request.js";
-import { createSessionForProfile, SESSION_MAX_AGE_MS } from "./oauth-callback.js";
+import { upsertOAuthUser } from "./users.js";
+
+/** How long an Activity session lasts: the auth routes' default, 7 days. */
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const activityBodySchema = z.object({
   code: z.string().min(1).max(512),
@@ -38,15 +47,18 @@ interface DiscordUser {
   global_name?: string | null;
   avatar?: string | null;
   email?: string | null;
+  verified?: boolean;
 }
 
 export interface DiscordActivityDeps {
+  /** Where sessions are stored and the secret their JWTs are signed with: the auth routes'. */
+  keys: SessionKeys;
+  /** The database users are found or created in. */
+  db: PrismaClient;
   /** Exchange the SDK's authorization code for tokens. Injectable for tests. */
   exchangeCode?: (code: string) => Promise<OAuthTokenResponse>;
   /** Fetch the Discord user for an access token. Injectable for tests. */
   fetchDiscordUser?: (accessToken: string) => Promise<DiscordUser>;
-  /** Database client override (tests pass testPrisma). */
-  db?: PrismaClient;
 }
 
 async function defaultExchangeCode(code: string): Promise<OAuthTokenResponse> {
@@ -76,7 +88,7 @@ async function defaultFetchDiscordUser(accessToken: string): Promise<DiscordUser
   return (await response.json()) as DiscordUser;
 }
 
-export function registerDiscordActivityRoutes(app: Express, deps: DiscordActivityDeps = {}): void {
+export function registerDiscordActivityRoutes(app: Express, deps: DiscordActivityDeps): void {
   const exchangeCode = deps.exchangeCode ?? defaultExchangeCode;
   const fetchDiscordUser = deps.fetchDiscordUser ?? defaultFetchDiscordUser;
 
@@ -93,27 +105,35 @@ export function registerDiscordActivityRoutes(app: Express, deps: DiscordActivit
       try {
         const tokens = await exchangeCode(body.code);
         const discordUser = await fetchDiscordUser(tokens.access_token);
-
-        const avatar = discordUser.avatar
-          ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
-          : null;
-
-        const { token } = await createSessionForProfile(
+        const userId = await upsertOAuthUser(
+          deps.db,
           {
-            provider: "discord",
             providerAccountId: discordUser.id,
-            // Activities grant `identify` only — no email scope
-            email: discordUser.email ?? `${discordUser.id}@discord.activity`,
+            // Activities grant `identify` only, so no email: the user gets the
+            // placeholder address, as for an email Discord did not verify
+            email: discordUser.email ?? null,
+            emailVerified: discordUser.verified === true,
             name: discordUser.global_name ?? discordUser.username,
-            image: avatar,
+            image: discordUser.avatar
+              ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
+              : null,
             tokens,
           },
-          deps.db,
+          "discord",
         );
-
-        // Best-effort cookie for browsers that allow it; the body token is
-        // what the Activity client actually uses (socket auth.token).
-        setSessionCookie(res, token, { maxAgeMs: SESSION_MAX_AGE_MS });
+        if (userId === null) {
+          res.status(401).json({ error: "Discord Activity authentication failed" });
+          return;
+        }
+        const { token } = await issueSession(
+          deps.keys,
+          userId,
+          { provider: "discord-activity", userAgent: req.get("user-agent"), ip: req.ip },
+          SESSION_TTL_MS,
+        );
+        // The Activity signs in with the body's token (its socket's and the
+        // Godot client's auth.token): no cookie, which its page never uses
+        // (quickdraw's guide since 5.0.0-rc.6 sets none here either)
         res.json({ token });
       } catch (error) {
         logger.warn("Discord Activity auth failed", {

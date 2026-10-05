@@ -1,92 +1,19 @@
-import type { AccessLevel } from "./access.js";
+import type { EntityOf, ItemOf } from "@fitzzero/quickdraw-core";
+import type { z } from "zod";
+import type { chatContract, chatMemberSchema } from "../contracts/chat.js";
 
 // ============================================================================
-// Chat Service Types
+// Chat Service Types: named views of the chat contract (contracts/chat.ts)
 // ============================================================================
 
-/** Wire shape of a chat entity (subscription payloads + emitUpdate). */
-export interface ChatDTO {
-  id: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-}
+/** Wire shape of a chat: the contract's entity, as subscribers receive it. */
+export type ChatDTO = EntityOf<typeof chatContract>;
 
 /**
- * Item of the `myChats` collection — one row per chat the scope user is a
- * member of. `createdAt` doubles as the activity fallback when a chat has no
- * messages yet, so clients can sort by `lastMessageAt ?? createdAt`.
+ * Item of the `myChats` collection: one per chat the scope user is a member
+ * of, most recent activity first.
  */
-export interface ChatListItem {
-  id: string;
-  title: string;
-  memberCount: number;
-  lastMessageAt: string | null;
-  createdAt: string;
-}
+export type ChatListItem = ItemOf<typeof chatContract, "myChats">;
 
-/**
- * Collections served by chatService. `myChats` is scoped by *user id* —
- * scopes are not always parent entities — and fans out: one chat row appears
- * in every member's scope.
- */
-export type ChatCollections = {
-  myChats: { item: ChatListItem };
-};
-
-export interface ChatMemberDTO {
-  id: string;
-  userId: string;
-  level: AccessLevel;
-  user: {
-    id: string;
-    name: string | null;
-    image: string | null;
-  };
-}
-
-export interface ChatServiceMethods {
-  createChat: {
-    payload: {
-      title: string;
-      members?: { userId: string; level: AccessLevel }[];
-    };
-    response: { id: string };
-  };
-  updateTitle: {
-    payload: { id: string; title: string };
-    response: { id: string; title: string } | null;
-  };
-  getChatMembers: {
-    payload: { chatId: string };
-    response: ChatMemberDTO[];
-  };
-  inviteUser: {
-    payload: {
-      id: string;
-      userId: string;
-      level: AccessLevel;
-    };
-    response: { id: string };
-  };
-  inviteByName: {
-    payload: {
-      chatId: string;
-      userName: string;
-      level: AccessLevel;
-    };
-    response: { id: string } | { error: "user_not_found" };
-  };
-  removeUser: {
-    payload: { id: string; userId: string };
-    response: { id: string };
-  };
-  leaveChat: {
-    payload: { id: string };
-    response: { id: string };
-  };
-  deleteChat: {
-    payload: { id: string };
-    response: { id: string; deleted: true };
-  };
-}
+/** One member of a chat, with their level and public profile (`getChatMembers`). */
+export type ChatMemberDTO = z.output<typeof chatMemberSchema>;

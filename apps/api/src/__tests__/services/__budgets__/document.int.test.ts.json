@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "budgets": {
+    "share a document with 2 subscribers": {
+      "statements": 8,
+      "bytes": 725,
+      "calls": [
+        {
+          "call": "documentService.share",
+          "statements": 4,
+          "bytes": 179
+        }
+      ]
+    }
+  }
+}

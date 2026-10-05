@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { QuickdrawProvider } from "@fitzzero/quickdraw-core/client";
 import { GLOBAL_WORLD_SLUG, type QuickdrawHostConfig } from "@project/shared";
 import { GameSurface } from "../game";
+import { qd } from "../../lib/quickdraw";
 
 /** Discord's proxy rewrites everything through this path prefix. */
 const PROXY_SOCKET_PATH = "/.proxy/api/socket.io";
@@ -108,12 +109,14 @@ export function DiscordActivityShell(): React.ReactElement {
     );
   }
 
+  // The session JWT rides the handshake as auth.token (socketAuth reads a
+  // bearer token first); the socket goes through Discord's proxy path.
   return (
     <QuickdrawProvider
-      serverUrl={window.location.origin}
-      socketPath={PROXY_SOCKET_PATH}
-      authToken={state.token}
-      autoConnect
+      client={qd}
+      url={window.location.origin}
+      auth={state.token}
+      socketOptions={{ path: PROXY_SOCKET_PATH }}
     >
       <ActivityGame token={state.token} />
     </QuickdrawProvider>

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { testPrisma, resetDatabase } from "@project/db/testing";
-import { deleteExpiredSessions } from "../../auth/session-store.js";
+import { deleteExpiredSessions } from "../../auth/sessions.js";
 import { createTestUser } from "../factories/user-factory.js";
 
 describe("Expired-session cleanup", () => {
@@ -12,27 +12,25 @@ describe("Expired-session cleanup", () => {
     const user = await createTestUser();
     const now = new Date();
 
-    await testPrisma.session.createMany({
-      data: [
-        {
+    const [expired, live] = await Promise.all([
+      testPrisma.session.create({
+        data: { userId: user.id, provider: "mock", expiresAt: new Date(now.getTime() - 60 * 1000) },
+      }),
+      testPrisma.session.create({
+        data: {
           userId: user.id,
-          token: "expired-token",
-          expiresAt: new Date(now.getTime() - 60 * 1000),
-        },
-        {
-          userId: user.id,
-          token: "live-token",
+          provider: "mock",
           expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
         },
-      ],
-    });
+      }),
+    ]);
 
-    const deleted = await deleteExpiredSessions(now, testPrisma);
+    const deleted = await deleteExpiredSessions(testPrisma, now);
     expect(deleted).toBe(1);
 
     const remaining = await testPrisma.session.findMany({ where: { userId: user.id } });
-    expect(remaining).toHaveLength(1);
-    expect(remaining[0]?.token).toBe("live-token");
+    expect(remaining.map((session) => session.id)).toEqual([live.id]);
+    expect(remaining.some((session) => session.id === expired.id)).toBe(false);
   });
 
   it("is a no-op when nothing is expired", async () => {
@@ -40,12 +38,12 @@ describe("Expired-session cleanup", () => {
     await testPrisma.session.create({
       data: {
         userId: user.id,
-        token: "live-token",
+        provider: "mock",
         expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       },
     });
 
-    const deleted = await deleteExpiredSessions(new Date(), testPrisma);
+    const deleted = await deleteExpiredSessions(testPrisma, new Date());
     expect(deleted).toBe(0);
   });
 });

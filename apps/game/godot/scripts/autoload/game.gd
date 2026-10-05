@@ -1,18 +1,22 @@
 extends Node
-## Game (autoload) — world entry flow and state fan-out.
+## Game (autoload) — world entry flow and state fan-out, on quickdraw
+## protocol v5.
 ##
-## Client ordering contract (see .claude/rules/game-patterns.md):
-##   subscribe("gameService", worldId)  → room membership (gates everything)
-##   watchWorld / joinGame              → bootstrap state
-##   channel input / snapshot events    → gameplay
+## Client ordering contract (see .claude/rules/game-patterns.md), on every
+## (re)connect — a new socket is in no room until a call joins it:
+##   world stream (gameService "world")  → snapshots, seeded with the world now
+##   watchWorld / joinGame              → bootstrap state; puts THIS socket in
+##                                        the world's room (its events, and
+##                                        the input channel's requirement)
+##   channel input / world events       → gameplay
 ##
 ## On the web the game boots into SPECTATE mode (watchWorld — world renders,
 ## nothing spawns); the React pre-game dialog calls gameService.joinGame on
 ## the page's own socket, and this client notices itself in the next snapshot
-## and spawns. Signed-out visitors spectate too: subscribe fails without
-## auth, but watchWorld grants world-room membership to anonymous sockets. That is the point of the demo: commands are ordinary quickdraw
-## methods callable from any surface. In the editor (no wrapper) the game
-## auto-joins for fast iteration.
+## and spawns. Signed-out visitors spectate too: watchWorld and the world
+## stream are public. That is the point of the demo: commands are ordinary
+## quickdraw methods callable from any surface. In the editor (no wrapper)
+## the game auto-joins for fast iteration.
 
 signal world_ready(bootstrap: Dictionary)
 signal join_failed(error: String)
@@ -41,6 +45,10 @@ const CLOCK_WINDOW_S := 4.0
 const CLOCK_MAX_SLEW_TICKS_PER_S := 2.0
 const INTERP_DELAY_TICKS := 2.5
 
+## The server whose world the clock follows (its hello's `serverId`): a
+## reconnect to another one reached a restarted server (a new world, ticks
+## from 0), and the clock starts over; a network blip keeps it.
+var _clock_server_id := ""
 var _clock_est := 0.0
 var _clock_latest := 0.0
 var _clock_has_est := false
@@ -71,6 +79,26 @@ func clock_observe(tick: int, send_t: float) -> void:
 	while not _clock_arrivals.is_empty() and _clock_arrivals[0] < cutoff:
 		_clock_arrivals.remove_at(0)
 		_clock_delays.remove_at(0)
+
+
+## Follows the world of the server `server_id` names: another server's ticks
+## start over, so the clock forgets its timeline.
+func clock_follow_server(server_id: String) -> void:
+	if server_id != _clock_server_id:
+		_clock_server_id = server_id
+		_clock_reset()
+
+
+## Forgets the timeline: the next snapshot anchors it again.
+func _clock_reset() -> void:
+	_clock_est = 0.0
+	_clock_latest = 0.0
+	_clock_has_est = false
+	_clock_arrivals.clear()
+	_clock_delays.clear()
+	_clock_last_tick = 0.0
+	_clock_last_send_t = 0.0
+	_clock_has_timestamps = false
 
 
 func _process(delta: float) -> void:
@@ -110,54 +138,70 @@ func _ready() -> void:
 	Net.ready_to_join.connect(_on_ready_to_join)
 	if Net.client != null:
 		Net.client.disconnected.connect(_on_disconnected)
-		# The server pushes identity on connect; spectate mode never calls
-		# joinGame, so this is where my_id comes from.
-		Net.client.on_event("auth:info", func(data: Variant) -> void:
-			if data is Dictionary:
-				my_id = str((data as Dictionary).get("userId", "")))
+		Net.client.stream_item.connect(_on_stream_item)
+		Net.client.stream_seeded.connect(_on_stream_seeded)
+		_wire_events()
 
 
 func _on_ready_to_join() -> void:
+	# The hello names the server (a restarted one has a new id and a new
+	# world) and the user the socket acts for (null when anonymous); spectate
+	# mode never calls joinGame, so this is where my_id comes from.
+	clock_follow_server(Net.client.server_id)
+	my_id = "" if Net.client.user_id == null else str(Net.client.user_id)
 	_enter_world()
 
 
-func _on_disconnected() -> void:
+func _on_disconnected(_reason: String) -> void:
 	is_in_world = false
 
 
+var _entering := false
+
+
 func _enter_world() -> void:
+	if _entering:
+		return
+	_entering = true
+	await _enter_world_once()
+	_entering = false
+
+
+func _enter_world_once() -> void:
 	await _load_tunables()
 
 	var world: Dictionary = await Net.client.call_method(
 		"gameService", "getWorld", {"slug": Net.world_slug}
 	)
-	if not world.get("success", false) or world.get("data") == null:
-		join_failed.emit(str(world.get("error", "World not found")))
+	if not world.get("ok", false) or world.get("d") == null:
+		join_failed.emit(_error_of(world, "World not found"))
 		return
-	world_id = str((world["data"] as Dictionary)["id"])
+	world_id = str((world["d"] as Dictionary)["id"])
 
-	var sub: Dictionary = await Net.client.subscribe("gameService", world_id)
-	if not sub.get("success", false):
-		# Anonymous spectators can't subscribe (registry requires auth) —
-		# watchWorld below grants world-room membership instead. Only the
-		# auto-spawn (editor/desktop) path treats this as fatal.
-		if Net.auto_spawn:
-			join_failed.emit(str(sub.get("error", "Subscribe failed")))
+	# The world stream first, so its snapshots supersede the bootstrap below.
+	# Once: the client holds the feed, subscribes again by itself after a
+	# reconnect, and stream_seeded hands over the current world each time.
+	if not Net.client.is_subscribed("gameService", "world", world_id):
+		var sub: Dictionary = await Net.client.subscribe_stream("gameService", "world", world_id)
+		if not sub.get("ok", false):
+			# A refused feed is not held (is_subscribed is false): the retry
+			# subscribes again. One lost with the connection stays held, and
+			# the client subscribes it again after the reconnect
+			join_failed.emit(_error_of(sub, "The world stream refused"))
 			return
 
-	_wire_events()
-
 	# Web: spectate (the wrapper's dialog decides when to spawn).
-	# Editor/desktop: auto-join for fast gameplay iteration.
+	# Editor/desktop: auto-join for fast gameplay iteration. Either one puts
+	# this socket in the world's room, which the input channel requires.
 	var method := "joinGame" if Net.auto_spawn else "watchWorld"
 	var entry: Dictionary = await Net.client.call_method(
 		"gameService", method, {"worldId": world_id}
 	)
-	if not entry.get("success", false):
-		join_failed.emit(str(entry.get("error", "Failed to enter world")))
+	if not entry.get("ok", false):
+		join_failed.emit(_error_of(entry, "Failed to enter world"))
 		return
 
-	var bootstrap := entry["data"] as Dictionary
+	var bootstrap := entry["d"] as Dictionary
 	chat_id = str(bootstrap.get("chatId", ""))
 	var b := bootstrap["bounds"] as Dictionary
 	bounds = Vector2(float(b["w"]), float(b["h"]))
@@ -167,6 +211,14 @@ func _enter_world() -> void:
 	Net.notify_web_ready()
 
 
+## A failed reply's `e`, as "CODE: message".
+func _error_of(reply: Dictionary, fallback: String) -> String:
+	var error: Variant = reply.get("e")
+	if error is Dictionary:
+		return "%s: %s" % [(error as Dictionary).get("code", ""), (error as Dictionary).get("message", "")]
+	return fallback
+
+
 ## Fetch movement tunables from DefinitionService so the client predicts
 ## with the same values the server simulates with. Falls back to the
 ## GameConfig defaults if the definition is missing.
@@ -174,38 +226,48 @@ func _load_tunables() -> void:
 	var result: Dictionary = await Net.client.call_method(
 		"definitionService", "getDefinition", {"type": "tunables", "key": "snake"}
 	)
-	if result.get("success", false) and result.get("data") is Dictionary:
-		var definition := result["data"] as Dictionary
+	if result.get("ok", false) and result.get("d") is Dictionary:
+		var definition := result["d"] as Dictionary
 		if definition.get("data") is Dictionary:
 			GameConfig.apply_tunables(definition["data"] as Dictionary)
 
 
-var _events_wired := false
+## A snapshot pushed to the world stream (`qd:stream`, 20Hz, volatile).
+func _on_stream_item(service: String, stream: String, _scope: String, item: Variant) -> void:
+	if service == "gameService" and stream == "world" and item is Dictionary:
+		var snapshot := item as Dictionary
+		clock_observe(int(snapshot.get("tick", 0)), float(snapshot.get("t", 0.0)))
+		if Bench.enabled:
+			Bench.on_snapshot(int(snapshot.get("tick", 0)))
+		snapshot_received.emit(snapshot)
 
 
-func _wire_events() -> void:
-	if _events_wired:
+## The world stream's seed, on subscribing and after every reconnect: the
+## world now (every snake, all the food), which the snapshots that follow
+## change, before the bootstrap lands. Not a tick's arrival (it carries no
+## send time), so the clock skips it.
+func _on_stream_seeded(service: String, stream: String, _scope: String, seed: Array) -> void:
+	if service != "gameService" or stream != "world":
 		return
-	_events_wired = true
-	Net.client.on_event("game:snapshot", func(data: Variant) -> void:
-		if data is Dictionary:
-			var snap_dict := data as Dictionary
-			clock_observe(int(snap_dict.get("tick", 0)), float(snap_dict.get("t", 0.0)))
-			if Bench.enabled:
-				Bench.on_snapshot(int(snap_dict.get("tick", 0)))
-			snapshot_received.emit(snap_dict))
-	Net.client.on_event("game:playerJoined", func(data: Variant) -> void:
-		if data is Dictionary:
-			player_joined.emit(data as Dictionary))
-	Net.client.on_event("game:playerLeft", func(data: Variant) -> void:
-		if data is Dictionary:
-			player_left.emit(str((data as Dictionary).get("id", ""))))
-	Net.client.on_event("game:death", func(data: Variant) -> void:
-		if data is Dictionary:
-			player_died.emit(data as Dictionary))
-	Net.client.on_event("game:leaderboard", func(data: Variant) -> void:
-		if data is Array:
-			leaderboard_updated.emit(data as Array))
+	for item in seed:
+		if item is Dictionary:
+			snapshot_received.emit(item as Dictionary)
+
+
+## The world's reliable events (`qd:event`), heard while this socket is in its room.
+func _wire_events() -> void:
+	Net.client.on_event("gameService", "playerJoined", func(meta: Variant) -> void:
+		if meta is Dictionary:
+			player_joined.emit(meta as Dictionary))
+	Net.client.on_event("gameService", "playerLeft", func(left: Variant) -> void:
+		if left is Dictionary:
+			player_left.emit(str((left as Dictionary).get("id", ""))))
+	Net.client.on_event("gameService", "death", func(death: Variant) -> void:
+		if death is Dictionary:
+			player_died.emit(death as Dictionary))
+	Net.client.on_event("gameService", "leaderboard", func(entries: Variant) -> void:
+		if entries is Array:
+			leaderboard_updated.emit(entries as Array))
 
 
 func send_input(seq: int, dir: Vector2, boost: bool) -> void:
@@ -213,6 +275,8 @@ func send_input(seq: int, dir: Vector2, boost: bool) -> void:
 		return
 	if Bench.enabled:
 		Bench.on_input(seq)
+	# `qd:ch`: fire and forget, never acknowledged; the server drops it unless
+	# this socket is in the world's room
 	Net.client.send_channel("gameService", "input", {
 		"seq": seq,
 		"dx": dir.x,

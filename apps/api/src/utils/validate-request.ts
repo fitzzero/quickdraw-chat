@@ -1,5 +1,5 @@
 import type { Response } from "express";
-import { z, type ZodSchema, type ZodTypeDef } from "zod";
+import { z, type ZodType } from "zod";
 
 export { z };
 
@@ -12,8 +12,8 @@ export type RequestSource = "body" | "query" | "params" | "headers";
  *   const body = validateRequest(schema, req.body, res);
  *   if (!body) return;
  */
-export function validateRequest<Output, Def extends ZodTypeDef = ZodTypeDef, Input = Output>(
-  schema: ZodSchema<Output, Def, Input>,
+export function validateRequest<Output>(
+  schema: ZodType<Output>,
   source: unknown,
   res: Response,
   location: RequestSource = "body",
@@ -22,7 +22,7 @@ export function validateRequest<Output, Def extends ZodTypeDef = ZodTypeDef, Inp
   if (!parsed.success) {
     res.status(400).json({
       error: `Invalid request ${location}`,
-      details: parsed.error.flatten().fieldErrors,
+      details: z.flattenError(parsed.error).fieldErrors,
     });
     return undefined;
   }

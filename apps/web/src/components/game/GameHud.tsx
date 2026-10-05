@@ -4,31 +4,24 @@ import * as React from "react";
 import { Box, Fade, Paper, Typography } from "@mui/material";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import { useTranslations } from "next-intl";
-import { GLOBAL_WORLD_ID, NPC_ID_PREFIX, type LeaderboardEntry } from "@project/shared";
-import { useRoomEvents, useSubscription } from "../../hooks";
-import { useSocket } from "../../providers";
+import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
+import { NPC_ID_PREFIX, type LeaderboardEntry } from "@project/shared";
+import { qd } from "../../lib/quickdraw";
 
 /**
  * DOM leaderboard overlay above the Godot canvas.
  *
- * React deliberately consumes only the RELIABLE 1Hz streams
- * (game:leaderboard / game:death) — the 20Hz volatile snapshot stream stays
- * inside Godot. The page's own socket joins the world room via
- * useSubscription; useRoomEvents attaches the listeners.
+ * React deliberately consumes only the RELIABLE 1Hz world events
+ * (leaderboard / death) — the 20Hz volatile world stream stays inside
+ * Godot. The page's own socket is in the world's room through GameSurface's
+ * watchWorld (signed in or not); useEvent attaches the listener.
  */
 export function GameHud(): React.ReactElement | null {
   const t = useTranslations("GameHud");
-  const { userId } = useSocket();
+  const { userId } = useQuickdraw();
   const [board, setBoard] = React.useState<LeaderboardEntry[]>([]);
 
-  // Room membership for the page socket (ACL: any authenticated user).
-  // Anonymous spectators already hold membership via the Public watchWorld
-  // call in GameSurface — subscribing would just 401.
-  useSubscription("gameService", GLOBAL_WORLD_ID, { enabled: !!userId });
-
-  useRoomEvents({
-    "game:leaderboard": (entries: LeaderboardEntry[]) => setBoard(entries),
-  });
+  qd.gameService.leaderboard.useEvent((entries) => setBoard(entries));
 
   if (board.length === 0) return null;
 

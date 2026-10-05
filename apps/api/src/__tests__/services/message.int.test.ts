@@ -1,359 +1,298 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { QuickdrawError } from "@fitzzero/quickdraw-core";
+import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
-import type { CollectionDelta, CollectionSnapshotResponse } from "@fitzzero/quickdraw-core";
 import type { MessageDTO } from "@project/shared";
-import { collectionRoom } from "@project/shared";
-import { startTestServer } from "../utils/server.js";
-import { connectAsUser, emitWithAck, waitForEvent } from "../utils/socket.js";
+import { messageService } from "../../services/message/index.js";
+import { startTestApp, subscribeScope, type ApiTestApp } from "../utils/app.js";
+import { createTestChat, createTestMessage } from "../factories/chat-factory.js";
+import { createTestUser } from "../factories/user-factory.js";
 
-describe("MessageService Integration", () => {
-  let stop: () => Promise<void>;
-  let port: number;
-  let users: Awaited<ReturnType<typeof seedTestUsers>>;
+type Users = Awaited<ReturnType<typeof seedTestUsers>>;
 
-  beforeAll(async () => {
-    const server = await startTestServer();
-    port = server.port;
-    stop = server.stop;
-  });
+let app: ApiTestApp;
+let users: Users;
 
-  afterAll(async () => {
-    await stop();
-  });
+beforeAll(async () => {
+  app = await startTestApp();
+});
 
-  beforeEach(async () => {
-    await resetDatabase();
-    users = await seedTestUsers();
-  });
+afterAll(async () => {
+  await app.close();
+});
 
-  it("should post a message to a chat", async () => {
-    const client = await connectAsUser(port, users.regular.id);
+beforeEach(async () => {
+  await resetDatabase();
+  users = await seedTestUsers();
+});
 
-    // Create chat first
-    const chat = await emitWithAck<{ title: string }, { id: string }>(
-      client,
-      "chatService:createChat",
-      { title: "Message Test Chat" },
-    );
+function as(userId: string): ReturnType<ApiTestApp["as"]> {
+  return app.as({ userId });
+}
 
-    // Post message
-    const result = await emitWithAck<{ chatId: string; content: string }, { id: string }>(
-      client,
-      "messageService:postMessage",
-      {
-        chatId: chat.id,
-        content: "Hello, world!",
-      },
-    );
+async function codeOf(call: Promise<unknown>): Promise<string> {
+  try {
+    await call;
+    return "allow";
+  } catch (error) {
+    return error instanceof QuickdrawError ? error.code : String(error);
+  }
+}
 
-    expect(result.id).toBeDefined();
+describe("MessageService", () => {
+  it("posts a message and moves its chat's activity", async () => {
+    const regular = as(users.regular.id);
+    const chat = await regular.chatService.createChat({ title: "Message Test Chat" });
 
-    // Verify in database
-    const message = await testPrisma.message.findUnique({
-      where: { id: result.id },
-    });
-
-    expect(message).toBeDefined();
-    expect(message?.content).toBe("Hello, world!");
-    expect(message?.userId).toBe(users.regular.id);
-
-    client.close();
-  });
-
-  it("should snapshot and page message history via the byChat collection", async () => {
-    const client = await connectAsUser(port, users.regular.id);
-
-    // Create chat
-    const chat = await emitWithAck<{ title: string }, { id: string }>(
-      client,
-      "chatService:createChat",
-      { title: "List Test Chat" },
-    );
-
-    // Post multiple messages
-    await emitWithAck(client, "messageService:postMessage", {
+    const result = await regular.messageService.postMessage({
       chatId: chat.id,
-      content: "First message",
-    });
-    await emitWithAck(client, "messageService:postMessage", {
-      chatId: chat.id,
-      content: "Second message",
-    });
-    await emitWithAck(client, "messageService:postMessage", {
-      chatId: chat.id,
-      content: "Third message",
+      content: "Hello, world!",
     });
 
-    // First page: newest first, limit 2 → a cursor into older history
-    const page1 = await emitWithAck<
-      { collection: string; scopeId: string; limit?: number },
-      CollectionSnapshotResponse<MessageDTO>
-    >(client, "messageService:collection:subscribe", {
-      collection: "byChat",
-      scopeId: chat.id,
+    const message = await testPrisma.message.findUniqueOrThrow({ where: { id: result.id } });
+    expect(message.content).toBe("Hello, world!");
+    expect(message.userId).toBe(users.regular.id);
+    const stored = await testPrisma.chat.findUniqueOrThrow({ where: { id: chat.id } });
+    expect(stored.lastMessageAt.getTime()).toBe(message.createdAt.getTime());
+  });
+
+  it("pages a chat's history through byChat, newest first", async () => {
+    const regular = as(users.regular.id);
+    const chat = await regular.chatService.createChat({ title: "List Test Chat" });
+    for (const content of ["First message", "Second message", "Third message"]) {
+      await regular.messageService.postMessage({ chatId: chat.id, content });
+    }
+
+    const socket = await app.connect({ userId: users.regular.id });
+    const page1 = await subscribeScope(socket, "messageService", "byChat", chat.id, { limit: 2 });
+    if (!page1.ok || !("items" in page1)) throw new Error("expected a snapshot");
+    const first = page1.items as MessageDTO[];
+    expect(first.map((m) => m.content)).toEqual(["Third message", "Second message"]);
+    expect(first[0]?.user).toEqual({ id: users.regular.id, name: "Regular User", image: null });
+    expect(page1.total).toBe(3);
+    expect(page1.cursor).not.toBeNull();
+
+    const page2 = await subscribeScope(socket, "messageService", "byChat", chat.id, {
       limit: 2,
+      cursor: page1.cursor ?? undefined,
     });
-
-    expect(page1.items).toHaveLength(2);
-    expect(page1.items[0]?.content).toBe("Third message");
-    expect(page1.items[1]?.content).toBe("Second message");
-    expect(page1.totalCount).toBe(3);
-    expect(page1.nextCursor).not.toBeNull();
-    // Unbounded history: byChat never returns a membership ids list
-    expect(page1.ids).toBeUndefined();
-
-    // Cursor-bearing call = pure paging (no room join), continues into history
-    const page2 = await emitWithAck<
-      { collection: string; scopeId: string; cursor: string | null; limit?: number },
-      CollectionSnapshotResponse<MessageDTO>
-    >(client, "messageService:collection:subscribe", {
-      collection: "byChat",
-      scopeId: chat.id,
-      cursor: page1.nextCursor,
-      limit: 2,
-    });
-
-    expect(page2.items).toHaveLength(1);
-    expect(page2.items[0]?.content).toBe("First message");
-    expect(page2.nextCursor).toBeNull();
-
-    client.close();
+    if (!page2.ok || !("items" in page2)) throw new Error("expected a page");
+    expect((page2.items as MessageDTO[]).map((m) => m.content)).toEqual(["First message"]);
+    expect(page2.cursor).toBeNull();
+    socket.close();
   });
 
-  it("should deny posting to chats user is not a member of", async () => {
-    const admin = await connectAsUser(port, users.admin.id);
-    const regular = await connectAsUser(port, users.regular.id);
+  it("keeps the id the sender made, and answers it again CONFLICT without writing twice", async () => {
+    const regular = as(users.regular.id);
+    const chat = await regular.chatService.createChat({ title: "Client ids" });
+    const id = crypto.randomUUID();
+    expect(
+      await regular.messageService.postMessage({ id, chatId: chat.id, content: "Once" }),
+    ).toEqual({ id });
 
-    // Admin creates private chat
-    const chat = await emitWithAck<{ title: string }, { id: string }>(
-      admin,
-      "chatService:createChat",
-      { title: "Private Chat" },
-    );
-    admin.close();
+    // the same send again, as a retry after a lost answer: nothing written
+    expect(
+      await codeOf(regular.messageService.postMessage({ id, chatId: chat.id, content: "Twice" })),
+    ).toBe("CONFLICT");
+    const stored = await testPrisma.message.findMany({
+      where: { chatId: chat.id },
+      select: { id: true, content: true },
+    });
+    expect(stored).toEqual([{ id, content: "Once" }]);
+  });
 
-    // Regular user (not invited) tries to post
-    await expect(
-      emitWithAck(regular, "messageService:postMessage", {
-        chatId: chat.id,
-        content: "Unauthorized message",
+  it("never lets a sender's id name another message: neither a server-made one nor someone else's", async () => {
+    const author = await createTestUser();
+    const other = await createTestUser();
+    const mine = await createTestChat({ members: [{ userId: author.id }] });
+    const theirs = await createTestChat({ members: [{ userId: other.id }] });
+
+    // a server-made id is a cuid, never a UUID: refused before anything runs
+    const serverMade = await createTestMessage({ chatId: theirs.id, userId: other.id });
+    expect(
+      await codeOf(
+        as(author.id).messageService.postMessage({
+          id: serverMade.id,
+          chatId: mine.id,
+          content: "Mine now",
+        }),
+      ),
+    ).toBe("VALIDATION");
+
+    // another sender's id: CONFLICT, and their message stays theirs, where it was
+    const id = crypto.randomUUID();
+    await as(other.id).messageService.postMessage({ id, chatId: theirs.id, content: "Theirs" });
+    expect(
+      await codeOf(
+        as(author.id).messageService.postMessage({ id, chatId: mine.id, content: "Mine now" }),
+      ),
+    ).toBe("CONFLICT");
+    expect(
+      await testPrisma.message.findUniqueOrThrow({
+        where: { id },
+        select: { chatId: true, userId: true, content: true },
       }),
-    ).rejects.toThrow();
-
-    regular.close();
+    ).toEqual({ chatId: theirs.id, userId: other.id, content: "Theirs" });
   });
 
-  it("should allow owner to delete their own message", async () => {
-    const client = await connectAsUser(port, users.regular.id);
+  it("deletes a message by the id its sender made", async () => {
+    const regular = as(users.regular.id);
+    const chat = await regular.chatService.createChat({ title: "Client id delete" });
+    const id = crypto.randomUUID();
+    await regular.messageService.postMessage({ id, chatId: chat.id, content: "Short-lived" });
 
-    // Create chat and post message
-    const chat = await emitWithAck<{ title: string }, { id: string }>(
-      client,
-      "chatService:createChat",
-      { title: "Delete Test Chat" },
-    );
-
-    const message = await emitWithAck<{ chatId: string; content: string }, { id: string }>(
-      client,
-      "messageService:postMessage",
-      {
-        chatId: chat.id,
-        content: "To be deleted",
-      },
-    );
-
-    // Delete the message
-    const deleteResult = await emitWithAck<{ id: string }, { id: string; deleted: true }>(
-      client,
-      "messageService:deleteMessage",
-      { id: message.id },
-    );
-
-    expect(deleteResult.deleted).toBe(true);
-
-    // Verify deleted
-    const dbMessage = await testPrisma.message.findUnique({
-      where: { id: message.id },
-    });
-    expect(dbMessage).toBeNull();
-
-    client.close();
+    expect(await regular.messageService.deleteMessage({ id })).toEqual({ id, deleted: true });
+    expect(await testPrisma.message.findUnique({ where: { id } })).toBeNull();
   });
 
-  it("should allow service-level admin to delete any message", async () => {
-    const regular = await connectAsUser(port, users.regular.id);
-    // Admin has serviceAccess.messageService = "Admin"
-    const serviceAdmin = await connectAsUser(port, users.admin.id);
+  it("refuses a post to a chat the caller is no member of", async () => {
+    const chat = await as(users.admin.id).chatService.createChat({ title: "Private" });
+    expect(
+      await codeOf(
+        as(users.regular.id).messageService.postMessage({
+          chatId: chat.id,
+          content: "Unauthorized message",
+        }),
+      ),
+    ).toBe("FORBIDDEN");
+  });
 
-    // Regular user creates chat and posts message
-    const chat = await emitWithAck<{ title: string }, { id: string }>(
-      regular,
-      "chatService:createChat",
-      { title: "Service Admin Test" },
-    );
-
-    const message = await emitWithAck<{ chatId: string; content: string }, { id: string }>(
-      regular,
-      "messageService:postMessage",
-      {
-        chatId: chat.id,
-        content: "Regular user message",
-      },
-    );
-
-    // Service-level admin can delete any message (regardless of chat membership)
-    const deleteResult = await emitWithAck<{ id: string }, { id: string; deleted: true }>(
-      serviceAdmin,
-      "messageService:deleteMessage",
-      { id: message.id },
-    );
-
-    expect(deleteResult.deleted).toBe(true);
-
-    // Verify deleted
-    const dbMessage = await testPrisma.message.findUnique({
-      where: { id: message.id },
+  it("lets the author delete their own message", async () => {
+    const regular = as(users.regular.id);
+    const chat = await regular.chatService.createChat({ title: "Delete Test Chat" });
+    const message = await regular.messageService.postMessage({
+      chatId: chat.id,
+      content: "To be deleted",
     });
-    expect(dbMessage).toBeNull();
 
-    regular.close();
-    serviceAdmin.close();
+    expect(await regular.messageService.deleteMessage({ id: message.id })).toEqual({
+      id: message.id,
+      deleted: true,
+    });
+    expect(await testPrisma.message.findUnique({ where: { id: message.id } })).toBeNull();
+  });
+
+  it("lets a service-wide Admin delete any message", async () => {
+    const regular = as(users.regular.id);
+    const chat = await regular.chatService.createChat({ title: "Service Admin Test" });
+    const message = await regular.messageService.postMessage({
+      chatId: chat.id,
+      content: "Regular user message",
+    });
+
+    // users.admin holds messageService: Admin and is no member of the chat
+    const result = await as(users.admin.id).messageService.deleteMessage({ id: message.id });
+    expect(result.deleted).toBe(true);
+    expect(await testPrisma.message.findUnique({ where: { id: message.id } })).toBeNull();
+  });
+
+  it("refuses a member who is not the author", async () => {
+    const author = await createTestUser();
+    const reader = await createTestUser();
+    const chat = await createTestChat({
+      title: "Permission Test Chat",
+      members: [{ userId: author.id }, { userId: reader.id, level: "Moderate" }],
+    });
+    const message = await createTestMessage({ chatId: chat.id, userId: author.id });
+
+    expect(await codeOf(as(reader.id).messageService.deleteMessage({ id: message.id }))).toBe(
+      "FORBIDDEN",
+    );
+    expect(await testPrisma.message.findUnique({ where: { id: message.id } })).not.toBeNull();
+  });
+
+  it("lets the chat's Admin delete a member's message", async () => {
+    const chatAdmin = await createTestUser();
+    const member = await createTestUser();
+    const chat = await createTestChat({
+      title: "Moderated",
+      members: [{ userId: chatAdmin.id, level: "Admin" }, { userId: member.id }],
+    });
+    const message = await createTestMessage({ chatId: chat.id, userId: member.id });
+
+    const result = await as(chatAdmin.id).messageService.deleteMessage({ id: message.id });
+    expect(result.deleted).toBe(true);
+  });
+
+  it("moves the chat's latest activity back when its latest message is deleted", async () => {
+    const author = as(users.regular.id);
+    const chat = await author.chatService.createChat({ title: "Rewind" });
+    const first = await author.messageService.postMessage({ chatId: chat.id, content: "first" });
+    const second = await author.messageService.postMessage({ chatId: chat.id, content: "second" });
+    const third = await author.messageService.postMessage({ chatId: chat.id, content: "third" });
+    const createdAt = async (id: string): Promise<number> =>
+      (await testPrisma.message.findUniqueOrThrow({ where: { id } })).createdAt.getTime();
+    const activity = async (): Promise<number> =>
+      (await testPrisma.chat.findUniqueOrThrow({ where: { id: chat.id } })).lastMessageAt.getTime();
+    const [firstAt, secondAt] = [await createdAt(first.id), await createdAt(second.id)];
+
+    // an older message: the latest activity stays the third's
+    const thirdAt = await createdAt(third.id);
+    await author.messageService.deleteMessage({ id: second.id });
+    expect(await activity()).toBe(thirdAt);
+    // the latest message: back to the one left
+    await author.messageService.deleteMessage({ id: third.id });
+    expect(await activity()).toBe(firstAt);
+    expect(secondAt).toBeGreaterThanOrEqual(firstAt);
+    // the last one, through the admin screens: back to the chat's creation
+    await as(users.admin.id).messageService.adminDelete({ id: first.id });
+    const stored = await testPrisma.chat.findUniqueOrThrow({ where: { id: chat.id } });
+    expect(stored.lastMessageAt.getTime()).toBe(stored.createdAt.getTime());
   });
 });
 
-describe("MessageService Integration - Socket Room Updates", () => {
-  let stop: () => Promise<void>;
-  let port: number;
-  let users: Awaited<ReturnType<typeof seedTestUsers>>;
-
-  beforeAll(async () => {
-    const server = await startTestServer();
-    port = server.port;
-    stop = server.stop;
-  });
-
-  afterAll(async () => {
-    await stop();
-  });
-
-  beforeEach(async () => {
-    await resetDatabase();
-    users = await seedTestUsers();
-  });
-
-  it("should broadcast new message to byChat collection subscribers", async () => {
-    const owner = await connectAsUser(port, users.admin.id);
-    const member = await connectAsUser(port, users.regular.id);
-
-    // Owner creates chat and invites member
-    const chat = await emitWithAck<{ title: string }, { id: string }>(
-      owner,
-      "chatService:createChat",
-      { title: "Broadcast Test Chat" },
-    );
-    await emitWithAck(owner, "chatService:inviteUser", {
-      id: chat.id,
-      userId: users.regular.id,
-      level: "Read",
+describe("MessageService access matrix", () => {
+  it("admits each method's callers", async () => {
+    const [author, chatAdmin, reader, stranger] = await Promise.all([
+      createTestUser(),
+      createTestUser(),
+      createTestUser(),
+      createTestUser(),
+    ]);
+    const chat = await createTestChat({
+      title: "Matrix",
+      members: [
+        { userId: chatAdmin.id, level: "Admin" },
+        { userId: author.id, level: "Read" },
+        { userId: reader.id, level: "Read" },
+      ],
+    });
+    // Each delete runs for real, so every cell deletes a fresh message
+    const byAuthor = async (): Promise<{ id: string }> => ({
+      id: (await createTestMessage({ chatId: chat.id, userId: author.id })).id,
+    });
+    const byReader = async (): Promise<{ id: string }> => ({
+      id: (await createTestMessage({ chatId: chat.id, userId: reader.id })).id,
     });
 
-    // Member subscribes to the chat's message collection (joins the scope room)
-    await emitWithAck(member, "messageService:collection:subscribe", {
-      collection: "byChat",
-      scopeId: chat.id,
-    });
-
-    // Deltas arrive on the scope-room event (event name == room name)
-    const deltaPromise = waitForEvent<CollectionDelta<MessageDTO>>(
-      member,
-      collectionRoom("messageService", "byChat", chat.id),
-      3000,
-    );
-
-    // Owner posts a message — the CRUD trio emits the `added` delta itself
-    await emitWithAck(owner, "messageService:postMessage", {
-      chatId: chat.id,
-      content: "Hello from owner!",
-    });
-
-    // Member should receive the added delta with the full item
-    const delta = await deltaPromise;
-    expect(delta.type).toBe("added");
-    if (delta.type !== "added") throw new Error("unreachable");
-    expect(delta.item.content).toBe("Hello from owner!");
-    expect(delta.item.userId).toBe(users.admin.id);
-    expect(delta.item.chatId).toBe(chat.id);
-    expect(delta.item.user?.name).toBe("Admin User");
-    expect(delta.rev).toBeGreaterThan(0);
-
-    owner.close();
-    member.close();
-  });
-});
-
-describe("MessageService Integration - Permission Cascade", () => {
-  let stop: () => Promise<void>;
-  let port: number;
-  let users: Awaited<ReturnType<typeof seedTestUsers>>;
-
-  beforeAll(async () => {
-    const server = await startTestServer();
-    port = server.port;
-    stop = server.stop;
-  });
-
-  afterAll(async () => {
-    await stop();
-  });
-
-  beforeEach(async () => {
-    await resetDatabase();
-    users = await seedTestUsers();
-  });
-
-  it("should deny non-owner without service access from deleting message", async () => {
-    const messageOwner = await connectAsUser(port, users.regular.id);
-    const otherMember = await connectAsUser(port, users.moderator.id);
-
-    // Message owner creates chat
-    const chat = await emitWithAck<{ title: string }, { id: string }>(
-      messageOwner,
-      "chatService:createChat",
-      { title: "Permission Test Chat" },
-    );
-
-    // Invite other member (who has no service-level messageService access)
-    await emitWithAck(messageOwner, "chatService:inviteUser", {
-      id: chat.id,
-      userId: users.moderator.id,
-      level: "Read",
-    });
-
-    // Message owner posts a message
-    const message = await emitWithAck<{ chatId: string; content: string }, { id: string }>(
-      messageOwner,
-      "messageService:postMessage",
-      {
-        chatId: chat.id,
-        content: "Only I can delete this",
+    await describeAccessMatrix(app, {
+      service: messageService,
+      principals: {
+        author: { userId: author.id },
+        chatAdmin: { userId: chatAdmin.id },
+        reader: { userId: reader.id },
+        stranger: { userId: stranger.id },
       },
-    );
-
-    // Other member (not message owner, no service-level access) tries to delete
-    await expect(
-      emitWithAck(otherMember, "messageService:deleteMessage", {
-        id: message.id,
-      }),
-    ).rejects.toThrow();
-
-    // Verify message was NOT deleted
-    const dbMessage = await testPrisma.message.findUnique({
-      where: { id: message.id },
+      cases: [
+        {
+          method: "postMessage",
+          input: { chatId: chat.id, content: "Hi" },
+          allow: ["author", "chatAdmin", "reader"],
+        },
+        {
+          label: "deleteMessage (the author's)",
+          method: "deleteMessage",
+          input: byAuthor,
+          allow: ["author", "chatAdmin"],
+        },
+        {
+          label: "deleteMessage (another member's)",
+          method: "deleteMessage",
+          input: byReader,
+          allow: ["chatAdmin", "reader"],
+        },
+        { method: "adminList", input: {}, allow: [] },
+      ],
     });
-    expect(dbMessage).not.toBeNull();
-    expect(dbMessage?.content).toBe("Only I can delete this");
-
-    messageOwner.close();
-    otherMember.close();
   });
 });

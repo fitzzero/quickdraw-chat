@@ -18,9 +18,9 @@ below.
 
 | Tag                    | Description                                                      | overviewPath                            | Parent |
 | ---------------------- | ---------------------------------------------------------------- | --------------------------------------- | ------ |
-| `service-architecture` | BaseService, methods, collections, ACL, write hooks.             | `.claude/rules/service-architecture.md` | —      |
+| `service-architecture` | Contracts, services, collections, kits and row policies.         | `.claude/rules/service-architecture.md` | —      |
 | `api-conventions`      | What goes over sockets vs REST, and how the API is shaped.       | `.claude/rules/api-conventions.md`      | —      |
-| `client-patterns`      | Typed React hooks, live lists, UI text and theming rules.        | `.claude/rules/client-patterns.md`      | —      |
+| `client-patterns`      | The typed client, live lists, UI text and theming rules.         | `.claude/rules/client-patterns.md`      | —      |
 | `database`             | Prisma schema, migrations, and the seed.                         | `.claude/rules/database-patterns.md`    | —      |
 | `testing`              | The unit and integration lanes, and the dual-mode test database. | `.claude/rules/testing-patterns.md`     | —      |
 | `auth`                 | Sessions, OAuth providers, socket and REST authentication.       | `.claude/rules/auth.md`                 | —      |
@@ -57,14 +57,14 @@ points at.
 
 | Tag                    | Context paths                                                                                                                            |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `service-architecture` | `apps/api/src/services` (folder), `apps/api/src/index.ts` (file), `.claude/rules/service-architecture.md` (rule)                         |
+| `service-architecture` | `apps/api/src/services` (folder), `packages/shared/src/contracts` (folder), `.claude/rules/service-architecture.md` (rule)               |
 | `api-conventions`      | `apps/api/src` (folder), `apps/api/src/mcp-server.ts` (file), `.claude/rules/api-conventions.md` (rule)                                  |
-| `client-patterns`      | `apps/web/src` (folder), `apps/web/src/hooks` (folder), `.claude/rules/client-patterns.md` (rule)                                        |
+| `client-patterns`      | `apps/web/src` (folder), `apps/web/src/lib/quickdraw.ts` (file), `.claude/rules/client-patterns.md` (rule)                               |
 | `database`             | `packages/db` (folder), `packages/db/prisma/schema.prisma` (file), `.claude/rules/database-patterns.md` (rule)                           |
 | `testing`              | `apps/api/src/__tests__` (folder), `apps/api/vitest.int.config.ts` (file), `.claude/rules/testing-patterns.md` (rule)                    |
 | `auth`                 | `apps/api/src/auth` (folder), `.claude/rules/auth.md` (rule)                                                                             |
-| `dev-auth`             | `apps/api/src/auth/mock.ts` (file), `scripts/load-env.sh` (file), `.claude/rules/dev-auth.md` (rule)                                     |
-| `security`             | `apps/web/next.config.mjs` (file), `apps/api/src/auth/middleware.ts` (file), `.claude/rules/security.md` (rule)                          |
+| `dev-auth`             | `apps/api/src/auth/dev-credentials.ts` (file), `scripts/load-env.sh` (file), `.claude/rules/dev-auth.md` (rule)                          |
+| `security`             | `apps/web/next.config.mjs` (file), `apps/api/src/auth/index.ts` (file), `.claude/rules/security.md` (rule)                               |
 | `linting`              | `.oxlintrc.json` (file), `eslint-plugin-project` (folder), `.claude/rules/linting.md` (rule)                                             |
 | `pwa-push`             | `apps/web/public/sw.js` (file), `apps/api/src/services/push-subscription` (folder), `docs/pwa.md` (doc)                                  |
 | `deployment`           | `.github/workflows` (folder), `apps/api/Dockerfile` (file), `DEPLOYMENT.md` (doc)                                                        |

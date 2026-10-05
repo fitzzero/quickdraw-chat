@@ -1,6 +1,8 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "extends": ["./node_modules/@fitzzero/quickdraw-core/oxlint.base.jsonc"],
+  // The template config: quickdraw-lint's base (the strict rule set and the
+  // quickdraw plugin) plus the design-system rules. It updates with the package.
+  "extends": ["./node_modules/@fitzzero/quickdraw-lint/oxlint.template.jsonc"],
   "plugins": ["typescript", "import", "react", "nextjs", "jsx_a11y"],
   "jsPlugins": [
     {
@@ -10,37 +12,12 @@
   ],
   "overrides": [
     {
-      "files": ["**/services/**/*.ts"],
-      "rules": {
-        "quickdraw/no-cross-service-mutations": [
-          "error",
-          {
-            "allowedModels": {
-              "chat": ["chatMember"],
-              "message": ["chat"],
-              "game": ["chat", "chatMember", "gameScore"]
-            }
-          }
-        ]
-      }
-    },
-    {
-      "files": ["apps/api/src/index.ts", "apps/api/src/auth/middleware.ts", "apps/web/**"],
-      "rules": {
-        "quickdraw/no-raw-service-room-string": "error"
-      }
-    },
-    {
-      "files": ["**/routes.ts", "**/routes/**/*.ts"],
-      "rules": {
-        "project/no-prisma-in-routes": "error"
-      }
-    },
-    {
       "files": ["**/src/bench/**", "**/apps/bench-web/**", "**/packages/bench/src/cli/**"],
       "rules": {
         "no-console": "off",
-        "import/max-dependencies": "off"
+        "import/max-dependencies": "off",
+        // the netcode bench's bots drive raw sockets on purpose, as a game client does
+        "quickdraw/no-raw-socket": "off"
       }
     }
   ],

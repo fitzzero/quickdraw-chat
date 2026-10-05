@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useService } from "./useService";
-
+import { qd } from "../lib/quickdraw";
 // Non-secret by design — safe to inline into the client bundle.
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
@@ -39,8 +38,8 @@ export function usePushNotifications(): UsePushNotificationsResult {
   const [isSubscribed, setIsSubscribed] = React.useState(false);
   const [isBusy, setIsBusy] = React.useState(false);
 
-  const subscribeMutation = useService("pushService", "subscribePush");
-  const unsubscribeMutation = useService("pushService", "unsubscribePush");
+  const subscribeMutation = qd.pushService.subscribePush.useMutation();
+  const unsubscribeMutation = qd.pushService.unsubscribePush.useMutation();
 
   // Detect support + current state after mount (keeps SSR markup stable)
   React.useEffect(() => {

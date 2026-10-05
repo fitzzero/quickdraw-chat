@@ -5,8 +5,7 @@ import { Badge, Box, Fab, IconButton, Paper, Typography } from "@mui/material";
 import ChatIcon from "@mui/icons-material/Chat";
 import CloseIcon from "@mui/icons-material/ExpandMore";
 import { useTranslations } from "next-intl";
-import type { MessageDTO } from "@project/shared";
-import { useRoomEvents, useSubscription } from "../../hooks";
+import { qd } from "../../lib/quickdraw";
 import { ChatWindow } from "../chat";
 
 interface GameChatOverlayProps {
@@ -21,30 +20,26 @@ interface GameChatOverlayProps {
  * Membership in this chat is granted server-side by gameService.watchWorld
  * (Godot's spectate boot) and joinGame, so this overlay mounts as soon as
  * the engine reports ready — spectators can chat from behind the pre-game
- * dialog. ChatWindow is reused as-is — this wrapper adds room membership
- * (useSubscription), the unread badge, and expand/minimize with canvas
- * focus handoff.
+ * dialog. ChatWindow is reused as-is — this wrapper adds the unread badge
+ * and expand/minimize with canvas focus handoff.
  */
 export function GameChatOverlay({ chatId }: GameChatOverlayProps): React.ReactElement {
   const t = useTranslations("GameChat");
   const [open, setOpen] = React.useState(false);
-  const [unread, setUnread] = React.useState(0);
 
-  // Join the chat room immediately (membership exists once the game joined),
-  // so unread counts accrue even while the panel is minimized.
-  useSubscription("chatService", chatId);
-
-  useRoomEvents({
-    "chat:message": (message: MessageDTO) => {
-      if (message.chatId === chatId && !open) {
-        setUnread((count) => count + 1);
-      }
-    },
-  });
+  // The chat's live history, held from mount (ChatWindow shows the same
+  // scope), so its count moves while the panel is minimized: what arrived
+  // since the panel was last open is unread
+  const { totalCount } = qd.messageService.byChat.useCollection(chatId);
+  const [seenCount, setSeenCount] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    if (totalCount !== null && (open || seenCount === null)) setSeenCount(totalCount);
+  }, [open, totalCount, seenCount]);
+  const unread =
+    open || totalCount === null || seenCount === null ? 0 : Math.max(0, totalCount - seenCount);
 
   const handleOpen = (): void => {
     setOpen(true);
-    setUnread(0);
   };
 
   const handleMinimize = (): void => {

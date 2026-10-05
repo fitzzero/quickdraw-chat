@@ -95,10 +95,10 @@ fi
 # (BSD sed chokes on non-UTF8 bytes). Migration SQL is name-free; the
 # lockfile only carries the workspace name (identity pass).
 FILES=$(git ls-files | grep -vE '^packages/db/prisma/migrations/|\.(wasm|pck|png|ico|jpg|jpeg|gif|webp|woff2?)$')
-# After a carve-out, ls-files still lists the deleted paths — drop them
-if [ -n "$WITHOUT_GAME" ] || [ -n "$WITHOUT_STORYBOOK" ]; then
-  FILES=$(echo "$FILES" | while read -r f; do [ -f "$f" ] && echo "$f"; done)
-fi
+# Regular files only: after a carve-out ls-files still lists the deleted
+# paths, and the skill and rule links (.claude/) are symlinks that sed would
+# fail on (dangling) or replace with copies (installed)
+FILES=$(echo "$FILES" | while read -r f; do if [ -f "$f" ] && [ ! -L "$f" ]; then echo "$f"; fi; done)
 
 # ── 1. App identity ──────────────────────────────────────────────────
 echo "$FILES" | xargs "${SED_I[@]}" \
@@ -108,15 +108,20 @@ echo "$FILES" | xargs "${SED_I[@]}" \
 
 # ── 1b. Display brand ─────────────────────────────────────────────────
 # The web app brands itself "Quickdraw" front-facing (landing, metadata,
-# manifest, README). Rename it in the files that carry display strings.
-# Framework identifiers (QuickdrawProvider, QuickdrawHost, quickdraw-core)
-# are letter-adjacent or lowercase and never match these patterns.
+# manifest, README). Rename the word in the files that carry display
+# strings: only where no letter touches it, so framework identifiers
+# (QuickdrawProvider, useQuickdraw, renderWithQuickdraw, quickdraw-core)
+# never match. The middle pattern runs twice, since one match takes the
+# character the next would start with ("Quickdraw/Quickdraw").
 BRAND_FILES="apps/web/src/messages/en.json apps/web/src/app/layout.tsx apps/web/src/app/opengraph-image.tsx apps/web/public/site.webmanifest README.md"
 for f in $BRAND_FILES; do
   [ -f "$f" ] || continue
   "${SED_I[@]}" \
-    -e "s/Quickdraw\([^A-Za-z]\)/${DISPLAY}\1/g" \
-    -e "s/Quickdraw\$/${DISPLAY}/" \
+    -e "s/^Quickdraw\([^A-Za-z]\)/${DISPLAY}\1/" \
+    -e "s/\([^A-Za-z]\)Quickdraw\([^A-Za-z]\)/\1${DISPLAY}\2/g" \
+    -e "s/\([^A-Za-z]\)Quickdraw\([^A-Za-z]\)/\1${DISPLAY}\2/g" \
+    -e "s/\([^A-Za-z]\)Quickdraw\$/\1${DISPLAY}/" \
+    -e "s/^Quickdraw\$/${DISPLAY}/" \
     -e "s/\"appName\": \"quickdraw\"/\"appName\": \"${NAME}\"/" \
     -e "s/\"title\": \"quickdraw\"/\"title\": \"${NAME}\"/" \
     "$f"
@@ -137,13 +142,12 @@ if [ -n "$PORT" ]; then
 
   # `?? 4000` fallbacks only where they mean the backend port — a blanket
   # pass would also hit unrelated numeric defaults (e.g. toast durations)
-  "${SED_I[@]}" "s/?? 4000/?? ${PORT}/g" \
+  "${SED_I[@]}" -e "s/?? 4000/?? ${PORT}/g" -e "s/?? \"4000\"/?? \"${PORT}\"/g" \
     apps/api/src/index.ts \
-    apps/api/src/auth/google.ts \
-    apps/api/src/auth/discord.ts \
-    apps/api/src/auth/mock.ts \
-    apps/web/src/lib/auth.ts \
-    apps/web/src/providers/index.tsx
+    apps/api/src/auth/config.ts \
+    apps/api/src/auth/index.ts
+  # the devcontainer's forwardPorts list, one port a line
+  "${SED_I[@]}" "s/^\([[:space:]]*\)4000,\$/\1${PORT},/" .devcontainer/conveyor/devcontainer.json
 fi
 
 # ── 3. Package scope (optional) ──────────────────────────────────────
@@ -166,6 +170,11 @@ fi
 # ── 5. Refresh lockfile + formatting ─────────────────────────────────
 echo "Installing dependencies (refreshes lockfile)..."
 bun install >/dev/null
+if [ -n "$WITHOUT_GAME" ]; then
+  # The API reference indexes every service: generate it for the ones left
+  echo "Regenerating the API reference (docs/api)..."
+  bun run docs:generate >/dev/null
+fi
 echo "Formatting..."
 bun run format >/dev/null 2>&1 || true
 

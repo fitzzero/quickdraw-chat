@@ -34,6 +34,8 @@ export interface PreGameDialogProps {
   starting: boolean;
   /** Signed-out visitors get the guest-name flow + login CTA. */
   needsGuest: boolean;
+  /** Why the last join was refused, for people: shown, and the button tries again. */
+  joinError?: string;
   onStart: (guestName?: string) => void;
   onLogin: () => void;
 }
@@ -50,6 +52,9 @@ function startButtonContent(
 ): { icon: React.ReactElement; label: string } {
   if (props.starting) {
     return { icon: <CircularProgress size={18} color="inherit" />, label: t("starting") };
+  }
+  if (props.joinError !== undefined) {
+    return { icon: <ReplayIcon />, label: t("tryAgain") };
   }
   if (props.mode === "dead") {
     return { icon: <ReplayIcon />, label: t("respawn") };
@@ -136,6 +141,12 @@ export function PreGameDialog(props: PreGameDialogProps): React.ReactElement {
             sx={{ my: 1.5 }}
             autoFocus
           />
+        )}
+
+        {props.joinError !== undefined && (
+          <Typography variant="body2" color="error" sx={{ mt: 1.5 }}>
+            {t("joinFailed", { reason: props.joinError })}
+          </Typography>
         )}
 
         <Button

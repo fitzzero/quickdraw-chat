@@ -1,11 +1,13 @@
 import { PrismaClient } from "../prisma/generated/prisma/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { trackPrisma } from "@fitzzero/quickdraw-core/prisma";
 import { Pool } from "pg";
 
 // Singleton pattern for Prisma client with lazy initialization
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
   prismaPool: Pool | undefined;
+  db: PrismaClient | undefined;
 };
 
 function createPrismaClient(): PrismaClient {
@@ -52,13 +54,39 @@ export async function disconnectPrisma(): Promise<void> {
   await globalForPrisma.prismaPool?.end();
   globalForPrisma.prisma = undefined;
   globalForPrisma.prismaPool = undefined;
+  globalForPrisma.db = undefined;
 }
 
-// Lazy getter - only creates the client when first accessed
+function untrackedClient(): PrismaClient {
+  globalForPrisma.prisma ??= createPrismaClient();
+  return globalForPrisma.prisma;
+}
+
+/**
+ * The untracked client: quickdraw never sees its writes, so nobody
+ * subscribed hears about them. For seeds, one-off scripts and the auth
+ * routes' session store (sessions are not live data); everything else
+ * writes through {@link db}.
+ */
 export const prisma = new Proxy({} as PrismaClient, {
   get(_target: PrismaClient, prop: string | symbol): unknown {
-    globalForPrisma.prisma ??= createPrismaClient();
-    return Reflect.get(globalForPrisma.prisma, prop) as unknown;
+    return Reflect.get(untrackedClient(), prop) as unknown;
+  },
+});
+
+/**
+ * The tracked client (`trackPrisma`, applied last): every write through it
+ * reaches the quickdraw server's flush, which sends entity frames and
+ * collection deltas to subscribers. The one client the API server, the MCP
+ * server and the services write through (handlers receive it as `db`); the
+ * tests and the bench track their own database the same way
+ * (`@project/db/testing`). Created on first use, like {@link prisma}, so
+ * importing this module needs no `DATABASE_URL`.
+ */
+export const db = new Proxy({} as PrismaClient, {
+  get(_target: PrismaClient, prop: string | symbol): unknown {
+    globalForPrisma.db ??= trackPrisma(untrackedClient());
+    return Reflect.get(globalForPrisma.db, prop) as unknown;
   },
 });
 
