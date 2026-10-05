@@ -503,6 +503,8 @@ func _on_stream(data: Variant) -> void:
 	stream_item.emit(str(data[0]), str(data[1]), "" if scope == null else str(scope), data[3])
 
 
+## `[service, event, payload]`; elements after `payload` belong to a later
+## protocol and are ignored.
 func _on_room_event(data: Variant) -> void:
 	if not (data is Array) or (data as Array).size() < 3:
 		return
