@@ -1,6 +1,9 @@
 import { admin } from "@fitzzero/quickdraw-core/server";
 import { definitionContract, type DefinitionDTO } from "@project/shared";
 import { qd } from "../../quickdraw.js";
+import { createServiceLogger, errorMeta } from "../../utils/logger.js";
+
+const logger = createServiceLogger("definitionService");
 
 /** What a listener hears of an edited definition: its type, key and data. */
 export type ChangedDefinition = Pick<DefinitionDTO, "type" | "key" | "data">;
@@ -18,13 +21,20 @@ export function onChanged(listener: DefinitionChangedListener): void {
   changedListeners.push(listener);
 }
 
-/** Tells the listeners about an edited definition; a listener's error never breaks the write. */
+/**
+ * Tells the listeners about an edited definition, after its write
+ * committed: a listener that throws is logged and stops none of the others.
+ */
 export function notifyChanged(definition: ChangedDefinition): void {
   for (const listener of changedListeners) {
     try {
       listener(definition);
-    } catch {
-      // Listener errors must never break admin writes
+    } catch (error) {
+      logger.warn("A definition listener failed", {
+        type: definition.type,
+        key: definition.key,
+        error: errorMeta(error),
+      });
     }
   }
 }
@@ -65,12 +75,13 @@ export const definitionService = qd.defineService(definitionContract, {
     },
     // Definitions edited through the generic admin screens: every row,
     // enabled or not, for holders of a service-wide Admin grant. A created or
-    // updated row reaches the listeners (the running sim's tunables), from
-    // inside the write's transaction.
+    // updated row reaches the listeners (the running sim's tunables) once
+    // the write committed, in a unit of work of its own the reply does not
+    // wait for: an edit that failed or rolled back never reaches the sim.
     ...admin.handlers(definitionContract, {
       displayName: "Definitions",
       fieldOverrides: { data: { showInTable: false } },
-      onWrite: ({ method, after }) => {
+      onCommitted: ({ method, after }) => {
         if (method !== "adminDelete" && after !== null) notifyChanged(after);
       },
     }),

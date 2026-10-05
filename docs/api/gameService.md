@@ -110,7 +110,7 @@ Output: `{ id: string; name: string; chatId: string | null } | null`.
 
 The caller's best length in a world (0 before their first death).
 
-A query that watches its service: a cached result is fetched again after every change to the service's rows, collections or the models it writes.
+A query that watches its service's writes to `gameScore`: a cached result is fetched again after a change to one of them.
 
 Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
 
@@ -126,7 +126,7 @@ Output: `{ bestLength: integer }`.
 
 A world's best lengths, highest first (25 unless a limit is given).
 
-A query that watches its service: a cached result is fetched again after every change to the service's rows, collections or the models it writes.
+A query that watches its service's writes to `gameScore`: a cached result is fetched again after a change to one of them.
 
 Access: `"public"`: anyone, signed in or not.
 
@@ -236,7 +236,7 @@ Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: intege
 
 ## Streams
 
-Feeds of items the server appends, each subscriber starting from the latest few.
+Feeds of items the server appends; a subscriber starts from the stream's seed.
 
 ### `world`
 

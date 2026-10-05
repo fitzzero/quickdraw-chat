@@ -69,8 +69,9 @@ const IN_WORLD = { entry: "Read", id: "worldId" } as const;
 export const gameService = qd.defineService(gameContract, {
   model: "gameWorld",
   access: anyWorld,
-  // The high scores. Only the game's own writes change its service topic,
-  // which anyone may watch: the world chat's memberships are the chat
+  // The high scores. A write to the service's model or to one in `writes`
+  // changes its service topic, which anyone may watch, and the score queries
+  // hear GameScore's only. The world chat's memberships are the chat
   // service's (`joinWorldChat`, called through ctx.services)
   writes: ["gameScore"],
   methods: {
@@ -203,8 +204,9 @@ export const gameService = qd.defineService(gameContract, {
       validate: "development",
     },
   },
-  // The score queries watch the service topic (a stored score changes it),
-  // and they are public: anyone may watch it
+  // The score queries watch the service topic narrowed to GameScore (a
+  // stored score changes it; an edit of a world row changes it too, which
+  // they skip), and they are public: anyone may watch it
   watchAccess: "public",
   // A player whose last socket left the world's room leaves the sim, in
   // every server this service runs in

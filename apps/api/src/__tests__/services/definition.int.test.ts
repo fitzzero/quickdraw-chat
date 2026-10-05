@@ -1,6 +1,6 @@
 // Definitions on 5.0: the public reads, the admin kit, and the tunables hot
 // reload its writes drive.
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import {
@@ -126,7 +126,7 @@ describe("DefinitionService admin kit", () => {
     });
   });
 
-  it("an admin edit of the snake tunables hot-reloads the running sim", async () => {
+  it("an admin edit of the snake tunables hot-reloads the running sim, once it committed", async () => {
     const editor = await createTestUser({ serviceAccess: { definitionService: "Admin" } });
     const sim = gameRuntime(testDb).sim;
     expect(sim.tunables.baseSpeed).not.toBe(275);
@@ -137,8 +137,37 @@ describe("DefinitionService admin kit", () => {
       data: { data: { baseSpeed: 275, turnRate: 5 } },
     });
 
+    // the admin kit's onCommitted runs after the commit, in a unit of work
+    // the reply does not wait for
+    await vi.waitFor(() => {
+      expect(sim.tunables.baseSpeed).toBe(275);
+    });
     expect(heard.map((d) => [d.type, d.key])).toEqual([["tunables", "snake"]]);
-    expect(sim.tunables.baseSpeed).toBe(275);
+  });
+
+  it("an admin edit that fails never reaches the sim", async () => {
+    const editor = await createTestUser({ serviceAccess: { definitionService: "Admin" } });
+    const sim = gameRuntime(testDb).sim;
+    const speed = sim.tunables.baseSpeed;
+    heard.length = 0;
+    const disabled = await testPrisma.definition.findUniqueOrThrow({
+      where: { type_key: { type: "tunables", key: "disabled-thing" } },
+      select: { id: true },
+    });
+
+    // (type, key) is unique: the write is refused, nothing commits
+    await expect(
+      app.as({ userId: editor.id }).definitionService.adminUpdate({
+        id: disabled.id,
+        data: { key: "snake", data: { baseSpeed: 999 } },
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 100);
+    });
+    expect(heard).toEqual([]);
+    expect(sim.tunables.baseSpeed).toBe(speed);
   });
 });
 

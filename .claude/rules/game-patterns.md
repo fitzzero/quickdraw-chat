@@ -13,15 +13,15 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   button. Callable identically from React (`qd.gameService.joinGame.useMutation()`)
   and the Godot client (`Net.client.call_method(...)`): game commands stay
   typed and secured like all other quickdraw traffic. The high scores
-  (`getHighScores`, `getMyBest`) declare `watch: "service"`: a stored score
-  (a GameScore row, which gameService lists in `writes`) changes the
-  service's topic (open to anyone: `watchAccess: "public"`), and their
-  readers read them again. Every write to a model in `writes` changes that
-  topic, so it lists the game's own model only, and nothing writes what
-  changes nothing: a death stores a new best only, and `watchWorld` and
-  `joinGame` put the caller in the world's chat through the chat service
-  (`ctx.services.chatService.joinWorldChat`, which writes the membership
-  the first time only).
+  (`getHighScores`, `getMyBest`) declare `watch: { service: ["gameScore"] }`:
+  a stored score (a GameScore row, which gameService lists in `writes`)
+  changes the service's topic (open to anyone: `watchAccess: "public"`),
+  whose frame names the models written (`models`), and their readers read
+  them again; an edit of a world row changes the topic too, and they skip
+  it. The world chat's memberships are the chat service's: `watchWorld` and
+  `joinGame` put the caller in it through
+  `ctx.services.chatService.joinWorldChat`, which adds the membership (and
+  counts the member) the first time only. A death stores a new best only.
 - **The `input` channel** — fire-and-forget (`qd:ch`, never answered),
   per-socket token bucket, payload checked against the contract. Use ONLY for
   tick-rate traffic where the next message supersedes the last (player
@@ -98,7 +98,10 @@ included) — spectators behind the pre-game dialog keep the NPC world running.
   seed, and tests converge on the same row (`ensureGlobalWorld`, tracked
   writes in `qd.run`, before or after `createServer`).
 - Admin edits of definitions reach the running sim through the admin kit's
-  `onWrite` (`definitionService`, `onChanged`), inside the edit's transaction.
+  `onCommitted` (`definitionService`, `onChanged`), once the edit committed
+  and without holding up its reply: an edit that failed or rolled back never
+  reaches the sim. What must happen inside the edit's transaction (a write
+  of its own) belongs in `onWrite`, as `messageService`'s.
 
 ## Checks
 

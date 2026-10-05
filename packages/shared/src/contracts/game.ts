@@ -165,18 +165,19 @@ export const gameContract = defineContract("gameService", {
       describe: "Reads a world by its slug (its id, name and chat), or null.",
     }),
     // The scores are GameScore rows, which no service owns: gameService
-    // writes them, so a stored score changes its service topic, which both
-    // queries watch (the client reads them again then)
+    // writes them, so a stored score changes its service topic. Both queries
+    // watch that topic narrowed to the scores: the client reads them again
+    // after a flush that wrote a GameScore, not after a world row's edit
     getMyBest: query({
       input: worldScopedSchema,
       output: z.object({ bestLength: z.number().int() }),
-      watch: "service",
+      watch: { service: ["gameScore"] },
       describe: "The caller's best length in a world (0 before their first death).",
     }),
     getHighScores: query({
       input: highScoresSchema,
       output: z.array(highScoreEntrySchema),
-      watch: "service",
+      watch: { service: ["gameScore"] },
       describe: "A world's best lengths, highest first (25 unless a limit is given).",
     }),
     // The admin screens: the world rows (their names and chats), for holders

@@ -248,14 +248,20 @@ describe("GameService spectating and scores", () => {
     expect(await player.gameService.getMyBest(WORLD)).toEqual({ bestLength: 42 });
   });
 
-  it("a stored score changes the service topic the score queries watch, open to anyone", async () => {
-    // getHighScores and getMyBest declare watch: "service"; watchAccess opens it to anyone
+  /** An anonymous socket watching the game's service topic, as the score queries do. */
+  async function topicWatcher(): Promise<ApiConnection> {
     const watcher = await connect(null);
     const watched = await emitWithAck<{ ok: boolean }>(watcher.socket, "qd:watch", {
       s: "gameService",
       topic: "service",
     });
     expect(watched.ok).toBe(true);
+    return watcher;
+  }
+
+  it("a stored score changes the service topic the score queries watch, open to anyone", async () => {
+    // getHighScores and getMyBest watch { service: ["gameScore"] }; watchAccess opens it to anyone
+    const watcher = await topicWatcher();
 
     // a score written as the game stores one after a death (GameScore is in
     // gameService's `writes`, so the write changes its topic)
@@ -265,7 +271,29 @@ describe("GameService spectating and scores", () => {
       });
     });
 
-    await app.frames.waitFor({ event: "qd:changed", socketId: watcher.socket.id });
+    const { data } = await app.frames.waitFor({
+      event: "qd:changed",
+      socketId: watcher.socket.id,
+    });
+    // the model the flush wrote, which the score queries' narrowed watch names
+    expect(data.models).toEqual(["gameScore"]);
+  });
+
+  it("an edit of a world row changes the topic for the world, which the score queries skip", async () => {
+    const gameAdmin = await createTestUser({ serviceAccess: { gameService: "Admin" } });
+    const watcher = await topicWatcher();
+
+    await as(gameAdmin.id).gameService.adminUpdate({
+      id: GLOBAL_WORLD_ID,
+      data: { name: "Snake — Renamed" },
+    });
+
+    const { data } = await app.frames.waitFor({
+      event: "qd:changed",
+      socketId: watcher.socket.id,
+    });
+    // a client's watch narrowed to gameScore reads nothing again for it
+    expect(data.models).toEqual(["gameWorld"]);
   });
 
   it("getHighScores is public, ordered, limited, and joins user info", async () => {

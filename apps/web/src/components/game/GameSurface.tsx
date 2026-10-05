@@ -111,7 +111,8 @@ function useGameSession(guestFlow: boolean, guestAuthUrl?: string): GameSession 
 
   // Personal best, and the all-time top runs shown inside the dialog
   // (public — works signed-out too); both watch the game's service topic
-  // (`watch: "service"`), so a stored score reads them again
+  // narrowed to the scores (`watch: { service: ["gameScore"] }`), so a
+  // stored score reads them again
   const { data: myBest } = qd.gameService.getMyBest.useQuery(WORLD_PAYLOAD, {
     enabled: !!userId,
   });
