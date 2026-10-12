@@ -155,6 +155,8 @@ export const chatService = qd.defineService(chatContract, {
     // quickdraw: hand-written because it answers { id, deleted } as the chat sidebar expects; the database cascade removes the memberships and messages, and the deleted anchor closes every byChat scope of the chat
     deleteChat: {
       access: { service: "Admin", entry: "Admin" },
+      // users only: an agent acting for one is refused, whatever its grants
+      kinds: ["user"],
       handler: async ({ input, db }) => {
         await db.chat.delete({ where: { id: input.id }, select: { id: true } });
         return { id: input.id, deleted: true as const };

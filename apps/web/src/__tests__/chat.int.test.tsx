@@ -16,7 +16,7 @@ import { testPrisma } from "@project/db/testing";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTestChat } from "../../../api/src/__tests__/factories/chat-factory";
 import { createTestUser } from "../../../api/src/__tests__/factories/user-factory";
-import { startTestApp, type ApiTestApp } from "../../../api/src/__tests__/utils/app";
+import { startTestApp, user, type ApiTestApp } from "../../../api/src/__tests__/utils/app";
 import ChatPage from "../app/chats/[chatId]/page";
 import ChatsPage from "../app/chats/page";
 import { ChatSidebar } from "../components/chat/ChatSidebar";
@@ -56,14 +56,14 @@ afterAll(async () => {
 async function renderAs(userId: string, ui: React.ReactElement): Promise<QuickdrawRenderResult> {
   return await renderWithQuickdraw(ui, {
     app,
-    as: { userId },
+    as: user(userId),
     client: qd,
     wrapper: AppProviders,
   });
 }
 
 function as(userId: string): ReturnType<ApiTestApp["as"]> {
-  return app.as({ userId });
+  return app.as(user(userId));
 }
 
 /**

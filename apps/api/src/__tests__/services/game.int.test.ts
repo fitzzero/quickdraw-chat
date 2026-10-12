@@ -24,7 +24,13 @@ import { gameService } from "../../services/game/index.js";
 import { gameRuntime, persistScore } from "../../services/game/runtime.js";
 import { qd } from "../../quickdraw.js";
 import { createTestUser } from "../factories/user-factory.js";
-import { startTestApp, subscribeScope, type ApiConnection, type ApiTestApp } from "../utils/app.js";
+import {
+  startTestApp,
+  subscribeScope,
+  user,
+  type ApiConnection,
+  type ApiTestApp,
+} from "../utils/app.js";
 
 const WORLD = { worldId: GLOBAL_WORLD_ID };
 
@@ -71,12 +77,12 @@ afterEach(async () => {
 });
 
 function as(userId: string): ReturnType<ApiTestApp["as"]> {
-  return app.as({ userId });
+  return app.as(user(userId));
 }
 
 /** A real protocol 5 socket acting for `userId` (anonymous for `null`). */
 async function connect(userId: string | null): Promise<ApiConnection> {
-  const connection = await app.connect(userId === null ? null : { userId });
+  const connection = await app.connect(userId === null ? null : user(userId));
   opened.push(connection);
   return connection;
 }
@@ -188,7 +194,7 @@ describe("GameService access matrix", () => {
     const gameAdmin = await createTestUser({ serviceAccess: { gameService: "Admin" } });
     await describeAccessMatrix(app, {
       service: gameService,
-      principals: { player: { userId: users.regular.id }, gameAdmin: { userId: gameAdmin.id } },
+      principals: { player: user(users.regular.id), gameAdmin: user(gameAdmin.id) },
       cases: [
         { method: "watchWorld", input: WORLD, allow: ["player", "gameAdmin", "anonymous"] },
         {

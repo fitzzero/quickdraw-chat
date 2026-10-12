@@ -18,6 +18,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 import { config } from "dotenv";
 import { createMcpRegistry, createMcpStdioServer } from "@fitzzero/quickdraw-core/server/mcp";
+import type { AppPrincipal } from "./quickdraw.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "../../..");
@@ -58,7 +59,9 @@ const loadServiceAccess = createGrantsLoader({ prisma, serviceNames });
 const registry = createMcpRegistry({
   services: mcpServices,
   dispatcher,
-  principal: async () => {
+  // an agent acting for the user: a method or service with kinds: ["user"]
+  // refuses it, whatever the user's grants
+  principal: async (): Promise<AppPrincipal | null> => {
     const userId = process.env.MCP_USER_ID;
     if (!userId) {
       return null;

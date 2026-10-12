@@ -17,6 +17,7 @@ import {
 } from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma } from "@project/db/testing";
 import { createGrantsLoader } from "../../auth/grants.js";
+import { userPrincipal, type AppPrincipal } from "../../quickdraw.js";
 import { serviceNames, services } from "../../services/index.js";
 import { configurePush, type PushServiceOptions } from "../../services/push-subscription/index.js";
 // ── quickdraw-game:start ──
@@ -25,6 +26,20 @@ import { createGameRuntime } from "../../services/game/runtime.js";
 
 export type ApiTestApp = TestApp<typeof services>;
 export type ApiConnection = TestConnection<typeof services>;
+
+/**
+ * A test principal: the person `userId`, as every sign-in labels one
+ * (`kind: "user"`). The app's services admit only principals of a kind, so
+ * one without it is refused everywhere.
+ */
+export function user(userId: string): AppPrincipal {
+  return userPrincipal(userId);
+}
+
+/** A test principal: an agent acting for `userId`, as the MCP server labels its callers. */
+export function agent(userId: string): AppPrincipal {
+  return { userId, kind: "agent" };
+}
 
 /** A user's grants, as the server loads them for their sockets. */
 const loadServiceAccess = createGrantsLoader({ prisma: testPrisma, serviceNames });

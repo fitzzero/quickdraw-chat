@@ -1,3 +1,4 @@
+// oxlint-disable import/max-dependencies -- the sign-in's composition root: every provider, the sessions, the grants and the principal
 // The app's sign-in, on the auth routes kit: Google, Discord, the development
 // mock and guests as one Express middleware over the Session table (which
 // also answers GET /auth/providers, the sign-ins it serves, for the login
@@ -19,6 +20,7 @@ import {
   type SessionKeys,
 } from "@fitzzero/quickdraw-core/server/auth";
 import type { PrismaClient } from "@project/db";
+import { userPrincipal, type AppPrincipal } from "../quickdraw.js";
 import { logger } from "../utils/logger.js";
 import { allowedOriginsFromEnv, apiUrl, jwtSecretFromEnv } from "./config.js";
 import { devCredentials } from "./dev-credentials.js";
@@ -59,7 +61,7 @@ export interface AppAuth {
   readonly routes: AuthRoutes;
   /** `createServer`'s `auth`. */
   readonly server: Required<
-    Pick<ServerAuth, "authenticate" | "loadServiceAccess" | "serviceAccessSource">
+    Pick<ServerAuth<AppPrincipal>, "authenticate" | "loadServiceAccess" | "serviceAccessSource">
   >;
 }
 
@@ -118,8 +120,14 @@ export function createAppAuth(options: AppAuthOptions): AppAuth {
     routes,
     server: {
       // sessions (a token or the cookie), and with ENABLE_DEV_CREDENTIALS a
-      // socket naming a user (`auth: { userId }`): a game editor, load-test bots
-      authenticate: socketAuth({ ...keys, allowedOrigins, devCredentials: devCredentials(prisma) }),
+      // socket naming a user (`auth: { userId }`): a game editor, load-test
+      // bots. Either is a person (`kind: "user"`)
+      authenticate: socketAuth({
+        ...keys,
+        allowedOrigins,
+        devCredentials: devCredentials(prisma),
+        loadPrincipal: userPrincipal,
+      }),
       loadServiceAccess: createGrantsLoader({ prisma, serviceNames: options.serviceNames }),
       // a tracked write to User.serviceAccess (the admin kit's grants editor)
       // refreshes the user's open sockets

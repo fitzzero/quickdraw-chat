@@ -43,6 +43,8 @@ export const userSchema = z.object({
 });
 
 export const userContract = defineContract("userService", {
+  describe:
+    "Users: anyone signed in may read a user's public profile; a user reads their own row and changes their name or image, as may a service-wide Moderate.",
   entity: userSchema,
   // only the user themself and a service-wide Admin grant receive these
   fields: { email: "Admin", serviceAccess: "Admin" },

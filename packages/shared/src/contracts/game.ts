@@ -129,6 +129,8 @@ export const gameWorldSchema = z.object({
 const okSchema = z.object({ ok: z.literal(true) });
 
 export const gameContract = defineContract("gameService", {
+  describe:
+    "The realtime snake game: spectate or join a world, steer and respawn a snake, and read the high scores.",
   entity: gameWorldSchema,
   methods: {
     joinGame: mutation({
@@ -196,11 +198,11 @@ export const gameContract = defineContract("gameService", {
     }),
   },
   channels: {
-    // Player input at about the tick rate: dropped unless the sending socket
-    // is in the world's room (watchWorld or joinGame over that socket). One
-    // world, so one room by name; a game of many would require
+    // One world, so one room by name; a game of many would require
     // `{ room: { prefix: "world:" } }` and read the world from `ctx.room`.
     input: {
+      describe:
+        "The caller's steering (a direction and a boost), sent at about the tick rate; dropped unless the sending socket joined the world with watchWorld or joinGame.",
       payload: gameInputSchema,
       ratePerSecond: GAME_TICK_RATE * 1.5,
       burst: GAME_TICK_RATE * 3,
@@ -216,18 +218,31 @@ export const gameContract = defineContract("gameService", {
     // before they join the world's room (a room form, `access: { room }`,
     // would refuse them until then).
     world: {
+      describe:
+        "Every tick of a world, starting from the whole world (every snake and all the food); anyone may watch, signed out too.",
       item: worldSnapshotSchema,
       scope: "worldId",
       volatile: true,
       access: "public",
     },
   },
+  // Sent to the world's room, reliably
   events: {
-    // Sent to the world's room, reliably
-    playerJoined: { payload: gamePlayerMetaSchema },
-    playerLeft: { payload: z.object({ id: z.string() }) },
-    death: { payload: gameDeathSchema },
-    // 1Hz while the world runs
-    leaderboard: { payload: z.array(leaderboardEntrySchema) },
+    playerJoined: {
+      describe: "A player joined the world, with their name and the hue of their snake.",
+      payload: gamePlayerMetaSchema,
+    },
+    playerLeft: {
+      describe: "A player left the world.",
+      payload: z.object({ id: z.string() }),
+    },
+    death: {
+      describe: "A snake died, with the length it reached.",
+      payload: gameDeathSchema,
+    },
+    leaderboard: {
+      describe: "The world's longest snakes, once a second while the world runs.",
+      payload: z.array(leaderboardEntrySchema),
+    },
   },
 });

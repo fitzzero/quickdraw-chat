@@ -64,6 +64,18 @@ the running sim (`onChanged`).
   `{ error: "user_not_found" }`) where the kit would throw a code.
 - Expected failures throw `QuickdrawError` with a code; a typed `{ error }`
   result is only for a failure a form shows as a normal outcome.
+- Every contract member has a `describe` (the contract, each method,
+  collection, channel, stream and event): what it is for, in a sentence or
+  two, since agents read it as the MCP tool's description and the API
+  reference leads with it. Lint's `require-describe` is an error here.
+- Principals carry a kind (`AppPrincipal` in `quickdraw.ts`): `"user"` for
+  every sign-in (`userPrincipal`), `"agent"` for the MCP server's caller.
+  `initQuickdraw({ kinds: ["user", "agent"] })` admits both; a service or a
+  method that only a person may use narrows it with `kinds: ["user"]`, which
+  refuses an agent acting for the user whatever its grants (`pushService`,
+  and `chatService.deleteChat` as a method's own). Never check the kind in
+  a handler. A test principal carries one too (`user(id)` and `agent(id)` in
+  `__tests__/utils/app.ts`): without it every call is `FORBIDDEN`.
 - What a service needs configured at start-up is module state set by each
   root, not constructor arguments: `configurePush` (the push transport),
   `createGameRuntime` (the sim), `onChanged` (definition edits).

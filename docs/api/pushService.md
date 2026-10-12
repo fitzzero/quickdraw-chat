@@ -2,14 +2,17 @@
 
 # pushService
 
+The Web Push endpoints of the caller's browsers, which get a notification of each new message while the user is away.
+
 ## Access
 
-| Option             | Value                                                    |
-| ------------------ | -------------------------------------------------------- |
-| Row policy         | `owner`: Admin for the user the `userId` column names    |
-| Service-wide Admin | passes every check of the service                        |
-| Change topic       | closed: the service declares no `watchAccess`            |
-| Field levels       | none: every caller who may read a row receives all of it |
+| Option             | Value                                                                   |
+| ------------------ | ----------------------------------------------------------------------- |
+| Row policy         | `owner`: Admin for the user the `userId` column names                   |
+| Service-wide Admin | passes every check of the service                                       |
+| Principal kinds    | `user`: its methods, subscriptions and channels refuse every other kind |
+| Change topic       | closed: the service declares no `watchAccess`                           |
+| Field levels       | none: every caller who may read a row receives all of it                |
 
 Each method below says who may call it.
 
@@ -38,6 +41,7 @@ Registers this browser's push endpoint for the caller.
 A mutation.
 
 - MCP tool (default name): `pushService_subscribePush`
+- Callable by: `user`
 
 Access: `"authenticated"`: any signed-in caller.
 
@@ -57,6 +61,7 @@ Removes one of the caller's push endpoints.
 A mutation.
 
 - MCP tool (default name): `pushService_unsubscribePush`
+- Callable by: `user`
 
 Access: `"authenticated"`: any signed-in caller.
 
@@ -75,6 +80,7 @@ Sends a test notification to each of the caller's devices; answers how many took
 A mutation.
 
 - MCP tool (default name): `pushService_sendTestPush`
+- Callable by: `user`
 
 Access: `"authenticated"`: any signed-in caller.
 
@@ -90,6 +96,7 @@ A query.
 
 - MCP tool (default name): `pushService_adminList`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -112,6 +119,7 @@ A query.
 
 - MCP tool (default name): `pushService_adminGet`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -130,6 +138,7 @@ Deletes one row.
 A mutation.
 
 - MCP tool (default name): `pushService_adminDelete`
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -149,6 +158,7 @@ A query.
 
 - MCP tool (default name): `pushService_adminMeta`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -164,6 +174,7 @@ A query.
 
 - MCP tool (default name): `pushService_adminSubscribers`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -182,6 +193,7 @@ Sends one row as it is now to every socket subscribed to it.
 A mutation.
 
 - MCP tool (default name): `pushService_adminReemit`
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 

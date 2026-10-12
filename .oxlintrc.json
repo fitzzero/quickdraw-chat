@@ -10,6 +10,11 @@
       "specifier": "./eslint-plugin-project/index.mjs"
     }
   ],
+  "rules": {
+    // A describe on every contract member (the MCP tools' descriptions, the
+    // API docs): the base only warns, so that an upgrade never breaks lint
+    "quickdraw/require-describe": "error"
+  },
   "overrides": [
     {
       "files": ["**/src/bench/**", "**/apps/bench-web/**", "**/packages/bench/src/cli/**"],

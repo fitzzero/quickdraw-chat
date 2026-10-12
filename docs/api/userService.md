@@ -2,12 +2,15 @@
 
 # userService
 
+Users: anyone signed in may read a user's public profile; a user reads their own row and changes their name or image, as may a service-wide Moderate.
+
 ## Access
 
 | Option             | Value                                                                                                                                        |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Row policy         | `anyOf`: the highest level of (`owner`: Admin for the user the `id` column names), (`everyone`: Read for every signed-in user, on every row) |
 | Service-wide Admin | passes every check of the service                                                                                                            |
+| Principal kinds    | `user`, `agent`: its methods, subscriptions and channels refuse every other kind                                                             |
 | Change topic       | closed: the service declares no `watchAccess`                                                                                                |
 | Field levels       | `email`: Admin, `serviceAccess`: Admin                                                                                                       |
 
@@ -42,6 +45,7 @@ A query.
 
 - MCP tool (default name): `userService_getMe`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `"authenticated"`: any signed-in caller.
 
@@ -56,6 +60,7 @@ Changes a user's name or https image; answers their public profile, or { error: 
 A mutation.
 
 - MCP tool (default name): `userService_updateUser`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Moderate", entry: "Moderate" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.id` names.
 
@@ -76,6 +81,7 @@ A query.
 
 - MCP tool (default name): `userService_adminList`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -97,6 +103,7 @@ A query.
 
 - MCP tool (default name): `userService_adminGet`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -115,6 +122,7 @@ Creates a row from data, the new row's field values; the database sets its id an
 A mutation.
 
 - MCP tool (default name): `userService_adminCreate`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -133,6 +141,7 @@ Changes the given fields of one row; its id and timestamps cannot be changed.
 A mutation.
 
 - MCP tool (default name): `userService_adminUpdate`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -152,6 +161,7 @@ Deletes one row.
 A mutation.
 
 - MCP tool (default name): `userService_adminDelete`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -171,6 +181,7 @@ A query.
 
 - MCP tool (default name): `userService_adminMeta`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -186,6 +197,7 @@ A query.
 
 - MCP tool (default name): `userService_adminSubscribers`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -204,6 +216,7 @@ Sends one row as it is now to every socket subscribed to it.
 A mutation.
 
 - MCP tool (default name): `userService_adminReemit`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 

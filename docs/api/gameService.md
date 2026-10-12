@@ -2,14 +2,17 @@
 
 # gameService
 
+The realtime snake game: spectate or join a world, steer and respawn a snake, and read the high scores.
+
 ## Access
 
-| Option             | Value                                                    |
-| ------------------ | -------------------------------------------------------- |
-| Row policy         | `everyone`: Read for every signed-in user, on every row  |
-| Service-wide Admin | passes every check of the service                        |
-| Change topic       | `"public"`: anyone, signed in or not                     |
-| Field levels       | none: every caller who may read a row receives all of it |
+| Option             | Value                                                                            |
+| ------------------ | -------------------------------------------------------------------------------- |
+| Row policy         | `everyone`: Read for every signed-in user, on every row                          |
+| Service-wide Admin | passes every check of the service                                                |
+| Principal kinds    | `user`, `agent`: its methods, subscriptions and channels refuse every other kind |
+| Change topic       | `"public"`: anyone, signed in or not                                             |
+| Field levels       | none: every caller who may read a row receives all of it                         |
 
 Each method below says who may call it.
 
@@ -39,6 +42,7 @@ Spawns the caller's snake in a world, puts the calling socket in the world's roo
 A mutation.
 
 - MCP tool (default name): `gameService_joinGame`
+- Callable by: `user`, `agent`
 
 Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
 
@@ -58,6 +62,7 @@ A query.
 
 - MCP tool (default name): `gameService_watchWorld`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`, or anonymously
 
 Access: `"public"`: anyone, signed in or not.
 
@@ -76,6 +81,7 @@ Respawns the caller's snake after it died.
 A mutation.
 
 - MCP tool (default name): `gameService_respawn`
+- Callable by: `user`, `agent`
 
 Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
 
@@ -94,6 +100,7 @@ Takes the caller's snake out of the world; their sockets stay as spectators.
 A mutation.
 
 - MCP tool (default name): `gameService_leaveGame`
+- Callable by: `user`, `agent`
 
 Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
 
@@ -113,6 +120,7 @@ A query.
 
 - MCP tool (default name): `gameService_getWorld`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`, or anonymously
 
 Access: `"public"`: anyone, signed in or not.
 
@@ -132,6 +140,7 @@ A query that watches its service's writes to `gameScore`: a cached result is fet
 
 - MCP tool (default name): `gameService_getMyBest`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
 
@@ -151,6 +160,7 @@ A query that watches its service's writes to `gameScore`: a cached result is fet
 
 - MCP tool (default name): `gameService_getHighScores`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`, or anonymously
 
 Access: `"public"`: anyone, signed in or not.
 
@@ -171,6 +181,7 @@ A query.
 
 - MCP tool (default name): `gameService_adminList`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -192,6 +203,7 @@ A query.
 
 - MCP tool (default name): `gameService_adminGet`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -210,6 +222,7 @@ Changes the given fields of one row; its id and timestamps cannot be changed.
 A mutation.
 
 - MCP tool (default name): `gameService_adminUpdate`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -230,6 +243,7 @@ A query.
 
 - MCP tool (default name): `gameService_adminMeta`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -245,6 +259,7 @@ A query.
 
 - MCP tool (default name): `gameService_adminSubscribers`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -263,6 +278,7 @@ Sends one row as it is now to every socket subscribed to it.
 A mutation.
 
 - MCP tool (default name): `gameService_adminReemit`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -280,6 +296,8 @@ Feeds of items the server appends; a subscriber starts from the stream's seed.
 
 ### `world`
 
+Every tick of a world, starting from the whole world (every snake and all the food); anyone may watch, signed out too.
+
 | Option   | Value                                                                                                                                                                                                                                      |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Item     | `{ tick: integer; t?: number; players: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; foodSpawned?: { id: string; x: number; y: number; v: number }[]; foodEaten?: string[] }` |
@@ -295,6 +313,8 @@ Fire-and-forget messages from clients, dropped over the rate.
 
 ### `input`
 
+The caller's steering (a direction and a boost), sent at about the tick rate; dropped unless the sending socket joined the world with watchWorld or joinGame.
+
 | Option   | Value                                                       |
 | -------- | ----------------------------------------------------------- |
 | Payload  | `{ seq: integer; dx: number; dy: number; boost: boolean }`  |
@@ -309,11 +329,15 @@ Typed events the server sends to the sockets in a room.
 
 ### `playerJoined`
 
+A player joined the world, with their name and the hue of their snake.
+
 | Option  | Value                                               |
 | ------- | --------------------------------------------------- |
 | Payload | `{ id: string; name: string \| null; hue: number }` |
 
 ### `playerLeft`
+
+A player left the world.
 
 | Option  | Value            |
 | ------- | ---------------- |
@@ -321,11 +345,15 @@ Typed events the server sends to the sockets in a room.
 
 ### `death`
 
+A snake died, with the length it reached.
+
 | Option  | Value                         |
 | ------- | ----------------------------- |
 | Payload | `{ id: string; len: number }` |
 
 ### `leaderboard`
+
+The world's longest snakes, once a second while the world runs.
 
 | Option  | Value                                                 |
 | ------- | ----------------------------------------------------- |

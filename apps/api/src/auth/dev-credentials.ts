@@ -5,12 +5,12 @@
 // those two NODE_ENVs only; the API refuses to boot with the flag under any
 // other (`index.ts`).
 
-import type { Principal } from "@fitzzero/quickdraw-core/server";
 import type { PrismaClient } from "@project/db";
+import { userPrincipal, type AppPrincipal } from "../quickdraw.js";
 import { logger } from "../utils/logger.js";
 
 /** `socketAuth`'s `devCredentials`: the principal of the user a development handshake names, or `null` (refused). */
-export type DevCredentials = (userId: string) => Promise<Principal | null>;
+export type DevCredentials = (userId: string) => Promise<AppPrincipal | null>;
 
 /**
  * The development sign-in for `socketAuth`, or `undefined` (none) unless
@@ -35,6 +35,6 @@ export function devCredentials(prisma: PrismaClient): DevCredentials | undefined
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
     if (!user) return null;
     logger.debug(`Dev auth: user ${user.id} connected`);
-    return { userId: user.id, kind: "user" };
+    return userPrincipal(user.id);
   };
 }

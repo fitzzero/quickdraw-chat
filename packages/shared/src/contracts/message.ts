@@ -59,6 +59,8 @@ export const messageWithAuthorSchema = messageSchema.extend({
 });
 
 export const messageContract = defineContract("messageService", {
+  describe:
+    "The messages of chats: post one to a chat the caller is a member of, read a chat's history, and delete a message.",
   entity: messageSchema,
   projections: { withAuthor: messageWithAuthorSchema },
   methods: {
@@ -82,6 +84,7 @@ export const messageContract = defineContract("messageService", {
     // messages and each further page walks back in time; the chat window
     // shows the items oldest first.
     byChat: {
+      describe: "A chat's messages with their authors, newest first, a page at a time.",
       scope: "chatId",
       item: "withAuthor",
       order: [

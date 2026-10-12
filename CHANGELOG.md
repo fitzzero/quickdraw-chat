@@ -48,6 +48,26 @@ changelog heads it `[5.1.1]`). Two notes for the deploy:
 - **Agent skills.** `quickdraw-api-docs` (describes and the API docs) is
   linked beside the other quickdraw skills.
 
+### Adopted from quickdraw 5.1
+
+What the framework's own example app shows and this template did not:
+
+- **Every contract member describes itself.** The 7 contracts, both
+  collections, the game's channel and stream, and the 5 events gained a
+  `describe` (what each is for: agents read a method's as its MCP tool's
+  description, and the API reference leads each section with it). Lint's
+  `quickdraw/require-describe` is an error here now, where the base warns.
+- **Principals declare their kind.** `AppPrincipal` (`apps/api/src/quickdraw.ts`)
+  is `kind: "user"` for every sign-in (`userPrincipal`: sessions, guests,
+  development credentials, the push renewal route) or `"agent"` for the MCP
+  server's caller, and `initQuickdraw({ kinds: ["user", "agent"] })` admits
+  both. Where only a person may act, `kinds: ["user"]` refuses an agent
+  acting for the user, whatever its grants: all of `pushService` (a push
+  endpoint is a browser's) and, as one method's own, `chatService.deleteChat`.
+  The access matrices pin it with agent principals, and every test principal
+  carries its kind (`user(id)`, `agent(id)`): a principal without one is
+  refused everywhere.
+
 ### What 5.1 protects, with nothing to change here
 
 The signed OAuth state cookie (`__Host-qd_oauth` over HTTPS); a socket

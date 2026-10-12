@@ -2,12 +2,15 @@
 
 # messageService
 
+The messages of chats: post one to a chat the caller is a member of, read a chat's history, and delete a message.
+
 ## Access
 
 | Option             | Value                                                                                                                                                            |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Row policy         | `anyOf`: the highest level of (`inherit`: the level on the `chatService` row the `chatId` column names), (`owner`: Admin for the user the `userId` column names) |
 | Service-wide Admin | passes every check of the service                                                                                                                                |
+| Principal kinds    | `user`, `agent`: its methods, subscriptions and channels refuse every other kind                                                                                 |
 | Change topic       | closed: the service declares no `watchAccess`                                                                                                                    |
 | Field levels       | none: every caller who may read a row receives all of it                                                                                                         |
 
@@ -55,6 +58,7 @@ Posts a message to a chat the caller is a member of, under the id the caller mad
 A mutation.
 
 - MCP tool (default name): `messageService_postMessage`
+- Callable by: `user`, `agent`
 
 Access: `{ scope: "Read", of: chatService, id: "chatId" }`: Read or more on the `chatService` row `input.chatId` names.
 
@@ -78,6 +82,7 @@ Deletes a message: its author may, as may its chat's Admins and holders of a ser
 A mutation.
 
 - MCP tool (default name): `messageService_deleteMessage`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or more, or Admin or more on the row `input.id` names.
 
@@ -97,6 +102,7 @@ A query.
 
 - MCP tool (default name): `messageService_adminList`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -119,6 +125,7 @@ A query.
 
 - MCP tool (default name): `messageService_adminGet`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -137,6 +144,7 @@ Creates a row from data, the new row's field values; the database sets its id an
 A mutation.
 
 - MCP tool (default name): `messageService_adminCreate`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -155,6 +163,7 @@ Changes the given fields of one row; its id and timestamps cannot be changed.
 A mutation.
 
 - MCP tool (default name): `messageService_adminUpdate`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -174,6 +183,7 @@ Deletes one row.
 A mutation.
 
 - MCP tool (default name): `messageService_adminDelete`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -193,6 +203,7 @@ A query.
 
 - MCP tool (default name): `messageService_adminMeta`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -208,6 +219,7 @@ A query.
 
 - MCP tool (default name): `messageService_adminSubscribers`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -226,6 +238,7 @@ Sends one row as it is now to every socket subscribed to it.
 A mutation.
 
 - MCP tool (default name): `messageService_adminReemit`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -242,6 +255,8 @@ Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: intege
 Live lists of the service's rows, one per scope value.
 
 ### `byChat`
+
+A chat's messages with their authors, newest first, a page at a time.
 
 | Option    | Value                                                 |
 | --------- | ----------------------------------------------------- |

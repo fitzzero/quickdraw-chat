@@ -34,6 +34,8 @@ export const documentSchema = z.object({
 });
 
 export const documentContract = defineContract("documentService", {
+  describe:
+    "Documents a user writes and shares with other users at a level: create, read, update and delete them, and change who they are shared with.",
   entity: documentSchema,
   methods: {
     // The read/write kit: `list` answers the documents the caller owns or

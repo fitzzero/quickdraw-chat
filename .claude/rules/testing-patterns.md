@@ -63,9 +63,11 @@ through the untracked `testPrisma`.
 
 Close it in `afterAll`. Then:
 
-- Call as a user with `app.as({ userId })`, or over a real socket with
-  `app.connect({ userId })`; both load the user's grants at each call, as
-  production does. `null` is the anonymous caller.
+- Call as a user with `app.as(user(userId))`, or over a real socket with
+  `app.connect(user(userId))`; both load the user's grants at each call, as
+  production does. `user(id)` and `agent(id)` (`utils/app.ts`) give the
+  principal its kind, without which the app's services refuse every call
+  (`FORBIDDEN`). `null` is the anonymous caller.
 - `subscribeEntity` and `subscribeScope` in `utils/app.ts` open a row or a
   collection scope over a socket and return the server's answer; assert on
   `app.frames` (`waitFor({ event: "qd:c", userId })`), not internals.

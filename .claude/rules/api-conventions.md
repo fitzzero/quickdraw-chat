@@ -35,10 +35,13 @@ dispatcher, access checks and tracked writes:
   bearer token (`http.rateLimit: createCallLimiter()`, since the HTTP
   transport has no limit of its own).
 - **MCP**: `apps/api/src/mcp-server.ts` serves every method as a tool over
-  stdio (`createMcpRegistry` + `createMcpStdioServer`), acting as
-  `MCP_USER_ID` with that user's grants (anonymous without it). The root
-  `.mcp.json` runs it through `scripts/load-env.sh`; `bun run build` first,
-  then `bun run mcp` in `apps/api` to run it by hand.
+  stdio (`createMcpRegistry` + `createMcpStdioServer`), described by the
+  method's `describe`, acting as `MCP_USER_ID` with that user's grants
+  (anonymous without it). Its caller is `kind: "agent"`, so a service or
+  method with `kinds: ["user"]` refuses it whatever the user's grants
+  (`pushService`, `chatService.deleteChat`). The root `.mcp.json` runs it
+  through `scripts/load-env.sh`; `bun run build` first, then `bun run mcp`
+  in `apps/api` to run it by hand.
   <!-- ── quickdraw-game:start ── -->
   `gameService` is not served there: every game method acts on the live
   sim and its players' sockets, and the MCP process runs no sim.

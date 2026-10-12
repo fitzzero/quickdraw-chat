@@ -28,6 +28,8 @@ export const pushSubscriptionRowSchema = z.object({
 const successSchema = z.object({ success: z.literal(true) });
 
 export const pushContract = defineContract("pushService", {
+  describe:
+    "The Web Push endpoints of the caller's browsers, which get a notification of each new message while the user is away.",
   entity: pushSubscriptionRowSchema,
   methods: {
     subscribePush: mutation({

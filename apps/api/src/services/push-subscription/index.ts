@@ -203,6 +203,9 @@ export function notifyNewMessage(
 export const pushService = qd.defineService(pushContract, {
   model: "pushSubscription",
   access: owner("userId"),
+  // users only: a push endpoint belongs to a person's browser, so an agent
+  // acting for a user (the MCP server) is refused, whatever its grants
+  kinds: ["user"],
   methods: {
     subscribePush: {
       // the caller's own endpoint: names no row by id

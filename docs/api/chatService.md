@@ -2,12 +2,15 @@
 
 # chatService
 
+Chats between users: create, rename and delete chats, and invite, remove and change the level of their members.
+
 ## Access
 
 | Option             | Value                                                                                                            |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | Row policy         | `members`: the role in the user's `chatMember` row (`chatId` names the row, `userId` the user, `level` the role) |
 | Service-wide Admin | passes every check of the service                                                                                |
+| Principal kinds    | `user`, `agent`: its methods, subscriptions and channels refuse every other kind                                 |
 | Change topic       | closed: the service declares no `watchAccess`                                                                    |
 | Field levels       | none: every caller who may read a row receives all of it                                                         |
 
@@ -54,6 +57,7 @@ Creates a chat with the caller as its Admin, plus any members given.
 A mutation.
 
 - MCP tool (default name): `chatService_createChat`
+- Callable by: `user`, `agent`
 
 Access: `"authenticated"`: any signed-in caller.
 
@@ -73,6 +77,7 @@ Renames a chat.
 A mutation.
 
 - MCP tool (default name): `chatService_updateTitle`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Moderate", entry: "Moderate" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.id` names.
 
@@ -92,6 +97,7 @@ Deletes a chat with its memberships and messages.
 A mutation.
 
 - MCP tool (default name): `chatService_deleteChat`
+- Callable by: `user`
 
 Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or more, or Admin or more on the row `input.id` names.
 
@@ -111,6 +117,7 @@ A query.
 
 - MCP tool (default name): `chatService_getChatMembers`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Read", entry: "Read", id: "chatId" }`: a service-wide grant of Read or more, or Read or more on the row `input.chatId` names.
 
@@ -129,6 +136,7 @@ Adds a user to a chat at a level, or changes the level of a member: never above 
 A mutation.
 
 - MCP tool (default name): `chatService_inviteUser`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Moderate", entry: "Moderate" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.id` names.
 
@@ -149,6 +157,7 @@ Adds a user to a chat by their unique name, as inviteUser does; answers { error:
 A mutation.
 
 - MCP tool (default name): `chatService_inviteByName`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Moderate", entry: "Moderate", id: "chatId" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.chatId` names.
 
@@ -169,6 +178,7 @@ Removes a member from a chat: a member at or above the caller's level only by an
 A mutation.
 
 - MCP tool (default name): `chatService_removeUser`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Moderate", entry: "Moderate" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.id` names.
 
@@ -188,6 +198,7 @@ Removes the caller from a chat, unless they are its last Admin.
 A mutation.
 
 - MCP tool (default name): `chatService_leaveChat`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Read", entry: "Read" }`: a service-wide grant of Read or more, or Read or more on the row `input.id` names.
 
@@ -206,6 +217,7 @@ Adds the caller to a game world's chat at Read when they are not a member yet; a
 A mutation.
 
 - MCP tool (default name): `chatService_joinWorldChat`
+- Callable by: `user`, `agent`
 
 Access: `{ scope: "Read", of: gameService, id: "worldId" }`: Read or more on the `gameService` row `input.worldId` names.
 
@@ -225,6 +237,7 @@ A query.
 
 - MCP tool (default name): `chatService_adminList`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -246,6 +259,7 @@ A query.
 
 - MCP tool (default name): `chatService_adminGet`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -264,6 +278,7 @@ Creates a row from data, the new row's field values; the database sets its id an
 A mutation.
 
 - MCP tool (default name): `chatService_adminCreate`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -282,6 +297,7 @@ Changes the given fields of one row; its id and timestamps cannot be changed.
 A mutation.
 
 - MCP tool (default name): `chatService_adminUpdate`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -301,6 +317,7 @@ Deletes one row.
 A mutation.
 
 - MCP tool (default name): `chatService_adminDelete`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -320,6 +337,7 @@ A query.
 
 - MCP tool (default name): `chatService_adminMeta`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -335,6 +353,7 @@ A query.
 
 - MCP tool (default name): `chatService_adminSubscribers`
 - MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -353,6 +372,7 @@ Sends one row as it is now to every socket subscribed to it.
 A mutation.
 
 - MCP tool (default name): `chatService_adminReemit`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -370,6 +390,8 @@ Live lists of the service's rows, one per scope value.
 
 ### `myChats`
 
+The chats a user is a member of, most recent activity first, with each chat's title and member count.
+
 | Option    | Value                                                             |
 | --------- | ----------------------------------------------------------------- |
 | Scope     | `userId` of the `chatMember` rows whose `chatId` is the item's id |
@@ -384,6 +406,8 @@ Live lists of the service's rows, one per scope value.
 Typed events the server sends to the sockets in a room.
 
 ### `memberUpdate`
+
+A chat's members after a change to them, sent to the sockets that read the chat's members with getChatMembers.
 
 | Option  | Value                                                                                                                                                                                  |
 | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

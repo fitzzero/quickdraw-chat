@@ -7,7 +7,7 @@ import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import type { PushNotificationPayload } from "@project/shared";
 import { pushService, type PushTransport } from "../../services/push-subscription/index.js";
 import { registerPushRoutes } from "../../services/push-subscription/rest.js";
-import { startTestApp, type ApiTestApp } from "../utils/app.js";
+import { agent, startTestApp, user, type ApiTestApp } from "../utils/app.js";
 import { createTestAuth, TEST_WEB_ORIGIN } from "../utils/auth.js";
 import { createTestChat } from "../factories/chat-factory.js";
 
@@ -64,7 +64,7 @@ beforeEach(async () => {
 });
 
 function as(userId: string): ReturnType<ApiTestApp["as"]> {
-  return app.as({ userId });
+  return app.as(user(userId));
 }
 
 async function codeOf(call: Promise<unknown>): Promise<string> {
@@ -78,7 +78,7 @@ async function codeOf(call: Promise<unknown>): Promise<string> {
 
 async function subscribe(userId: string, endpoint: string): Promise<void> {
   // over a socket, as the browser registers it
-  const connection = await app.connect({ userId });
+  const connection = await app.connect(user(userId));
   await connection.call.pushService.subscribePush({ endpoint, keys: KEYS });
   connection.close();
 }
@@ -241,8 +241,12 @@ describe("PushService access matrix", () => {
     await describeAccessMatrix(app, {
       service: pushService,
       principals: {
-        user: { userId: users.regular.id },
-        pushAdmin: { userId: users.admin.id, serviceAccess: { pushService: "Admin" } },
+        user: user(users.regular.id),
+        pushAdmin: { ...user(users.admin.id), serviceAccess: { pushService: "Admin" } },
+        // agents acting for those two (the MCP server's kind): refused on every
+        // method (kinds: ["user"]), whatever their grants
+        agent: agent(users.regular.id),
+        agentAdmin: { ...agent(users.admin.id), serviceAccess: { pushService: "Admin" } },
       },
       cases: [
         {
