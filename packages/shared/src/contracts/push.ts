@@ -48,11 +48,13 @@ export const pushContract = defineContract("pushService", {
       describe:
         "Sends a test notification to each of the caller's devices; answers how many took it.",
     }),
-    // The admin screens: read and delete only (browsers mint subscriptions)
+    // The admin screens: read and delete only (browsers mint subscriptions),
+    // so no field is editable
     ...admin.contract({
       entity: pushSubscriptionRowSchema,
       filter: ["userId"],
       sort: ["createdAt"],
+      editable: [],
       expose: [
         "adminList",
         "adminGet",

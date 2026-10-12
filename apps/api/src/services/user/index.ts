@@ -1,4 +1,5 @@
 import { admin, anyOf, everyone, owner } from "@fitzzero/quickdraw-core/server";
+import type { Prisma } from "@project/db";
 import { userContract } from "@project/shared";
 import { qd } from "../../quickdraw.js";
 
@@ -54,6 +55,19 @@ export const userService = qd.defineService(userContract, {
       // edited by the grants editor on the user's admin page (which finds the
       // field by its `kind: "grants"`): neither a column nor a generic form field
       fieldOverrides: { serviceAccess: { showInTable: false, showInForm: false } },
+      // an address an admin types is no provider's: stored unverified, it
+      // matches no ADMIN_EMAILS entry and links a sign-in only to a user
+      // nobody has signed in to yet, until a provider verifies it
+      // (auth/users.ts, auth/grants.ts)
+      onWrite: async ({ method, id, before, after }, _ctx, tx: Prisma.TransactionClient) => {
+        if (method === "adminUpdate" && before?.email !== after?.email) {
+          await tx.user.update({
+            where: { id },
+            data: { emailVerified: false },
+            select: { id: true },
+          });
+        }
+      },
     }),
   },
 });

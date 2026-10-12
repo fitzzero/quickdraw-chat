@@ -125,7 +125,7 @@ qd.createServer({ app, services, db, auth: { authenticate: socketAuth({ ...keys,
 
   featAdmin: {
     path: "apps/api/src/services/chat/index.ts",
-    lines: [213, 217],
+    lines: [99, 103],
     language: "ts",
     code: `// One spread per service = a full admin surface at /admin
 // (packages/shared: the contract half names the sortable fields, and the
@@ -136,8 +136,10 @@ qd.createServer({ app, services, db, auth: { authenticate: socketAuth({ ...keys,
   editable: ["title"],
 }),
 
-// apps/api: the server half, open to a service-wide Admin grant
+// apps/api: the server half, open to a service-wide Admin grant,
+// spread into the chat service's methods
 const chatAdmin = admin.handlers(chatContract, { displayName: "Chats" });
+...chatAdmin,
 
 // Users' grants are edited on the same screens:
 ...admin.handlers(userContract, { displayName: "Users", grants: true }),`,

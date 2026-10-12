@@ -187,7 +187,7 @@ const server = qd.createServer({
   // the HTTP transport has no limit of its own
   http: { rateLimit: createCallLimiter() },
   // logs the slowest methods when a handler holds the event loop (sampled
-  // every 20 ms, read every 10 s: a cost too small to measure)
+  // every 20 ms, read every 10 s: about 0.05% of one CPU when idle)
   stallWatchdog: true,
 });
 

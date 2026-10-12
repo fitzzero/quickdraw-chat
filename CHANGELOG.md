@@ -70,17 +70,22 @@ What the framework's own example app shows and this template did not:
   with a service-wide Admin grant, and every test principal carries its
   kind (`user(id)`, `agent(id)`): a principal without one is refused
   everywhere.
-
 - **The admin screens edit only what each contract lists.** Every
   `admin.contract` names its `editable` fields, which the handlers take
   from it: a chat's title; a document's title and content; a message's
-  text; a game world's name and slug; a definition's and a user's fields
-  as before, so a field added later stays read-only until it is listed.
+  text; a game world's name (its slug is how every client finds it); a
+  definition's and a user's fields as before; no field of a push
+  subscription. A field added later stays read-only until it is listed.
   The kit wrote every field it showed before, so an admin edit could move
   a document to another owner, a message to another chat or author, or
   relink a world's chat. Any other field is now `VALIDATION` and shows
   read-only. Messages and documents have no `adminCreate`: each needs its
-  owner or its chat and author, which no admin edit writes.
+  owner or its chat and author, which no admin edit writes. An address an
+  admin types for a user is stored unverified (the users service's
+  `onWrite`): until a provider verifies it, it matches no `ADMIN_EMAILS`
+  entry and links a sign-in only to a user nobody has signed in to yet.
+  Before, an edit kept a verified user verified, so the first sign-in of
+  whoever held the typed address landed in that user's account.
 - **No GitHub Codespace is a web origin unless named.** Development
   admitted every `*.app.github.dev` page, and anyone can open a
   Codespace: a sign-in return, a CORS origin and a cookie origin for every

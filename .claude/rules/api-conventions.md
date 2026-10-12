@@ -89,6 +89,11 @@ webhooks. An app REST route:
 - `createServer({ stallWatchdog: true })` watches the event loop: a window
   (10 s) whose 99th-percentile delay passes 200 ms, or one delay 1 s, logs a
   warning naming its slowest methods. Fix the handler that holds the loop.
+  <!-- ── quickdraw-game:start ── -->
+  The game's tick runs on the same loop and no warning names it: when every
+  method a warning names is fast, measure the sim (`bun run bench:netcode`
+  reports the tick's p95).
+  <!-- ── quickdraw-game:end ── -->
 
 ## Utilities
 

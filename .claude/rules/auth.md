@@ -40,8 +40,8 @@ server root (the API, the tests) signs in the same way:
   process. The login page reads it.
 - **Users** (`users.ts`): `onLogin` → `upsertOAuthUser` finds the user by
   provider account, or creates one; provider tokens are stored `encrypt`ed
-  when `ENCRYPTION_KEY` is set; avatars go through `safeImageUrl`. Only an
-  address the provider verified is ever stored as a user's email
+  when `ENCRYPTION_KEY` is set; avatars go through `safeImageUrl`. A sign-in
+  stores only an address the provider verified as a user's email
   (`User.emailVerified` records it): a profile without one gets the
   placeholder `<providerAccountId>@<provider>.local`, which never links or
   matches `ADMIN_EMAILS`. A verified address links the user holding it (a
@@ -49,7 +49,8 @@ server root (the API, the tests) signs in the same way:
   signed in to before without a provider verifying that address (any address
   was stored before 5.0): that sign-in is refused. A known account's later
   sign-in records an address its provider now verifies (the stored one, or
-  in place of its placeholder).
+  in place of its placeholder). An address an admin types in the admin
+  screens is stored unverified (the users service's `onWrite`).
 - **Sessions** (`sessions.ts`): `prismaSessions(prisma)`, the kit's
   `SessionStore` over the `Session` table (untracked writes: sessions are
   not live data). An hourly sweep in `index.ts` deletes expired rows.

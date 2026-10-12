@@ -7,6 +7,7 @@
 
 import { QuickdrawError } from "@fitzzero/quickdraw-core";
 import { testPrisma } from "@project/db/testing";
+import { documentContract, messageContract } from "@project/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestChat, createTestMessage } from "../factories/chat-factory.js";
 import { createTestUser } from "../factories/user-factory.js";
@@ -31,6 +32,7 @@ async function asAdmin(): Promise<ReturnType<ApiTestApp["as"]>> {
       chatService: "Admin",
       documentService: "Admin",
       messageService: "Admin",
+      pushService: "Admin",
       userService: "Admin",
       // ── quickdraw-game:start ──
       gameService: "Admin",
@@ -77,12 +79,21 @@ describe("the admin screens' edit allowlists", () => {
         }),
       ),
     ).toBe("VALIDATION");
+    expect(
+      await codeOf(
+        admin.chatService.adminCreate({
+          // @ts-expect-error -- outside the contract's list: refused by the types, and by the input check from a caller without them
+          data: { title: "New", lastMessageAt: new Date(0).toISOString() },
+        }),
+      ),
+    ).toBe("VALIDATION");
     const row = await testPrisma.chat.findUniqueOrThrow({ where: { id: chat.id } });
     expect(row.title).toBe("Renamed");
     expect(row.lastMessageAt.getTime()).not.toBe(0);
+    expect(await testPrisma.chat.count({ where: { title: "New" } })).toBe(0);
   });
 
-  it("documents: the title and the content, never the owner", async () => {
+  it("documents: the title and the content, never the owner; no create", async () => {
     const admin = await asAdmin();
     const [owner, other] = await Promise.all([createTestUser(), createTestUser()]);
     const document = await testPrisma.document.create({
@@ -104,9 +115,11 @@ describe("the admin screens' edit allowlists", () => {
     expect(
       await testPrisma.document.findUniqueOrThrow({ where: { id: document.id } }),
     ).toMatchObject({ content: "Edited", ownerId: owner.id });
+    // a document needs its owner, which no admin edit writes
+    expect(Object.keys(documentContract.methods)).not.toContain("adminCreate");
   });
 
-  it("messages: the text, never the chat or the author", async () => {
+  it("messages: the text, never the chat or the author; no create", async () => {
     const admin = await asAdmin();
     const [author, other] = await Promise.all([createTestUser(), createTestUser()]);
     const chat = await createTestChat({ members: [{ userId: author.id }] });
@@ -140,6 +153,8 @@ describe("the admin screens' edit allowlists", () => {
         userId: author.id,
       },
     );
+    // a message needs its chat and its author, which no admin edit writes
+    expect(Object.keys(messageContract.methods)).not.toContain("adminCreate");
   });
 
   it("users: every field the admin screens edit, the grants included", async () => {
@@ -156,8 +171,29 @@ describe("the admin screens' edit allowlists", () => {
     ]);
   });
 
+  it("users: an address an admin types is unverified until a provider verifies it", async () => {
+    const admin = await asAdmin();
+    const person = await createTestUser({ emailVerified: true });
+    const verification = async (): Promise<unknown> =>
+      await testPrisma.user.findUniqueOrThrow({
+        where: { id: person.id },
+        select: { email: true, emailVerified: true },
+      });
+
+    await admin.userService.adminUpdate({ id: person.id, data: { name: "Renamed" } });
+    expect(await verification()).toEqual({ email: person.email, emailVerified: true });
+    await admin.userService.adminUpdate({ id: person.id, data: { email: "typed@test.com" } });
+    expect(await verification()).toEqual({ email: "typed@test.com", emailVerified: false });
+  });
+
+  it("push subscriptions: nothing, as the screens only read and delete them", async () => {
+    const admin = await asAdmin();
+
+    expect(editableOf(await admin.pushService.adminMeta({}))).toEqual([]);
+  });
+
   // ── quickdraw-game:start ──
-  it("game worlds: the name and the slug, never the chat the server links", async () => {
+  it("game worlds: the name, never the slug clients find it by or the chat the server links", async () => {
     const admin = await asAdmin();
     const world = await testPrisma.gameWorld.create({
       data: { slug: "admin-test", name: "World" },
@@ -165,8 +201,17 @@ describe("the admin screens' edit allowlists", () => {
     });
     const chat = await createTestChat({ members: [{ userId: (await createTestUser()).id }] });
 
-    expect(editableOf(await admin.gameService.adminMeta({}))).toEqual(["name", "slug"]);
+    expect(editableOf(await admin.gameService.adminMeta({}))).toEqual(["name"]);
     await admin.gameService.adminUpdate({ id: world.id, data: { name: "Renamed" } });
+    expect(
+      await codeOf(
+        admin.gameService.adminUpdate({
+          id: world.id,
+          // @ts-expect-error -- outside the contract's list: refused by the types, and by the input check from a caller without them
+          data: { slug: "elsewhere" },
+        }),
+      ),
+    ).toBe("VALIDATION");
     expect(
       await codeOf(
         admin.gameService.adminUpdate({
@@ -177,7 +222,7 @@ describe("the admin screens' edit allowlists", () => {
       ),
     ).toBe("VALIDATION");
     expect(await testPrisma.gameWorld.findUniqueOrThrow({ where: { id: world.id } })).toMatchObject(
-      { name: "Renamed", chatId: null },
+      { name: "Renamed", slug: "admin-test", chatId: null },
     );
   });
 

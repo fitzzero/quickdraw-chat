@@ -47,9 +47,12 @@ closed) is the linked `quickdraw-access.md`.
   more is `CONFLICT`).
 - **Admin screens**: each contract's `admin.contract({ editable })` names the
   only fields the admin kit writes (a chat's title, a document's title and
-  content, ...), so no owner, access list, chat link or author is rewritten
-  from them; any other field is `VALIDATION`, and the forms show it
-  read-only. Messages and documents have no `adminCreate`.
+  content, ...), so no owner, chat link or author is rewritten from them;
+  any other field is `VALIDATION`, and the forms show it read-only.
+  Messages and documents have no `adminCreate`. An address an admin types
+  for a user is stored unverified: until a provider verifies it, it matches
+  no `ADMIN_EMAILS` entry and links a sign-in only to a user nobody has
+  signed in to yet.
 - **Rate limits on REST**: the kit's sign-in routes 60 per 15 minutes per
   IP, its session routes 120; the push resubscribe route
   `createAuthLimiter()`, 20 per 15 minutes.
@@ -88,6 +91,9 @@ is not a number of hops, `true` or `false`.
   with `timingSafeStringEqual()`, never `===`.
 - Give a new service's methods an access matrix (`describeAccessMatrix`)
   before they ship.
+- Give a new admin kit its `editable` list (`[]` when the screens only read
+  and delete): without one it writes every field it shows, owner and
+  foreign-key columns included.
 - Make the CI dependency audit blocking (remove `continue-on-error`) once
   you own the dependency tree.
 
