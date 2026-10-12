@@ -91,6 +91,8 @@ export const chatMemberSchema = z.object({
 });
 
 export const chatContract = defineContract("chatService", {
+  describe:
+    "Chats between users: create, rename and delete chats, and invite, remove and change the level of their members.",
   entity: chatSchema,
   projections: { listItem: chatListItemSchema },
   methods: {
@@ -158,8 +160,13 @@ export const chatContract = defineContract("chatService", {
         "Adds the caller to a game world's chat at Read when they are not a member yet; answers the chat's id, or null for a world without one.",
     }),
     // ── quickdraw-game:end ──
-    // The admin screens: every chat, for holders of a service-wide Admin grant
-    ...admin.contract({ entity: chatSchema, sort: ["createdAt", "title", "lastMessageAt"] }),
+    // The admin screens: every chat, for holders of a service-wide Admin grant,
+    // who may rename one (its latest activity is messageService's to keep)
+    ...admin.contract({
+      entity: chatSchema,
+      sort: ["createdAt", "title", "lastMessageAt"],
+      editable: ["title"],
+    }),
   },
   collections: {
     // Each chat in the list of every member: the scope is a user id, through
@@ -167,6 +174,8 @@ export const chatContract = defineContract("chatService", {
     // A membership write also writes the chat's `memberCount`, which sends
     // the chat again to the lists that still hold it.
     myChats: {
+      describe:
+        "The chats a user is a member of, most recent activity first, with each chat's title and member count.",
       scope: via({ model: "chatMember", entry: "chatId", scope: "userId" }),
       item: "listItem",
       // most recent activity first
@@ -180,11 +189,12 @@ export const chatContract = defineContract("chatService", {
     },
   },
   events: {
-    // Sent to the chat's roster room (the sockets that read getChatMembers)
-    // whenever the chat's members change, with the chat's id so a client
-    // showing several chats can tell them apart; a member removed or gone is
-    // taken out of the room first, and hears no more
+    // Sent to the chat's roster room, with the chat's id so a client showing
+    // several chats can tell them apart; a member removed or gone is taken
+    // out of the room first, and hears no more
     memberUpdate: {
+      describe:
+        "A chat's members after a change to them, sent to each socket whose latest getChatMembers call read this chat.",
       payload: z.object({ chatId: z.string(), members: z.array(chatMemberSchema) }),
     },
   },

@@ -5,9 +5,11 @@ import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import { chatContract, type ChatMemberDTO } from "@project/shared";
 import { chatService } from "../../services/chat/index.js";
 import {
+  agent,
   startTestApp,
   subscribeEntity,
   subscribeScope,
+  user,
   type ApiConnection,
   type ApiTestApp,
 } from "../utils/app.js";
@@ -34,7 +36,7 @@ beforeEach(async () => {
 
 /** An in-process caller acting as the user, with their stored grants. */
 function as(userId: string): ReturnType<ApiTestApp["as"]> {
-  return app.as({ userId });
+  return app.as(user(userId));
 }
 
 async function membership(chatId: string, userId: string): Promise<{ level: string } | null> {
@@ -75,7 +77,7 @@ describe("ChatService", () => {
     });
     expect(invited.id).toBe(chat.id);
 
-    const regular = await app.connect({ userId: users.regular.id });
+    const regular = await app.connect(user(users.regular.id));
     const page = await subscribeScope(regular, "chatService", "myChats", users.regular.id);
     expect(page.ok).toBe(true);
     if (!page.ok || !("items" in page)) throw new Error("expected a snapshot");
@@ -87,7 +89,7 @@ describe("ChatService", () => {
     const chat = await as(users.admin.id).chatService.createChat({ title: "Private" });
 
     // users.regular has no grants and is no member
-    const regular = await app.connect({ userId: users.regular.id });
+    const regular = await app.connect(user(users.regular.id));
     const reply = await subscribeEntity(regular, "chatService", chat.id);
     expect(reply).toMatchObject({ ok: true, r: [{ ok: false, e: { code: "FORBIDDEN" } }] });
     regular.close();
@@ -208,7 +210,7 @@ describe("ChatService live updates", () => {
     const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "Original Title" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
-    const member = await app.connect({ userId: users.regular.id });
+    const member = await app.connect(user(users.regular.id));
     expect(await subscribeEntity(member, "chatService", chat.id)).toMatchObject({
       ok: true,
       r: [{ ok: true, d: { id: chat.id, title: "Original Title" } }],
@@ -230,7 +232,7 @@ describe("ChatService live updates", () => {
     const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "To Be Deleted" });
     await owner.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
-    const member = await app.connect({ userId: users.regular.id });
+    const member = await app.connect(user(users.regular.id));
     await subscribeEntity(member, "chatService", chat.id);
     app.frames.clear();
 
@@ -265,7 +267,7 @@ describe("ChatService member updates (memberUpdate, to the roster's room)", () =
 
   /** A socket showing the chat's members: it read the roster, which joins the chat's room. */
   async function showingRoster(userId: string, chatId: string): Promise<ApiConnection> {
-    const connection = await app.connect({ userId });
+    const connection = await app.connect(user(userId));
     await connection.call.chatService.getChatMembers({ chatId });
     return connection;
   }
@@ -283,7 +285,7 @@ describe("ChatService member updates (memberUpdate, to the roster's room)", () =
     await owner.chatService.inviteUser({ id: chat.id, userId: users.moderator.id, level: "Read" });
     const viewer = await showingRoster(users.moderator.id, chat.id);
     // the same member's other socket, not showing the roster
-    const elsewhere = await app.connect({ userId: users.moderator.id });
+    const elsewhere = await app.connect(user(users.moderator.id));
     app.frames.clear();
 
     await owner.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
@@ -566,10 +568,13 @@ describe("ChatService access matrix", () => {
       level: "Admin",
     });
     const principals = {
-      owner: { userId: owner.id },
-      moderator: { userId: moderator.id },
-      member: { userId: member.id },
-      stranger: { userId: stranger.id },
+      owner: user(owner.id),
+      moderator: user(moderator.id),
+      member: user(member.id),
+      stranger: user(stranger.id),
+      // an agent acting for the owner (the MCP server's kind): what the owner
+      // may do, but deleteChat, which only a person may (kinds: ["user"])
+      agent: agent(owner.id),
     };
 
     await describeAccessMatrix(app, {
@@ -579,13 +584,17 @@ describe("ChatService access matrix", () => {
         {
           method: "createChat",
           input: { title: "Mine" },
-          allow: ["owner", "moderator", "member", "stranger"],
+          allow: ["owner", "moderator", "member", "stranger", "agent"],
         },
-        { method: "getChatMembers", input: { chatId }, allow: ["owner", "moderator", "member"] },
+        {
+          method: "getChatMembers",
+          input: { chatId },
+          allow: ["owner", "moderator", "member", "agent"],
+        },
         {
           method: "updateTitle",
           input: { id: chatId, title: "Renamed" },
-          allow: ["owner", "moderator"],
+          allow: ["owner", "moderator", "agent"],
         },
         {
           method: "deleteChat",
@@ -595,38 +604,64 @@ describe("ChatService access matrix", () => {
         {
           method: "inviteUser",
           input: { id: chatId, userId: extra.id, level: "Read" },
-          allow: ["owner", "moderator"],
+          allow: ["owner", "moderator", "agent"],
         },
         {
           label: "inviteUser (at Admin)",
           method: "inviteUser",
           input: inviteAtAdmin,
-          allow: ["owner"],
+          allow: ["owner", "agent"],
         },
         {
           method: "inviteByName",
           input: { chatId, userName: "Extra", level: "Read" },
-          allow: ["owner", "moderator"],
+          allow: ["owner", "moderator", "agent"],
         },
         {
           label: "removeUser (a Read member)",
           method: "removeUser",
           input: async () => ({ id: await newChat(), userId: member.id }),
-          allow: ["owner", "moderator"],
+          allow: ["owner", "moderator", "agent"],
         },
         {
           label: "removeUser (the chat's last Admin)",
           method: "removeUser",
           input: async () => ({ id: await newChat(), userId: owner.id }),
-          expect: { owner: "CONFLICT" },
+          expect: { owner: "CONFLICT", agent: "CONFLICT" },
         },
         {
           method: "leaveChat",
           input: async () => ({ id: await newChat() }),
           allow: ["moderator", "member"],
-          expect: { owner: "CONFLICT" },
+          expect: { owner: "CONFLICT", agent: "CONFLICT" },
         },
         { method: "adminList", input: {}, allow: [] },
+      ],
+    });
+  });
+
+  it("lets only a person delete a chat, by either method, whatever the agent's grants", async () => {
+    const [owner, chatAdmin] = await Promise.all([
+      createTestUser({ name: "Chat Owner" }),
+      createTestUser({ name: "Chat Admin" }),
+    ]);
+    const grants = { chatService: "Admin" } as const;
+    /** A chat of the owner's own, for one cell to delete. */
+    const ownersChat = async (): Promise<{ id: string }> => ({
+      id: (await as(owner.id).chatService.createChat({ title: "To delete" })).id,
+    });
+
+    await describeAccessMatrix(app, {
+      service: chatService,
+      principals: {
+        // a person with a service-wide Admin grant: any chat, by either method
+        chatAdmin: { ...user(chatAdmin.id), serviceAccess: grants },
+        // an agent acting for them: neither method (kinds: ["user"])
+        agentAdmin: { ...agent(chatAdmin.id), serviceAccess: grants },
+      },
+      cases: [
+        { method: "deleteChat", input: ownersChat, allow: ["chatAdmin"] },
+        { method: "adminDelete", input: ownersChat, allow: ["chatAdmin"] },
       ],
     });
   });

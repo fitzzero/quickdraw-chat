@@ -2,16 +2,23 @@
 
 # pushService
 
+The Web Push endpoints of the caller's browsers, which get a notification of each new message while the user is away.
+
 ## Access
 
-| Option             | Value                                                    |
-| ------------------ | -------------------------------------------------------- |
-| Row policy         | `owner`: Admin for the user the `userId` column names    |
-| Service-wide Admin | passes every check of the service                        |
-| Change topic       | closed: the service declares no `watchAccess`            |
-| Field levels       | none: every caller who may read a row receives all of it |
+| Option             | Value                                                                   |
+| ------------------ | ----------------------------------------------------------------------- |
+| Row policy         | `owner`: Admin for the user the `userId` column names                   |
+| Service-wide Admin | passes every check of the service                                       |
+| Principal kinds    | `user`: its methods, subscriptions and channels refuse every other kind |
+| Change topic       | closed: the service declares no `watchAccess`                           |
+| Field levels       | none: every caller who may read a row receives all of it                |
 
 Each method below says who may call it.
+
+## Depends on
+
+No other service: its declarations name none.
 
 ## Entity
 
@@ -33,6 +40,9 @@ Registers this browser's push endpoint for the caller.
 
 A mutation.
 
+- MCP tool (default name): `pushService_subscribePush`
+- Callable by: `user`
+
 Access: `"authenticated"`: any signed-in caller.
 
 Input:
@@ -50,6 +60,9 @@ Removes one of the caller's push endpoints.
 
 A mutation.
 
+- MCP tool (default name): `pushService_unsubscribePush`
+- Callable by: `user`
+
 Access: `"authenticated"`: any signed-in caller.
 
 Input:
@@ -66,6 +79,9 @@ Sends a test notification to each of the caller's devices; answers how many took
 
 A mutation.
 
+- MCP tool (default name): `pushService_sendTestPush`
+- Callable by: `user`
+
 Access: `"authenticated"`: any signed-in caller.
 
 Input: `{}`.
@@ -77,6 +93,10 @@ Output: `{ sent: integer }`.
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+- MCP tool (default name): `pushService_adminList`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -97,6 +117,10 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+- MCP tool (default name): `pushService_adminGet`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -112,6 +136,9 @@ Output: `{ id?: string; userId?: string; endpoint?: string; p256dh?: string; aut
 Deletes one row.
 
 A mutation.
+
+- MCP tool (default name): `pushService_adminDelete`
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -129,6 +156,10 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+- MCP tool (default name): `pushService_adminMeta`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input: `{}`.
@@ -140,6 +171,10 @@ Output: `{ serviceName: string; displayName: string; fields: { name: string; typ
 Counts the sockets subscribed to one row, per access level.
 
 A query.
+
+- MCP tool (default name): `pushService_adminSubscribers`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -156,6 +191,9 @@ Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: intege
 Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
+
+- MCP tool (default name): `pushService_adminReemit`
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 

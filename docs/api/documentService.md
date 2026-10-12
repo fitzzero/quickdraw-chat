@@ -2,16 +2,23 @@
 
 # documentService
 
+Documents a user writes and shares with other users at a level: create, read, update and delete them, and change who they are shared with.
+
 ## Access
 
 | Option             | Value                                                                                                       |
 | ------------------ | ----------------------------------------------------------------------------------------------------------- |
 | Row policy         | `jsonAcl`: the level the `acl` column lists for the user, and Admin for the user the `ownerId` column names |
 | Service-wide Admin | passes every check of the service                                                                           |
+| Principal kinds    | `user`, `agent`: its methods, subscriptions and channels refuse every other kind                            |
 | Change topic       | closed: the service declares no `watchAccess`                                                               |
 | Field levels       | none: every caller who may read a row receives all of it                                                    |
 
 Each method below says who may call it.
+
+## Depends on
+
+No other service: its declarations name none.
 
 ## Entity
 
@@ -33,6 +40,10 @@ Reads one document.
 
 A query.
 
+- MCP tool (default name): `documentService_get`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
+
 Access: `{ service: "Read", entry: "Read" }`: a service-wide grant of Read or more, or Read or more on the row `input.id` names.
 
 Input:
@@ -48,6 +59,10 @@ Output: one row as the `entity` projection.
 Lists the rows the caller can read, a page at a time, filtered and sorted by the declared fields. Pass a page's nextCursor back as cursor for the next page.
 
 A query.
+
+- MCP tool (default name): `documentService_list`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `"authenticated"`: any signed-in caller.
 
@@ -69,6 +84,9 @@ Creates a document owned by the caller.
 
 A mutation.
 
+- MCP tool (default name): `documentService_create`
+- Callable by: `user`, `agent`
+
 Access: `"authenticated"`: any signed-in caller.
 
 Input:
@@ -85,6 +103,9 @@ Output: one row as the `entity` projection.
 Changes a document's title or content.
 
 A mutation.
+
+- MCP tool (default name): `documentService_update`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Moderate", entry: "Moderate" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.id` names.
 
@@ -104,6 +125,9 @@ Deletes a document.
 
 A mutation.
 
+- MCP tool (default name): `documentService_delete`
+- Callable by: `user`, `agent`
+
 Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or more, or Admin or more on the row `input.id` names.
 
 Input:
@@ -116,9 +140,12 @@ Output: `null`.
 
 ### `share`
 
-Gives a user a level on one row: Read, Moderate or Admin. A user the row is shared with already gets the new level.
+Gives a user a level on one row: Read, Moderate or Admin. A user the row is shared with already gets the new level, unless theirs is above yours.
 
 A mutation.
+
+- MCP tool (default name): `documentService_share`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or more, or Admin or more on the row `input.id` names.
 
@@ -134,9 +161,12 @@ Output: `{ userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[]`.
 
 ### `unshare`
 
-Takes a user's level on one row away. The owner's cannot be taken away.
+Takes a user's level on one row away. The owner's cannot be taken away, nor that of a user whose level is above yours.
 
 A mutation.
+
+- MCP tool (default name): `documentService_unshare`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or more, or Admin or more on the row `input.id` names.
 
@@ -151,9 +181,12 @@ Output: `{ userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[]`.
 
 ### `setLevel`
 
-Changes the level of a user one row is already shared with.
+Changes the level of a user one row is already shared with, unless their level is above yours.
 
 A mutation.
+
+- MCP tool (default name): `documentService_setLevel`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or more, or Admin or more on the row `input.id` names.
 
@@ -173,6 +206,10 @@ Lists the users one row is shared with, and their levels.
 
 A query.
 
+- MCP tool (default name): `documentService_listShares`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
+
 Access: `{ service: "Read", entry: "Read" }`: a service-wide grant of Read or more, or Read or more on the row `input.id` names.
 
 Input:
@@ -188,6 +225,10 @@ Output: `{ userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[]`.
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+- MCP tool (default name): `documentService_adminList`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -208,6 +249,10 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+- MCP tool (default name): `documentService_adminGet`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -218,36 +263,23 @@ Input:
 
 Output: `{ id?: string; title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[] | null; createdAt?: string; updatedAt?: string }`.
 
-### `adminCreate`
-
-Creates a row from data, the new row's field values; the database sets its id and timestamps.
-
-A mutation.
-
-Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
-
-Input:
-
-| Field  | Type                                                                                                                                             |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `data` | `{ title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" \| "Read" \| "Moderate" \| "Admin" }[] \| null }` |
-
-Output: `{ id?: string; title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[] | null; createdAt?: string; updatedAt?: string }`.
-
 ### `adminUpdate`
 
 Changes the given fields of one row; its id and timestamps cannot be changed.
 
 A mutation.
 
+- MCP tool (default name): `documentService_adminUpdate`
+- Callable by: `user`, `agent`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
-| Field  | Type                                                                                                                                             | Notes                |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
-| `id`   | `string`                                                                                                                                         | at least 1 character |
-| `data` | `{ title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" \| "Read" \| "Moderate" \| "Admin" }[] \| null }` |                      |
+| Field  | Type                                   | Notes                |
+| ------ | -------------------------------------- | -------------------- |
+| `id`   | `string`                               | at least 1 character |
+| `data` | `{ title?: string; content?: string }` |                      |
 
 Output: `{ id?: string; title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[] | null; createdAt?: string; updatedAt?: string }`.
 
@@ -256,6 +288,9 @@ Output: `{ id?: string; title?: string; content?: string; ownerId?: string; acl?
 Deletes one row.
 
 A mutation.
+
+- MCP tool (default name): `documentService_adminDelete`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -273,6 +308,10 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+- MCP tool (default name): `documentService_adminMeta`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input: `{}`.
@@ -284,6 +323,10 @@ Output: `{ serviceName: string; displayName: string; fields: { name: string; typ
 Counts the sockets subscribed to one row, per access level.
 
 A query.
+
+- MCP tool (default name): `documentService_adminSubscribers`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -300,6 +343,9 @@ Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: intege
 Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
+
+- MCP tool (default name): `documentService_adminReemit`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 

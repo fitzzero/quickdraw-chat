@@ -4,7 +4,7 @@ import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import type { MessageDTO } from "@project/shared";
 import { messageService } from "../../services/message/index.js";
-import { startTestApp, subscribeScope, type ApiTestApp } from "../utils/app.js";
+import { startTestApp, subscribeScope, user, type ApiTestApp } from "../utils/app.js";
 import { createTestChat, createTestMessage } from "../factories/chat-factory.js";
 import { createTestUser } from "../factories/user-factory.js";
 
@@ -27,7 +27,7 @@ beforeEach(async () => {
 });
 
 function as(userId: string): ReturnType<ApiTestApp["as"]> {
-  return app.as({ userId });
+  return app.as(user(userId));
 }
 
 async function codeOf(call: Promise<unknown>): Promise<string> {
@@ -63,7 +63,7 @@ describe("MessageService", () => {
       await regular.messageService.postMessage({ chatId: chat.id, content });
     }
 
-    const socket = await app.connect({ userId: users.regular.id });
+    const socket = await app.connect(user(users.regular.id));
     const page1 = await subscribeScope(socket, "messageService", "byChat", chat.id, { limit: 2 });
     if (!page1.ok || !("items" in page1)) throw new Error("expected a snapshot");
     const first = page1.items as MessageDTO[];
@@ -268,10 +268,10 @@ describe("MessageService access matrix", () => {
     await describeAccessMatrix(app, {
       service: messageService,
       principals: {
-        author: { userId: author.id },
-        chatAdmin: { userId: chatAdmin.id },
-        reader: { userId: reader.id },
-        stranger: { userId: stranger.id },
+        author: user(author.id),
+        chatAdmin: user(chatAdmin.id),
+        reader: user(reader.id),
+        stranger: user(stranger.id),
       },
       cases: [
         {

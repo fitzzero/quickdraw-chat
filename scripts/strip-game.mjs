@@ -13,8 +13,8 @@
  *    shared file sits between the markers
  *    `── quickdraw-game:start ──` / `── quickdraw-game:end ──`
  *    (any comment syntax). JSON files (en.json, package.json, the
- *    lint baseline, and .oxlintrc.json, whose JSONC comments are dropped)
- *    get targeted key removal below.
+ *    lint baseline, the access snapshot, and .oxlintrc.json, whose JSONC
+ *    comments are dropped) get targeted key removal below.
  *
  * Self-deletes on success.
  */
@@ -260,6 +260,23 @@ editJson(".oxlintrc.json", (data) => {
     (override) => !override.files?.some((glob) => glob.includes("bench")),
   );
 });
+
+// The access snapshot records the game's cells beside the others: the game's
+// and the definitions' methods and rows, and the world chat's join. A fork
+// without the game records none, and under CI a removed cell fails the
+// suite: drop them, as a local run of the suite would.
+const accessSnapshot =
+  "apps/api/src/__tests__/services/__access__/access-snapshot.int.test.ts.json";
+const gameCell = /^(gameService|definitionService)\b|^chatService\.joinWorldChat\b/;
+if (existsSync(accessSnapshot)) {
+  editJson(accessSnapshot, (data) => {
+    for (const cells of [data.methods, data.subscriptions, data.collections]) {
+      for (const key of Object.keys(cells ?? {})) {
+        if (gameCell.test(key)) delete cells[key];
+      }
+    }
+  });
+}
 
 // ── 4. Leftover-reference sanity ────────────────────────────────────────
 // Deliberate survivors. Each one is generic code or copy that merely reads as

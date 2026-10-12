@@ -97,6 +97,12 @@ async function changeMembers(
 }
 
 /**
+ * The admin screens: every chat, for holders of a service-wide Admin grant,
+ * who may edit what the contract's `editable` names (its title).
+ */
+const chatAdmin = admin.handlers(chatContract, { displayName: "Chats" });
+
+/**
  * Chats: the membership-table access pattern. A chat's level comes from its
  * ChatMember row (`members`), and `myChats` lists each user's chats through
  * that table (`via`), so a membership write moves the chat in and out of the
@@ -155,6 +161,8 @@ export const chatService = qd.defineService(chatContract, {
     // quickdraw: hand-written because it answers { id, deleted } as the chat sidebar expects; the database cascade removes the memberships and messages, and the deleted anchor closes every byChat scope of the chat
     deleteChat: {
       access: { service: "Admin", entry: "Admin" },
+      // users only: an agent acting for one is refused, whatever its grants
+      kinds: ["user"],
       handler: async ({ input, db }) => {
         await db.chat.delete({ where: { id: input.id }, select: { id: true } });
         return { id: input.id, deleted: true as const };
@@ -169,7 +177,7 @@ export const chatService = qd.defineService(chatContract, {
         return listMembers(db, input.chatId);
       },
     },
-    // quickdraw: hand-written because a Moderate invites and removes here (the sharing kit's members mode lets only Admins change members by default and caps no change to a member above the caller), and one method both invites and changes a member's level, as the web app's invite box expects; the kit's three rules apply in changeMembership
+    // quickdraw: hand-written because one method both invites and changes a member's level, as the web app's invite box expects (the sharing kit's members mode splits them into invite and setRole), and a Moderate changes only members below their own level here, where the kit lets equal levels change each other; the rules are in changeMembership
     inviteUser: {
       access: { service: "Moderate", entry: "Moderate" },
       handler: async ({ input, ctx, db }) => {
@@ -242,11 +250,10 @@ export const chatService = qd.defineService(chatContract, {
       },
     },
     // ── quickdraw-game:end ──
-    ...admin.handlers(chatContract, {
-      displayName: "Chats",
-      // kept by messageService (its posts and deletes), not edited by hand
-      fieldOverrides: { lastMessageAt: { editable: false } },
-    }),
+    ...chatAdmin,
+    // users only, as deleteChat: an agent acting for a service-wide Admin
+    // deletes no chat from the admin screens either
+    adminDelete: { ...chatAdmin.adminDelete, kinds: ["user"] },
   },
   // a socket that left its roster room is forgotten (see rosterRoomOf)
   onRoomLeave: forgetRoster,

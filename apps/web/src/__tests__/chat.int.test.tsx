@@ -3,7 +3,8 @@
 // hooks (renderWithQuickdraw). What the two-browser manual run checks, kept:
 // the live chat list (a new chat appears, a message reorders it), a message
 // from another member, a send shown at once that settles into the server's
-// row, and a refused or deleted chat shown as before.
+// row, a refused or deleted chat shown as before, and the sign-in once the
+// server ends the session (signed out everywhere from another browser).
 
 import * as React from "react";
 import { fireEvent, waitFor, type RenderResult } from "@testing-library/react";
@@ -15,11 +16,12 @@ import { testPrisma } from "@project/db/testing";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTestChat } from "../../../api/src/__tests__/factories/chat-factory";
 import { createTestUser } from "../../../api/src/__tests__/factories/user-factory";
-import { startTestApp, type ApiTestApp } from "../../../api/src/__tests__/utils/app";
+import { startTestApp, user, type ApiTestApp } from "../../../api/src/__tests__/utils/app";
 import ChatPage from "../app/chats/[chatId]/page";
 import ChatsPage from "../app/chats/page";
 import { ChatSidebar } from "../components/chat/ChatSidebar";
 import { ChatWindow } from "../components/chat/ChatWindow";
+import { AuthGate } from "../components/layout/AuthGate";
 import { qd } from "../lib/quickdraw";
 import { IntlProvider } from "../providers/IntlProvider";
 import { LayoutProvider } from "../providers/LayoutProvider";
@@ -54,14 +56,14 @@ afterAll(async () => {
 async function renderAs(userId: string, ui: React.ReactElement): Promise<QuickdrawRenderResult> {
   return await renderWithQuickdraw(ui, {
     app,
-    as: { userId },
+    as: user(userId),
     client: qd,
     wrapper: AppProviders,
   });
 }
 
 function as(userId: string): ReturnType<ApiTestApp["as"]> {
-  return app.as({ userId });
+  return app.as(user(userId));
 }
 
 /**
@@ -569,5 +571,28 @@ describe("the chat page", () => {
 
     await as(bo).chatService.deleteChat({ id: chat.id });
     await view.findByText("Chat not found");
+  });
+});
+
+describe("a session the server ends", () => {
+  it("shows the sign-in in place of the page, not the connecting state", async () => {
+    const ada = await createTestUser({ name: "Ada" });
+    const chat = await createTestChat({ title: "Before sign-out", members: [{ userId: ada.id }] });
+    route.chatId = chat.id;
+    const view = await renderAs(
+      ada.id,
+      <AuthGate>
+        <ChatPage />
+      </AuthGate>,
+    );
+    await view.findByText("No messages yet. Start the conversation!");
+
+    // What signing out everywhere from another browser does to this one's
+    // socket (the auth routes' onRevoke): the server ends it, and the client
+    // forgets the hello and everything it cached
+    app.server.access.disconnectUser(ada.id);
+    await view.findByText("Sign In Required");
+    expect(view.queryByText("Connecting...")).toBeNull();
+    expect(view.queryByText("No messages yet. Start the conversation!")).toBeNull();
   });
 });

@@ -1,13 +1,45 @@
 import { admin, anyOf, everyone, owner } from "@fitzzero/quickdraw-core/server";
+import type { Prisma } from "@project/db";
 import { userContract } from "@project/shared";
 import { qd } from "../../quickdraw.js";
+
+/**
+ * The admin screens: every user, for holders of a service-wide Admin grant.
+ * `grants: true` shows and writes `serviceAccess` through `adminUpdate`, for
+ * callers whose own userService grant is Admin only; the tracked write
+ * refreshes the user's open sockets (the server names the column in
+ * `auth.serviceAccessSource`).
+ */
+const userAdmin = admin.handlers(userContract, {
+  displayName: "Users",
+  grants: true,
+  // edited by the grants editor on the user's admin page (which finds the
+  // field by its `kind: "grants"`): neither a column nor a generic form field
+  fieldOverrides: { serviceAccess: { showInTable: false, showInForm: false } },
+  // an address an admin types is no provider's: stored unverified, it
+  // matches no ADMIN_EMAILS entry and links a sign-in only to a user nobody
+  // has signed in to yet, until a provider verifies it (auth/users.ts,
+  // auth/grants.ts)
+  onWrite: async ({ method, id, before, after }, _ctx, tx: Prisma.TransactionClient) => {
+    if (method === "adminUpdate" && before?.email !== after?.email) {
+      await tx.user.update({
+        where: { id },
+        data: { emailVerified: false },
+        select: { id: true },
+      });
+    }
+  },
+});
 
 /**
  * Users: each user holds Admin on their own row (`owner` on `id`), which
  * gives them their email and grants (the contract's `fields` keep both at
  * Admin), and every signed-in user reads the rest of every profile: their
  * name and image (`everyone("Read")`). Service administrators edit users
- * through the admin kit, grants included (`grants: true`).
+ * through the admin kit, grants included (`grants: true`); an agent acting
+ * for one creates, edits and deletes no user there, though `updateUser`
+ * lets it, as any service-wide Moderate grant, change a profile's name and
+ * image.
  */
 export const userService = qd.defineService(userContract, {
   model: "user",
@@ -43,17 +75,11 @@ export const userService = qd.defineService(userContract, {
         }
       },
     },
-    // The admin screens: every user, for holders of a service-wide Admin
-    // grant. `grants: true` shows and writes `serviceAccess` through
-    // `adminUpdate`, for callers whose own userService grant is Admin only;
-    // the tracked write refreshes the user's open sockets (the server names
-    // the column in `auth.serviceAccessSource`).
-    ...admin.handlers(userContract, {
-      displayName: "Users",
-      grants: true,
-      // edited by the grants editor on the user's admin page (which finds the
-      // field by its `kind: "grants"`): neither a column nor a generic form field
-      fieldOverrides: { serviceAccess: { showInTable: false, showInForm: false } },
-    }),
+    ...userAdmin,
+    // people only, as deleting a chat: an agent acting for a service-wide
+    // Admin creates, edits (grants included) and deletes no user here
+    adminCreate: { ...userAdmin.adminCreate, kinds: ["user"] },
+    adminUpdate: { ...userAdmin.adminUpdate, kinds: ["user"] },
+    adminDelete: { ...userAdmin.adminDelete, kinds: ["user"] },
   },
 });

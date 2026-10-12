@@ -2,7 +2,7 @@
   "version": 1,
   "budgets": {
     "open myChats with 30 chats": {
-      "statements": 4,
+      "statements": 5,
       "bytes": 7185,
       "calls": []
     },

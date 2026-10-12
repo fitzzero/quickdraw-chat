@@ -25,6 +25,8 @@ oxlint, run per package by turbo (`bun run lint`, each package's
    (the netcode bench drives raw sockets and prints, on purpose)
    <!-- ── quickdraw-game:end ── -->
    and the local `project` plugin (`eslint-plugin-project/`, no rules yet).
+   One rule is raised from the base's warning: `quickdraw/require-describe`
+   is an error here, so a contract member without a `describe` fails lint.
 
 Fix the code, not the rule. A rule that must not apply to one line takes an
 `// oxlint-disable-next-line <rule> -- <why>` comment; a whole kind of file,

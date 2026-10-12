@@ -44,17 +44,27 @@ describe("allowedOriginsFromEnv", () => {
     expect(isAllowedOrigin(allowed, "https://evil.example.com")).toBe(false);
   });
 
-  it("outside production: Codespaces and localhost too", () => {
+  it("outside production: localhost too, and no Codespace", () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("CLIENT_URL", "http://localhost:3000");
     const allowed = allowedOriginsFromEnv();
 
     expect(isAllowedOrigin(allowed, "http://localhost:3000")).toBe(true);
     expect(isAllowedOrigin(allowed, "http://localhost:3105")).toBe(true);
-    expect(isAllowedOrigin(allowed, CODESPACE)).toBe(true);
+    // anyone can open a Codespace, in development too
+    expect(isAllowedOrigin(allowed, CODESPACE)).toBe(false);
     expect(isAllowedOrigin(allowed, "https://evil.example.com")).toBe(false);
-    // the patterns are anchored
-    expect(isAllowedOrigin(allowed, `${CODESPACE}.evil.example.com`)).toBe(false);
+    // the pattern is anchored
+    expect(isAllowedOrigin(allowed, "http://localhost:3000.evil.example.com")).toBe(false);
+  });
+
+  it("in a Codespace: its own web app (CLIENT_URL, as load-env.sh derives it), no other", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("CLIENT_URL", "https://mine-3000.app.github.dev");
+    const allowed = allowedOriginsFromEnv();
+
+    expect(isAllowedOrigin(allowed, "https://mine-3000.app.github.dev")).toBe(true);
+    expect(isAllowedOrigin(allowed, CODESPACE)).toBe(false);
   });
 });
 

@@ -1,5 +1,125 @@
 # Changelog
 
+## quickdraw 5.1.2 (2026-10-12)
+
+The template on quickdraw 5.1.2 (`@fitzzero/quickdraw-core`, `-lint` and
+`-skills` at `^5.1.2`), the October 2026 security pack (quickdraw's own
+changelog heads it `[5.1.1]`). Two notes for the deploy:
+
+- A sign-in in flight during the deploy lands once on
+  `/auth/login?error=state`: the OAuth state cookie is signed now, and its
+  format changed.
+- A development deploy needs `NODE_ENV=development`. quickdraw serves the
+  demo-user sign-in and development credentials only under `development`
+  or `test`, and the API refuses to boot with `ENABLE_MOCK_OAUTH` or
+  `ENABLE_DEV_CREDENTIALS` under any other `NODE_ENV`, unset included.
+  `.env.infra` sets it for `bun run dev`; the hosted dev instance's
+  `pm2.config.cjs` already defaults to it. Production is unaffected.
+
+### Changed
+
+- **`postMessage` says it creates its row.** 5.1 refuses, when a service
+  is defined, a method whose input has `id` under a form that checks
+  another row. `postMessage`'s optional `id` is the one a sender makes for
+  the message it creates, so it says `rowless: true`; the chat's policy
+  still decides who may post. Without it, the API, the MCP server and every
+  integration suite failed to start.
+- **A session the server ends shows the sign-in.** When the server ends a
+  session (signed out everywhere from another browser, revoked, expired)
+  or refuses a connect for it, 5.1's client forgets the user and empties
+  its cache. The pages that need a user and the user menu now show the
+  signed-out state then (`status` "disconnected", or "refused" for
+  anything but another protocol: `sessionEnded()` in `lib/auth.ts`),
+  where they waited on "Connecting…" for good. The web's integration
+  suite plays it, and `AuthGate.test.tsx` is the first component test on
+  the mock client.
+- **The chat list costs one statement more.** 5.1 makes a self list follow
+  its service's policy, so "open myChats with 30 chats" reads the policy
+  filter once more (5 statements, not 4).
+- **The MCP server names the grants column**
+  (`createDispatcher({ serviceAccessSource })`), as the API's
+  `createServer` does: `serviceAccess` is a grants field by its name
+  already, so nothing changes until a fork renames the column.
+- **Prisma logs its warnings under `bun run dev`**, now that `NODE_ENV` is
+  `development` there; every statement only with `PRISMA_LOG_QUERIES=true`.
+- **The API reference is regenerated**: 5.1's pages lead with each
+  member's description, list each method's MCP tool name, and say which
+  services each depends on, with a graph on the index.
+- **Agent skills.** `quickdraw-api-docs` (describes and the API docs) is
+  linked beside the other quickdraw skills.
+
+### Adopted from quickdraw 5.0.1 and 5.1
+
+What the framework's own example app shows and this template did not:
+
+- **Every contract member describes itself.** The 7 contracts, both
+  collections, the game's channel and stream, and the 5 events gained a
+  `describe` (what each is for: agents read a method's as its MCP tool's
+  description, and the API reference leads each section with it). Lint's
+  `quickdraw/require-describe` is an error here now, where the base warns.
+- **Principals declare their kind.** `AppPrincipal` (`apps/api/src/quickdraw.ts`)
+  is `kind: "user"` for every sign-in (`userPrincipal`: sessions, guests,
+  development credentials, the push renewal route) or `"agent"` for the MCP
+  server's caller, and `initQuickdraw({ kinds: ["user", "agent"] })` admits
+  both. Where only a person may act, `kinds: ["user"]` refuses an agent
+  acting for the user, whatever its grants: all of `pushService` (a push
+  endpoint is a browser's), deleting a chat (`chatService.deleteChat`, and
+  the admin screens' `adminDelete`, which deletes it too), and managing a
+  user from the admin screens (`userService.adminCreate`, `adminUpdate`,
+  which writes grants, and `adminDelete`). The MCP server serves none of
+  those as tools, so its list names only what an agent may call. The
+  access matrices pin it with agent principals, one with a service-wide
+  Admin grant, and every test principal carries its kind (`user(id)`,
+  `agent(id)`): a principal without one is refused everywhere.
+- **The admin screens edit only what each contract lists.** Every
+  `admin.contract` names its `editable` fields, which the handlers take
+  from it: a chat's title; a document's title and content; a message's
+  text; a game world's name (its slug is how every client finds it); a
+  definition's and a user's fields as before; no field of a push
+  subscription. A field added later stays read-only until it is listed.
+  The kit wrote every field it showed before, so an admin edit could move
+  a document to another owner, a message to another chat or author, or
+  relink a world's chat. Any other field is now `VALIDATION` and shows
+  read-only. Messages and documents have no `adminCreate`: each needs its
+  owner or its chat and author, which no admin edit writes. An address an
+  admin types for a user is stored unverified (the users service's
+  `onWrite`): until a provider verifies it, it matches no `ADMIN_EMAILS`
+  entry and links a sign-in only to a user nobody has signed in to yet.
+  Before, an edit kept a verified user verified, so the first sign-in of
+  whoever held the typed address landed in that user's account.
+- **No GitHub Codespace is a web origin unless named.** Development
+  admitted every `*.app.github.dev` page, and anyone can open a
+  Codespace: a sign-in return, a CORS origin and a cookie origin for every
+  GitHub user. A Codespace's own web app is `CLIENT_URL`
+  (`scripts/load-env.sh` derives it); list another in
+  `EXTRA_ALLOWED_ORIGINS`.
+- **A stall watchdog** (`createServer({ stallWatchdog: true })`) logs the
+  slowest methods when a handler holds the event loop.
+- **An access snapshot pins who may do what.**
+  `access-snapshot.int.test.ts` (`snapshotAccessMatrix`) records the outcome
+  of every method, entity subscribe and collection scope of every service
+  (900 cells), as callers at Admin, Moderate and Read on the rows and at
+  none, a service-wide Admin and Moderate grant, an agent acting for the
+  owner and one for the Admin, and anonymously, in
+  `__access__/access-snapshot.int.test.ts.json`. A change that moves a cell
+  fails, saying whether it opens or closes access, until
+  `QD_UPDATE_ACCESS_SNAPSHOT=1` accepts it and the file is committed with
+  it. The hand-written matrices stay: they state the intent per method.
+  Reading the first snapshot found an agent acting for an admin creating,
+  editing (grants included) and deleting users through the admin kit:
+  those three methods are people's now, as above. `updateUser` still lets
+  any service-wide userService Moderate grant, an agent's included, change
+  a profile's name and image.
+
+### What 5.1 protects, with nothing to change here
+
+The signed OAuth state cookie (`__Host-qd_oauth` over HTTPS); a socket
+ends when its session expires; `/auth/me`, `/auth/logout`,
+`/auth/logout-all` and `/auth/guest` refuse a page outside the allowed
+origins; `/qd` replies say `no-store` and `nosniff`; one socket holds at
+most 10,000 rows, 1,000 collection scopes and 1,000 topic watches.
+`.claude/rules/security.md` lists them.
+
 ## quickdraw 5.0.0 (2026-10-05)
 
 The template on the released quickdraw 5.0.0 (`@fitzzero/quickdraw-core`,

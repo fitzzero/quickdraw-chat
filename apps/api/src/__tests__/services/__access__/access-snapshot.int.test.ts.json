@@ -1,0 +1,1137 @@
+{
+  "collections": {
+    "chatService.myChats (self)": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "messageService.byChat": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    }
+  },
+  "excluded": [],
+  "methods": {
+    "chatService.adminCreate": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.adminDelete": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.adminGet": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.adminList": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.adminMeta": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.adminReemit": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.adminSubscribers": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.adminUpdate": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.createChat": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "chatService.deleteChat": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "ok",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.getChatMembers": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.inviteByName": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.inviteUser": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.joinWorldChat": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "chatService.leaveChat": {
+      "admin": "NOT_FOUND",
+      "agent": "CONFLICT",
+      "agentAdmin": "NOT_FOUND",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "CONFLICT",
+      "serviceModerator": "NOT_FOUND",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.removeUser": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "FORBIDDEN"
+    },
+    "chatService.updateTitle": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "FORBIDDEN"
+    },
+    "definitionService.adminCreate": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "definitionService.adminDelete": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "definitionService.adminGet": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "definitionService.adminList": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "definitionService.adminMeta": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "definitionService.adminReemit": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "definitionService.adminSubscribers": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "definitionService.adminUpdate": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "definitionService.getDefinition": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "ok",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "definitionService.listDefinitions": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "ok",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "documentService.adminDelete": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService.adminGet": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService.adminList": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService.adminMeta": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService.adminReemit": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService.adminSubscribers": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService.adminUpdate": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService.create": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "documentService.delete": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "ok",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService.get": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService.list": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "documentService.listShares": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService.setLevel": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "ok",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService.share": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "ok",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService.unshare": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "ok",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService.update": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "FORBIDDEN"
+    },
+    "gameService.adminGet": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "gameService.adminList": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "gameService.adminMeta": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "gameService.adminReemit": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "gameService.adminSubscribers": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "gameService.adminUpdate": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "gameService.getHighScores": {
+      "admin": "NOT_FOUND",
+      "agent": "NOT_FOUND",
+      "agentAdmin": "NOT_FOUND",
+      "anonymous": "NOT_FOUND",
+      "member": "NOT_FOUND",
+      "moderator": "NOT_FOUND",
+      "owner": "NOT_FOUND",
+      "serviceModerator": "NOT_FOUND",
+      "stranger": "NOT_FOUND"
+    },
+    "gameService.getMyBest": {
+      "admin": "NOT_FOUND",
+      "agent": "NOT_FOUND",
+      "agentAdmin": "NOT_FOUND",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "NOT_FOUND",
+      "moderator": "NOT_FOUND",
+      "owner": "NOT_FOUND",
+      "serviceModerator": "NOT_FOUND",
+      "stranger": "NOT_FOUND"
+    },
+    "gameService.getWorld": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "ok",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "gameService.joinGame": {
+      "admin": "NOT_FOUND",
+      "agent": "NOT_FOUND",
+      "agentAdmin": "NOT_FOUND",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "NOT_FOUND",
+      "moderator": "NOT_FOUND",
+      "owner": "NOT_FOUND",
+      "serviceModerator": "NOT_FOUND",
+      "stranger": "NOT_FOUND"
+    },
+    "gameService.leaveGame": {
+      "admin": "NOT_FOUND",
+      "agent": "NOT_FOUND",
+      "agentAdmin": "NOT_FOUND",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "NOT_FOUND",
+      "moderator": "NOT_FOUND",
+      "owner": "NOT_FOUND",
+      "serviceModerator": "NOT_FOUND",
+      "stranger": "NOT_FOUND"
+    },
+    "gameService.respawn": {
+      "admin": "NOT_FOUND",
+      "agent": "NOT_FOUND",
+      "agentAdmin": "NOT_FOUND",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "NOT_FOUND",
+      "moderator": "NOT_FOUND",
+      "owner": "NOT_FOUND",
+      "serviceModerator": "NOT_FOUND",
+      "stranger": "NOT_FOUND"
+    },
+    "gameService.watchWorld": {
+      "admin": "NOT_FOUND",
+      "agent": "NOT_FOUND",
+      "agentAdmin": "NOT_FOUND",
+      "anonymous": "NOT_FOUND",
+      "member": "NOT_FOUND",
+      "moderator": "NOT_FOUND",
+      "owner": "NOT_FOUND",
+      "serviceModerator": "NOT_FOUND",
+      "stranger": "NOT_FOUND"
+    },
+    "messageService.adminDelete": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "messageService.adminGet": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "messageService.adminList": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "messageService.adminMeta": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "messageService.adminReemit": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "messageService.adminSubscribers": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "messageService.adminUpdate": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "messageService.deleteMessage": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "FORBIDDEN",
+      "owner": "ok",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "messageService.postMessage": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "pushService.adminDelete": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "pushService.adminGet": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "pushService.adminList": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "pushService.adminMeta": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "pushService.adminReemit": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "pushService.adminSubscribers": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "pushService.sendTestPush": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "pushService.subscribePush": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "pushService.unsubscribePush": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "userService.adminCreate": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.adminDelete (member)": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.adminDelete (owner)": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.adminGet (member)": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.adminGet (owner)": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.adminList": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.adminMeta": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.adminReemit (member)": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.adminReemit (owner)": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.adminSubscribers (member)": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.adminSubscribers (owner)": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.adminUpdate (member)": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.adminUpdate (owner)": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.getMe": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "userService.updateUser (member)": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "ok",
+      "stranger": "FORBIDDEN"
+    },
+    "userService.updateUser (owner)": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "FORBIDDEN"
+    }
+  },
+  "principals": {
+    "admin": {
+      "kind": "user"
+    },
+    "agent": {
+      "kind": "agent"
+    },
+    "agentAdmin": {
+      "kind": "agent"
+    },
+    "anonymous": null,
+    "member": {
+      "kind": "user"
+    },
+    "moderator": {
+      "kind": "user"
+    },
+    "owner": {
+      "kind": "user"
+    },
+    "serviceModerator": {
+      "kind": "user"
+    },
+    "stranger": {
+      "kind": "user"
+    }
+  },
+  "subscriptions": {
+    "chatService": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "definitionService": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "documentService": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "gameService": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "messageService": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "pushService": {
+      "admin": "ok",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "ok",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
+    "userService (member)": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "userService (owner)": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    }
+  },
+  "version": 1
+}

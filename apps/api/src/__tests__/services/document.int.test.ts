@@ -5,7 +5,7 @@ import { QuickdrawError } from "@fitzzero/quickdraw-core";
 import { describeAccessMatrix, expectBudget } from "@fitzzero/quickdraw-core/testing";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import { documentService } from "../../services/document/index.js";
-import { startTestApp, subscribeEntity, type ApiTestApp } from "../utils/app.js";
+import { startTestApp, subscribeEntity, user, type ApiTestApp } from "../utils/app.js";
 import { createTestUser } from "../factories/user-factory.js";
 
 type Users = Awaited<ReturnType<typeof seedTestUsers>>;
@@ -28,7 +28,7 @@ beforeEach(async () => {
 });
 
 function as(userId: string): ReturnType<ApiTestApp["as"]> {
-  return app.as({ userId });
+  return app.as(user(userId));
 }
 
 async function codeOf(call: Promise<unknown>): Promise<string> {
@@ -103,7 +103,7 @@ describe("DocumentService (read/write kit)", () => {
       userId: users.moderator.id,
       level: "Read",
     });
-    const reader = await app.connect({ userId: users.moderator.id });
+    const reader = await app.connect(user(users.moderator.id));
     await subscribeEntity(reader, "documentService", created.id);
     app.frames.clear();
 
@@ -191,7 +191,7 @@ describe("DocumentService budgets", () => {
     await owner.documentService.share({ id: doc.id, userId: users.moderator.id, level: "Read" });
     // the row's live subscribers: its owner and a reader
     const watchers = await Promise.all(
-      [users.regular.id, users.moderator.id].map((userId) => app.connect({ userId })),
+      [users.regular.id, users.moderator.id].map((userId) => app.connect(user(userId))),
     );
     for (const watcher of watchers) {
       expect(await subscribeEntity(watcher, "documentService", doc.id)).toMatchObject({ ok: true });
@@ -287,10 +287,10 @@ describe("DocumentService access matrix", () => {
     await describeAccessMatrix(app, {
       service: documentService,
       principals: {
-        owner: { userId: ownerUser.id },
-        editor: { userId: editorUser.id },
-        reader: { userId: readerUser.id },
-        stranger: { userId: stranger.id },
+        owner: user(ownerUser.id),
+        editor: user(editorUser.id),
+        reader: user(readerUser.id),
+        stranger: user(stranger.id),
       },
       cases: [
         { method: "get", input: { id: doc.id }, allow: ["owner", "editor", "reader"] },
