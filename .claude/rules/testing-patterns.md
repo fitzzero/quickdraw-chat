@@ -84,6 +84,26 @@ Close it in `afterAll`. Then:
   `kinds`, with a service-wide grant too (no grant lets an agent past it).
   A mutation that consumes its row takes an `input` factory, so every cell
   gets a fresh row. A change to who may call a method shows up here first.
+- The access snapshot (`access-snapshot.int.test.ts`, quickdraw's
+  `snapshotAccessMatrix`): every method, entity subscribe and collection
+  scope of every service, as an owner, a member, a stranger, a service-wide
+  Admin, an agent acting for the owner and one for the Admin, and
+  anonymously, against one seeded set of rows, in
+  `__access__/access-snapshot.int.test.ts.json`. A change that moves a cell
+  fails, naming it and whether it opens or closes access; when the change
+  is meant, run the suite again with `QD_UPDATE_ACCESS_SNAPSHOT=1` and
+  commit the file with it. Under CI (`CI=1`) a missing file, an added or
+  removed cell and that variable fail, so the file goes in the commit that
+  moved it. A new service needs its row in the suite's `seed` and `rows`.
+  Give `inputs` where a made input fails: one its schema refuses is never
+  called (`report.inconclusive` lists it and stays empty; never loosen the
+  schema), and one naming no user or holding no data fails after the
+  access check, so a cell access lets through would not say `ok`.
+  <!-- ── quickdraw-game:start ── -->
+  `gameService` stays out (its methods act on the in-memory sim, which a
+  reset of the database cannot undo); `scripts/strip-game.mjs` drops the
+  game's cells from the file.
+  <!-- ── quickdraw-game:end ── -->
 - Budgets in `apps/api/src/__tests__/services/__budgets__/`, one file per
   suite: the chat list (30 chats), a message to 3 subscribers, a document
   share with 2 subscribers.

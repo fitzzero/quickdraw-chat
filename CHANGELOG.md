@@ -94,6 +94,15 @@ What the framework's own example app shows and this template did not:
   `EXTRA_ALLOWED_ORIGINS`.
 - **A stall watchdog** (`createServer({ stallWatchdog: true })`) logs the
   slowest methods when a handler holds the event loop.
+- **An access snapshot pins who may do what.**
+  `access-snapshot.int.test.ts` (`snapshotAccessMatrix`) records the outcome
+  of every method, entity subscribe and collection scope of every service
+  but the game's, as an owner, a member, a stranger, a service-wide
+  Admin, an agent acting for the owner and one for the Admin, and
+  anonymously, in `__access__/access-snapshot.int.test.ts.json`. A change
+  that moves a cell fails, saying whether it opens or closes access, until
+  `QD_UPDATE_ACCESS_SNAPSHOT=1` accepts it and the file is committed with
+  it. The hand-written matrices stay: they state the intent per method.
 
 ### What 5.1 protects, with nothing to change here
 

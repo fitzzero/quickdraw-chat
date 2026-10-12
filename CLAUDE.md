@@ -9,9 +9,9 @@ collections (a chat's messages, each user's chats through a membership
 table), the three row-policy shapes (owner, JSON access list, membership
 table), the read/write, sharing and admin kits, the auth routes kit (OAuth
 plus a development mock sign-in), an MCP server, integration tests on
-PGlite with access matrices and budgets, CI/CD, and conveyor-ready
-devcontainer config. It is meant to be forked as the starting point for new
-projects (`scripts/init-fork.sh`).
+PGlite with access matrices, an access snapshot and budgets, CI/CD, and
+conveyor-ready devcontainer config. It is meant to be forked as the
+starting point for new projects (`scripts/init-fork.sh`).
 
 ## Repository Structure
 
@@ -112,7 +112,7 @@ when you work on matching files, beside the linked framework rules:
 - `auth.md` and `dev-auth.md`: sign-in, sessions, grants; development sign-in
 - `database-patterns.md`: Prisma, migrations, tracked and untracked clients
 - `client-patterns.md`: the web app on the typed client
-- `testing-patterns.md`: the test app, access matrices, budgets
+- `testing-patterns.md`: the test app, access matrices and the snapshot, budgets
 - `linting.md` and `security.md`
 <!-- ── quickdraw-game:start ── -->
 - `game-patterns.md`: the realtime game and its Godot client

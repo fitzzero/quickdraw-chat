@@ -90,7 +90,8 @@ is not a number of hops, `true` or `false`.
   (`apps/api/src/utils/`); compare shared secrets (webhooks, service tokens)
   with `timingSafeStringEqual()`, never `===`.
 - Give a new service's methods an access matrix (`describeAccessMatrix`)
-  before they ship.
+  before they ship, and commit the access snapshot cells they add (read
+  each one first).
 - Give a new admin kit its `editable` list (`[]` when the screens only read
   and delete): without one it writes every field it shows, owner and
   foreign-key columns included.
