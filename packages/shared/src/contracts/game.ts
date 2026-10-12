@@ -187,6 +187,8 @@ export const gameContract = defineContract("gameService", {
     ...admin.contract({
       entity: gameWorldSchema,
       sort: ["createdAt", "name", "slug"],
+      // its chat is the server's to make and link
+      editable: ["name", "slug"],
       expose: [
         "adminList",
         "adminGet",

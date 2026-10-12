@@ -76,8 +76,24 @@ export const messageContract = defineContract("messageService", {
       describe:
         "Deletes a message: its author may, as may its chat's Admins and holders of a service-wide Admin grant.",
     }),
-    // The admin screens: every message, for holders of a service-wide Admin grant
-    ...admin.contract({ entity: messageSchema, filter: ["chatId", "userId"], sort: ["createdAt"] }),
+    // The admin screens: every message, for holders of a service-wide Admin
+    // grant, who may correct its text. No adminCreate: a message needs its
+    // chat and its author, which no admin edit writes (postMessage posts)
+    ...admin.contract({
+      entity: messageSchema,
+      filter: ["chatId", "userId"],
+      sort: ["createdAt"],
+      editable: ["content"],
+      expose: [
+        "adminList",
+        "adminGet",
+        "adminUpdate",
+        "adminDelete",
+        "adminMeta",
+        "adminSubscribers",
+        "adminReemit",
+      ],
+    }),
   },
   collections: {
     // A chat's live history. Newest first, so the first page is the latest

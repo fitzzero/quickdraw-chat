@@ -71,6 +71,18 @@ export const userContract = defineContract("userService", {
     // grant; `adminUpdate` also writes `serviceAccess` (the service passes
     // `grants: true`), which replaces the user's grants and reaches their
     // open sockets at once
-    ...admin.contract({ entity: userSchema, sort: ["createdAt", "name", "email"] }),
+    ...admin.contract({
+      entity: userSchema,
+      sort: ["createdAt", "name", "email"],
+      editable: [
+        "email",
+        "name",
+        "image",
+        // ── quickdraw-game:start ──
+        "isGuest",
+        // ── quickdraw-game:end ──
+        "serviceAccess",
+      ],
+    }),
   },
 });

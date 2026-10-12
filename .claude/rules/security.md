@@ -8,9 +8,10 @@ closed) is the linked `quickdraw-access.md`.
 
 - **HTTP**: helmet on the API; one allowlist of web origins for CORS, the
   sign-in's `returnTo`, cookie-authenticated sockets, HTTP calls and REST
-  routes (`requireSession`: the cookie from another site's page answers 403) (`CLIENT_URL` and `EXTRA_ALLOWED_ORIGINS`; GitHub Codespaces and
-  localhost outside production only, in `auth/config.ts`: anyone can open
-  a Codespace); an
+  routes (`requireSession`: the cookie from another site's page answers 403) (`CLIENT_URL` and `EXTRA_ALLOWED_ORIGINS`, plus localhost outside
+  production, in `auth/config.ts`; no GitHub Codespace but one those name,
+  since anyone can open one: `load-env.sh` makes a Codespace's own web app
+  `CLIENT_URL`); an
   explicit 100 kB JSON body limit; `trust proxy` from `TRUST_PROXY`, else
   1 in production and behind an `https:` `API_URL`, else off (the rate
   limits count the address it gives; quickdraw's own examples default to
@@ -44,6 +45,11 @@ closed) is the linked `quickdraw-access.md`.
   (`createCallLimiter()`, 300 calls a minute per IP); one socket holds at
   most 10,000 rows, 1,000 collection scopes and 1,000 topic watches (one
   more is `CONFLICT`).
+- **Admin screens**: each contract's `admin.contract({ editable })` names the
+  only fields the admin kit writes (a chat's title, a document's title and
+  content, ...), so no owner, access list, chat link or author is rewritten
+  from them; any other field is `VALIDATION`, and the forms show it
+  read-only. Messages and documents have no `adminCreate`.
 - **Rate limits on REST**: the kit's sign-in routes 60 per 15 minutes per
   IP, its session routes 120; the push resubscribe route
   `createAuthLimiter()`, 20 per 15 minutes.

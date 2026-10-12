@@ -114,7 +114,7 @@ const auth = createAppAuth({
 
 /**
  * CORS for Express and Socket.IO alike: the auth's allowed origins (CLIENT_URL,
- * EXTRA_ALLOWED_ORIGINS, and Codespaces and localhost outside production).
+ * EXTRA_ALLOWED_ORIGINS, and localhost outside production).
  * Requests without an Origin header (curl, same-origin) pass through.
  */
 function corsOrigin(
@@ -186,6 +186,9 @@ const server = qd.createServer({
   auth: auth.server,
   // the HTTP transport has no limit of its own
   http: { rateLimit: createCallLimiter() },
+  // logs the slowest methods when a handler holds the event loop (sampled
+  // every 20 ms, read every 10 s: a cost too small to measure)
+  stallWatchdog: true,
 });
 
 // Service-worker resubscribe endpoint (REST: SWs have no socket) — rare,

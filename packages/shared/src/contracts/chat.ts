@@ -160,8 +160,13 @@ export const chatContract = defineContract("chatService", {
         "Adds the caller to a game world's chat at Read when they are not a member yet; answers the chat's id, or null for a world without one.",
     }),
     // ── quickdraw-game:end ──
-    // The admin screens: every chat, for holders of a service-wide Admin grant
-    ...admin.contract({ entity: chatSchema, sort: ["createdAt", "title", "lastMessageAt"] }),
+    // The admin screens: every chat, for holders of a service-wide Admin grant,
+    // who may rename one (its latest activity is messageService's to keep)
+    ...admin.contract({
+      entity: chatSchema,
+      sort: ["createdAt", "title", "lastMessageAt"],
+      editable: ["title"],
+    }),
   },
   collections: {
     // Each chat in the list of every member: the scope is a user id, through

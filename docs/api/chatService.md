@@ -284,9 +284,9 @@ Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
-| Field  | Type                                         |
-| ------ | -------------------------------------------- |
-| `data` | `{ title?: string; lastMessageAt?: string }` |
+| Field  | Type                 |
+| ------ | -------------------- |
+| `data` | `{ title?: string }` |
 
 Output: `{ id?: string; title?: string; lastMessageAt?: string; createdAt?: string; updatedAt?: string }`.
 
@@ -303,10 +303,10 @@ Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
-| Field  | Type                                         | Notes                |
-| ------ | -------------------------------------------- | -------------------- |
-| `id`   | `string`                                     | at least 1 character |
-| `data` | `{ title?: string; lastMessageAt?: string }` |                      |
+| Field  | Type                 | Notes                |
+| ------ | -------------------- | -------------------- |
+| `id`   | `string`             | at least 1 character |
+| `data` | `{ title?: string }` |                      |
 
 Output: `{ id?: string; title?: string; lastMessageAt?: string; createdAt?: string; updatedAt?: string }`.
 

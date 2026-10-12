@@ -128,14 +128,16 @@ qd.createServer({ app, services, db, auth: { authenticate: socketAuth({ ...keys,
     lines: [213, 217],
     language: "ts",
     code: `// One spread per service = a full admin surface at /admin
-// (packages/shared: the contract half names the sortable fields)
-...admin.contract({ entity: chatSchema, sort: ["createdAt", "title", "lastMessageAt"] }),
+// (packages/shared: the contract half names the sortable fields, and the
+// only ones an admin may edit: every other field is read-only)
+...admin.contract({
+  entity: chatSchema,
+  sort: ["createdAt", "title", "lastMessageAt"],
+  editable: ["title"],
+}),
 
 // apps/api: the server half, open to a service-wide Admin grant
-...admin.handlers(chatContract, {
-  displayName: "Chats",
-  fieldOverrides: { lastMessageAt: { editable: false } }, // kept by postMessage
-}),
+const chatAdmin = admin.handlers(chatContract, { displayName: "Chats" });
 
 // Users' grants are edited on the same screens:
 ...admin.handlers(userContract, { displayName: "Users", grants: true }),`,

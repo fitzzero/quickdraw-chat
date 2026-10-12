@@ -86,6 +86,9 @@ webhooks. An app REST route:
   `INTERNAL`.
 - Log with `logger` or `createServiceLogger(name)` from
   `apps/api/src/utils/logger.ts`, never `console`.
+- `createServer({ stallWatchdog: true })` watches the event loop: a window
+  (10 s) whose 99th-percentile delay passes 200 ms, or one delay 1 s, logs a
+  warning naming its slowest methods. Fix the handler that holds the loop.
 
 ## Utilities
 

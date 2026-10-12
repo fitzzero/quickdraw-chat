@@ -263,25 +263,6 @@ Input:
 
 Output: `{ id?: string; title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[] | null; createdAt?: string; updatedAt?: string }`.
 
-### `adminCreate`
-
-Creates a row from data, the new row's field values; the database sets its id and timestamps.
-
-A mutation.
-
-- MCP tool (default name): `documentService_adminCreate`
-- Callable by: `user`, `agent`
-
-Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
-
-Input:
-
-| Field  | Type                                                                                                                                             |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `data` | `{ title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" \| "Read" \| "Moderate" \| "Admin" }[] \| null }` |
-
-Output: `{ id?: string; title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[] | null; createdAt?: string; updatedAt?: string }`.
-
 ### `adminUpdate`
 
 Changes the given fields of one row; its id and timestamps cannot be changed.
@@ -295,10 +276,10 @@ Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
-| Field  | Type                                                                                                                                             | Notes                |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
-| `id`   | `string`                                                                                                                                         | at least 1 character |
-| `data` | `{ title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" \| "Read" \| "Moderate" \| "Admin" }[] \| null }` |                      |
+| Field  | Type                                   | Notes                |
+| ------ | -------------------------------------- | -------------------- |
+| `id`   | `string`                               | at least 1 character |
+| `data` | `{ title?: string; content?: string }` |                      |
 
 Output: `{ id?: string; title?: string; content?: string; ownerId?: string; acl?: { userId: string; level: "Public" | "Read" | "Moderate" | "Admin" }[] | null; createdAt?: string; updatedAt?: string }`.
 

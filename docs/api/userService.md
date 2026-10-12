@@ -130,7 +130,7 @@ Input:
 
 | Field  | Type                                                                                                                                                                        |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `data` | `{ email?: string; name?: string \| null; image?: string \| null; serviceAccess?: Record<string, "Public" \| "Read" \| "Moderate" \| "Admin"> \| null; isGuest?: boolean }` |
+| `data` | `{ email?: string; name?: string \| null; image?: string \| null; isGuest?: boolean; serviceAccess?: Record<string, "Public" \| "Read" \| "Moderate" \| "Admin"> \| null }` |
 
 Output: `{ id?: string; email?: string; name?: string | null; image?: string | null; serviceAccess?: Record<string, "Public" | "Read" | "Moderate" | "Admin"> | null; isGuest?: boolean; createdAt?: string; updatedAt?: string }`.
 
@@ -150,7 +150,7 @@ Input:
 | Field  | Type                                                                                                                                                                        | Notes                |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
 | `id`   | `string`                                                                                                                                                                    | at least 1 character |
-| `data` | `{ email?: string; name?: string \| null; image?: string \| null; serviceAccess?: Record<string, "Public" \| "Read" \| "Moderate" \| "Admin"> \| null; isGuest?: boolean }` |                      |
+| `data` | `{ email?: string; name?: string \| null; image?: string \| null; isGuest?: boolean; serviceAccess?: Record<string, "Public" \| "Read" \| "Moderate" \| "Admin"> \| null }` |                      |
 
 Output: `{ id?: string; email?: string; name?: string | null; image?: string | null; serviceAccess?: Record<string, "Public" | "Read" | "Moderate" | "Admin"> | null; isGuest?: boolean; createdAt?: string; updatedAt?: string }`.
 

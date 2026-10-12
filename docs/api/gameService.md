@@ -228,10 +228,10 @@ Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
-| Field  | Type                                                        | Notes                |
-| ------ | ----------------------------------------------------------- | -------------------- |
-| `id`   | `string`                                                    | at least 1 character |
-| `data` | `{ slug?: string; name?: string; chatId?: string \| null }` |                      |
+| Field  | Type                               | Notes                |
+| ------ | ---------------------------------- | -------------------- |
+| `id`   | `string`                           | at least 1 character |
+| `data` | `{ name?: string; slug?: string }` |                      |
 
 Output: `{ id?: string; slug?: string; name?: string; chatId?: string | null; createdAt?: string; updatedAt?: string }`.
 

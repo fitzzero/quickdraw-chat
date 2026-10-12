@@ -49,6 +49,7 @@ export const definitionContract = defineContract("definitionService", {
       entity: definitionSchema,
       filter: ["type", "enabled"],
       sort: ["type", "key", "version", "updatedAt"],
+      editable: ["type", "key", "data", "version", "enabled"],
     }),
   },
 });

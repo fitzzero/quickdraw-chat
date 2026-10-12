@@ -137,25 +137,6 @@ Input:
 
 Output: `{ id?: string; chatId?: string; userId?: string; content?: string; role?: string; createdAt?: string }`.
 
-### `adminCreate`
-
-Creates a row from data, the new row's field values; the database sets its id and timestamps.
-
-A mutation.
-
-- MCP tool (default name): `messageService_adminCreate`
-- Callable by: `user`, `agent`
-
-Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
-
-Input:
-
-| Field  | Type                                                                    |
-| ------ | ----------------------------------------------------------------------- |
-| `data` | `{ chatId?: string; userId?: string; content?: string; role?: string }` |
-
-Output: `{ id?: string; chatId?: string; userId?: string; content?: string; role?: string; createdAt?: string }`.
-
 ### `adminUpdate`
 
 Changes the given fields of one row; its id and timestamps cannot be changed.
@@ -169,10 +150,10 @@ Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
-| Field  | Type                                                                    | Notes                |
-| ------ | ----------------------------------------------------------------------- | -------------------- |
-| `id`   | `string`                                                                | at least 1 character |
-| `data` | `{ chatId?: string; userId?: string; content?: string; role?: string }` |                      |
+| Field  | Type                   | Notes                |
+| ------ | ---------------------- | -------------------- |
+| `id`   | `string`               | at least 1 character |
+| `data` | `{ content?: string }` |                      |
 
 Output: `{ id?: string; chatId?: string; userId?: string; content?: string; role?: string; createdAt?: string }`.
 

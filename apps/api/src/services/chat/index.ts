@@ -96,12 +96,11 @@ async function changeMembers(
   }
 }
 
-/** The admin screens: every chat, for holders of a service-wide Admin grant. */
-const chatAdmin = admin.handlers(chatContract, {
-  displayName: "Chats",
-  // kept by messageService (its posts and deletes), not edited by hand
-  fieldOverrides: { lastMessageAt: { editable: false } },
-});
+/**
+ * The admin screens: every chat, for holders of a service-wide Admin grant,
+ * who may edit what the contract's `editable` names (its title).
+ */
+const chatAdmin = admin.handlers(chatContract, { displayName: "Chats" });
 
 /**
  * Chats: the membership-table access pattern. A chat's level comes from its

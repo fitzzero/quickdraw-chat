@@ -48,7 +48,7 @@ changelog heads it `[5.1.1]`). Two notes for the deploy:
 - **Agent skills.** `quickdraw-api-docs` (describes and the API docs) is
   linked beside the other quickdraw skills.
 
-### Adopted from quickdraw 5.1
+### Adopted from quickdraw 5.0.1 and 5.1
 
 What the framework's own example app shows and this template did not:
 
@@ -70,6 +70,25 @@ What the framework's own example app shows and this template did not:
   with a service-wide Admin grant, and every test principal carries its
   kind (`user(id)`, `agent(id)`): a principal without one is refused
   everywhere.
+
+- **The admin screens edit only what each contract lists.** Every
+  `admin.contract` names its `editable` fields, which the handlers take
+  from it: a chat's title; a document's title and content; a message's
+  text; a game world's name and slug; a definition's and a user's fields
+  as before, so a field added later stays read-only until it is listed.
+  The kit wrote every field it showed before, so an admin edit could move
+  a document to another owner, a message to another chat or author, or
+  relink a world's chat. Any other field is now `VALIDATION` and shows
+  read-only. Messages and documents have no `adminCreate`: each needs its
+  owner or its chat and author, which no admin edit writes.
+- **No GitHub Codespace is a web origin unless named.** Development
+  admitted every `*.app.github.dev` page, and anyone can open a
+  Codespace: a sign-in return, a CORS origin and a cookie origin for every
+  GitHub user. A Codespace's own web app is `CLIENT_URL`
+  (`scripts/load-env.sh` derives it); list another in
+  `EXTRA_ALLOWED_ORIGINS`.
+- **A stall watchdog** (`createServer({ stallWatchdog: true })`) logs the
+  slowest methods when a handler holds the event loop.
 
 ### What 5.1 protects, with nothing to change here
 

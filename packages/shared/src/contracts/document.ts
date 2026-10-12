@@ -52,11 +52,24 @@ export const documentContract = defineContract("documentService", {
     }),
     // The sharing kit, on the access list the policy reads
     ...sharing.contract({ mode: "acl", methods: ["share", "unshare", "setLevel", "listShares"] }),
-    // The admin screens: every document, for holders of a service-wide Admin grant
+    // The admin screens: every document, for holders of a service-wide Admin
+    // grant, who may change its title and content; its owner and who it is
+    // shared with stay the owner's and the sharing kit's. No adminCreate: a
+    // document needs an owner, which no admin edit writes
     ...admin.contract({
       entity: documentSchema,
       filter: ["ownerId"],
       sort: ["updatedAt", "title", "createdAt"],
+      editable: ["title", "content"],
+      expose: [
+        "adminList",
+        "adminGet",
+        "adminUpdate",
+        "adminDelete",
+        "adminMeta",
+        "adminSubscribers",
+        "adminReemit",
+      ],
     }),
   },
 });
