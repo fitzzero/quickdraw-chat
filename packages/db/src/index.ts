@@ -10,6 +10,16 @@ const globalForPrisma = globalThis as unknown as {
   db: PrismaClient | undefined;
 };
 
+/**
+ * What the client logs: errors, plus warnings under NODE_ENV development
+ * (bun run dev), and every statement there only on request
+ * (PRISMA_LOG_QUERIES=true), since a log of each query drowns the API's own.
+ */
+function logLevels(): ("query" | "warn" | "error")[] {
+  if (process.env.NODE_ENV !== "development") return ["error"];
+  return process.env.PRISMA_LOG_QUERIES === "true" ? ["query", "error", "warn"] : ["error", "warn"];
+}
+
 function createPrismaClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
@@ -38,10 +48,7 @@ function createPrismaClient(): PrismaClient {
   const adapter = new PrismaPg(pool);
 
   globalForPrisma.prismaPool = pool;
-  return new PrismaClient({
-    adapter,
-    log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
-  });
+  return new PrismaClient({ adapter, log: logLevels() });
 }
 
 /**

@@ -31,13 +31,20 @@ export const SIGN_IN_PROVIDERS_KEY = ["auth", "providers"] as const;
 /**
  * Whether the server ended the session (signed out on another device,
  * revoked, expired) or refused a connect for it, from `useQuickdraw()`:
- * nobody is known and the connection stopped (`status` "disconnected" or
- * "refused"), so the user is signed out and what quickdraw cached is gone.
- * Nobody known under any other status is still connecting.
+ * nobody is known and the connection stopped (`status` "disconnected", or
+ * "refused"), so the page shows the user signed out; what quickdraw cached
+ * is gone, and a reload signs back in while the session lives (a socket
+ * dropped for flooding a channel). Nobody known under any other status is
+ * still connecting, as is a refusal for another protocol
+ * (`PROTOCOL_MISMATCH`, which the provider reloads the page for once):
+ * signing in again would not help there.
  */
 export function sessionEnded({
   isKnown,
   status,
-}: Pick<QuickdrawStatus, "isKnown" | "status">): boolean {
-  return !isKnown && (status === "disconnected" || status === "refused");
+  refusal,
+}: Pick<QuickdrawStatus, "isKnown" | "status" | "refusal">): boolean {
+  if (isKnown) return false;
+  if (status === "disconnected") return true;
+  return status === "refused" && refusal?.code !== "PROTOCOL_MISMATCH";
 }

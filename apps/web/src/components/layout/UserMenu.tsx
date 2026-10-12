@@ -35,8 +35,8 @@ export function UserMenu(): React.ReactElement {
   // isKnown: the server's hello named the user (userId null: signed out);
   // it stays true while the socket reconnects, and is false with nobody
   // signed in once the server ended or refused the session (sessionEnded)
-  const { userId, isKnown, status } = useQuickdraw();
-  const connecting = !isKnown && !sessionEnded({ isKnown, status });
+  const { userId, isKnown, status, refusal } = useQuickdraw();
+  const connecting = !isKnown && !sessionEnded({ isKnown, status, refusal });
   const showWarmingHint = useSlowLoadHint(connecting);
   const { data: user } = qd.userService.useEntity(userId);
   // The services whose admin screens answer this user (their adminMeta),

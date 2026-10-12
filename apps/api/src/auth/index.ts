@@ -80,9 +80,10 @@ function providersFor(prisma: PrismaClient): (AuthProvider | undefined)[] {
       params: { access_type: "offline", prompt: "consent" },
     }),
     discord.optional({ clientId: env.DISCORD_CLIENT_ID, clientSecret: env.DISCORD_CLIENT_SECRET }),
-    // Served only while isMockOAuthEnabled(): ENABLE_MOCK_OAUTH=true outside
-    // production. Its token and userinfo requests loop back to this process,
-    // since API_URL may not be reachable from inside a container.
+    // Served only while isMockOAuthEnabled(): ENABLE_MOCK_OAUTH=true under
+    // NODE_ENV development or test. Its token and userinfo requests loop back
+    // to this process, since API_URL may not be reachable from inside a
+    // container.
     mock({ listUsers: () => listMockUsers(prisma), internalUrl: `http://localhost:${port}` }),
     // ── quickdraw-game:start ──
     guestProvider(prisma),

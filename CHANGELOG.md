@@ -27,18 +27,21 @@ changelog heads it `[5.1.1]`). Two notes for the deploy:
 - **A session the server ends shows the sign-in.** When the server ends a
   session (signed out everywhere from another browser, revoked, expired)
   or refuses a connect for it, 5.1's client forgets the user and empties
-  its cache. The pages that need a user, the user menu and the navigation
-  now show the signed-out state then (`status` "disconnected" or
-  "refused", `sessionEnded()` in `lib/auth.ts`), where they waited on
-  "Connecting…" for good. The web's integration suite plays it, and
-  `AuthGate.test.tsx` is the first component test on the mock client.
+  its cache. The pages that need a user and the user menu now show the
+  signed-out state then (`status` "disconnected", or "refused" for
+  anything but another protocol: `sessionEnded()` in `lib/auth.ts`),
+  where they waited on "Connecting…" for good. The web's integration
+  suite plays it, and `AuthGate.test.tsx` is the first component test on
+  the mock client.
 - **The chat list costs one statement more.** 5.1 makes a self list follow
   its service's policy, so "open myChats with 30 chats" reads the policy
   filter once more (5 statements, not 4).
 - **The MCP server names the grants column**
   (`createDispatcher({ serviceAccessSource })`), as the API's
-  `createServer` does, so the admin kit treats `User.serviceAccess` as the
-  grants field there too.
+  `createServer` does: `serviceAccess` is a grants field by its name
+  already, so nothing changes until a fork renames the column.
+- **Prisma logs its warnings under `bun run dev`**, now that `NODE_ENV` is
+  `development` there; every statement only with `PRISMA_LOG_QUERIES=true`.
 - **The API reference is regenerated**: 5.1's pages lead with each
   member's description, list each method's MCP tool name, and say which
   services each depends on, with a graph on the index.

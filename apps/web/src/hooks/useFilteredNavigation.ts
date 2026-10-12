@@ -54,7 +54,7 @@ export function useFilteredNavigation(): {
   hasServiceAccess: (serviceName: string) => boolean;
 } {
   // The connection's grants: these include SERVICE_DEFAULT_ACCESS, merged by the server
-  const { userId, isKnown, status, serviceAccess: grants } = useQuickdraw();
+  const { userId, isKnown, status, refusal, serviceAccess: grants } = useQuickdraw();
 
   // Guest sessions hide `hideForGuests` items. The `in` check keeps the hook
   // generic: the field only exists when the guest-auth feature does.
@@ -108,7 +108,7 @@ export function useFilteredNavigation(): {
 
   return {
     navigation,
-    isLoading: !isKnown && !sessionEnded({ isKnown, status }),
+    isLoading: !isKnown && !sessionEnded({ isKnown, status, refusal }),
     serviceAccess,
     hasServiceAccess,
   };

@@ -35,10 +35,10 @@ closed) is the linked `quickdraw-access.md`.
   refuses to boot with either flag under any other `NODE_ENV`, unset
   included; keep them all (see `dev-auth.md`).
 - **Calls**: every method, channel and stream declares its access and fails
-  closed; a method whose input has `id` checks the row it names
-  (`defineService` refuses a form that checks another row, unless the
-  method says `rowless: true`, as `postMessage` does for the id a sender
-  makes for the row it creates); every input and channel payload is checked
+  closed; on a service with a row policy, `defineService` refuses a method
+  whose input has `id` under a form that checks no row or another row,
+  unless it says `rowless: true` (as `postMessage` does for the id a sender
+  makes for the message it creates); every input and channel payload is checked
   against its contract's schema; the socket rate limit (600 events a minute
   per socket), each channel's token bucket and the HTTP transport's limit
   (`createCallLimiter()`, 300 calls a minute per IP); one socket holds at

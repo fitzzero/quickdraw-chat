@@ -49,8 +49,8 @@ export function AuthGate({ children }: AuthGateProps): React.ReactNode {
   // It is false again once the server ended the session (signed out on
   // another device, revoked, expired) or refused a connect for it: `status`
   // is then "disconnected" or "refused", and what quickdraw cached is gone.
-  const { status, isKnown, userId, reconnecting } = useQuickdraw();
-  const signedOutByServer = sessionEnded({ isKnown, status });
+  const { status, refusal, isKnown, userId, reconnecting } = useQuickdraw();
+  const signedOutByServer = sessionEnded({ isKnown, status, refusal });
   // A long connect is (in production) a Cloud Run cold start — say so
   const showWarmingHint = useSlowLoadHint(!isKnown && !signedOutByServer);
 

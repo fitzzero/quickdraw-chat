@@ -44,9 +44,10 @@ const notServed = new Set<string>([
 ]);
 const mcpServices = services.filter((service) => !notServed.has(service.name));
 
-// Where grants are stored, as the API's createServer names it (auth/index.ts):
-// the admin kit on the users service treats that column as the grants field
-// here too (service-wide Admins only), never as an ordinary field
+// Where grants are stored, as the API's createServer names it (auth/index.ts),
+// so this dispatcher agrees with the API's: the admin kit treats the column
+// it names as the grants field (`serviceAccess` is one by its name already;
+// a renamed column would need this)
 const dispatcher = qd.createDispatcher({
   services,
   db,

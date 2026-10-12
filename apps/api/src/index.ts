@@ -52,7 +52,7 @@ if (process.env.NODE_ENV === "production") {
 
 // Hard-block dev-only auth bypasses outside development: quickdraw serves
 // them only under NODE_ENV development or test, and these flags must never
-// reach a public host. Refusing to boot beats silently ignoring them.
+// reach production. Refusing to boot beats silently ignoring them.
 const nodeEnv = process.env.NODE_ENV;
 if (nodeEnv !== "development" && nodeEnv !== "test") {
   for (const flag of ["ENABLE_DEV_CREDENTIALS", "ENABLE_MOCK_OAUTH"]) {
