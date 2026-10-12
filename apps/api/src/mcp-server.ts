@@ -63,7 +63,8 @@ const registry = createMcpRegistry({
   services: mcpServices,
   dispatcher,
   // only a person may delete a chat, by either method, or create, edit
-  // (grants included) or delete a user (kinds: ["user"]): no tool for them
+  // (grants included) or delete a user through the admin kit
+  // (kinds: ["user"]): no tool for them
   exclude: [
     "chatService.deleteChat",
     "chatService.adminDelete",

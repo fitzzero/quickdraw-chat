@@ -67,10 +67,10 @@ What the framework's own example app shows and this template did not:
   the admin screens' `adminDelete`, which deletes it too), and managing a
   user from the admin screens (`userService.adminCreate`, `adminUpdate`,
   which writes grants, and `adminDelete`). The MCP server serves none of
-  those as tools, so its list names only what an agent may call. The access matrices pin it with agent principals, one
-  with a service-wide Admin grant, and every test principal carries its
-  kind (`user(id)`, `agent(id)`): a principal without one is refused
-  everywhere.
+  those as tools, so its list names only what an agent may call. The
+  access matrices pin it with agent principals, one with a service-wide
+  Admin grant, and every test principal carries its kind (`user(id)`,
+  `agent(id)`): a principal without one is refused everywhere.
 - **The admin screens edit only what each contract lists.** Every
   `admin.contract` names its `editable` fields, which the handlers take
   from it: a chat's title; a document's title and content; a message's
@@ -106,8 +106,10 @@ What the framework's own example app shows and this template did not:
   `QD_UPDATE_ACCESS_SNAPSHOT=1` accepts it and the file is committed with
   it. The hand-written matrices stay: they state the intent per method.
   Reading the first snapshot found an agent acting for an admin creating,
-  editing (grants included) and deleting users: those three are people's
-  now, as above.
+  editing (grants included) and deleting users through the admin kit:
+  those three methods are people's now, as above. `updateUser` still lets
+  any service-wide userService Moderate grant, an agent's included, change
+  a profile's name and image.
 
 ### What 5.1 protects, with nothing to change here
 

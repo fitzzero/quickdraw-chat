@@ -37,7 +37,9 @@ const userAdmin = admin.handlers(userContract, {
  * Admin), and every signed-in user reads the rest of every profile: their
  * name and image (`everyone("Read")`). Service administrators edit users
  * through the admin kit, grants included (`grants: true`); an agent acting
- * for one manages no user.
+ * for one creates, edits and deletes no user there, though `updateUser`
+ * lets it, as any service-wide Moderate grant, change a profile's name and
+ * image.
  */
 export const userService = qd.defineService(userContract, {
   model: "user",
@@ -75,7 +77,7 @@ export const userService = qd.defineService(userContract, {
     },
     ...userAdmin,
     // people only, as deleting a chat: an agent acting for a service-wide
-    // Admin creates, edits (grants included) and deletes no user
+    // Admin creates, edits (grants included) and deletes no user here
     adminCreate: { ...userAdmin.adminCreate, kinds: ["user"] },
     adminUpdate: { ...userAdmin.adminUpdate, kinds: ["user"] },
     adminDelete: { ...userAdmin.adminDelete, kinds: ["user"] },

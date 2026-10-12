@@ -411,11 +411,12 @@ Integration tests are dual-mode (see `.claude/rules/testing-patterns.md`):
 `startTestApp()` (`apps/api/src/__tests__/utils/app.ts`) boots every service
 on quickdraw's test server; call as a user with `app.as(user(userId))` or
 over a real socket with `app.connect(user(userId))` (a principal carries its
-kind, `"user"` or `"agent"`). Each service pins who may call
-each method with `describeAccessMatrix`; one snapshot records every cell of
-every service (`snapshotAccessMatrix`, `__access__/`), and the hot paths
-keep committed budgets (`expectBudget`, `__budgets__/`). The web app's integration test
-renders real pages against the same server (`renderWithQuickdraw`).
+kind, `"user"` or `"agent"`). Each service pins who may call each method
+with `describeAccessMatrix`; one snapshot records every cell of every
+service (`snapshotAccessMatrix`, `__access__/`), and the hot paths keep
+committed budgets (`expectBudget`, `__budgets__/`). The web app's
+integration test renders real pages against the same server
+(`renderWithQuickdraw`).
 
 ## Production Deployment
 

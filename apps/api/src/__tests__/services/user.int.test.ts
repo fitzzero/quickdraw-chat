@@ -277,8 +277,9 @@ describe("UserService access matrix", () => {
         self: user(self.id),
         other: user(other.id),
         userAdmin: user(users.admin.id),
-        // an agent acting for the userService Admin: it reads users, and
-        // creates, edits (grants included) and deletes none (kinds: ["user"])
+        // an agent acting for the userService Admin: it reads users and edits
+        // profiles (updateUser), and through the admin kit creates, edits
+        // (grants included) and deletes none (kinds: ["user"])
         agentAdmin: agent(users.admin.id),
       },
       cases: [
