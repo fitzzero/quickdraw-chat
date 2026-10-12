@@ -313,7 +313,7 @@ Fire-and-forget messages from clients, dropped over the rate.
 
 ### `input`
 
-The caller's steering (a direction and a boost), sent at about the tick rate; dropped unless the sending socket joined the world with watchWorld or joinGame.
+The caller's steering (a direction and a boost), sent at about the tick rate; dropped unless the sending socket is signed in and joined the world with watchWorld or joinGame.
 
 | Option   | Value                                                       |
 | -------- | ----------------------------------------------------------- |

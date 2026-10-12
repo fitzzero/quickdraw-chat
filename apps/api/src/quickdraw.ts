@@ -25,6 +25,11 @@ export function userPrincipal(userId: string): AppPrincipal {
   return { userId, kind: "user" };
 }
 
+/** An agent acting for the user `userId`: the MCP server's caller. */
+export function agentPrincipal(userId: string): AppPrincipal {
+  return { userId, kind: "agent" };
+}
+
 // The app's quickdraw instance and its types, stated once: the tracked
 // database client, the principal and the contracts. Every service, handler
 // and caller is typed from them; import `qd` from here, never call

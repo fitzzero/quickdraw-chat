@@ -63,10 +63,13 @@ What the framework's own example app shows and this template did not:
   server's caller, and `initQuickdraw({ kinds: ["user", "agent"] })` admits
   both. Where only a person may act, `kinds: ["user"]` refuses an agent
   acting for the user, whatever its grants: all of `pushService` (a push
-  endpoint is a browser's) and, as one method's own, `chatService.deleteChat`.
-  The access matrices pin it with agent principals, and every test principal
-  carries its kind (`user(id)`, `agent(id)`): a principal without one is
-  refused everywhere.
+  endpoint is a browser's), and deleting a chat (`chatService.deleteChat`,
+  and the admin screens' `adminDelete`, which deletes it too). The MCP
+  server serves none of those as tools, so its list names only what an
+  agent may call. The access matrices pin it with agent principals, one
+  with a service-wide Admin grant, and every test principal carries its
+  kind (`user(id)`, `agent(id)`): a principal without one is refused
+  everywhere.
 
 ### What 5.1 protects, with nothing to change here
 

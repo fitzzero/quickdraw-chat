@@ -639,4 +639,30 @@ describe("ChatService access matrix", () => {
       ],
     });
   });
+
+  it("lets only a person delete a chat, by either method, whatever the agent's grants", async () => {
+    const [owner, chatAdmin] = await Promise.all([
+      createTestUser({ name: "Chat Owner" }),
+      createTestUser({ name: "Chat Admin" }),
+    ]);
+    const grants = { chatService: "Admin" } as const;
+    /** A chat of the owner's own, for one cell to delete. */
+    const ownersChat = async (): Promise<{ id: string }> => ({
+      id: (await as(owner.id).chatService.createChat({ title: "To delete" })).id,
+    });
+
+    await describeAccessMatrix(app, {
+      service: chatService,
+      principals: {
+        // a person with a service-wide Admin grant: any chat, by either method
+        chatAdmin: { ...user(chatAdmin.id), serviceAccess: grants },
+        // an agent acting for them: neither method (kinds: ["user"])
+        agentAdmin: { ...agent(chatAdmin.id), serviceAccess: grants },
+      },
+      cases: [
+        { method: "deleteChat", input: ownersChat, allow: ["chatAdmin"] },
+        { method: "adminDelete", input: ownersChat, allow: ["chatAdmin"] },
+      ],
+    });
+  });
 });

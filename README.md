@@ -240,10 +240,12 @@ each method, the row policies, the field levels), is
 
 ## MCP Server
 
-`apps/api/src/mcp-server.ts` serves every service method as an MCP tool over
+`apps/api/src/mcp-server.ts` serves the service methods as MCP tools over
 stdio (`createMcpRegistry` + `createMcpStdioServer`), through the same
 dispatcher, validation and access checks as the web app, acting as
-`MCP_USER_ID` with that user's grants. The root `.mcp.json` registers it for
+`MCP_USER_ID` with that user's grants, as an agent (`kind: "agent"`): the
+methods only a person may call (`kinds: ["user"]`: push subscriptions,
+deleting a chat) are no tools. The root `.mcp.json` registers it for
 Claude Code — build once (`bun run build`), and the server runs through
 `scripts/load-env.sh` so it sees the same database as `bun run dev`. Run it
 manually with `bun run mcp` from `apps/api`.

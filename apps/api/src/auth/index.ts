@@ -121,7 +121,7 @@ export function createAppAuth(options: AppAuthOptions): AppAuth {
     server: {
       // sessions (a token or the cookie), and with ENABLE_DEV_CREDENTIALS a
       // socket naming a user (`auth: { userId }`): a game editor, load-test
-      // bots. Either is a person (`kind: "user"`)
+      // bots. Both sign in as `kind: "user"`
       authenticate: socketAuth({
         ...keys,
         allowedOrigins,

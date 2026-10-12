@@ -317,7 +317,7 @@ Deletes one row.
 A mutation.
 
 - MCP tool (default name): `chatService_adminDelete`
-- Callable by: `user`, `agent`
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -407,7 +407,7 @@ Typed events the server sends to the sockets in a room.
 
 ### `memberUpdate`
 
-A chat's members after a change to them, sent to the sockets that read the chat's members with getChatMembers.
+A chat's members after a change to them, sent to each socket whose latest getChatMembers call read this chat.
 
 | Option  | Value                                                                                                                                                                                  |
 | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

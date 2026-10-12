@@ -189,7 +189,7 @@ export const chatContract = defineContract("chatService", {
     // out of the room first, and hears no more
     memberUpdate: {
       describe:
-        "A chat's members after a change to them, sent to the sockets that read the chat's members with getChatMembers.",
+        "A chat's members after a change to them, sent to each socket whose latest getChatMembers call read this chat.",
       payload: z.object({ chatId: z.string(), members: z.array(chatMemberSchema) }),
     },
   },

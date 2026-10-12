@@ -30,12 +30,15 @@ config({ path: envFile });
 config({ path: path.join(projectRoot, ".env") });
 
 const { db, prisma } = await import("@project/db");
-const { qd } = await import("./quickdraw.js");
+const { agentPrincipal, qd } = await import("./quickdraw.js");
 const { serviceNames, services } = await import("./services/index.js");
 const { createGrantsLoader } = await import("./auth/grants.js");
 
 /** The services whose methods are not tools. */
 const notServed = new Set<string>([
+  // pushService: only a person may call it (kinds: ["user"]), and this
+  // server's caller is an agent, so none of its tools would ever answer
+  "pushService",
   // ── quickdraw-game:start ──
   // gameService: every game method binds to a live sim and its players'
   // sockets, and there is no sim loop in this process. See
@@ -59,6 +62,8 @@ const loadServiceAccess = createGrantsLoader({ prisma, serviceNames });
 const registry = createMcpRegistry({
   services: mcpServices,
   dispatcher,
+  // only a person may delete a chat (kinds: ["user"]), by either method
+  exclude: ["chatService.deleteChat", "chatService.adminDelete"],
   // an agent acting for the user: a method or service with kinds: ["user"]
   // refuses it, whatever the user's grants
   principal: async (): Promise<AppPrincipal | null> => {
@@ -66,7 +71,7 @@ const registry = createMcpRegistry({
     if (!userId) {
       return null;
     }
-    return { userId, kind: "agent", serviceAccess: await loadServiceAccess(userId) };
+    return { ...agentPrincipal(userId), serviceAccess: await loadServiceAccess(userId) };
   },
 });
 

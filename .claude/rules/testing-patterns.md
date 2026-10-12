@@ -79,7 +79,9 @@ Close it in `afterAll`. Then:
 ## What this app's suites pin
 
 - Each service's `describeAccessMatrix` (in its `*.int.test.ts`): an owner
-  or member, a stranger, a service-wide grant where it matters, anonymous.
+  or member, a stranger, a service-wide grant where it matters, anonymous,
+  and an agent (`agent(id)`) wherever a service or a method narrows its
+  `kinds`, with a service-wide grant too (no grant lets an agent past it).
   A mutation that consumes its row takes an `input` factory, so every cell
   gets a fresh row. A change to who may call a method shows up here first.
 - Budgets in `apps/api/src/__tests__/services/__budgets__/`, one file per

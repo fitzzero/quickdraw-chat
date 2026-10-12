@@ -96,6 +96,13 @@ async function changeMembers(
   }
 }
 
+/** The admin screens: every chat, for holders of a service-wide Admin grant. */
+const chatAdmin = admin.handlers(chatContract, {
+  displayName: "Chats",
+  // kept by messageService (its posts and deletes), not edited by hand
+  fieldOverrides: { lastMessageAt: { editable: false } },
+});
+
 /**
  * Chats: the membership-table access pattern. A chat's level comes from its
  * ChatMember row (`members`), and `myChats` lists each user's chats through
@@ -244,11 +251,10 @@ export const chatService = qd.defineService(chatContract, {
       },
     },
     // ── quickdraw-game:end ──
-    ...admin.handlers(chatContract, {
-      displayName: "Chats",
-      // kept by messageService (its posts and deletes), not edited by hand
-      fieldOverrides: { lastMessageAt: { editable: false } },
-    }),
+    ...chatAdmin,
+    // users only, as deleteChat: an agent acting for a service-wide Admin
+    // deletes no chat from the admin screens either
+    adminDelete: { ...chatAdmin.adminDelete, kinds: ["user"] },
   },
   // a socket that left its roster room is forgotten (see rosterRoomOf)
   onRoomLeave: forgetRoster,

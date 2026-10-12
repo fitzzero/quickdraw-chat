@@ -153,9 +153,9 @@ const app = await startTestApp(); // every service on quickdraw's test server
 await describeAccessMatrix(app, {
   service: chatService,
   principals: {
-    owner: { userId: owner.id },
-    member: { userId: member.id },
-    stranger: { userId: stranger.id },
+    owner: user(owner.id), // kind "user": every principal carries its kind
+    member: user(member.id),
+    stranger: user(stranger.id),
   },
   cases: [
     { method: "getChatMembers", input: { chatId: chat.id }, allow: ["owner", "member"] },

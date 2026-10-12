@@ -2,9 +2,10 @@
  * The API's test app: every service on quickdraw's own test server
  * (`createTestApp`), over the worker's database through the tracked client
  * (`testDb`), so writes send the frames production sends. A socket from
- * `app.connect({ userId })` and a caller from `app.as({ userId })` act for
- * that user with their grants from the production loader (User.serviceAccess
- * over SERVICE_DEFAULT_ACCESS, see setup.ts), read at each call.
+ * `app.connect(user(userId))` and a caller from `app.as(user(userId))` act
+ * for that user with their grants from the production loader
+ * (User.serviceAccess over SERVICE_DEFAULT_ACCESS, see setup.ts), read at
+ * each call.
  */
 
 import type { Express } from "express";
@@ -17,7 +18,7 @@ import {
 } from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma } from "@project/db/testing";
 import { createGrantsLoader } from "../../auth/grants.js";
-import { userPrincipal, type AppPrincipal } from "../../quickdraw.js";
+import { agentPrincipal, userPrincipal, type AppPrincipal } from "../../quickdraw.js";
 import { serviceNames, services } from "../../services/index.js";
 import { configurePush, type PushServiceOptions } from "../../services/push-subscription/index.js";
 // ── quickdraw-game:start ──
@@ -38,7 +39,7 @@ export function user(userId: string): AppPrincipal {
 
 /** A test principal: an agent acting for `userId`, as the MCP server labels its callers. */
 export function agent(userId: string): AppPrincipal {
-  return { userId, kind: "agent" };
+  return agentPrincipal(userId);
 }
 
 /** A user's grants, as the server loads them for their sockets. */

@@ -204,7 +204,8 @@ export const pushService = qd.defineService(pushContract, {
   model: "pushSubscription",
   access: owner("userId"),
   // users only: a push endpoint belongs to a person's browser, so an agent
-  // acting for a user (the MCP server) is refused, whatever its grants
+  // acting for a user (the MCP server) is refused, whatever its grants, on
+  // the admin screens' methods too (the rows hold endpoints and push keys)
   kinds: ["user"],
   methods: {
     subscribePush: {

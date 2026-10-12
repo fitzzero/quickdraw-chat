@@ -91,14 +91,15 @@ uses one (the iframe drops third-party cookies).
 
 ## REST routes
 
-An app route that needs a signed-in user takes `requireSession(auth.keys)`
-(see `api-conventions.md`), never a hand-rolled JWT check: it reads the
+An app route that needs a signed-in user takes
+`requireSession(auth.keys, { loadPrincipal: userPrincipal })` (see
+`api-conventions.md`), never a hand-rolled JWT check: it reads the
 cookie and the bearer token by the same rule as the sockets, and answers the
 cookie from a page outside the auth routes' allowed origins 403 (the routes
 writing to the same `auth.keys.sessions` object give the list). The route reads
-the session with `sessionOf(req)` and calls services as
-`qd.caller(principal)`, which loads the user's grants (`auth.loadServiceAccess`)
-as a socket's handshake does.
+the session with `sessionOf<AppPrincipal>(req)` (a person's principal,
+`kind: "user"`) and calls services as `qd.caller(principal)`, which loads
+the user's grants (`auth.loadServiceAccess`) as a socket's handshake does.
 
 ## The web side
 

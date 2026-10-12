@@ -202,7 +202,7 @@ export const gameContract = defineContract("gameService", {
     // `{ room: { prefix: "world:" } }` and read the world from `ctx.room`.
     input: {
       describe:
-        "The caller's steering (a direction and a boost), sent at about the tick rate; dropped unless the sending socket joined the world with watchWorld or joinGame.",
+        "The caller's steering (a direction and a boost), sent at about the tick rate; dropped unless the sending socket is signed in and joined the world with watchWorld or joinGame.",
       payload: gameInputSchema,
       ratePerSecond: GAME_TICK_RATE * 1.5,
       burst: GAME_TICK_RATE * 3,
