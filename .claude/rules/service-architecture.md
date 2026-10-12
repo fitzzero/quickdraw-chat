@@ -28,7 +28,9 @@ to this app.
   `apps/api/src/quickdraw.ts` (the one `initQuickdraw`); never make another.
 - **The list**: `apps/api/src/services/index.ts` exports `services`; the API
   server, the MCP server and the tests all take theirs from it, so a new
-  service is registered once, there.
+  service is registered once, there. The access snapshot takes it too, and
+  needs a row of the new service in its `seed` and `rows`
+  (`testing-patterns.md`).
   <!-- ── quickdraw-game:start ── -->
   The netcode bench takes it too.
   <!-- ── quickdraw-game:end ── -->
@@ -73,11 +75,13 @@ the running sim (`onChanged`).
   every sign-in (`userPrincipal`), `"agent"` for the MCP server's caller.
   `initQuickdraw({ kinds: ["user", "agent"] })` admits both; a service or a
   method that only a person may use narrows it with `kinds: ["user"]`, which
-  refuses an agent acting for the user whatever its grants (`pushService`,
-  and `chatService.deleteChat` and its admin-screen twin `adminDelete` as
-  methods' own: narrow every method that does the same thing). Never check
-  the kind in a handler. A test principal carries one too (`user(id)` and `agent(id)` in
-  `__tests__/utils/app.ts`): without it every call is `FORBIDDEN`.
+  refuses an agent acting for the user whatever its grants (`pushService`;
+  as methods' own, `chatService.deleteChat` and its admin-screen twin
+  `adminDelete`, and `userService`'s `adminCreate`, `adminUpdate`, which
+  writes grants, and `adminDelete`: narrow every method that does the same
+  thing). Never check the kind in a handler. A test principal carries one
+  too (`user(id)` and `agent(id)` in `__tests__/utils/app.ts`): without it
+  every call is `FORBIDDEN`.
 - What a service needs configured at start-up is module state set by each
   root, not constructor arguments: `configurePush` (the push transport),
   `createGameRuntime` (the sim), `onChanged` (definition edits).

@@ -86,9 +86,11 @@ Close it in `afterAll`. Then:
   gets a fresh row. A change to who may call a method shows up here first.
 - The access snapshot (`access-snapshot.int.test.ts`, quickdraw's
   `snapshotAccessMatrix`): every method, entity subscribe and collection
-  scope of every service, as an owner, a member, a stranger, a service-wide
-  Admin, an agent acting for the owner and one for the Admin, and
-  anonymously, against one seeded set of rows, in
+  scope of every service, against one seeded set of rows, as callers at
+  each level on the rows (an owner at Admin, a moderator at Moderate, a
+  member at Read, a stranger), two with a service-wide grant on every
+  service and no row (Admin, Moderate), an agent acting for the owner and
+  one for the Admin, and anonymously, in
   `__access__/access-snapshot.int.test.ts.json`. A change that moves a cell
   fails, naming it and whether it opens or closes access; when the change
   is meant, run the suite again with `QD_UPDATE_ACCESS_SNAPSHOT=1` and
@@ -96,13 +98,15 @@ Close it in `afterAll`. Then:
   removed cell and that variable fail, so the file goes in the commit that
   moved it. A new service needs its row in the suite's `seed` and `rows`.
   Give `inputs` where a made input fails: one its schema refuses is never
-  called (`report.inconclusive` lists it and stays empty; never loosen the
-  schema), and one naming no user or holding no data fails after the
-  access check, so a cell access lets through would not say `ok`.
+  called (it lands in `report.inconclusive`, which the suite asserts is
+  empty; never loosen the schema for it), and one naming no user or
+  holding no data fails after the access check, so a cell access lets
+  through would not say `ok`.
   <!-- ── quickdraw-game:start ── -->
-  `gameService` stays out (its methods act on the in-memory sim, which a
-  reset of the database cannot undo); `scripts/strip-game.mjs` drops the
-  game's cells from the file.
+  The seeded world is not the one the sim runs, so the game's play methods
+  answer `NOT_FOUND` after their access check and never reach the sim,
+  which a reset of the database cannot undo; `scripts/strip-game.mjs`
+  drops the game's cells from the file.
   <!-- ── quickdraw-game:end ── -->
 - Budgets in `apps/api/src/__tests__/services/__budgets__/`, one file per
   suite: the chat list (30 chats), a message to 3 subscribers, a document

@@ -83,7 +83,7 @@ The template shows both scope shapes end to end:
 - **Game sign-in** — guest sessions for anonymous play, a Discord Activity embed, and development credentials for the Godot editor.
 <!-- ── quickdraw-game:end ── -->
 - **MCP server** — every service method served as an MCP tool over stdio (`.mcp.json` wired for Claude Code), with the same access checks as the web app.
-- **Tests that pin behavior** — the integration suites run on in-memory PGlite locally (no PostgreSQL, seconds) and real PostgreSQL in CI, with an access matrix per service, a committed snapshot of who may call every method, live-delta tests over real sockets, component tests against the real server, and committed query budgets for the hot paths.
+- **Tests that pin behavior** — the integration suites run on in-memory PGlite locally (no PostgreSQL, seconds) and real PostgreSQL in CI, with an access matrix per service, a committed snapshot of who may call each method and open each row and list, live-delta tests over real sockets, component tests against the real server, and committed query budgets for the hot paths.
 - **CI/CD included** — migration drift checks, lint/typecheck/build, sharded tests, the API reference checked against the contracts, and a parameterized deploy workflow (TruffleHog → migrate → Cloud Run → Vercel).
 - **Guardrails for humans & agents** — oxlint on `@fitzzero/quickdraw-lint`'s template config (untracked writes, unbounded reads, raw sockets, removed APIs, ...), oxfmt, tsgo, turbo, bun; quickdraw's agent rules and skills linked into `.claude/` beside this app's own path-scoped rules.
 
@@ -349,8 +349,8 @@ Ask your agent to use the `quickdraw-new-service` skill (linked into
    `bun run db:generate`: Prisma 7's `migrate dev` leaves the client as it was).
 4. The web app's hooks: `qd.<name>.<member>` is typed already.
 5. Its tests: an access matrix, a live-behavior test, budgets for hot
-   methods, and a row in the access snapshot's seed (commit the file its
-   first local run rewrites); then `bun run docs:generate`.
+   methods, and a row in the access snapshot's `seed` and `rows` (commit
+   the file its first local run rewrites); then `bun run docs:generate`.
 
 See `.claude/rules/service-architecture.md` for this app's conventions.
 
@@ -412,8 +412,9 @@ Integration tests are dual-mode (see `.claude/rules/testing-patterns.md`):
 on quickdraw's test server; call as a user with `app.as(user(userId))` or
 over a real socket with `app.connect(user(userId))` (a principal carries its
 kind, `"user"` or `"agent"`). Each service pins who may call
-each method with `describeAccessMatrix`, and the hot paths keep committed
-budgets (`expectBudget`, `__budgets__/`). The web app's integration test
+each method with `describeAccessMatrix`; one snapshot records every cell of
+every service (`snapshotAccessMatrix`, `__access__/`), and the hot paths
+keep committed budgets (`expectBudget`, `__budgets__/`). The web app's integration test
 renders real pages against the same server (`renderWithQuickdraw`).
 
 ## Production Deployment

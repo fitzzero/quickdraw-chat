@@ -122,7 +122,7 @@ Creates a row from data, the new row's field values; the database sets its id an
 A mutation.
 
 - MCP tool (default name): `userService_adminCreate`
-- Callable by: `user`, `agent`
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -141,7 +141,7 @@ Changes the given fields of one row; its id and timestamps cannot be changed.
 A mutation.
 
 - MCP tool (default name): `userService_adminUpdate`
-- Callable by: `user`, `agent`
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -161,7 +161,7 @@ Deletes one row.
 A mutation.
 
 - MCP tool (default name): `userService_adminDelete`
-- Callable by: `user`, `agent`
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 

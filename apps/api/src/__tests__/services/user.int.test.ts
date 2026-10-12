@@ -3,7 +3,7 @@ import { QuickdrawError } from "@fitzzero/quickdraw-core";
 import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import { userService } from "../../services/user/index.js";
-import { startTestApp, subscribeEntity, user, type ApiTestApp } from "../utils/app.js";
+import { agent, startTestApp, subscribeEntity, user, type ApiTestApp } from "../utils/app.js";
 import { createTestUser } from "../factories/user-factory.js";
 
 type Users = Awaited<ReturnType<typeof seedTestUsers>>;
@@ -277,13 +277,21 @@ describe("UserService access matrix", () => {
         self: user(self.id),
         other: user(other.id),
         userAdmin: user(users.admin.id),
+        // an agent acting for the userService Admin: it reads users, and
+        // creates, edits (grants included) and deletes none (kinds: ["user"])
+        agentAdmin: agent(users.admin.id),
       },
       cases: [
-        { method: "getMe", input: {}, allow: ["self", "other", "userAdmin"] },
+        { method: "getMe", input: {}, allow: ["self", "other", "userAdmin", "agentAdmin"] },
         {
           method: "updateUser",
           input: { id: self.id, data: { image: "https://example.com/a.png" } },
-          allow: ["self", "userAdmin"],
+          allow: ["self", "userAdmin", "agentAdmin"],
+        },
+        {
+          method: "adminCreate",
+          input: ({ name }) => ({ data: { email: `created-by-${name}@test.com` } }),
+          allow: ["userAdmin"],
         },
         {
           label: "adminUpdate (the user's grants)",
@@ -291,7 +299,12 @@ describe("UserService access matrix", () => {
           input: { id: self.id, data: { serviceAccess: {} } },
           allow: ["userAdmin"],
         },
-        { method: "adminGet", input: { id: self.id }, allow: ["userAdmin"] },
+        {
+          method: "adminDelete",
+          input: async () => ({ id: (await createTestUser()).id }),
+          allow: ["userAdmin"],
+        },
+        { method: "adminGet", input: { id: self.id }, allow: ["userAdmin", "agentAdmin"] },
       ],
     });
   });

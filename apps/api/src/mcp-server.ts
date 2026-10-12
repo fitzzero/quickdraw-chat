@@ -62,8 +62,15 @@ const loadServiceAccess = createGrantsLoader({ prisma, serviceNames });
 const registry = createMcpRegistry({
   services: mcpServices,
   dispatcher,
-  // only a person may delete a chat (kinds: ["user"]), by either method
-  exclude: ["chatService.deleteChat", "chatService.adminDelete"],
+  // only a person may delete a chat, by either method, or create, edit
+  // (grants included) or delete a user (kinds: ["user"]): no tool for them
+  exclude: [
+    "chatService.deleteChat",
+    "chatService.adminDelete",
+    "userService.adminCreate",
+    "userService.adminUpdate",
+    "userService.adminDelete",
+  ],
   // an agent acting for the user: a method or service with kinds: ["user"]
   // refuses it, whatever the user's grants
   principal: async (): Promise<AppPrincipal | null> => {

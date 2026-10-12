@@ -40,6 +40,7 @@ dispatcher, access checks and tracked writes:
   (anonymous without it). Its caller is `kind: "agent"`, so a service or
   method with `kinds: ["user"]` refuses it whatever the user's grants: such
   methods are not served there (`pushService`, `chatService.deleteChat` and
+  `adminDelete`, `userService.adminCreate`, `adminUpdate` and
   `adminDelete`), so the tool list names only what an agent may call. The
   root `.mcp.json` runs it
   through `scripts/load-env.sh`; `bun run build` first, then `bun run mcp`

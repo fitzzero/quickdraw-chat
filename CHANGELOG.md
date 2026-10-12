@@ -63,10 +63,11 @@ What the framework's own example app shows and this template did not:
   server's caller, and `initQuickdraw({ kinds: ["user", "agent"] })` admits
   both. Where only a person may act, `kinds: ["user"]` refuses an agent
   acting for the user, whatever its grants: all of `pushService` (a push
-  endpoint is a browser's), and deleting a chat (`chatService.deleteChat`,
-  and the admin screens' `adminDelete`, which deletes it too). The MCP
-  server serves none of those as tools, so its list names only what an
-  agent may call. The access matrices pin it with agent principals, one
+  endpoint is a browser's), deleting a chat (`chatService.deleteChat`, and
+  the admin screens' `adminDelete`, which deletes it too), and managing a
+  user from the admin screens (`userService.adminCreate`, `adminUpdate`,
+  which writes grants, and `adminDelete`). The MCP server serves none of
+  those as tools, so its list names only what an agent may call. The access matrices pin it with agent principals, one
   with a service-wide Admin grant, and every test principal carries its
   kind (`user(id)`, `agent(id)`): a principal without one is refused
   everywhere.
@@ -97,12 +98,16 @@ What the framework's own example app shows and this template did not:
 - **An access snapshot pins who may do what.**
   `access-snapshot.int.test.ts` (`snapshotAccessMatrix`) records the outcome
   of every method, entity subscribe and collection scope of every service
-  but the game's, as an owner, a member, a stranger, a service-wide
-  Admin, an agent acting for the owner and one for the Admin, and
-  anonymously, in `__access__/access-snapshot.int.test.ts.json`. A change
-  that moves a cell fails, saying whether it opens or closes access, until
+  (900 cells), as callers at Admin, Moderate and Read on the rows and at
+  none, a service-wide Admin and Moderate grant, an agent acting for the
+  owner and one for the Admin, and anonymously, in
+  `__access__/access-snapshot.int.test.ts.json`. A change that moves a cell
+  fails, saying whether it opens or closes access, until
   `QD_UPDATE_ACCESS_SNAPSHOT=1` accepts it and the file is committed with
   it. The hand-written matrices stay: they state the intent per method.
+  Reading the first snapshot found an agent acting for an admin creating,
+  editing (grants included) and deleting users: those three are people's
+  now, as above.
 
 ### What 5.1 protects, with nothing to change here
 

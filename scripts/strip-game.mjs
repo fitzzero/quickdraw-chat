@@ -261,19 +261,18 @@ editJson(".oxlintrc.json", (data) => {
   );
 });
 
-// The access snapshot records the game's cells beside the others: the
-// definitions' methods and rows, and the world chat's join. A fork without
-// the game records none, and under CI a removed cell fails the suite: drop
-// them, as a local run of the suite would.
+// The access snapshot records the game's cells beside the others: the game's
+// and the definitions' methods and rows, and the world chat's join. A fork
+// without the game records none, and under CI a removed cell fails the
+// suite: drop them, as a local run of the suite would.
 const accessSnapshot =
   "apps/api/src/__tests__/services/__access__/access-snapshot.int.test.ts.json";
+const gameCell = /^(gameService|definitionService)\b|^chatService\.joinWorldChat\b/;
 if (existsSync(accessSnapshot)) {
   editJson(accessSnapshot, (data) => {
     for (const cells of [data.methods, data.subscriptions, data.collections]) {
       for (const key of Object.keys(cells ?? {})) {
-        if (key.startsWith("definitionService") || key.startsWith("chatService.joinWorldChat")) {
-          delete cells[key];
-        }
+        if (gameCell.test(key)) delete cells[key];
       }
     }
   });
