@@ -29,6 +29,8 @@ export const definitionSchema = z.object({
 });
 
 export const definitionContract = defineContract("definitionService", {
+  describe:
+    "Data-driven game content (tunables, items, spells), addressed by type and key: anyone may read the enabled rows, and service-wide Admins edit them.",
   entity: definitionSchema,
   methods: {
     listDefinitions: query({
@@ -47,6 +49,7 @@ export const definitionContract = defineContract("definitionService", {
       entity: definitionSchema,
       filter: ["type", "enabled"],
       sort: ["type", "key", "version", "updatedAt"],
+      editable: ["type", "key", "data", "version", "enabled"],
     }),
   },
 });

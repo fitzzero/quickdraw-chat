@@ -2,16 +2,23 @@
 
 # userService
 
+Users: anyone signed in may read a user's public profile; a user reads their own row and changes their name or image, as may a service-wide Moderate.
+
 ## Access
 
 | Option             | Value                                                                                                                                        |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Row policy         | `anyOf`: the highest level of (`owner`: Admin for the user the `id` column names), (`everyone`: Read for every signed-in user, on every row) |
 | Service-wide Admin | passes every check of the service                                                                                                            |
+| Principal kinds    | `user`, `agent`: its methods, subscriptions and channels refuse every other kind                                                             |
 | Change topic       | closed: the service declares no `watchAccess`                                                                                                |
 | Field levels       | `email`: Admin, `serviceAccess`: Admin                                                                                                       |
 
 Each method below says who may call it.
+
+## Depends on
+
+No other service: its declarations name none.
 
 ## Entity
 
@@ -36,6 +43,10 @@ Reads the caller's own user.
 
 A query.
 
+- MCP tool (default name): `userService_getMe`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
+
 Access: `"authenticated"`: any signed-in caller.
 
 Input: `{}`.
@@ -47,6 +58,9 @@ Output: one row as the `entity` projection, or `null`.
 Changes a user's name or https image; answers their public profile, or { error: "name_taken" } when another user has the name.
 
 A mutation.
+
+- MCP tool (default name): `userService_updateUser`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Moderate", entry: "Moderate" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.id` names.
 
@@ -64,6 +78,10 @@ Output: `{ error: "name_taken" } | { id: string; name: string | null; image: str
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+- MCP tool (default name): `userService_adminList`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -83,6 +101,10 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+- MCP tool (default name): `userService_adminGet`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -99,13 +121,16 @@ Creates a row from data, the new row's field values; the database sets its id an
 
 A mutation.
 
+- MCP tool (default name): `userService_adminCreate`
+- Callable by: `user`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
 
 | Field  | Type                                                                                                                                                                        |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `data` | `{ email?: string; name?: string \| null; image?: string \| null; serviceAccess?: Record<string, "Public" \| "Read" \| "Moderate" \| "Admin"> \| null; isGuest?: boolean }` |
+| `data` | `{ email?: string; name?: string \| null; image?: string \| null; isGuest?: boolean; serviceAccess?: Record<string, "Public" \| "Read" \| "Moderate" \| "Admin"> \| null }` |
 
 Output: `{ id?: string; email?: string; name?: string | null; image?: string | null; serviceAccess?: Record<string, "Public" | "Read" | "Moderate" | "Admin"> | null; isGuest?: boolean; createdAt?: string; updatedAt?: string }`.
 
@@ -115,6 +140,9 @@ Changes the given fields of one row; its id and timestamps cannot be changed.
 
 A mutation.
 
+- MCP tool (default name): `userService_adminUpdate`
+- Callable by: `user`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -122,7 +150,7 @@ Input:
 | Field  | Type                                                                                                                                                                        | Notes                |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
 | `id`   | `string`                                                                                                                                                                    | at least 1 character |
-| `data` | `{ email?: string; name?: string \| null; image?: string \| null; serviceAccess?: Record<string, "Public" \| "Read" \| "Moderate" \| "Admin"> \| null; isGuest?: boolean }` |                      |
+| `data` | `{ email?: string; name?: string \| null; image?: string \| null; isGuest?: boolean; serviceAccess?: Record<string, "Public" \| "Read" \| "Moderate" \| "Admin"> \| null }` |                      |
 
 Output: `{ id?: string; email?: string; name?: string | null; image?: string | null; serviceAccess?: Record<string, "Public" | "Read" | "Moderate" | "Admin"> | null; isGuest?: boolean; createdAt?: string; updatedAt?: string }`.
 
@@ -131,6 +159,9 @@ Output: `{ id?: string; email?: string; name?: string | null; image?: string | n
 Deletes one row.
 
 A mutation.
+
+- MCP tool (default name): `userService_adminDelete`
+- Callable by: `user`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -148,6 +179,10 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+- MCP tool (default name): `userService_adminMeta`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input: `{}`.
@@ -159,6 +194,10 @@ Output: `{ serviceName: string; displayName: string; fields: { name: string; typ
 Counts the sockets subscribed to one row, per access level.
 
 A query.
+
+- MCP tool (default name): `userService_adminSubscribers`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -175,6 +214,9 @@ Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: intege
 Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
+
+- MCP tool (default name): `userService_adminReemit`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 

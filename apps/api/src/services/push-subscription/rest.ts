@@ -18,17 +18,18 @@
 import { QuickdrawError } from "@fitzzero/quickdraw-core";
 import { requireSession, sessionOf, type SessionKeys } from "@fitzzero/quickdraw-core/server/auth";
 import type { Express, Request, Response } from "express";
-import { qd } from "../../quickdraw.js";
+import { qd, userPrincipal, type AppPrincipal } from "../../quickdraw.js";
 import { logger } from "../../utils/logger.js";
 import { validateRequest } from "../../utils/validate-request.js";
 import { pushSubscriptionSchema } from "./schemas.js";
 
 export function registerPushRoutes(app: Express, keys: SessionKeys): void {
   // requireSession answers 401 itself (403 for the cookie from another site's
-  // page); sessionOf(req) is the session it let through
-  app.post("/api/push/resubscribe", requireSession(keys), (req: Request, res: Response) => {
+  // page); sessionOf(req) is the session it let through, a person's
+  const signedIn = requireSession(keys, { loadPrincipal: userPrincipal });
+  app.post("/api/push/resubscribe", signedIn, (req: Request, res: Response) => {
     void (async () => {
-      const { principal } = sessionOf(req);
+      const { principal } = sessionOf<AppPrincipal>(req);
 
       const body = validateRequest(pushSubscriptionSchema, req.body, res);
       if (!body) return;

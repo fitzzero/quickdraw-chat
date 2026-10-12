@@ -1,4 +1,4 @@
-import type { AuthRoutesTarget } from "@fitzzero/quickdraw-core/client";
+import type { AuthRoutesTarget, QuickdrawStatus } from "@fitzzero/quickdraw-core/client";
 
 /** The API's URL, baked into the bundle at build time. */
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -27,3 +27,24 @@ export const AUTH_ROUTES: AuthRoutesTarget = {
  * plain TanStack Query, since no quickdraw method serves them.
  */
 export const SIGN_IN_PROVIDERS_KEY = ["auth", "providers"] as const;
+
+/**
+ * Whether the server ended the session (signed out on another device,
+ * revoked, expired) or refused a connect for it, from `useQuickdraw()`:
+ * nobody is known and the connection stopped (`status` "disconnected", or
+ * "refused"), so the page shows the user signed out; what quickdraw cached
+ * is gone, and a reload signs back in while the session lives (a socket
+ * dropped for flooding a channel). Nobody known under any other status is
+ * still connecting, as is a refusal for another protocol
+ * (`PROTOCOL_MISMATCH`, which the provider reloads the page for once):
+ * signing in again would not help there.
+ */
+export function sessionEnded({
+  isKnown,
+  status,
+  refusal,
+}: Pick<QuickdrawStatus, "isKnown" | "status" | "refusal">): boolean {
+  if (isKnown) return false;
+  if (status === "disconnected") return true;
+  return status === "refused" && refusal?.code !== "PROTOCOL_MISMATCH";
+}

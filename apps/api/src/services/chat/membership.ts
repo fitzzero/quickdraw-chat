@@ -57,6 +57,7 @@ export interface MembershipChange {
  * 1. Nobody gives a level above their own (`FORBIDDEN`).
  * 2. Only an Admin changes or removes a member at or above the caller's own
  *    level (`FORBIDDEN`): a Moderate manages Read members, an Admin anyone.
+ *    The kit lets equal levels change each other; a chat does not.
  * 3. The chat keeps an Admin: its last Admin member cannot be removed,
  *    demoted or leave (`CONFLICT`).
  *

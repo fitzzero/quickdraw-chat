@@ -18,7 +18,13 @@ import type {
 import { expectBudget } from "@fitzzero/quickdraw-core/testing";
 import { resetDatabase, seedTestUsers, testPrisma } from "@project/db/testing";
 import type { ChatListItem, MessageDTO } from "@project/shared";
-import { startTestApp, subscribeScope, type ApiConnection, type ApiTestApp } from "../utils/app.js";
+import {
+  startTestApp,
+  subscribeScope,
+  user,
+  type ApiConnection,
+  type ApiTestApp,
+} from "../utils/app.js";
 import { createTestChat } from "../factories/chat-factory.js";
 
 type Users = Awaited<ReturnType<typeof seedTestUsers>>;
@@ -41,7 +47,7 @@ beforeEach(async () => {
 });
 
 function as(userId: string): ReturnType<ApiTestApp["as"]> {
-  return app.as({ userId });
+  return app.as(user(userId));
 }
 
 /** A scope's first page (a snapshot); a refused subscription or a resume fails the test. */
@@ -97,7 +103,7 @@ function idOf<Item extends { readonly id: string }>(delta: CollectionDelta<Item>
 
 describe("myChats (each member's list, through the membership table)", () => {
   it("adds a created chat to every initial member's list", async () => {
-    const member = await app.connect({ userId: users.regular.id });
+    const member = await app.connect(user(users.regular.id));
     await snapshotOf(member, "chatService", "myChats", users.regular.id);
 
     const chat = await as(users.admin.id).chatService.createChat({
@@ -114,7 +120,7 @@ describe("myChats (each member's list, through the membership table)", () => {
   it("adds a chat to an invitee's list without a refetch", async () => {
     const owner = as(users.admin.id);
     const chat = await owner.chatService.createChat({ title: "Invite Target" });
-    const invitee = await app.connect({ userId: users.regular.id });
+    const invitee = await app.connect(user(users.regular.id));
     const before = await snapshotOf<ChatListItem>(
       invitee,
       "chatService",
@@ -137,7 +143,7 @@ describe("myChats (each member's list, through the membership table)", () => {
       title: "Growing",
       members: [{ userId: users.regular.id, level: "Read" }],
     });
-    const member = await app.connect({ userId: users.regular.id });
+    const member = await app.connect(user(users.regular.id));
     await snapshotOf(member, "chatService", "myChats", users.regular.id);
 
     await owner.chatService.inviteUser({ id: chat.id, userId: users.moderator.id, level: "Read" });
@@ -163,7 +169,7 @@ describe("myChats (each member's list, through the membership table)", () => {
         { userId: users.moderator.id, level: "Read" },
       ],
     });
-    const member = await app.connect({ userId: users.regular.id });
+    const member = await app.connect(user(users.regular.id));
     await snapshotOf(member, "chatService", "myChats", users.regular.id);
 
     await owner.chatService.removeUser({ id: chat.id, userId: users.moderator.id });
@@ -227,7 +233,7 @@ describe("myChats (each member's list, through the membership table)", () => {
       title: "Old Title",
       members: [{ userId: users.regular.id, level: "Read" }],
     });
-    const member = await app.connect({ userId: users.regular.id });
+    const member = await app.connect(user(users.regular.id));
     await snapshotOf(member, "chatService", "myChats", users.regular.id);
 
     await owner.chatService.updateTitle({ id: chat.id, title: "New Title" });
@@ -247,8 +253,8 @@ describe("myChats (each member's list, through the membership table)", () => {
       title: "Busy",
       members: [{ userId: users.regular.id, level: "Read" }],
     });
-    const member = await app.connect({ userId: users.regular.id });
-    const sender = await app.connect({ userId: users.admin.id });
+    const member = await app.connect(user(users.regular.id));
+    const sender = await app.connect(user(users.admin.id));
     const before = await snapshotOf<ChatListItem>(
       member,
       "chatService",
@@ -271,7 +277,7 @@ describe("myChats (each member's list, through the membership table)", () => {
       );
     }
     const after = await snapshotOf<ChatListItem>(
-      await app.connect({ userId: users.regular.id }),
+      await app.connect(user(users.regular.id)),
       "chatService",
       "myChats",
       users.regular.id,
@@ -287,7 +293,7 @@ describe("myChats (each member's list, through the membership table)", () => {
       title: "Kick Chat",
       members: [{ userId: users.regular.id, level: "Read" }],
     });
-    const member = await app.connect({ userId: users.regular.id });
+    const member = await app.connect(user(users.regular.id));
     await snapshotOf(member, "chatService", "myChats", users.regular.id);
 
     await owner.chatService.removeUser({ id: chat.id, userId: users.regular.id });
@@ -308,7 +314,7 @@ describe("myChats (each member's list, through the membership table)", () => {
       title: "Doomed Chat",
       members: [{ userId: users.regular.id, level: "Read" }],
     });
-    const member = await app.connect({ userId: users.regular.id });
+    const member = await app.connect(user(users.regular.id));
     await snapshotOf(member, "chatService", "myChats", users.regular.id);
 
     await owner.chatService.deleteChat({ id: chat.id });
@@ -333,7 +339,7 @@ describe("myChats (each member's list, through the membership table)", () => {
       title: "Doomed Chat",
       members: [{ userId: users.regular.id, level: "Read" }],
     });
-    let member = await app.connect({ userId: users.regular.id });
+    let member = await app.connect(user(users.regular.id));
     const before = await snapshotOf<ChatListItem>(
       member,
       "chatService",
@@ -349,7 +355,7 @@ describe("myChats (each member's list, through the membership table)", () => {
     await owner.chatService.deleteChat({ id: doomed.id });
     await owner.chatService.updateTitle({ id: kept.id, title: "Renamed While Away" });
 
-    member = await app.connect({ userId: users.regular.id });
+    member = await app.connect(user(users.regular.id));
     const after = await snapshotOf<ChatListItem>(
       member,
       "chatService",
@@ -364,7 +370,7 @@ describe("myChats (each member's list, through the membership table)", () => {
   });
 
   it("refuses another user's list", async () => {
-    const stranger = await app.connect({ userId: users.regular.id });
+    const stranger = await app.connect(user(users.regular.id));
     const reply = await subscribeScope(stranger, "chatService", "myChats", users.admin.id);
     expect(reply).toMatchObject({ ok: false, e: { code: "FORBIDDEN" } });
     stranger.close();
@@ -378,10 +384,10 @@ describe("myChats (each member's list, through the membership table)", () => {
       });
     }
     // a first snapshot pays one-time reads (the storage adapter's column checks)
-    const warmUp = await app.connect({ userId: users.regular.id });
+    const warmUp = await app.connect(user(users.regular.id));
     await snapshotOf(warmUp, "chatService", "myChats", users.regular.id);
     warmUp.close();
-    const member = await app.connect({ userId: users.regular.id });
+    const member = await app.connect(user(users.regular.id));
     let total = 0;
     await expectBudget(
       async () => {
@@ -401,9 +407,9 @@ describe("byChat (a chat's messages, anchored on the chat)", () => {
       title: "Broadcast",
       members: [{ userId: users.regular.id, level: "Read" }],
     });
-    const member = await app.connect({ userId: users.regular.id });
+    const member = await app.connect(user(users.regular.id));
     await snapshotOf(member, "messageService", "byChat", chat.id);
-    const outsider = await app.connect({ userId: users.moderator.id });
+    const outsider = await app.connect(user(users.moderator.id));
     expect(await subscribeScope(outsider, "messageService", "byChat", chat.id)).toMatchObject({
       ok: false,
       e: { code: "FORBIDDEN" },
@@ -435,7 +441,7 @@ describe("byChat (a chat's messages, anchored on the chat)", () => {
       members: [{ userId: users.regular.id, level: "Read" }],
     });
     const message = await owner.messageService.postMessage({ chatId: chat.id, content: "Retract" });
-    const member = await app.connect({ userId: users.regular.id });
+    const member = await app.connect(user(users.regular.id));
     await snapshotOf(member, "messageService", "byChat", chat.id);
 
     await owner.messageService.deleteMessage({ id: message.id });
@@ -462,7 +468,7 @@ describe("byChat (a chat's messages, anchored on the chat)", () => {
     // three subscribers of the chat's history: the sender and two members
     const watchers = await Promise.all(
       [users.admin.id, users.regular.id, users.moderator.id].map((userId) =>
-        app.connect({ userId }),
+        app.connect(user(userId)),
       ),
     );
     for (const watcher of watchers) {

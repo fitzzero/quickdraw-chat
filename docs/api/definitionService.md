@@ -2,16 +2,23 @@
 
 # definitionService
 
+Data-driven game content (tunables, items, spells), addressed by type and key: anyone may read the enabled rows, and service-wide Admins edit them.
+
 ## Access
 
-| Option             | Value                                                    |
-| ------------------ | -------------------------------------------------------- |
-| Row policy         | none: its methods take no `entry` form                   |
-| Service-wide Admin | passes every check of the service                        |
-| Change topic       | closed: the service declares no `watchAccess`            |
-| Field levels       | none: every caller who may read a row receives all of it |
+| Option             | Value                                                                            |
+| ------------------ | -------------------------------------------------------------------------------- |
+| Row policy         | none: its methods take no `entry` form                                           |
+| Service-wide Admin | passes every check of the service                                                |
+| Principal kinds    | `user`, `agent`: its methods, subscriptions and channels refuse every other kind |
+| Change topic       | closed: the service declares no `watchAccess`                                    |
+| Field levels       | none: every caller who may read a row receives all of it                         |
 
 Each method below says who may call it.
+
+## Depends on
+
+No other service: its declarations name none.
 
 ## Entity
 
@@ -33,6 +40,10 @@ Lists the enabled definitions, of one type when given, by type and key.
 
 A query.
 
+- MCP tool (default name): `definitionService_listDefinitions`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`, or anonymously
+
 Access: `"public"`: anyone, signed in or not.
 
 Input:
@@ -48,6 +59,10 @@ Output: rows as the `entity` projection.
 Reads one enabled definition by type and key, or null.
 
 A query.
+
+- MCP tool (default name): `definitionService_getDefinition`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`, or anonymously
 
 Access: `"public"`: anyone, signed in or not.
 
@@ -65,6 +80,10 @@ Output: one row as the `entity` projection, or `null`.
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+- MCP tool (default name): `definitionService_adminList`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -85,6 +104,10 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+- MCP tool (default name): `definitionService_adminGet`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -101,6 +124,9 @@ Creates a row from data, the new row's field values; the database sets its id an
 
 A mutation.
 
+- MCP tool (default name): `definitionService_adminCreate`
+- Callable by: `user`, `agent`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -116,6 +142,9 @@ Output: `{ id?: string; type?: string; key?: string; data?: Record<string, unkno
 Changes the given fields of one row; its id and timestamps cannot be changed.
 
 A mutation.
+
+- MCP tool (default name): `definitionService_adminUpdate`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -134,6 +163,9 @@ Deletes one row.
 
 A mutation.
 
+- MCP tool (default name): `definitionService_adminDelete`
+- Callable by: `user`, `agent`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -150,6 +182,10 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+- MCP tool (default name): `definitionService_adminMeta`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input: `{}`.
@@ -161,6 +197,10 @@ Output: `{ serviceName: string; displayName: string; fields: { name: string; typ
 Counts the sockets subscribed to one row, per access level.
 
 A query.
+
+- MCP tool (default name): `definitionService_adminSubscribers`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -177,6 +217,9 @@ Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: intege
 Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
+
+- MCP tool (default name): `definitionService_adminReemit`
+- Callable by: `user`, `agent`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 

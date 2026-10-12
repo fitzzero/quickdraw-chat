@@ -83,7 +83,7 @@ The template shows both scope shapes end to end:
 - **Game sign-in** — guest sessions for anonymous play, a Discord Activity embed, and development credentials for the Godot editor.
 <!-- ── quickdraw-game:end ── -->
 - **MCP server** — every service method served as an MCP tool over stdio (`.mcp.json` wired for Claude Code), with the same access checks as the web app.
-- **Tests that pin behavior** — the integration suites run on in-memory PGlite locally (no PostgreSQL, seconds) and real PostgreSQL in CI, with an access matrix per service, live-delta tests over real sockets, component tests against the real server, and committed query budgets for the hot paths.
+- **Tests that pin behavior** — the integration suites run on in-memory PGlite locally (no PostgreSQL, seconds) and real PostgreSQL in CI, with an access matrix per service, a committed snapshot of who may call each method and open each row and list, live-delta tests over real sockets, component tests against the real server, and committed query budgets for the hot paths.
 - **CI/CD included** — migration drift checks, lint/typecheck/build, sharded tests, the API reference checked against the contracts, and a parameterized deploy workflow (TruffleHog → migrate → Cloud Run → Vercel).
 - **Guardrails for humans & agents** — oxlint on `@fitzzero/quickdraw-lint`'s template config (untracked writes, unbounded reads, raw sockets, removed APIs, ...), oxfmt, tsgo, turbo, bun; quickdraw's agent rules and skills linked into `.claude/` beside this app's own path-scoped rules.
 
@@ -240,10 +240,13 @@ each method, the row policies, the field levels), is
 
 ## MCP Server
 
-`apps/api/src/mcp-server.ts` serves every service method as an MCP tool over
+`apps/api/src/mcp-server.ts` serves the service methods as MCP tools over
 stdio (`createMcpRegistry` + `createMcpStdioServer`), through the same
 dispatcher, validation and access checks as the web app, acting as
-`MCP_USER_ID` with that user's grants. The root `.mcp.json` registers it for
+`MCP_USER_ID` with that user's grants, as an agent (`kind: "agent"`): the
+methods only a person may call (`kinds: ["user"]`: push subscriptions,
+deleting a chat, and creating, editing or deleting a user from the admin
+screens) are no tools. The root `.mcp.json` registers it for
 Claude Code — build once (`bun run build`), and the server runs through
 `scripts/load-env.sh` so it sees the same database as `bun run dev`. Run it
 manually with `bun run mcp` from `apps/api`.
@@ -347,7 +350,8 @@ Ask your agent to use the `quickdraw-new-service` skill (linked into
    `bun run db:generate`: Prisma 7's `migrate dev` leaves the client as it was).
 4. The web app's hooks: `qd.<name>.<member>` is typed already.
 5. Its tests: an access matrix, a live-behavior test, budgets for hot
-   methods; then `bun run docs:generate`.
+   methods, and a row in the access snapshot's `seed` and `rows` (commit
+   the file its first local run rewrites); then `bun run docs:generate`.
 
 See `.claude/rules/service-architecture.md` for this app's conventions.
 
@@ -406,11 +410,14 @@ Integration tests are dual-mode (see `.claude/rules/testing-patterns.md`):
   its own database cloned from a migrated template DB.
 
 `startTestApp()` (`apps/api/src/__tests__/utils/app.ts`) boots every service
-on quickdraw's test server; call as a user with `app.as({ userId })` or over
-a real socket with `app.connect({ userId })`. Each service pins who may call
-each method with `describeAccessMatrix`, and the hot paths keep committed
-budgets (`expectBudget`, `__budgets__/`). The web app's integration test
-renders real pages against the same server (`renderWithQuickdraw`).
+on quickdraw's test server; call as a user with `app.as(user(userId))` or
+over a real socket with `app.connect(user(userId))` (a principal carries its
+kind, `"user"` or `"agent"`). Each service pins who may call each method
+with `describeAccessMatrix`; one snapshot records every cell of every
+service (`snapshotAccessMatrix`, `__access__/`), and the hot paths keep
+committed budgets (`expectBudget`, `__budgets__/`). The web app's
+integration test renders real pages against the same server
+(`renderWithQuickdraw`).
 
 ## Production Deployment
 

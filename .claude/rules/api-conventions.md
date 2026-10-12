@@ -35,10 +35,16 @@ dispatcher, access checks and tracked writes:
   bearer token (`http.rateLimit: createCallLimiter()`, since the HTTP
   transport has no limit of its own).
 - **MCP**: `apps/api/src/mcp-server.ts` serves every method as a tool over
-  stdio (`createMcpRegistry` + `createMcpStdioServer`), acting as
-  `MCP_USER_ID` with that user's grants (anonymous without it). The root
-  `.mcp.json` runs it through `scripts/load-env.sh`; `bun run build` first,
-  then `bun run mcp` in `apps/api` to run it by hand.
+  stdio (`createMcpRegistry` + `createMcpStdioServer`), described by the
+  method's `describe`, acting as `MCP_USER_ID` with that user's grants
+  (anonymous without it). Its caller is `kind: "agent"`, so a service or
+  method with `kinds: ["user"]` refuses it whatever the user's grants: such
+  methods are not served there (`pushService`, `chatService.deleteChat` and
+  `adminDelete`, `userService.adminCreate`, `adminUpdate` and
+  `adminDelete`), so the tool list names only what an agent may call. The
+  root `.mcp.json` runs it
+  through `scripts/load-env.sh`; `bun run build` first, then `bun run mcp`
+  in `apps/api` to run it by hand.
   <!-- ── quickdraw-game:start ── -->
   `gameService` is not served there: every game method acts on the live
   sim and its players' sockets, and the MCP process runs no sim.
@@ -52,12 +58,13 @@ plus the app's own sign-in routes), `/health`, the service worker's
 `POST /api/push/resubscribe` (a service worker has no socket) and inbound
 webhooks. An app REST route:
 
-- authenticates with `requireSession(auth.keys)` from
-  `@fitzzero/quickdraw-core/server/auth` (a live session from the cookie or a
-  bearer token; it answers 401 itself, and 403 for the cookie sent from a
-  page outside the auth routes' allowed origins), and reads it with
-  `sessionOf(req)` (`{ userId, sessionId, principal }`, typed, no cast of
-  `req`). Pass `auth.keys` itself: the origin list is that of the auth
+- authenticates with `requireSession(auth.keys, { loadPrincipal: userPrincipal })`
+  from `@fitzzero/quickdraw-core/server/auth` (a live session from the cookie
+  or a bearer token; it answers 401 itself, and 403 for the cookie sent from
+  a page outside the auth routes' allowed origins), and reads it with
+  `sessionOf<AppPrincipal>(req)` (`{ userId, sessionId, principal }`, typed,
+  no cast of `req`; `userPrincipal` from `quickdraw.ts` gives the principal
+  its kind). Pass `auth.keys` itself: the origin list is that of the auth
   routes writing to the same session store object, and with another store
   object (a second `prismaSessions(...)`) no page may use the cookie;
 - validates its body with `validateRequest(schema, req.body, res)` from
@@ -80,6 +87,14 @@ webhooks. An app REST route:
   `INTERNAL`.
 - Log with `logger` or `createServiceLogger(name)` from
   `apps/api/src/utils/logger.ts`, never `console`.
+- `createServer({ stallWatchdog: true })` watches the event loop: a window
+  (10 s) whose 99th-percentile delay passes 200 ms, or one delay 1 s, logs a
+  warning naming its slowest methods. Fix the handler that holds the loop.
+  <!-- ── quickdraw-game:start ── -->
+  The game's tick runs on the same loop and no warning names it: when every
+  method a warning names is fast, measure the sim (`bun run bench:netcode`
+  reports the tick's p95).
+  <!-- ── quickdraw-game:end ── -->
 
 ## Utilities
 

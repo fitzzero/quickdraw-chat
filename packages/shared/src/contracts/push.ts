@@ -28,6 +28,8 @@ export const pushSubscriptionRowSchema = z.object({
 const successSchema = z.object({ success: z.literal(true) });
 
 export const pushContract = defineContract("pushService", {
+  describe:
+    "The Web Push endpoints of the caller's browsers, which get a notification of each new message while the user is away.",
   entity: pushSubscriptionRowSchema,
   methods: {
     subscribePush: mutation({
@@ -46,11 +48,13 @@ export const pushContract = defineContract("pushService", {
       describe:
         "Sends a test notification to each of the caller's devices; answers how many took it.",
     }),
-    // The admin screens: read and delete only (browsers mint subscriptions)
+    // The admin screens: read and delete only (browsers mint subscriptions),
+    // so no field is editable
     ...admin.contract({
       entity: pushSubscriptionRowSchema,
       filter: ["userId"],
       sort: ["createdAt"],
+      editable: [],
       expose: [
         "adminList",
         "adminGet",

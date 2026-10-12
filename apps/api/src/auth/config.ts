@@ -162,8 +162,6 @@ export function trustProxyFromEnv():
   return { value: false, source: "default" };
 }
 
-/** GitHub Codespace forwarded-port origins, outside production. */
-const CODESPACE_ORIGIN = /^https:\/\/[a-z0-9-]+-[a-z0-9-]+-\d+\.app\.github\.dev$/;
 /** Any localhost port, outside production. */
 const LOCALHOST_ORIGIN = /^http:\/\/localhost:\d+$/;
 
@@ -171,14 +169,16 @@ const LOCALHOST_ORIGIN = /^http:\/\/localhost:\d+$/;
  * The web app's origins, one list for CORS, the sign-in return and the pages
  * that may open a socket with the session cookie: CLIENT_URL first (where a
  * sign-in without `returnTo` lands), then EXTRA_ALLOWED_ORIGINS, and
- * Codespaces and localhost outside production (anyone can open a Codespace:
- * in production it would be an open sign-in redirect and a cookie origin).
+ * localhost outside production. No GitHub Codespace but the ones named:
+ * anyone can open a Codespace, so a pattern admitting them all would be a
+ * sign-in redirect and a cookie origin for every GitHub user. A Codespace's
+ * own web app is CLIENT_URL (scripts/load-env.sh derives it).
  */
 export function allowedOriginsFromEnv(): AllowedOrigin[] {
   return [
     new URL(clientUrl()).origin,
     ...extraAllowedOrigins().map((origin) => new URL(origin).origin),
-    ...(process.env.NODE_ENV === "production" ? [] : [CODESPACE_ORIGIN, LOCALHOST_ORIGIN]),
+    ...(process.env.NODE_ENV === "production" ? [] : [LOCALHOST_ORIGIN]),
   ];
 }
 

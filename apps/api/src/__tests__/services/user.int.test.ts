@@ -3,7 +3,7 @@ import { QuickdrawError } from "@fitzzero/quickdraw-core";
 import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import { userService } from "../../services/user/index.js";
-import { startTestApp, subscribeEntity, type ApiTestApp } from "../utils/app.js";
+import { agent, startTestApp, subscribeEntity, user, type ApiTestApp } from "../utils/app.js";
 import { createTestUser } from "../factories/user-factory.js";
 
 type Users = Awaited<ReturnType<typeof seedTestUsers>>;
@@ -26,7 +26,7 @@ beforeEach(async () => {
 });
 
 function as(userId: string): ReturnType<ApiTestApp["as"]> {
-  return app.as({ userId });
+  return app.as(user(userId));
 }
 
 async function codeOf(call: Promise<unknown>): Promise<string> {
@@ -40,7 +40,7 @@ async function codeOf(call: Promise<unknown>): Promise<string> {
 
 describe("UserService field tiers (email and grants at Admin)", () => {
   it("sends a user their own email", async () => {
-    const socket = await app.connect({ userId: users.regular.id });
+    const socket = await app.connect(user(users.regular.id));
     const reply = await subscribeEntity(socket, "userService", users.regular.id);
     expect(reply).toMatchObject({
       ok: true,
@@ -52,7 +52,7 @@ describe("UserService field tiers (email and grants at Admin)", () => {
   });
 
   it("sends another user's profile without their email", async () => {
-    const socket = await app.connect({ userId: users.regular.id });
+    const socket = await app.connect(user(users.regular.id));
     const reply = await subscribeEntity(socket, "userService", users.admin.id);
     expect(reply).toMatchObject({ ok: true, r: [{ ok: true, d: { name: "Admin User" } }] });
     if (!reply.ok) throw new Error("expected rows");
@@ -74,14 +74,14 @@ describe("UserService admin kit", () => {
     const page = await as(users.admin.id).userService.adminList({ page: 1, pageSize: 20 });
     expect(page.items).toHaveLength(3);
     expect(page).toMatchObject({ total: 3, page: 1, pageSize: 20, totalPages: 1 });
-    expect(page.items.map((user) => user.email).sort()).toEqual(
+    expect(page.items.map((row) => row.email).sort()).toEqual(
       ["admin@test.com", "moderator@test.com", "user@test.com"].sort(),
     );
   });
 
   it("gets a user by id", async () => {
-    const user = await as(users.admin.id).userService.adminGet({ id: users.regular.id });
-    expect(user).toMatchObject({
+    const row = await as(users.admin.id).userService.adminGet({ id: users.regular.id });
+    expect(row).toMatchObject({
       id: users.regular.id,
       name: "Regular User",
       email: "user@test.com",
@@ -196,7 +196,7 @@ describe("UserService updateUser and grants", () => {
     expect(answer).toEqual({ id: victim.id, name: "Victim Renamed", image: null });
     expect(JSON.stringify(answer)).not.toContain("victim@secret.example");
     // ...as the same caller's subscription to that user strips it
-    const socket = await app.connect({ userId: userModerator.id });
+    const socket = await app.connect(user(userModerator.id));
     const reply = await subscribeEntity(socket, "userService", victim.id);
     expect(JSON.stringify(reply)).not.toContain("victim@secret.example");
     socket.close();
@@ -224,7 +224,7 @@ describe("UserService updateUser and grants", () => {
   });
 
   it("replaces a user's grants through adminUpdate and refreshes their open sockets", async () => {
-    const target = await app.connect({ userId: users.regular.id });
+    const target = await app.connect(user(users.regular.id));
     expect(target.hello.serviceAccess).toEqual({ userService: "Read" });
     app.frames.clear();
 
@@ -274,16 +274,25 @@ describe("UserService access matrix", () => {
     await describeAccessMatrix(app, {
       service: userService,
       principals: {
-        self: { userId: self.id },
-        other: { userId: other.id },
-        userAdmin: { userId: users.admin.id },
+        self: user(self.id),
+        other: user(other.id),
+        userAdmin: user(users.admin.id),
+        // an agent acting for the userService Admin: it reads users and edits
+        // profiles (updateUser), and through the admin kit creates, edits
+        // (grants included) and deletes none (kinds: ["user"])
+        agentAdmin: agent(users.admin.id),
       },
       cases: [
-        { method: "getMe", input: {}, allow: ["self", "other", "userAdmin"] },
+        { method: "getMe", input: {}, allow: ["self", "other", "userAdmin", "agentAdmin"] },
         {
           method: "updateUser",
           input: { id: self.id, data: { image: "https://example.com/a.png" } },
-          allow: ["self", "userAdmin"],
+          allow: ["self", "userAdmin", "agentAdmin"],
+        },
+        {
+          method: "adminCreate",
+          input: ({ name }) => ({ data: { email: `created-by-${name}@test.com` } }),
+          allow: ["userAdmin"],
         },
         {
           label: "adminUpdate (the user's grants)",
@@ -291,7 +300,12 @@ describe("UserService access matrix", () => {
           input: { id: self.id, data: { serviceAccess: {} } },
           allow: ["userAdmin"],
         },
-        { method: "adminGet", input: { id: self.id }, allow: ["userAdmin"] },
+        {
+          method: "adminDelete",
+          input: async () => ({ id: (await createTestUser()).id }),
+          allow: ["userAdmin"],
+        },
+        { method: "adminGet", input: { id: self.id }, allow: ["userAdmin", "agentAdmin"] },
       ],
     });
   });

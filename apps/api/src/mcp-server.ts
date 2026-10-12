@@ -18,6 +18,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 import { config } from "dotenv";
 import { createMcpRegistry, createMcpStdioServer } from "@fitzzero/quickdraw-core/server/mcp";
+import type { AppPrincipal } from "./quickdraw.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "../../..");
@@ -29,12 +30,15 @@ config({ path: envFile });
 config({ path: path.join(projectRoot, ".env") });
 
 const { db, prisma } = await import("@project/db");
-const { qd } = await import("./quickdraw.js");
+const { agentPrincipal, qd } = await import("./quickdraw.js");
 const { serviceNames, services } = await import("./services/index.js");
 const { createGrantsLoader } = await import("./auth/grants.js");
 
 /** The services whose methods are not tools. */
 const notServed = new Set<string>([
+  // pushService: only a person may call it (kinds: ["user"]), and this
+  // server's caller is an agent, so none of its tools would ever answer
+  "pushService",
   // ── quickdraw-game:start ──
   // gameService: every game method binds to a live sim and its players'
   // sockets, and there is no sim loop in this process. See
@@ -44,18 +48,38 @@ const notServed = new Set<string>([
 ]);
 const mcpServices = services.filter((service) => !notServed.has(service.name));
 
-const dispatcher = qd.createDispatcher({ services, db });
+// Where grants are stored, as the API's createServer names it (auth/index.ts),
+// so this dispatcher agrees with the API's: the admin kit treats the column
+// it names as the grants field (`serviceAccess` is one by its name already;
+// a renamed column would need this)
+const dispatcher = qd.createDispatcher({
+  services,
+  db,
+  serviceAccessSource: { model: "user", column: "serviceAccess" },
+});
 const loadServiceAccess = createGrantsLoader({ prisma, serviceNames });
 
 const registry = createMcpRegistry({
   services: mcpServices,
   dispatcher,
-  principal: async () => {
+  // only a person may delete a chat, by either method, or create, edit
+  // (grants included) or delete a user through the admin kit
+  // (kinds: ["user"]): no tool for them
+  exclude: [
+    "chatService.deleteChat",
+    "chatService.adminDelete",
+    "userService.adminCreate",
+    "userService.adminUpdate",
+    "userService.adminDelete",
+  ],
+  // an agent acting for the user: a method or service with kinds: ["user"]
+  // refuses it, whatever the user's grants
+  principal: async (): Promise<AppPrincipal | null> => {
     const userId = process.env.MCP_USER_ID;
     if (!userId) {
       return null;
     }
-    return { userId, kind: "agent", serviceAccess: await loadServiceAccess(userId) };
+    return { ...agentPrincipal(userId), serviceAccess: await loadServiceAccess(userId) };
   },
 });
 

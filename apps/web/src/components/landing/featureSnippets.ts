@@ -19,7 +19,7 @@ export interface FeatureSnippet {
 export const FEATURE_SNIPPETS: Record<string, FeatureSnippet> = {
   featRealtime: {
     path: "apps/api/src/services/chat/index.ts",
-    lines: [120, 140],
+    lines: [120, 155],
     language: "ts",
     code: `// The contract (packages/shared): input, output, a sentence for agents
 createChat: mutation({
@@ -48,7 +48,7 @@ createChat.mutate({ title: "New chat" });`,
 
   featAcl: {
     path: "apps/api/src/services/chat/index.ts",
-    lines: [87, 146],
+    lines: [105, 118],
     language: "ts",
     code: `// The row policy: a user's level on a chat is their ChatMember row's.
 // It decides calls, live subscriptions, collections and lists alike
@@ -72,7 +72,7 @@ export const chatService = qd.defineService(chatContract, {
   // ── quickdraw-game:start ──
   featGame: {
     path: "packages/shared/src/contracts/game.ts",
-    lines: [196, 222],
+    lines: [203, 231],
     language: "ts",
     code: `// The contract: fire-and-forget input, gated on the world's room
 channels: {
@@ -102,7 +102,7 @@ streams: { world: { seed: () => [runtime.sim.keyframe()], validate: "development
 
   featAuth: {
     path: "apps/api/src/auth/index.ts",
-    lines: [88, 104],
+    lines: [96, 136],
     language: "ts",
     code: `// quickdraw's auth routes kit, over the app's Session table:
 // /auth/{provider}/start and /callback, /auth/me, /auth/logout(-all)
@@ -125,17 +125,21 @@ qd.createServer({ app, services, db, auth: { authenticate: socketAuth({ ...keys,
 
   featAdmin: {
     path: "apps/api/src/services/chat/index.ts",
-    lines: [213, 217],
+    lines: [99, 103],
     language: "ts",
     code: `// One spread per service = a full admin surface at /admin
-// (packages/shared: the contract half names the sortable fields)
-...admin.contract({ entity: chatSchema, sort: ["createdAt", "title", "lastMessageAt"] }),
-
-// apps/api: the server half, open to a service-wide Admin grant
-...admin.handlers(chatContract, {
-  displayName: "Chats",
-  fieldOverrides: { lastMessageAt: { editable: false } }, // kept by postMessage
+// (packages/shared: the contract half names the sortable fields, and the
+// only ones an admin may edit: every other field is read-only)
+...admin.contract({
+  entity: chatSchema,
+  sort: ["createdAt", "title", "lastMessageAt"],
+  editable: ["title"],
 }),
+
+// apps/api: the server half, open to a service-wide Admin grant,
+// spread into the chat service's methods
+const chatAdmin = admin.handlers(chatContract, { displayName: "Chats" });
+...chatAdmin,
 
 // Users' grants are edited on the same screens:
 ...admin.handlers(userContract, { displayName: "Users", grants: true }),`,
@@ -143,7 +147,7 @@ qd.createServer({ app, services, db, auth: { authenticate: socketAuth({ ...keys,
 
   featTesting: {
     path: "apps/api/src/__tests__/services/chat.int.test.ts",
-    lines: [357, 398],
+    lines: [542, 641],
     language: "ts",
     code: `// The same suite runs on in-memory PGlite locally (no PostgreSQL,
 // seconds) and real PostgreSQL in CI — TEST_DATABASE_URL flips the mode.
@@ -153,9 +157,9 @@ const app = await startTestApp(); // every service on quickdraw's test server
 await describeAccessMatrix(app, {
   service: chatService,
   principals: {
-    owner: { userId: owner.id },
-    member: { userId: member.id },
-    stranger: { userId: stranger.id },
+    owner: user(owner.id), // kind "user": every principal carries its kind
+    member: user(member.id),
+    stranger: user(stranger.id),
   },
   cases: [
     { method: "getChatMembers", input: { chatId: chat.id }, allow: ["owner", "member"] },
