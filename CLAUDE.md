@@ -91,7 +91,8 @@ How to write against the framework ships in `@fitzzero/quickdraw-skills` and
 is linked into `.claude/` by `quickdraw-skills link` (the `prepare` script;
 CI checks the links): the rules `quickdraw-services.md`,
 `quickdraw-access.md`, `quickdraw-client.md` and `quickdraw-testing.md`, and
-the skills `quickdraw-new-service` (adding a service end to end) and
+the skills `quickdraw-new-service` (adding a service end to end),
+`quickdraw-api-docs` (describes and the generated API docs) and
 `quickdraw-migrate-v5`. They update with the package: never edit the links;
 to change a rule for this app, replace its link with a copy. The framework's
 README is `node_modules/@fitzzero/quickdraw-core/README.md` (installed in

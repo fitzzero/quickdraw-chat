@@ -13,3 +13,13 @@ One page per service, generated from its contract by `quickdraw-docs`.
 | [messageService](messageService.md)       | 10      | 1           | 0       | 0        | 0      |
 | [pushService](pushService.md)             | 9       | 0           | 0       | 0        | 0      |
 | [userService](userService.md)             | 10      | 0           | 0       | 0        | 0      |
+
+## Dependencies
+
+An arrow points from a service to another its declarations name: `inherit` (its row policy), `writes` (that service's model), `affects`, `scope` (a `{ scope, of }` access form) or `anchor` (a collection's anchor). Each service's page lists them.
+
+```mermaid
+graph LR
+  chatService -->|scope| gameService
+  messageService -->|inherit, writes, scope, anchor| chatService
+```

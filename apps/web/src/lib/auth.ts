@@ -1,4 +1,4 @@
-import type { AuthRoutesTarget } from "@fitzzero/quickdraw-core/client";
+import type { AuthRoutesTarget, QuickdrawStatus } from "@fitzzero/quickdraw-core/client";
 
 /** The API's URL, baked into the bundle at build time. */
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -27,3 +27,17 @@ export const AUTH_ROUTES: AuthRoutesTarget = {
  * plain TanStack Query, since no quickdraw method serves them.
  */
 export const SIGN_IN_PROVIDERS_KEY = ["auth", "providers"] as const;
+
+/**
+ * Whether the server ended the session (signed out on another device,
+ * revoked, expired) or refused a connect for it, from `useQuickdraw()`:
+ * nobody is known and the connection stopped (`status` "disconnected" or
+ * "refused"), so the user is signed out and what quickdraw cached is gone.
+ * Nobody known under any other status is still connecting.
+ */
+export function sessionEnded({
+  isKnown,
+  status,
+}: Pick<QuickdrawStatus, "isKnown" | "status">): boolean {
+  return !isKnown && (status === "disconnected" || status === "refused");
+}

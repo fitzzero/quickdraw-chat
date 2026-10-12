@@ -24,7 +24,7 @@ import { useSlowLoadHint } from "../../hooks";
 import { useErrorText } from "../../hooks/useErrorText";
 import { useToast } from "../../providers/ToastProvider";
 import { qd } from "../../lib/quickdraw";
-import { AUTH_ROUTES } from "../../lib/auth";
+import { AUTH_ROUTES, sessionEnded } from "../../lib/auth";
 
 export function UserMenu(): React.ReactElement {
   const t = useTranslations("UserMenu");
@@ -33,9 +33,11 @@ export function UserMenu(): React.ReactElement {
   const errorText = useErrorText();
   const { showToast } = useToast();
   // isKnown: the server's hello named the user (userId null: signed out);
-  // it stays true while the socket reconnects
-  const { userId, isKnown } = useQuickdraw();
-  const showWarmingHint = useSlowLoadHint(!isKnown);
+  // it stays true while the socket reconnects, and is false with nobody
+  // signed in once the server ended or refused the session (sessionEnded)
+  const { userId, isKnown, status } = useQuickdraw();
+  const connecting = !isKnown && !sessionEnded({ isKnown, status });
+  const showWarmingHint = useSlowLoadHint(connecting);
   const { data: user } = qd.userService.useEntity(userId);
   // The services whose admin screens answer this user (their adminMeta),
   // asked only where the hello's grants allow it (Admin, the kit's default)
@@ -66,7 +68,7 @@ export function UserMenu(): React.ReactElement {
   };
 
   // Not connected yet — a long wait is (in production) a cold start
-  if (!isKnown) {
+  if (connecting) {
     return (
       <Box sx={{ p: 2, opacity: 0.5 }}>
         <Typography variant="body2" color="text.secondary">
@@ -76,7 +78,7 @@ export function UserMenu(): React.ReactElement {
     );
   }
 
-  // Not logged in
+  // Not logged in, or the server ended the session
   if (!userId) {
     return (
       <Box sx={{ p: 2 }}>

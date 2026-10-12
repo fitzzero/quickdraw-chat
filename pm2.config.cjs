@@ -36,8 +36,8 @@ module.exports = {
       script: "apps/api/dist/index.js",
       env: {
         ...devEnv,
-        // Non-production at runtime: the core env guard refuses mock-auth
-        // flows under NODE_ENV=production, and this IS the dev instance.
+        // Development at runtime: quickdraw serves the mock sign-in only
+        // under NODE_ENV development or test, and this IS the dev instance.
         NODE_ENV: devEnv.NODE_ENV || "development",
         DOTENV_CONFIG_PATH: path.join(__dirname, ".env.dev"),
       },

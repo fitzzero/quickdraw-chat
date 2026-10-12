@@ -44,7 +44,14 @@ const notServed = new Set<string>([
 ]);
 const mcpServices = services.filter((service) => !notServed.has(service.name));
 
-const dispatcher = qd.createDispatcher({ services, db });
+// Where grants are stored, as the API's createServer names it (auth/index.ts):
+// the admin kit on the users service treats that column as the grants field
+// here too (service-wide Admins only), never as an ordinary field
+const dispatcher = qd.createDispatcher({
+  services,
+  db,
+  serviceAccessSource: { model: "user", column: "serviceAccess" },
+});
 const loadServiceAccess = createGrantsLoader({ prisma, serviceNames });
 
 const registry = createMcpRegistry({

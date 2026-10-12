@@ -6,6 +6,7 @@ import { Box, Chip, CircularProgress, Fade, Typography } from "@mui/material";
 import { useTranslations } from "next-intl";
 import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import { useSlowLoadHint } from "../../hooks";
+import { sessionEnded } from "../../lib/auth";
 import { routeRequiresAuth } from "../../lib/navigation";
 import { LoginRequired } from "../feedback";
 
@@ -45,9 +46,13 @@ export function AuthGate({ children }: AuthGateProps): React.ReactNode {
   // isKnown: the server's hello on this connection's credentials arrived, so
   // userId is final (null: signed out). It stays true while the socket
   // reconnects (`reconnecting`), so the page (and what it shows) stays up.
-  const { isKnown, userId, reconnecting } = useQuickdraw();
+  // It is false again once the server ended the session (signed out on
+  // another device, revoked, expired) or refused a connect for it: `status`
+  // is then "disconnected" or "refused", and what quickdraw cached is gone.
+  const { status, isKnown, userId, reconnecting } = useQuickdraw();
+  const signedOutByServer = sessionEnded({ isKnown, status });
   // A long connect is (in production) a Cloud Run cold start — say so
-  const showWarmingHint = useSlowLoadHint(!isKnown);
+  const showWarmingHint = useSlowLoadHint(!isKnown && !signedOutByServer);
 
   const requiresAuth = routeRequiresAuth(pathname);
   const notice = <ReconnectingNotice show={reconnecting} />;
@@ -61,6 +66,11 @@ export function AuthGate({ children }: AuthGateProps): React.ReactNode {
         {notice}
       </>
     );
+  }
+
+  // The server ended or refused the session: signed out, not connecting
+  if (signedOutByServer) {
+    return <LoginRequired />;
   }
 
   // Still connecting - show loading

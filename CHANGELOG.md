@@ -1,5 +1,59 @@
 # Changelog
 
+## quickdraw 5.1.2 (2026-10-12)
+
+The template on quickdraw 5.1.2 (`@fitzzero/quickdraw-core`, `-lint` and
+`-skills` at `^5.1.2`), the October 2026 security pack (quickdraw's own
+changelog heads it `[5.1.1]`). Two notes for the deploy:
+
+- A sign-in in flight during the deploy lands once on
+  `/auth/login?error=state`: the OAuth state cookie is signed now, and its
+  format changed.
+- A development deploy needs `NODE_ENV=development`. quickdraw serves the
+  demo-user sign-in and development credentials only under `development`
+  or `test`, and the API refuses to boot with `ENABLE_MOCK_OAUTH` or
+  `ENABLE_DEV_CREDENTIALS` under any other `NODE_ENV`, unset included.
+  `.env.infra` sets it for `bun run dev`; the hosted dev instance's
+  `pm2.config.cjs` already defaults to it. Production is unaffected.
+
+### Changed
+
+- **`postMessage` says it creates its row.** 5.1 refuses, when a service
+  is defined, a method whose input has `id` under a form that checks
+  another row. `postMessage`'s optional `id` is the one a sender makes for
+  the message it creates, so it says `rowless: true`; the chat's policy
+  still decides who may post. Without it, the API, the MCP server and every
+  integration suite failed to start.
+- **A session the server ends shows the sign-in.** When the server ends a
+  session (signed out everywhere from another browser, revoked, expired)
+  or refuses a connect for it, 5.1's client forgets the user and empties
+  its cache. The pages that need a user, the user menu and the navigation
+  now show the signed-out state then (`status` "disconnected" or
+  "refused", `sessionEnded()` in `lib/auth.ts`), where they waited on
+  "Connecting…" for good. The web's integration suite plays it, and
+  `AuthGate.test.tsx` is the first component test on the mock client.
+- **The chat list costs one statement more.** 5.1 makes a self list follow
+  its service's policy, so "open myChats with 30 chats" reads the policy
+  filter once more (5 statements, not 4).
+- **The MCP server names the grants column**
+  (`createDispatcher({ serviceAccessSource })`), as the API's
+  `createServer` does, so the admin kit treats `User.serviceAccess` as the
+  grants field there too.
+- **The API reference is regenerated**: 5.1's pages lead with each
+  member's description, list each method's MCP tool name, and say which
+  services each depends on, with a graph on the index.
+- **Agent skills.** `quickdraw-api-docs` (describes and the API docs) is
+  linked beside the other quickdraw skills.
+
+### What 5.1 protects, with nothing to change here
+
+The signed OAuth state cookie (`__Host-qd_oauth` over HTTPS); a socket
+ends when its session expires; `/auth/me`, `/auth/logout`,
+`/auth/logout-all` and `/auth/guest` refuse a page outside the allowed
+origins; `/qd` replies say `no-store` and `nosniff`; one socket holds at
+most 10,000 rows, 1,000 collection scopes and 1,000 topic watches.
+`.claude/rules/security.md` lists them.
+
 ## quickdraw 5.0.0 (2026-10-05)
 
 The template on the released quickdraw 5.0.0 (`@fitzzero/quickdraw-core`,

@@ -13,6 +13,14 @@
 
 Each method below says who may call it.
 
+## Depends on
+
+The other services its declarations name: its row policy, `writes`, `affects`, `{ scope, of }` access forms and collection anchors. A handler's undeclared reads are not listed.
+
+| Service       | Declared by                                                                                                                                                     |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chatService` | row policy: `inherit` through the `chatId` column; `writes`: its `chat` model; method `postMessage`: `{ scope, of }`; collection `byChat`: anchored on its rows |
+
 ## Entity
 
 | Field       | Type     | Notes            |
@@ -46,7 +54,11 @@ Posts a message to a chat the caller is a member of, under the id the caller mad
 
 A mutation.
 
+- MCP tool (default name): `messageService_postMessage`
+
 Access: `{ scope: "Read", of: chatService, id: "chatId" }`: Read or more on the `chatService` row `input.chatId` names.
+
+`rowless`: every caller the form admits may reach any row its input names, on purpose.
 
 Input:
 
@@ -65,6 +77,8 @@ Deletes a message: its author may, as may its chat's Admins and holders of a ser
 
 A mutation.
 
+- MCP tool (default name): `messageService_deleteMessage`
+
 Access: `{ service: "Admin", entry: "Admin" }`: a service-wide grant of Admin or more, or Admin or more on the row `input.id` names.
 
 Input:
@@ -80,6 +94,9 @@ Output: `{ id: string; deleted: true }`.
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+- MCP tool (default name): `messageService_adminList`
+- MCP read-only hint: yes, as on every query's tool
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -100,6 +117,9 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+- MCP tool (default name): `messageService_adminGet`
+- MCP read-only hint: yes, as on every query's tool
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -116,6 +136,8 @@ Creates a row from data, the new row's field values; the database sets its id an
 
 A mutation.
 
+- MCP tool (default name): `messageService_adminCreate`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -131,6 +153,8 @@ Output: `{ id?: string; chatId?: string; userId?: string; content?: string; role
 Changes the given fields of one row; its id and timestamps cannot be changed.
 
 A mutation.
+
+- MCP tool (default name): `messageService_adminUpdate`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -149,6 +173,8 @@ Deletes one row.
 
 A mutation.
 
+- MCP tool (default name): `messageService_adminDelete`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -165,6 +191,9 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+- MCP tool (default name): `messageService_adminMeta`
+- MCP read-only hint: yes, as on every query's tool
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input: `{}`.
@@ -176,6 +205,9 @@ Output: `{ serviceName: string; displayName: string; fields: { name: string; typ
 Counts the sockets subscribed to one row, per access level.
 
 A query.
+
+- MCP tool (default name): `messageService_adminSubscribers`
+- MCP read-only hint: yes, as on every query's tool
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -192,6 +224,8 @@ Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: intege
 Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
+
+- MCP tool (default name): `messageService_adminReemit`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 

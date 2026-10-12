@@ -36,11 +36,13 @@ scripts already run through the loader.
   So do the netcode bench's bots and the Godot editor.
   <!-- ── quickdraw-game:end ── -->
 
-Both are **hard-blocked in production**: the API refuses to boot with either
-flag set when `NODE_ENV=production` (`index.ts`), `devCredentials` answers
-nothing there, `socketAuth` refuses such a handshake in production, and the
-kit never serves the mock provider's routes there. Keep every layer when
-touching auth.
+Both run **only under `NODE_ENV` `development` or `test`** (`.env.infra`
+sets `NODE_ENV=development`; vitest sets `test`): the API refuses to boot
+with either flag set under any other `NODE_ENV`, unset included
+(`index.ts`), `devCredentials` answers nothing there, quickdraw's
+`socketAuth` throws at startup when given development credentials there and
+refuses such a handshake, and the kit serves none of the mock provider's
+routes there. Keep every layer when touching auth.
 
 ## A hosted development instance
 
@@ -48,6 +50,8 @@ A deploy outside production on public addresses (the template's dev deploy,
 behind a tunnel; `DEPLOYMENT.md`, "Hosted dev instance") keeps the mock on
 and needs, besides `CLIENT_URL`:
 
+- `NODE_ENV=development` (the template's `pm2.config.cjs` defaults to it):
+  under any other `NODE_ENV` the API refuses to boot with the mock's flag.
 - `API_URL`, its public URL. With `CLIENT_URL` or an `EXTRA_ALLOWED_ORIGINS`
   entry off localhost and no `API_URL`, the API refuses to boot in every
   `NODE_ENV` (`apiUrlProblem` in `config.ts`; `apiUrl()` throws the same)

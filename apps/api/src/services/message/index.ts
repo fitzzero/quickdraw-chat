@@ -79,6 +79,9 @@ export const messageService = qd.defineService(messageContract, {
     postMessage: {
       // a member of the chat, at Read or above: the chat's policy decides
       access: { scope: "Read", of: chatContract, id: "chatId" },
+      // the input's optional id is one the sender made for the row this
+      // method creates, so there is no row of it to check
+      rowless: true,
       handler: async ({ input, ctx, db }) => {
         const message = await db.$transaction(async (tx) => {
           const created = await tx.message.create({

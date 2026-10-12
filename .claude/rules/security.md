@@ -13,29 +13,44 @@ closed) is the linked `quickdraw-access.md`.
   a Codespace); an
   explicit 100 kB JSON body limit; `trust proxy` from `TRUST_PROXY`, else
   1 in production and behind an `https:` `API_URL`, else off (the rate
-  limits count the address it gives).
+  limits count the address it gives; quickdraw's own examples default to
+  0, and this template's production, Cloud Run, has one proxy in front);
+  `/qd` replies say `Cache-Control: no-store` and `nosniff`, so no cache
+  keeps one user's data.
 - **Auth** (quickdraw's auth routes kit): an httpOnly, Secure, SameSite
-  session cookie (`__Host-session` over HTTPS) holding a JWT that names a
-  revocable `Session` row (7 days); OAuth state cookies compared timing-safe;
-  no token in a redirect URL; sign-out revokes the row and ends its sockets
-  (`/auth/logout`, `/auth/logout-all`), and an hourly sweep deletes expired
-  rows; provider tokens AES-256-GCM encrypted at rest (`ENCRYPTION_KEY`);
+  session cookie (`__Host-session` over HTTPS, and read first wherever a
+  request carries it) holding a JWT that names a revocable `Session` row (7
+  days); a signed OAuth state cookie (`__Host-qd_oauth` over HTTPS),
+  compared timing-safe; no token in a redirect URL; sign-out revokes the
+  row and ends its sockets (`/auth/logout`, `/auth/logout-all`), a socket
+  ends when its session expires, and an hourly sweep deletes expired rows;
+  `/auth/me`, `/auth/logout` and `/auth/logout-all` answer 403 to the
+  cookie from a page outside the allowlist; provider tokens AES-256-GCM
+  encrypted at rest (`ENCRYPTION_KEY`);
   avatars restricted to https; only an email a provider verified is stored,
   links accounts or matches `ADMIN_EMAILS` (`User.emailVerified`; an
   unverified one leaves a `<id>@<provider>.local` placeholder).
-- **Development auth** (`ENABLE_MOCK_OAUTH`, `ENABLE_DEV_CREDENTIALS`) is
-  off in production at every layer; keep them all (see `dev-auth.md`).
+- **Development auth** (`ENABLE_MOCK_OAUTH`, `ENABLE_DEV_CREDENTIALS`) runs
+  only under `NODE_ENV` `development` or `test`, at every layer: the API
+  refuses to boot with either flag under any other `NODE_ENV`, unset
+  included; keep them all (see `dev-auth.md`).
 - **Calls**: every method, channel and stream declares its access and fails
-  closed; every input and channel payload is checked against its contract's
-  schema; the socket rate limit (600 events a minute per socket), each
-  channel's token bucket and the HTTP transport's limit
-  (`createCallLimiter()`, 300 calls a minute per IP).
+  closed; a method whose input has `id` checks the row it names
+  (`defineService` refuses a form that checks another row, unless the
+  method says `rowless: true`, as `postMessage` does for the id a sender
+  makes for the row it creates); every input and channel payload is checked
+  against its contract's schema; the socket rate limit (600 events a minute
+  per socket), each channel's token bucket and the HTTP transport's limit
+  (`createCallLimiter()`, 300 calls a minute per IP); one socket holds at
+  most 10,000 rows, 1,000 collection scopes and 1,000 topic watches (one
+  more is `CONFLICT`).
 - **Rate limits on REST**: the kit's sign-in routes 60 per 15 minutes per
   IP, its session routes 120; the push resubscribe route
   `createAuthLimiter()`, 20 per 15 minutes.
   <!-- ── quickdraw-game:start ── -->
-  The guest route counts as a sign-in route; the Discord Activity sign-in
-  takes `createAuthLimiter()` too.
+  The guest route counts as a sign-in route, and answers 403 to a page
+  outside the allowlist; the Discord Activity sign-in takes
+  `createAuthLimiter()` too.
   <!-- ── quickdraw-game:end ── -->
 - **Web**: security headers and a Report-Only CSP in
   `apps/web/next.config.mjs`, with an enforced `frame-ancestors`.

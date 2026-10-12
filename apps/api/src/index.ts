@@ -48,12 +48,20 @@ if (process.env.NODE_ENV === "production") {
     required: ["DATABASE_URL", "JWT_SECRET", "CLIENT_URL", "API_URL", "ENCRYPTION_KEY"],
     productionOnly: true,
   });
+}
 
-  // Hard-block dev-only auth bypasses: these flags must never reach a public
-  // host. Refusing to boot beats silently ignoring them.
+// Hard-block dev-only auth bypasses outside development: quickdraw serves
+// them only under NODE_ENV development or test, and these flags must never
+// reach a public host. Refusing to boot beats silently ignoring them.
+const nodeEnv = process.env.NODE_ENV;
+if (nodeEnv !== "development" && nodeEnv !== "test") {
   for (const flag of ["ENABLE_DEV_CREDENTIALS", "ENABLE_MOCK_OAUTH"]) {
     if (process.env[flag] === "true") {
-      logger.error(`${flag}=true is not allowed in production — refusing to start`);
+      logger.error(
+        nodeEnv === "production"
+          ? `${flag}=true is not allowed in production — refusing to start`
+          : `${flag}=true needs NODE_ENV=development (NODE_ENV is ${nodeEnv ?? "unset"}) — refusing to start`,
+      );
       process.exit(1);
     }
   }

@@ -13,6 +13,10 @@
 
 Each method below says who may call it.
 
+## Depends on
+
+No other service: its declarations name none.
+
 ## Entity
 
 | Field       | Type     | Notes            |
@@ -33,6 +37,8 @@ Registers this browser's push endpoint for the caller.
 
 A mutation.
 
+- MCP tool (default name): `pushService_subscribePush`
+
 Access: `"authenticated"`: any signed-in caller.
 
 Input:
@@ -50,6 +56,8 @@ Removes one of the caller's push endpoints.
 
 A mutation.
 
+- MCP tool (default name): `pushService_unsubscribePush`
+
 Access: `"authenticated"`: any signed-in caller.
 
 Input:
@@ -66,6 +74,8 @@ Sends a test notification to each of the caller's devices; answers how many took
 
 A mutation.
 
+- MCP tool (default name): `pushService_sendTestPush`
+
 Access: `"authenticated"`: any signed-in caller.
 
 Input: `{}`.
@@ -77,6 +87,9 @@ Output: `{ sent: integer }`.
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+- MCP tool (default name): `pushService_adminList`
+- MCP read-only hint: yes, as on every query's tool
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -97,6 +110,9 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+- MCP tool (default name): `pushService_adminGet`
+- MCP read-only hint: yes, as on every query's tool
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -112,6 +128,8 @@ Output: `{ id?: string; userId?: string; endpoint?: string; p256dh?: string; aut
 Deletes one row.
 
 A mutation.
+
+- MCP tool (default name): `pushService_adminDelete`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -129,6 +147,9 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+- MCP tool (default name): `pushService_adminMeta`
+- MCP read-only hint: yes, as on every query's tool
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input: `{}`.
@@ -140,6 +161,9 @@ Output: `{ serviceName: string; displayName: string; fields: { name: string; typ
 Counts the sockets subscribed to one row, per access level.
 
 A query.
+
+- MCP tool (default name): `pushService_adminSubscribers`
+- MCP read-only hint: yes, as on every query's tool
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -156,6 +180,8 @@ Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: intege
 Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
+
+- MCP tool (default name): `pushService_adminReemit`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 

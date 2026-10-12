@@ -169,7 +169,7 @@ export const chatService = qd.defineService(chatContract, {
         return listMembers(db, input.chatId);
       },
     },
-    // quickdraw: hand-written because a Moderate invites and removes here (the sharing kit's members mode lets only Admins change members by default and caps no change to a member above the caller), and one method both invites and changes a member's level, as the web app's invite box expects; the kit's three rules apply in changeMembership
+    // quickdraw: hand-written because one method both invites and changes a member's level, as the web app's invite box expects (the sharing kit's members mode splits them into invite and setRole), and a Moderate changes only members below their own level here, where the kit lets equal levels change each other; the rules are in changeMembership
     inviteUser: {
       access: { service: "Moderate", entry: "Moderate" },
       handler: async ({ input, ctx, db }) => {

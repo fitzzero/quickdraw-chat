@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
+import { sessionEnded } from "../lib/auth";
 import { siteNavigation, type NavItem } from "../lib/navigation";
 import type { AccessLevel } from "@project/shared";
 import { qd } from "../lib/quickdraw";
@@ -42,7 +43,10 @@ function hasVisibleAccess(level: AccessLevel | undefined): boolean {
 export function useFilteredNavigation(): {
   /** Filtered navigation items based on user's service access */
   navigation: NavItem[];
-  /** Whether the server's hello (who the user is) has not arrived yet */
+  /**
+   * Whether the server's hello (who the user is) has not arrived yet; false
+   * once the server ended the session (the signed-out items show then)
+   */
   isLoading: boolean;
   /** Service access map (includes merged defaults from server) */
   serviceAccess: Record<string, AccessLevel> | null;
@@ -50,7 +54,7 @@ export function useFilteredNavigation(): {
   hasServiceAccess: (serviceName: string) => boolean;
 } {
   // The connection's grants: these include SERVICE_DEFAULT_ACCESS, merged by the server
-  const { userId, isKnown, serviceAccess: grants } = useQuickdraw();
+  const { userId, isKnown, status, serviceAccess: grants } = useQuickdraw();
 
   // Guest sessions hide `hideForGuests` items. The `in` check keeps the hook
   // generic: the field only exists when the guest-auth feature does.
@@ -76,7 +80,8 @@ export function useFilteredNavigation(): {
   const navigation = React.useMemo<NavItem[]>(() => {
     const items = siteNavigation.filter((item) => !(isGuestSession && item.hideForGuests));
 
-    // If not logged in, only show items that don't require auth
+    // If not logged in (the server ending the session included), only show
+    // items that don't require auth
     if (!userId) {
       return items.filter((item) => !item.requireAuth);
     }
@@ -103,7 +108,7 @@ export function useFilteredNavigation(): {
 
   return {
     navigation,
-    isLoading: !isKnown,
+    isLoading: !isKnown && !sessionEnded({ isKnown, status }),
     serviceAccess,
     hasServiceAccess,
   };

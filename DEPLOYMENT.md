@@ -282,13 +282,15 @@ Put a reverse proxy (Caddy/nginx) with TLS in front; WebSockets need
 
 ## Hosted dev instance (not production, behind a proxy)
 
-A shared development deploy runs with `NODE_ENV` other than `production`, so
-the demo-user sign-in can stay on, on public addresses behind whatever ends
-its TLS (a tunnel, a reverse proxy). The template's own is
+A shared development deploy runs with `NODE_ENV=development`, so the
+demo-user sign-in can stay on (quickdraw serves it under `development` or
+`test` only), on public addresses behind whatever ends its TLS (a tunnel, a
+reverse proxy). The template's own is
 `https://quickdraw-dev.techtree.gg` with its API at
 `https://quickdraw-io-dev.techtree.gg`, behind a Cloudflare tunnel. It needs:
 
 ```bash
+NODE_ENV=development                               # pm2.config.cjs defaults to it
 CLIENT_URL=https://dev.your-domain.com             # the web app
 API_URL=https://dev-api.your-domain.com            # required (below)
 NEXT_PUBLIC_API_URL=https://dev-api.your-domain.com  # the web app's build

@@ -80,10 +80,14 @@ how the web app uses it.
   the pre-game dialog open with the reason, and its button retries.
   <!-- ── quickdraw-game:end ── -->
 - **Who is signed in**: `useQuickdraw()` gives `userId`, `serviceAccess`
-  (the grants), `isKnown` and `reconnecting`. `userId === null` is "signed
-  out" only once `isKnown` (see `AuthGate`): gate on it before showing
-  sign-in prompts. A reconnect keeps the user and the page (`reconnecting`
-  shows a notice).
+  (the grants), `isKnown`, `status` and `reconnecting`. `userId === null` is
+  "signed out" once `isKnown` (see `AuthGate`): gate on it before showing
+  sign-in prompts. While `isKnown` is false, `status` `"disconnected"` or
+  `"refused"` is signed out too: the server ended the session (signed out on
+  another device, revoked, expired) or refused a connect for it, and
+  quickdraw emptied its cache (`sessionEnded()` in `lib/auth.ts` says so);
+  any other status is still connecting. A reconnect keeps the user and the
+  page (`reconnecting` shows a notice).
 - **Admin screens** (`/admin`, `components/admin/`) are generic: the
   services come from `useAdminServices(qd)` (it asks only the services the
   hello's grants allow), and every table and form from the service's

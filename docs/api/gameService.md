@@ -13,6 +13,12 @@
 
 Each method below says who may call it.
 
+## Depends on
+
+No other service: its declarations name none.
+
+It also `writes` models no service's rows live in: `gameScore`.
+
 ## Entity
 
 | Field       | Type             | Notes            |
@@ -32,6 +38,8 @@ Spawns the caller's snake in a world, puts the calling socket in the world's roo
 
 A mutation.
 
+- MCP tool (default name): `gameService_joinGame`
+
 Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
 
 Input:
@@ -47,6 +55,9 @@ Output: `{ worldId: string; chatId: string | null; tick: integer; tickRate: numb
 Answers a world's state without spawning, and puts the calling socket in the world's room, for spectating.
 
 A query.
+
+- MCP tool (default name): `gameService_watchWorld`
+- MCP read-only hint: yes, as on every query's tool
 
 Access: `"public"`: anyone, signed in or not.
 
@@ -64,6 +75,8 @@ Respawns the caller's snake after it died.
 
 A mutation.
 
+- MCP tool (default name): `gameService_respawn`
+
 Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
 
 Input:
@@ -79,6 +92,8 @@ Output: `{ ok: true }`.
 Takes the caller's snake out of the world; their sockets stay as spectators.
 
 A mutation.
+
+- MCP tool (default name): `gameService_leaveGame`
 
 Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
 
@@ -96,6 +111,9 @@ Reads a world by its slug (its id, name and chat), or null.
 
 A query.
 
+- MCP tool (default name): `gameService_getWorld`
+- MCP read-only hint: yes, as on every query's tool
+
 Access: `"public"`: anyone, signed in or not.
 
 Input:
@@ -111,6 +129,9 @@ Output: `{ id: string; name: string; chatId: string | null } | null`.
 The caller's best length in a world (0 before their first death).
 
 A query that watches its service's writes to `gameScore`: a cached result is fetched again after a change to one of them.
+
+- MCP tool (default name): `gameService_getMyBest`
+- MCP read-only hint: yes, as on every query's tool
 
 Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
 
@@ -128,6 +149,9 @@ A world's best lengths, highest first (25 unless a limit is given).
 
 A query that watches its service's writes to `gameScore`: a cached result is fetched again after a change to one of them.
 
+- MCP tool (default name): `gameService_getHighScores`
+- MCP read-only hint: yes, as on every query's tool
+
 Access: `"public"`: anyone, signed in or not.
 
 Input:
@@ -144,6 +168,9 @@ Output: `{ userId: string; name: string | null; image: string | null; isGuest: b
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+- MCP tool (default name): `gameService_adminList`
+- MCP read-only hint: yes, as on every query's tool
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -163,6 +190,9 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+- MCP tool (default name): `gameService_adminGet`
+- MCP read-only hint: yes, as on every query's tool
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -178,6 +208,8 @@ Output: `{ id?: string; slug?: string; name?: string; chatId?: string | null; cr
 Changes the given fields of one row; its id and timestamps cannot be changed.
 
 A mutation.
+
+- MCP tool (default name): `gameService_adminUpdate`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -196,6 +228,9 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+- MCP tool (default name): `gameService_adminMeta`
+- MCP read-only hint: yes, as on every query's tool
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input: `{}`.
@@ -207,6 +242,9 @@ Output: `{ serviceName: string; displayName: string; fields: { name: string; typ
 Counts the sockets subscribed to one row, per access level.
 
 A query.
+
+- MCP tool (default name): `gameService_adminSubscribers`
+- MCP read-only hint: yes, as on every query's tool
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -223,6 +261,8 @@ Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: intege
 Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
+
+- MCP tool (default name): `gameService_adminReemit`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 

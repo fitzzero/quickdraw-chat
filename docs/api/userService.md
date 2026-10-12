@@ -13,6 +13,10 @@
 
 Each method below says who may call it.
 
+## Depends on
+
+No other service: its declarations name none.
+
 ## Entity
 
 | Field           | Type                                                                  | Level | Notes            |
@@ -36,6 +40,9 @@ Reads the caller's own user.
 
 A query.
 
+- MCP tool (default name): `userService_getMe`
+- MCP read-only hint: yes, as on every query's tool
+
 Access: `"authenticated"`: any signed-in caller.
 
 Input: `{}`.
@@ -47,6 +54,8 @@ Output: one row as the `entity` projection, or `null`.
 Changes a user's name or https image; answers their public profile, or { error: "name_taken" } when another user has the name.
 
 A mutation.
+
+- MCP tool (default name): `userService_updateUser`
 
 Access: `{ service: "Moderate", entry: "Moderate" }`: a service-wide grant of Moderate or more, or Moderate or more on the row `input.id` names.
 
@@ -64,6 +73,9 @@ Output: `{ error: "name_taken" } | { id: string; name: string | null; image: str
 Lists every row for a service administrator, a page at a time (page numbers from 1, at most 100 rows a page), filtered and sorted by the declared fields.
 
 A query.
+
+- MCP tool (default name): `userService_adminList`
+- MCP read-only hint: yes, as on every query's tool
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -83,6 +95,9 @@ Reads one row by id, as a service administrator sees it.
 
 A query.
 
+- MCP tool (default name): `userService_adminGet`
+- MCP read-only hint: yes, as on every query's tool
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -99,6 +114,8 @@ Creates a row from data, the new row's field values; the database sets its id an
 
 A mutation.
 
+- MCP tool (default name): `userService_adminCreate`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -114,6 +131,8 @@ Output: `{ id?: string; email?: string; name?: string | null; image?: string | n
 Changes the given fields of one row; its id and timestamps cannot be changed.
 
 A mutation.
+
+- MCP tool (default name): `userService_adminUpdate`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -132,6 +151,8 @@ Deletes one row.
 
 A mutation.
 
+- MCP tool (default name): `userService_adminDelete`
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input:
@@ -148,6 +169,9 @@ Describes the service's fields for an admin screen: their types, labels, and whi
 
 A query.
 
+- MCP tool (default name): `userService_adminMeta`
+- MCP read-only hint: yes, as on every query's tool
+
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
 Input: `{}`.
@@ -159,6 +183,9 @@ Output: `{ serviceName: string; displayName: string; fields: { name: string; typ
 Counts the sockets subscribed to one row, per access level.
 
 A query.
+
+- MCP tool (default name): `userService_adminSubscribers`
+- MCP read-only hint: yes, as on every query's tool
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
@@ -175,6 +202,8 @@ Output: `{ id: string; count: integer; levels: { Read: integer; Moderate: intege
 Sends one row as it is now to every socket subscribed to it.
 
 A mutation.
+
+- MCP tool (default name): `userService_adminReemit`
 
 Access: `{ service: "Admin" }`: a service-wide grant of Admin or more.
 
