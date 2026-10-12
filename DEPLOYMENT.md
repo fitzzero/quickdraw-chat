@@ -290,7 +290,7 @@ reverse proxy). The template's own is
 `https://quickdraw-io-dev.techtree.gg`, behind a Cloudflare tunnel. It needs:
 
 ```bash
-NODE_ENV=development                               # the API's (pm2.config.cjs defaults to it); the web runs production
+NODE_ENV=development                               # the API process only (pm2.config.cjs defaults it); keep it out of the env `next build` runs in
 CLIENT_URL=https://dev.your-domain.com             # the web app
 API_URL=https://dev-api.your-domain.com            # required (below)
 NEXT_PUBLIC_API_URL=https://dev-api.your-domain.com  # the web app's build

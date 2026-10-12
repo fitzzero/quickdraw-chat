@@ -54,7 +54,10 @@ closed) is the linked `quickdraw-access.md`.
   included): an agent acting for an admin is refused. An address an admin
   types for a user is stored unverified: until a provider verifies it, it
   matches no `ADMIN_EMAILS` entry and links a sign-in only to a user
-  nobody has signed in to yet.
+  nobody has signed in to yet. An `ADMIN_EMAILS` admin who edits their own
+  address there (a change of case included) gets the default grants only
+  from their next connection, until they sign in again with a provider
+  that verifies it.
 - **Rate limits on REST**: the kit's sign-in routes 60 per 15 minutes per
   IP, its session routes 120; the push resubscribe route
   `createAuthLimiter()`, 20 per 15 minutes.
