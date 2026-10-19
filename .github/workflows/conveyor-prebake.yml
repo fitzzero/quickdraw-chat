@@ -145,6 +145,9 @@ jobs:
               # eviction outage), so a frozen old CLI treats Fable as usage-credit/overage
               # only and Fable cards fall back to Sonnet. Bumping this line changes the
               # content hash → cache miss → fresh install of the pinned version.
+              # Before raising claude-code, run `bun run scripts/agent/claude-permission-smoke.ts`
+              # on a pod with the new CLI: 2.1.301 started parking plan-mode agents on
+              # permission dialogs, and only a real-CLI run catches that.
               NPM_INSTALL_FLAGS="--loglevel=error --no-update-notifier --no-fund --no-audit" && \
               curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.2" && \
               npm install -g $NPM_INSTALL_FLAGS turbo@2.11.4 >/dev/null && \
