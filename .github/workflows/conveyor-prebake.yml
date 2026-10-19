@@ -254,8 +254,9 @@ jobs:
           # --no-install-recommends the apt package still unpacked to 439MB on this base
           # (measured 2026-09-25: libavcodec's full codec tree, mesa, libva, x265...)
           # and ships 5.1; the static ffmpeg+ffprobe pair is 152MB on amd64 (97MB arm64)
-          # and ships 7.0.2 with libx264 compiled in. The archive moves from releases/
-          # to old-releases/ once a newer build ships, so both URLs are tried.
+          # and ships 7.0.2 with libx264 compiled in. The upstream paths share a host,
+          # so also try a GitHub mirror of the exact same archive if that host is down.
+          # Every source must match the pinned checksum before any bytes are extracted.
           #
           # git-lfs is the pinned release binary, NOT Debian's `git-lfs`: that package's
           # postinst writes a system-wide filter.lfs.* config (checked 2026-09-25), and a
@@ -277,9 +278,17 @@ jobs:
               esac && \
               cd /tmp && \
               ffmpeg_archive="ffmpeg-7.0.2-${arch}-static.tar.xz" && \
-              { curl -fsSL --retry 3 -o ffmpeg.tar.xz "https://johnvansickle.com/ffmpeg/releases/$ffmpeg_archive" || \
-                curl -fsSL --retry 3 -o ffmpeg.tar.xz "https://johnvansickle.com/ffmpeg/old-releases/$ffmpeg_archive"; } && \
-              echo "$ffmpeg_sha  ffmpeg.tar.xz" | sha256sum -c - && \
+              ffmpeg_downloaded=false && \
+              for ffmpeg_url in \
+                "https://johnvansickle.com/ffmpeg/releases/$ffmpeg_archive" \
+                "https://johnvansickle.com/ffmpeg/old-releases/$ffmpeg_archive" \
+                "https://github.com/publicala/ffmpeg-static/releases/download/v7.0.2/$ffmpeg_archive"; do \
+                if curl -fsSL --connect-timeout 10 --max-time 120 --retry 2 --retry-max-time 150 -o ffmpeg.tar.xz "$ffmpeg_url" && \
+                  echo "$ffmpeg_sha  ffmpeg.tar.xz" | sha256sum -c -; then \
+                  ffmpeg_downloaded=true; break; \
+                fi; \
+              done && \
+              test "$ffmpeg_downloaded" = true && \
               tar -xJf ffmpeg.tar.xz --strip-components=1 "ffmpeg-7.0.2-${arch}-static/ffmpeg" "ffmpeg-7.0.2-${arch}-static/ffprobe" && \
               curl -fsSL --retry 3 -o git-lfs.tar.gz "https://github.com/git-lfs/git-lfs/releases/download/v3.8.0/git-lfs-linux-${arch}-v3.8.0.tar.gz" && \
               echo "$lfs_sha  git-lfs.tar.gz" | sha256sum -c - && \
