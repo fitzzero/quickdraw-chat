@@ -16,6 +16,43 @@ Template:
 
 ---
 
+## 2026-10-23 — Food window: food changes repeated for six ticks (the pack's G2) [KEPT]
+
+- Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at
+  210e697 (11f0180 the window; 08d654e and 210e697 the fixes from the two
+  review passes).
+- Change: each world snapshot carries `food`, the food changes of the last
+  six ticks that changed food (`GAME_FOOD_WINDOW`), oldest first, where it
+  carried only its own tick's `foodSpawned`/`foodEaten`. A client applies
+  each tick's change once, in tick order. A snapshot more than six ticks
+  past the last one it applied means changes were lost: the client
+  subscribes to the stream again, and the seed, a keyframe with all the
+  food in one entry, replaces its food. A client takes only a keyframe's
+  food: the Godot client hands a reply over a frame after the stream items
+  that came with it, so a keyframe can be handled after newer snapshots.
+  Deaths, joins and the leaderboard stay reliable events.
+- The plan's gap rule (the oldest entry's tick past the last one applied
+  - 1. counts from the snapshot's tick instead: entries exist only for
+       ticks that changed food, so an oldest entry past the last tick applied
+  - 1 is normal.
+- Scenarios (the sweep, `--all --runs 3`, at 210e697 against the
+  `g1-queue-final` baselines): every scenario passes, no `warn`, nothing
+  past the noise. A first sweep at 11f0180, before the review's fixes,
+  passed too.
+- Headline: `foodMismatchAtEnd` 0 in the worst run of every scenario
+  (`runWorst`), `foodResyncs` 0. jitter-heavy-3p dropped 1.1–2.0% of its
+  snapshots (gapRate) and mixed-3p's spiky client 1.2%, all within the
+  window. bursty-3p's stalls (250 ms every 2 s) dropped none on this
+  machine (gapRate 0, as in the baseline), so the keyframe path runs in the
+  game's integration test (10 snapshots missed) and in check:godot (a
+  second of them missed). snapshotBytes p95 +23…+51 B (+7…+11%), mean
+  +36…+56 B (+10…+18%): about 1 KB/s more per client.
+- Gate: the worst client's mismatch is a headline metric,
+  `food.mismatchAtEnd`, that must be 0 in every run (`MUST_BE_ZERO`, judged
+  on an aggregated card's worst run), so a later netcode change cannot lose
+  food changes unseen. The new baselines are this sweep's cards (scorecard
+  schemaVersion 2, with `runWorst`).
+
 ## 2026-10-23 — H5: Input queue and redundant frames (the pack's G1) [KEPT]
 
 - Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at
