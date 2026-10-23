@@ -7,17 +7,21 @@ extends RefCounted
 ## JSON did: tick, t, players (id, x, y, dx, dy, len, boost, ack) and food
 ## (tick, spawned, eaten).
 ##
-## Each snapshot introduces the players given an index in its last ticks,
-## and a keyframe all of them; the newest given wins (a keyframe may be
-## handled after newer snapshots). A snapshot whose newest unrepeated
+## Each snapshot introduces the players first introduced in its last
+## ticks, and a keyframe all of them; the newest given wins (a keyframe may
+## be handled after newer snapshots), and a keyframe older than the newest
+## snapshot's window names nobody. A snapshot whose newest unrepeated
 ## introduction is past the newest snapshot decoded means one was missed:
 ## the table is forgotten, and a player the decoder cannot name is left out
-## (`unnamed`) until a keyframe names them all again. One per client, reset
-## when the clock follows another server's world (its ticks start over).
+## (`unnamed`) until a keyframe names them all again. One per client, kept
+## across its subscriptions and reset when the clock follows another
+## server's world (its ticks start over).
 
 const VERSION := 1
 const FLAG_T := 1
 const FLAG_KEYFRAME := 2
+## GameConfig.FOOD_WINDOW: the ticks a snapshot repeats introductions over
+const FOOD_WINDOW := 6
 const PLAYER_BYTES := 21
 const SPAWNED_BYTES := 13
 
@@ -61,10 +65,14 @@ func decode(packed: String) -> Dictionary:
 		snapshot["t"] = bytes.decode_double(at)
 		at += 8
 
-	# An index given after the newest snapshot decoded, and no longer
-	# introduced: a name held may stand for another player
+	# An index first introduced after the newest snapshot decoded, and no
+	# longer introduced: a name held may stand for another player
 	if _last_tick >= 0 and unrepeated > _last_tick:
 		_names.clear()
+	# A seed older than the newest snapshot's window (this client hands a
+	# seed over after the items that came with it) may name an index by an
+	# owner whose newer give no snapshot introduces any more: it names nobody
+	var skip := keyframe and tick < _last_tick - FOOD_WINDOW
 	var intros := bytes.decode_u16(at)
 	at += 2
 	for i in intros:
@@ -73,6 +81,8 @@ func decode(packed: String) -> Dictionary:
 		var length := bytes.decode_u8(at + 6)
 		var id := bytes.slice(at + 7, at + 7 + length).get_string_from_utf8()
 		at += 7 + length
+		if skip:
+			continue
 		var known: Variant = _names.get(index)
 		if known == null or int((known as Array)[1]) <= given:
 			_names[index] = [id, given]

@@ -39,7 +39,10 @@ const highScoresSchema = z.object({
   limit: z.number().int().min(1).max(100).optional(),
 });
 
-/** The highest frame seq: far below 2^53, where the server's coasts carry the ack on from it. */
+/**
+ * The highest frame seq: far below 2^32, the ack's width in a packed
+ * snapshot, which the server's coasts (20 a second) carry the ack on toward.
+ */
 const MAX_INPUT_SEQ = 2 ** 31 - 1;
 
 /** One input frame: a desired direction and boost, numbered for reconciliation. */
@@ -240,8 +243,8 @@ export const gameContract = defineContract("gameService", {
   },
   streams: {
     // Every tick of a world, volatile (a backed-up client drops frames), each
-    // repeating the food changes of the last six ticks, packed (one
-    // SnapshotDecoder per subscription unpacks them). Its seed is the
+    // repeating the food changes of the last six ticks, packed (a client's
+    // SnapshotDecoder unpacks them). Its seed is the
     // current world, which the service computes for each subscriber (every
     // snake, and all the food in one entry), so a new subscriber places
     // everything at once, and one that missed more than six ticks subscribes
@@ -250,7 +253,7 @@ export const gameContract = defineContract("gameService", {
     // would refuse them until then).
     world: {
       describe:
-        "Every tick of a world, starting from the whole world (every snake and all the food); anyone may watch, signed out too. Each item packs one snapshot into bytes, base64 in `b`: decode it with @project/shared's SnapshotDecoder, one per subscription.",
+        "Every tick of a world, starting from the whole world (every snake and all the food); anyone may watch, signed out too. Each item packs one snapshot into bytes, base64 in `b`: decode it with @project/shared's SnapshotDecoder, one per client.",
       item: packedWorldItemSchema,
       scope: "worldId",
       volatile: true,

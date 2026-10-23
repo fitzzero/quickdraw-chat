@@ -116,8 +116,8 @@ export interface FoodDelta {
  * missed more than the window subscribes to the stream again: its seed is a
  * keyframe of the current world (every snake, and all the food in one entry
  * at its own tick, with no `t`), which replaces the food the client holds.
- * A client takes only a keyframe's food: it may be handled after newer
- * snapshots.
+ * A client takes a keyframe's food and its player names, never its snakes:
+ * it may be handled after newer snapshots.
  * The watchWorld/joinGame bootstrap holds the same world too.
  */
 export interface WorldSnapshot {
@@ -135,9 +135,10 @@ export interface WorldSnapshot {
 
 /**
  * The world stream's item: a WorldSnapshot packed into bytes, base64
- * (`b`). Decode it with a SnapshotDecoder (game/snapshotCodec.ts; the Godot
- * client's port is snapshot_decoder.gd), one per subscription: the players
- * are named by the stream's id table, which each snapshot and keyframe
+ * (`b`). Decode it with a SnapshotDecoder (game/snapshotDecoder.ts; the
+ * Godot client's port is snapshot_decoder.gd), one per client, kept across
+ * its subscriptions and reset for another server's world: the players are
+ * named by the stream's id table, which each snapshot and keyframe
  * introduces.
  */
 export interface PackedWorldItem {

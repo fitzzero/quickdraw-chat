@@ -1,7 +1,7 @@
 /**
  * The world stream's packed snapshot (HYPOTHESES.md #7): a WorldSnapshot as
- * bytes, carried base64 in the stream item (`PackedWorldItem`, `{ b }`), a
- * fraction of its JSON. The Godot client reads Engine.IO text frames only,
+ * bytes, carried base64 in the stream item (`PackedWorldItem`, `{ b }`),
+ * about a third of its JSON. The Godot client reads Engine.IO text frames only,
  * so the bytes travel as a JSON string; a binary attachment would save the
  * base64's third (a follow-up). A head travels exactly as the sim rounds it
  * (tenths of a pixel, thousandths of a direction), so a decoded snapshot
@@ -9,18 +9,21 @@
  * pixel, 0.05 px at most from the server's.
  *
  * A player is named by an index into the stream's id table, not by its id.
- * The encoder gives a player an index when it first appears in a snapshot
- * and frees it when it is left out of one (a death or a departure); each
- * snapshot introduces the indexes given in its last GAME_FOOD_WINDOW ticks
- * (the id and the tick given), as it repeats the food changes, and a
- * keyframe (the stream's seed) introduces every index in use. A decoder
- * learns the introductions first, the newest given winning (a keyframe may
- * be handled after newer snapshots). Each snapshot also names the newest
- * tick an index was given at that it no longer introduces: a decoder whose
- * newest snapshot is older missed that introduction (a gap longer than the
- * window, which asks for a keyframe by the food's rule too). It forgets its
- * table, and leaves out each player it cannot name (`unnamed`) until a
- * keyframe names them all again.
+ * The encoder gives a player an index when it first appears in a tick's
+ * snapshot or in a seed (a keyframe, computed between ticks), and frees it
+ * when a tick's snapshot leaves the player out (a death or a departure);
+ * seeds free none. Each snapshot introduces (the id and the tick given)
+ * the indexes first introduced in its last GAME_FOOD_WINDOW ticks, as it
+ * repeats the food changes: a tick's give from its own snapshot on, a
+ * seed's from the next tick's. A keyframe introduces every index in use.
+ * A decoder learns the introductions first, the newest given winning (a
+ * keyframe may be handled after newer snapshots), and takes none from a
+ * keyframe older than its newest snapshot's window. Each snapshot also
+ * names the newest first tick of a give it no longer introduces: a decoder
+ * whose newest snapshot is older missed that introduction (a gap longer
+ * than the window, which asks for a keyframe by the food's rule too). It
+ * forgets its table, and leaves out each player it cannot name (`unnamed`)
+ * until a keyframe names them all again.
  *
  * SnapshotEncoder (snapshotEncoder.ts) packs, SnapshotDecoder
  * (snapshotDecoder.ts) unpacks; apps/game/godot/scripts/snapshot_decoder.gd
@@ -29,8 +32,8 @@
  *   u8   SNAPSHOT_CODEC_VERSION
  *   u8   flags: SNAPSHOT_FLAG_T (has `t`), SNAPSHOT_FLAG_KEYFRAME
  *   u32  tick
- *   u32  the newest tick an index was given at that the snapshot no longer
- *        introduces, + 1 (0: none)
+ *   u32  the newest first tick of a give the snapshot no longer
+ *        introduces, + 1 (0: none, and in a keyframe)
  *   f64  t                                       (SNAPSHOT_FLAG_T)
  *   u16  introductions, each: u16 index, u32 tick given, u8 length, UTF-8 id
  *   u16  players, each: u16 index, u32 x, u32 y (tenths of a px),

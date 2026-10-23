@@ -77,6 +77,7 @@ describe("the Godot client's constants", () => {
     expect(gd("FLAG_KEYFRAME")).toBe(SNAPSHOT_FLAG_KEYFRAME);
     expect(gd("PLAYER_BYTES")).toBe(SNAPSHOT_PLAYER_BYTES);
     expect(gd("SPAWNED_BYTES")).toBe(SNAPSHOT_SPAWNED_BYTES);
+    expect(gd("FOOD_WINDOW")).toBe(GAME_FOOD_WINDOW);
   });
 
   it("lets the render clock run ahead by exactly the interpolators' extrapolation budget", () => {

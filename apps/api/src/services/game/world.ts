@@ -68,6 +68,14 @@ export interface GameTunables {
   npcRespawnTicks: number;
 }
 
+/** The most food (maxFood, initialFood) and NPCs a world holds: a packed snapshot's 16-bit counts. */
+export const COUNT_TUNABLE_MAX = 0xffff;
+const COUNT_TUNABLES: ReadonlySet<keyof GameTunables> = new Set([
+  "maxFood",
+  "initialFood",
+  "npcCount",
+]);
+
 export const DEFAULT_TUNABLES: GameTunables = {
   worldWidth: 2400,
   worldHeight: 2400,
@@ -185,7 +193,9 @@ export class GameWorldSim {
   /**
    * Apply tunable overrides (boot config or a live DefinitionService edit).
    * Only known keys with finite numeric values are accepted — definitions
-   * are admin-edited JSON, so treat them as untrusted.
+   * are admin-edited JSON, so treat them as untrusted. The counts of food
+   * and NPCs stay within COUNT_TUNABLE_MAX: a packed snapshot counts food
+   * and players in 16 bits, and a seed carries all the food in one entry.
    *
    * Note for live edits: connected Godot clients keep predicting with the
    * values they fetched at load, so movement tunables cause reconciliation
@@ -196,7 +206,7 @@ export class GameWorldSim {
       const value = partial[key];
       // Non-negative finite numbers only (zero is legitimate, e.g. initialFood)
       if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
-        this.tunables[key] = value;
+        this.tunables[key] = COUNT_TUNABLES.has(key) ? Math.min(value, COUNT_TUNABLE_MAX) : value;
       }
     }
   }

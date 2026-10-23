@@ -296,7 +296,7 @@ Feeds of items the server appends; a subscriber starts from the stream's seed.
 
 ### `world`
 
-Every tick of a world, starting from the whole world (every snake and all the food); anyone may watch, signed out too. Each item packs one snapshot into bytes, base64 in `b`: decode it with @project/shared's SnapshotDecoder, one per subscription.
+Every tick of a world, starting from the whole world (every snake and all the food); anyone may watch, signed out too. Each item packs one snapshot into bytes, base64 in `b`: decode it with @project/shared's SnapshotDecoder, one per client.
 
 | Option   | Value                                            |
 | -------- | ------------------------------------------------ |

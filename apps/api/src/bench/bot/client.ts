@@ -102,7 +102,7 @@ export class BotClient {
   private socket: Socket | null = null;
   /** The food this client holds (food.ts, the port of main.gd's). */
   private readonly food = new FoodTracker();
-  /** Unpacks the world stream (game.gd's `_decoder`): one per subscription's world. */
+  /** Unpacks the world stream (game.gd's `_decoder`): kept across resubscribes, reset for another server's world. */
   private readonly decoder = new SnapshotDecoder();
   /** The server whose world the decoder holds the table of (its hello's `serverId`). */
   private serverId: string | null = null;

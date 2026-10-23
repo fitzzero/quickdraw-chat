@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { PlayerSnap, WorldSnapshot } from "../types/game.js";
 import { GAME_FOOD_WINDOW } from "../types/game.js";
-import { SNAPSHOT_CODEC_VERSION, base64ToBytes, bytesToBase64 } from "./snapshotCodec.js";
+import {
+  SNAPSHOT_CODEC_VERSION,
+  SNAPSHOT_FLAG_T,
+  SNAPSHOT_PLAYER_BYTES,
+  SNAPSHOT_SPAWNED_BYTES,
+  base64ToBytes,
+  bytesToBase64,
+} from "./snapshotCodec.js";
 import { SnapshotDecoder } from "./snapshotDecoder.js";
 import { SnapshotEncoder } from "./snapshotEncoder.js";
 
@@ -48,6 +55,20 @@ function stream(): Stream {
 }
 
 const names = (s: WorldSnapshot): string[] => s.players.map((p) => p.id).sort();
+
+/** The players' indexes in a packed snapshot, in order (the layout in snapshotCodec.ts). */
+function playerIndexes(bytes: Uint8Array): number[] {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let at = 10 + ((view.getUint8(1) & SNAPSHOT_FLAG_T) === 0 ? 0 : 8);
+  const intros = view.getUint16(at, true);
+  at += 2;
+  for (let i = 0; i < intros; i++) at += 7 + view.getUint8(at + 6);
+  const players = view.getUint16(at, true);
+  at += 2;
+  return Array.from({ length: players }, (_, i) =>
+    view.getUint16(at + i * SNAPSHOT_PLAYER_BYTES, true),
+  );
+}
 
 describe("snapshotCodec", () => {
   it("gives back every head exactly as the sim rounds it, and t", () => {
@@ -161,6 +182,7 @@ describe("snapshotCodec", () => {
 
   it("keeps its table through a longer gap whose new player the snapshot still introduces", () => {
     const { tick, seed } = stream();
+    tick(snapshot(1, ["a", "b"]));
     const decoder = new SnapshotDecoder();
     decoder.decode(seed(snapshot(1, ["a", "b"])));
     // lost: three windows of ticks, c's first snapshots at their end
@@ -172,16 +194,133 @@ describe("snapshotCodec", () => {
     expect(decoder.unnamed).toBe(0);
   });
 
-  it("lets a keyframe handled after newer snapshots name no player by an older index", () => {
+  it("names a player a seed gave an index between ticks, after the window's snapshots were lost", () => {
     const { tick, seed } = stream();
     const decoder = new SnapshotDecoder();
     decoder.decode(seed(snapshot(1, ["a", "b"])));
-    const keyframe = seed(snapshot(2, ["a", "b"])); // a resubscribe's seed, handled late
-    tick(snapshot(2, ["a", "b"]));
+    decoder.decode(tick(snapshot(2, ["a", "b"])));
+    decoder.decode(tick(snapshot(3, ["a"]))); // b died: its index is free
+    // c joins between ticks; another subscriber's seed gives c b's index
+    seed(snapshot(3, ["a", "c"]));
+    // lost: the window's first five snapshots after the seed
+    for (let t = 4; t <= 8; t++) tick(snapshot(t, ["a", "c"]));
+    const next = decoder.decode(tick(snapshot(9, ["a", "c"])));
+    expect(names(next)).toEqual(["a", "c"]);
+    expect(decoder.needsKeyframe).toBe(false);
+  });
+
+  it("forgets its table when every snapshot that introduced a seed's index was lost", () => {
+    const { tick, seed } = stream();
+    const decoder = new SnapshotDecoder();
+    decoder.decode(seed(snapshot(1, ["a", "b"])));
+    decoder.decode(tick(snapshot(2, ["a", "b"])));
     decoder.decode(tick(snapshot(3, ["a"])));
-    decoder.decode(tick(snapshot(4, ["a", "c"]))); // c takes b's index
-    decoder.decode(keyframe);
-    expect(names(decoder.decode(tick(snapshot(5, ["a", "c"]))))).toEqual(["a", "c"]);
+    seed(snapshot(3, ["a", "c"])); // c takes b's index
+    for (let t = 4; t <= 9; t++) tick(snapshot(t, ["a", "c"])); // lost: all six
+    const after = decoder.decode(tick(snapshot(10, ["a", "c"])));
+    // b's name must not stand for c
+    expect(after.players.map((p) => p.id)).not.toContain("b");
+    expect(decoder.needsKeyframe).toBe(true);
+  });
+
+  it("forgets after a gap that hid an index given while its newest was a seed (seeds count as decoded)", () => {
+    const { tick, seed } = stream();
+    tick(snapshot(1, ["a", "b"]));
+    const decoder = new SnapshotDecoder();
+    decoder.decode(seed(snapshot(1, ["a", "b"])));
+    tick(snapshot(2, ["a"])); // lost: b leaves
+    for (let t = 3; t <= 8; t++) tick(snapshot(t, ["a", "c"])); // lost: c takes b's index
+    const after = decoder.decode(tick(snapshot(9, ["a", "c"])));
+    expect(after.players.map((p) => p.id)).not.toContain("b");
+    expect(decoder.needsKeyframe).toBe(true);
+  });
+
+  it("takes no names from a seed older than its newest snapshot's window", () => {
+    const { tick, seed } = stream();
+    tick(snapshot(1, ["a", "b"]));
+    tick(snapshot(2, ["a", "b"]));
+    tick(snapshot(3, ["a", "b"]));
+    const old = seed(snapshot(3, ["a", "b"])); // a subscription's seed, handled late
+    tick(snapshot(4, ["a", "c"])); // b leaves, c takes b's index
+    for (let t = 5; t <= 9; t++) tick(snapshot(t, ["a", "c"]));
+    const decoder = new SnapshotDecoder();
+    // Godot handles the seed after the items that came with it
+    decoder.decode(tick(snapshot(10, ["a", "c"])));
+    decoder.decode(old);
+    const next = decoder.decode(tick(snapshot(11, ["a", "c"])));
+    expect(next.players.map((p) => p.id)).not.toContain("b");
+    expect(decoder.needsKeyframe).toBe(true);
+  });
+
+  it("keeps a newer name over a seed's older one, from a seed handled after newer snapshots", () => {
+    const { tick, seed } = stream();
+    const decoder = new SnapshotDecoder();
+    decoder.decode(seed(snapshot(1, ["a", "b"])));
+    tick(snapshot(2, ["a", "b"]));
+    tick(snapshot(3, ["a", "b"]));
+    const late = seed(snapshot(3, ["a", "b"])); // a resubscribe's seed, handled late
+    // b leaves and c takes its index; the decoder learns c from these
+    for (let t = 4; t <= 9; t++) decoder.decode(tick(snapshot(t, ["a", "c"])));
+    decoder.decode(late);
+    // the window no longer introduces c: its name comes from the table
+    expect(names(decoder.decode(tick(snapshot(10, ["a", "c"]))))).toEqual(["a", "c"]);
+  });
+
+  it("gives freed indexes again, so its table stays small through any number of players", () => {
+    const { tick } = stream();
+    expect(() => {
+      for (let t = 1; t <= 70_000; t++) tick(snapshot(t, [`p${t}`]));
+    }).not.toThrow();
+  });
+
+  it("frees no index in a seed: a player the seed leaves out keeps theirs until a tick does", () => {
+    const encoder = new SnapshotEncoder();
+    encoder.encode(snapshot(1, ["a", "b"]));
+    // b left and c joined between ticks: the seed gives c a new index
+    const indexes = playerIndexes(encoder.encodeKeyframe(snapshot(1, ["a", "c"])));
+    expect(indexes).toEqual([0, 2]);
+    // the next tick frees b's, which d then takes
+    expect(playerIndexes(encoder.encode(snapshot(2, ["a", "c", "d"])))).toEqual([0, 2, 1]);
+  });
+
+  it("starts its window over on reset: another world's seeds name its players, and its gaps forget", () => {
+    const first = stream();
+    const decoder = new SnapshotDecoder();
+    decoder.decode(first.seed(snapshot(500, ["a", "b"])));
+    decoder.decode(first.tick(snapshot(501, ["a", "b"])));
+    decoder.reset();
+    const second = stream();
+    for (let t = 0; t <= 7; t++) second.tick(snapshot(t, ["x", "y"]));
+    // the new world's seed names its players, though its ticks are below the old world's
+    decoder.decode(second.seed(snapshot(7, ["x", "y"])));
+    expect(names(decoder.decode(second.tick(snapshot(8, ["x", "y"]))))).toEqual(["x", "y"]);
+    // and a gap there that hides an introduction forgets
+    second.tick(snapshot(9, ["x"])); // lost: y leaves
+    for (let t = 10; t <= 15; t++) second.tick(snapshot(t, ["x", "z"])); // lost: z takes y's index
+    const after = decoder.decode(second.tick(snapshot(16, ["x", "z"])));
+    expect(after.players.map((p) => p.id)).not.toContain("y");
+    expect(decoder.needsKeyframe).toBe(true);
+  });
+
+  it("packs a player in SNAPSHOT_PLAYER_BYTES and a piece of spawned food in SNAPSHOT_SPAWNED_BYTES", () => {
+    const encoder = new SnapshotEncoder();
+    encoder.encode(snapshot(1, ["a", "b", "c"]));
+    const plain = (tick: number, ids: string[], food?: WorldSnapshot["food"]): number =>
+      encoder.encode({ tick, players: snapshot(tick, ids).players, ...(food ? { food } : {}) })
+        .length;
+    // past the window, nothing introduced
+    for (let t = 2; t < 8; t++) plain(t, ["a", "b", "c"]);
+    const three = plain(8, ["a", "b", "c"]);
+    expect(three).toBe(10 + 2 + 2 + 1 + 3 * SNAPSHOT_PLAYER_BYTES);
+    const spawned = (k: number): WorldSnapshot["food"] => [
+      {
+        tick: 9,
+        spawned: Array.from({ length: k }, (_, i) => ({ id: `f${i}`, x: i, y: i, v: 1 })),
+      },
+    ];
+    expect(plain(9, ["a", "b", "c"], spawned(4)) - plain(10, ["a", "b", "c"], spawned(1))).toBe(
+      3 * SNAPSHOT_SPAWNED_BYTES,
+    );
   });
 
   it("asks for no keyframe before its first one, which is on its way", () => {

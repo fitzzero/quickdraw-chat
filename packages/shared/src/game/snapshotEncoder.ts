@@ -18,17 +18,22 @@ const utf8 = new TextEncoder();
 
 interface Given {
   id: string;
-  /** The tick the index was given. */
+  /** The tick the index was given: the newest give of an index wins in a decoder. */
   tick: number;
+  /**
+   * The first tick whose snapshot introduces it: the give's own, or for a
+   * seed's (between ticks, after that tick's snapshot went out) the next.
+   */
+  first: number;
 }
 
 export class SnapshotEncoder {
   private readonly byId = new Map<string, number>();
   private readonly given: (Given | undefined)[] = [];
   private readonly free: number[] = [];
-  /** The ticks indexes were given at that snapshots still introduce, oldest first. */
+  /** The first ticks of the gives snapshots still introduce, oldest first. */
   private readonly recent: number[] = [];
-  /** The newest tick an index was given at that snapshots no longer introduce (-1: none). */
+  /** The newest first tick of a give snapshots no longer introduce (-1: none). */
   private unrepeated = -1;
 
   /**
@@ -45,28 +50,32 @@ export class SnapshotEncoder {
       this.free.push(index);
     }
     this.free.sort((a, b) => a - b);
-    this.giveIndexes(snapshot);
+    this.giveIndexes(snapshot, snapshot.tick);
     const since = snapshot.tick - GAME_FOOD_WINDOW;
     while ((this.recent[0] ?? Infinity) <= since) {
       this.unrepeated = Math.max(this.unrepeated, this.recent.shift() ?? -1);
     }
-    return this.pack(snapshot, false, (given) => given.tick > since);
+    return this.pack(snapshot, false, (given) => given.first > since);
   }
 
-  /** A subscriber's seed: introduces every index in use, freeing none. */
+  /**
+   * A subscriber's seed, computed between ticks: introduces every index in
+   * use and frees none (so no index is given twice at one tick). An index
+   * it gives is introduced from the next tick's snapshot on.
+   */
   public encodeKeyframe(snapshot: WorldSnapshot): Uint8Array {
-    this.giveIndexes(snapshot);
+    this.giveIndexes(snapshot, snapshot.tick + 1);
     return this.pack(snapshot, true, () => true);
   }
 
-  private giveIndexes(snapshot: WorldSnapshot): void {
+  private giveIndexes(snapshot: WorldSnapshot, first: number): void {
     for (const player of snapshot.players) {
       if (this.byId.has(player.id)) continue;
       const index = this.free.shift() ?? this.given.length;
       if (index > 0xffff) throw new RangeError("snapshotCodec: more than 65536 players");
       this.byId.set(player.id, index);
-      this.given[index] = { id: player.id, tick: snapshot.tick };
-      this.recent.push(snapshot.tick);
+      this.given[index] = { id: player.id, tick: snapshot.tick, first };
+      this.recent.push(first);
     }
   }
 

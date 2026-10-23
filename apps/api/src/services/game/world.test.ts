@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { GameInput } from "@project/shared";
-import { GameWorldSim, DEFAULT_TUNABLES, type SnakeState } from "./world.js";
+import { COUNT_TUNABLE_MAX, GameWorldSim, DEFAULT_TUNABLES, type SnakeState } from "./world.js";
 
 function makeSim(overrides?: Partial<typeof DEFAULT_TUNABLES>): GameWorldSim {
   // NPCs off by default — these tests assert exact player/food counts.
@@ -350,6 +350,18 @@ describe("GameWorldSim", () => {
     const board = sim.leaderboard();
     expect(board).toHaveLength(2);
     expect(must(board[0]).len).toBeGreaterThanOrEqual(must(board[1]).len);
+  });
+});
+
+describe("tunables", () => {
+  it("keeps the counts of food and NPCs within a packed snapshot's 16 bits", () => {
+    const sim = new GameWorldSim({ seed: 1, tunables: { initialFood: 0 } });
+    sim.applyTunables({ maxFood: 1e9, initialFood: 70_000, npcCount: 1e6, worldWidth: 1e5 });
+    expect(sim.tunables.maxFood).toBe(COUNT_TUNABLE_MAX);
+    expect(sim.tunables.initialFood).toBe(COUNT_TUNABLE_MAX);
+    expect(sim.tunables.npcCount).toBe(COUNT_TUNABLE_MAX);
+    // positions travel in 32 bits: the world's size is the admin's
+    expect(sim.tunables.worldWidth).toBe(1e5);
   });
 });
 

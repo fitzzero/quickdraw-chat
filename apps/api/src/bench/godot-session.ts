@@ -24,6 +24,11 @@
  *      their world clocks on the new world's ticks (which start over);
  *   8. each holds the new world's food, none of the old world's left.
  *
+ * Before the session, test/codec.gd decodes packed snapshots the TS
+ * encoder made (codec-fixtures.ts: lost ones, seeds handled late, an index
+ * a seed gives, a forgotten table) with snapshot_decoder.gd, and must get
+ * what SnapshotDecoder gets for every one.
+ *
  * Exit code 0 when every check held. QD_TRACE=1 also prints each client's
  * frames (the GDScript client's `trace`).
  */
@@ -36,12 +41,15 @@ process.env.ENABLE_DEV_CREDENTIALS = "true";
 process.env.SERVICE_DEFAULT_ACCESS = "userService:Read";
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { resolve } from "node:path";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 type Scenario = import("@project/bench").Scenario;
 
 const { startBenchServer, shutdownBenchDatabase } = await import("./server.js");
+const { codecFixtures } = await import("./codec-fixtures.js");
 type BenchServer = Awaited<ReturnType<typeof startBenchServer>>;
 
 const PROJECT = resolve(process.cwd(), "../game/godot");
@@ -348,7 +356,38 @@ async function checkRestart({ both, pairs }: Players, running: Running): Promise
   });
 }
 
+/**
+ * snapshot_decoder.gd decodes the TS encoder's snapshots as SnapshotDecoder
+ * does (test/codec.gd compares them): the bench's bots decode in wire order,
+ * so only this runs the GDScript decoder's late seeds and forgotten tables.
+ */
+async function checkCodec(): Promise<void> {
+  await step(
+    "the GDScript decoder reads the TS encoder's snapshots as the TS decoder does",
+    async () => {
+      const fixtures = join(mkdtempSync(join(tmpdir(), "qd-codec-")), "codec.json");
+      writeFileSync(fixtures, JSON.stringify(codecFixtures()));
+      const child = spawn(
+        process.env.GODOT ?? "godot",
+        ["--headless", "--path", PROJECT, "--script", "res://test/codec.gd"],
+        { env: { ...process.env, QD_CODEC_FIXTURES: fixtures }, stdio: ["ignore", "pipe", "pipe"] },
+      );
+      const lines: string[] = [];
+      if (child.stdout)
+        createInterface({ input: child.stdout }).on("line", (line) => lines.push(line));
+      const code = await new Promise<number | null>((done) => {
+        child.once("exit", done);
+      });
+      const codec = lines.filter((line) => line.startsWith("CODEC"));
+      if (code !== 0 || !/^CODEC \d+ 0$/.test(codec.at(-1) ?? "")) {
+        throw new Error(`test/codec.gd: ${codec.join("; ") || `exit ${String(code)}`}`);
+      }
+    },
+  );
+}
+
 async function session(): Promise<void> {
+  await checkCodec();
   const running: Running = { server: await startBenchServer(SESSION) };
   const url = `http://127.0.0.1:${String(running.server.port)}`;
   const userOf = (name: string): string => {

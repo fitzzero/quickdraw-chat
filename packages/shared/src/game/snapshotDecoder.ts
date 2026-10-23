@@ -1,11 +1,13 @@
 /**
  * Unpacks the world stream's snapshots (snapshotCodec.ts has the layout),
- * learning the stream's id table: one decoder per subscription, reset when
- * the client follows another server's world. Ported to GDScript as
+ * learning the stream's id table: one decoder per client, kept across its
+ * subscriptions to the stream and reset when the client follows another
+ * server's world. Ported to GDScript as
  * apps/game/godot/scripts/snapshot_decoder.gd: keep the two in lockstep.
  */
 
 import type { FoodDelta, FoodDTO, PlayerSnap, WorldSnapshot } from "../types/game.js";
+import { GAME_FOOD_WINDOW } from "../types/game.js";
 import { byteReader, type ByteReader } from "./bytes.js";
 import {
   SNAPSHOT_CODEC_VERSION,
@@ -62,10 +64,13 @@ export class SnapshotDecoder {
     const unrepeated = input.u32() - 1;
     if ((flags & SNAPSHOT_FLAG_T) !== 0) snapshot.t = input.f64();
 
-    // An index given after the newest snapshot this decoder saw, and no
-    // longer introduced: a name it holds may stand for another player
+    // An index first introduced after the newest snapshot this decoder saw,
+    // and no longer introduced: a name it holds may stand for another player
     if (this.lastTick >= 0 && unrepeated > this.lastTick) this.names.clear();
-    this.readIntroductions(input);
+    // A seed older than the newest snapshot's window (Godot hands a seed
+    // over after the items that came with it) may name an index by an owner
+    // whose newer give no snapshot introduces any more: it names nobody
+    this.readIntroductions(input, keyframe && snapshot.tick < this.lastTick - GAME_FOOD_WINDOW);
     this.unnamedCount = this.readPlayers(input, snapshot.players);
     const food = readFood(input, keyframe);
     if (food.length > 0) snapshot.food = food;
@@ -75,13 +80,14 @@ export class SnapshotDecoder {
     return snapshot;
   }
 
-  /** Learns the snapshot's introductions, the newest given winning. */
-  private readIntroductions(input: ByteReader): void {
+  /** Learns the snapshot's introductions (unless `skip`), the newest given winning. */
+  private readIntroductions(input: ByteReader, skip: boolean): void {
     const count = input.u16();
     for (let i = 0; i < count; i++) {
       const index = input.u16();
       const tick = input.u32();
       const id = input.utf8(input.u8());
+      if (skip) continue;
       const known = this.names.get(index);
       if (known === undefined || known.tick <= tick) this.names.set(index, { id, tick });
     }
