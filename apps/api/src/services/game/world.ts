@@ -327,12 +327,6 @@ export class GameWorldSim {
         this.moveSnake(snake);
         this.eatNearbyFood(snake, foodEaten);
       }
-      // PROTOTYPE (C): a fed snake with no frame coasts on its last intent
-      if (frames.length === 0 && snake.fed) {
-        this.moveSnake(snake);
-        this.eatNearbyFood(snake, foodEaten);
-        snake.inputs.owed = Math.min(snake.inputs.owed + 1, 4);
-      }
       if (frames.length > 0) snake.fed = true;
       if (snake.fed) {
         inputs[snake.meta.id] = { stepped: frames.length, depth: snake.inputs.depth() };
