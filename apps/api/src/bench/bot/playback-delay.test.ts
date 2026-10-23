@@ -1,4 +1,3 @@
-import { mulberry32 } from "@project/bench";
 import { describe, expect, it } from "vitest";
 import {
   PLAYBACK_MAX_AHEAD_TICKS,
@@ -14,6 +13,20 @@ import { WorldClock } from "./world-clock.js";
 
 const TICK_MS = 50;
 const FRAME_MS = 1000 / 60;
+
+/**
+ * Seeded randomness: the bench's mulberry32, here because the API's unit
+ * lane runs before @project/bench is built (CI builds shared and db only).
+ */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 /** One frame's ticks at the warp's fastest, and a rounding error. */
 const FASTEST_FRAME_TICKS = (FRAME_MS / TICK_MS) * (1 + PLAYBACK_WARP) + 1e-9;
 
