@@ -111,6 +111,25 @@ export const SCENARIOS: Record<string, Scenario> = {
       { name: "bot-b", behavior: { kind: "cross" }, net: symmetric(wobble(75, 8)) },
     ],
   },
+  "mixed-3p": {
+    ...BASE,
+    name: "mixed-3p",
+    description:
+      "Unequal links: one clean ~40ms-RTT player, one ~100ms with wide jitter (σ 15ms), one " +
+      "~100ms with spikes — what each client's own interpolation delay costs the others.",
+    clients: [
+      { name: "bot-a", behavior: { kind: "wander" }, net: symmetric(flat(20)) },
+      { name: "bot-b", behavior: { kind: "wander" }, net: symmetric(wobble(50, 15)) },
+      {
+        name: "bot-c",
+        behavior: { kind: "wander" },
+        net: symmetric({
+          baseMs: 50,
+          jitter: { kind: "spike", probPerChunk: 0.05, minMs: 30, maxMs: 120 },
+        }),
+      },
+    ],
+  },
   "encounter-3p-100ms": {
     ...BASE,
     name: "encounter-3p-100ms",

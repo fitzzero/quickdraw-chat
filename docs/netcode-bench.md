@@ -88,7 +88,9 @@ See `packages/bench/src/scenarios.ts`. `control-0ms` is the harness
 self-check: run it after ANY harness change — expect ~0 divergence, 0
 teleports, interArrival ≈ 50ms. The others put ~75–150ms RTT with different
 jitter shapes (normal wobble, spikes, backpressure stalls, asymmetric peers)
-under wandering or deliberately-crossing bots. `drift-fast-client` and
+under wandering or deliberately-crossing bots. `mixed-3p` puts three unequal
+links in one world (a clean ~40ms RTT, a wide wobble, spikes): what each
+client's own interpolation delay costs the others (`remoteVsRemotePx`). `drift-fast-client` and
 `drift-slow-client` (120 s each) give one bot a tick clock 1% fast or slow
 (`BotSpec.clockScale`, which scales only its predictor's clock): the input
 queue must hold the fast one's depth (`depthTrend` ~0, no ratchet toward the
