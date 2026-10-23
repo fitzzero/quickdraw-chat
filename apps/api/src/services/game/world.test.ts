@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { GameInput } from "@project/shared";
-import { GameWorldSim, DEFAULT_TUNABLES } from "./world.js";
+import { GameWorldSim, DEFAULT_TUNABLES, type SnakeState } from "./world.js";
 
 function makeSim(overrides?: Partial<typeof DEFAULT_TUNABLES>): GameWorldSim {
   // NPCs off by default — these tests assert exact player/food counts.
@@ -261,6 +261,34 @@ describe("GameWorldSim", () => {
 
     expect(sim.respawn("hunter")).toBe(true);
     expect(sim.isAlive("hunter")).toBe(true);
+  });
+
+  it("checks every head a tick of several steps passed: a burst cannot step over a body", () => {
+    const sim = makeSim({ initialFood: 0, foodSpawnIntervalTicks: 100000 });
+    sim.addPlayer("wall", null);
+    sim.addPlayer("runner", null);
+    // Lay the wall's body along y = 500 and put the runner 25 px below it,
+    // facing it (the geometry is set on the sim's own snakes)
+    const { players } = sim as unknown as { players: Map<string, SnakeState> };
+    const wall = must(players.get("wall"));
+    wall.path = Array.from({ length: 30 }, (_, i) => ({ x: 300 + i * 8, y: 500 }));
+    wall.head = { x: 532, y: 500 };
+    wall.dir = { x: 1, y: 0 };
+    const runner = must(players.get("runner"));
+    runner.head = { x: 420, y: 525 };
+    runner.dir = { x: 0, y: -1 };
+    runner.path = [{ ...runner.head }];
+
+    sim.queueInputs("wall", [input(1, 1, 0)]);
+    // Four boosted frames at once: a backlog, so three step this tick (48 px)
+    // and the head ends 23 px past the body, out of reach of the final check
+    sim.queueInputs(
+      "runner",
+      [1, 2, 3, 4].map((seq) => input(seq, 0, -1, true)),
+    );
+    const result = sim.step();
+    expect(result.inputs.runner?.stepped).toBe(3);
+    expect(result.deaths.map((d) => d.id)).toEqual(["runner"]);
   });
 
   it("does not die from crossing its own body (self-collision off)", () => {

@@ -134,6 +134,9 @@ export class LocalPredictor {
     while (this.pending.length > 0 && (this.pending[0]?.seq ?? Infinity) <= snap.ack) {
       this.pending.shift();
     }
+    // The server coasted for frames this client never sent (it stalled):
+    // number the next frame after them, or the server ignores it
+    if (snap.ack > this.seq) this.seq = snap.ack;
 
     // Replay unacknowledged inputs from the authoritative state
     let rp: Vec = { x: snap.x, y: snap.y };

@@ -313,7 +313,7 @@ Fire-and-forget messages from clients, dropped over the rate.
 
 ### `input`
 
-The caller's steering, one message per tick: the newest frame (a direction and a boost) last, with up to three unacknowledged ones before it, stepped in order one a tick; dropped unless the sending socket is signed in and joined the world with watchWorld or joinGame.
+The caller's steering, one message per tick: the newest frame (a direction and a boost) last, with up to three unacknowledged ones before it, stepped in order, one a tick unless a backlog builds; dropped unless the sending socket is signed in and joined the world with watchWorld or joinGame.
 
 | Option   | Value                                                                    |
 | -------- | ------------------------------------------------------------------------ |

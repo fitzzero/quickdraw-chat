@@ -1,40 +1,42 @@
 /**
- * InputQueue — one snake's input frames, one movement step a tick.
+ * InputQueue — one snake's input frames, one movement step each.
  *
  * A client steps its prediction once per frame at the tick rate and sends
  * every message with its newest frame last and up to three unacknowledged
  * ones before it (a lost message's frames ride the next ones). The server
  * queues each frame once, by seq, and steps the snake once for each, so
  * `PlayerSnap.ack` names the last frame the server's state holds and the
- * client's replay from it reproduces the client's own position.
+ * client's replay from it reproduces the client's own position, but for the
+ * change of intent of a frame a coast stood in for.
  *
  * Frames reach the server with the jitter of the client's frame loop (up to
  * a render frame, about 17 ms) and of the network, so a client whose frames
  * land near the server's tick sees them flip between ticks. Stepping what
  * arrived would then move its snake twice in one tick and not at all in the
  * next, a stutter every other player sees. Instead the snake steps once a
- * tick:
+ * tick, a backlog aside:
  *
  * - A tick without a frame coasts: the sim steps the snake on its last
- *   intent, and the step stands in for the client's next frame, which is
- *   ignored when it arrives. The client corrects only that frame's
+ *   intent. When nothing arrived since the last tick (the frame is late, or
+ *   the client stalled), the step stands in for the client's next frame,
+ *   which is ignored when it arrives: the client corrects only that frame's
  *   difference in intent.
- * - A coast is owed instead when the frame the last coast stood in for came
- *   with nothing after it (the client is behind, its clock slow, rather than
- *   late), or after COAST_CAP stand-ins in a row (a client that stopped
- *   sending). A frame that arrives with another after it pays an owed step
- *   and is skipped; a debt not paid within OWED_TICKS ticks expires, and the
- *   client corrects that one step.
+ * - When frames arrived but none can step (the client is behind: its clock
+ *   runs slow, or it came back from a pause), the coast is owed instead. A
+ *   frame that arrives with another after it pays an owed step and is
+ *   skipped; a debt not paid within OWED_TICKS ticks expires, and the client
+ *   corrects that one step.
  * - A frame that arrives early (two in one tick) waits for its own tick. A
  *   second frame steps in one tick only from a backlog (two or more queued
  *   after the first), or once a frame has waited HOLD_TICKS ticks without a
  *   tick needing it: a client whose clock runs fast drains its extra frames
  *   that way.
  *
- * Frames are also taken against a credit: each tick refills it by
- * `1 + 3 * dt` (1.15 at 20 Hz), capped at 15, and each frame stepped spends
- * one, at most three a tick. A client sending frames faster than real time
- * moves at most 15% faster on average.
+ * Every step is taken against a credit: each tick refills it by `1 + 3 * dt`
+ * (1.15 at 20 Hz), capped at 15, and each frame stepped or coast spends one,
+ * at most three steps a tick. A client sending frames faster than real time,
+ * or holding them back to send in bursts, moves at most 15% faster on
+ * average.
  */
 
 import type { GameInput } from "@project/shared";
@@ -45,10 +47,6 @@ export const INPUT_QUEUE_CAP = 15;
 export const INPUT_CREDIT_CAP = 15;
 /** Frames a snake steps in one tick at most. */
 export const MAX_STEPS_PER_TICK = 3;
-/** Coasts in a row that stand in for a frame each. */
-export const COAST_CAP = 4;
-/** Coasted steps a queue owes at most. */
-export const OWED_CAP = 4;
 /** Ticks after the last owed coast that its debt stays. */
 export const OWED_TICKS = 4;
 /** Ticks a frame waits without a tick needing it before it steps with the next one. */
@@ -61,12 +59,13 @@ export class InputQueue {
   private taken: number;
   /** Frames at or below this seq are ignored: taken ones, stood-in ones, and ones the cap pushed out. */
   private floor: number;
-  /** The newest seq the client sent, ignored frames included. */
+  /** The newest seq the client sent (ignored frames included), and as of the last take. */
   private newest = 0;
+  private newestTaken = 0;
+  /** A frame arrived between the last two takes. */
+  private arrived = false;
   /** Ticks in a row that ended with a frame still queued. */
   private held = 0;
-  /** Coasts in a row that stood in for a frame. */
-  private standIns = 0;
   /** Coasted steps not yet paid by a skipped frame, and ticks since the last one. */
   private owed = 0;
   private owedFor = 0;
@@ -115,6 +114,8 @@ export class InputQueue {
    */
   public take(dt: number): GameInput[] {
     this.credit = Math.min(INPUT_CREDIT_CAP, this.credit + 3 * dt + 1);
+    this.arrived = this.newest > this.newestTaken;
+    this.newestTaken = this.newest;
     this.payOwed();
     const out: GameInput[] = [];
     const drain = this.held >= HOLD_TICKS;
@@ -126,24 +127,22 @@ export class InputQueue {
       out.push(frame);
     }
     this.held = this.frames.length > 0 && !drain ? this.held + 1 : 0;
-    if (out.length > 0) this.standIns = 0;
     if (this.owed > 0 && ++this.owedFor >= OWED_TICKS) this.owed = 0;
     return out;
   }
 
   /**
-   * The sim stepped the snake on its last intent. The step stands in for the
-   * client's next frame, or is owed (see the header); either way the ack
-   * covers it.
+   * The sim stepped the snake on its last intent: the step spends a credit,
+   * and stands in for the client's next frame or is owed (see the header).
+   * Either way the ack covers it.
    */
   public coast(): void {
-    const behind = this.standIns > 0 && this.newest >= this.taken;
-    if (this.owed === 0 && !behind && this.standIns < COAST_CAP) {
-      this.standIns++;
+    this.credit = Math.max(0, this.credit - 1);
+    if (!this.arrived) {
       this.passed(this.taken + 1);
       return;
     }
-    this.owed = Math.min(OWED_CAP, this.owed + 1);
+    this.owed++;
     this.owedFor = 0;
     this.taken += 1;
   }
@@ -152,8 +151,8 @@ export class InputQueue {
   public clear(): void {
     this.frames.length = 0;
     this.held = 0;
-    this.standIns = 0;
     this.owed = 0;
+    this.newestTaken = this.newest;
   }
 
   /** Pays owed steps by skipping frames while two or more are queued. */

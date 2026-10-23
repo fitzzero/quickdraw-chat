@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { GameInput } from "@project/shared";
 import {
-  COAST_CAP,
   HOLD_TICKS,
+  INPUT_CREDIT_CAP,
   INPUT_QUEUE_CAP,
   InputQueue,
   MAX_STEPS_PER_TICK,
@@ -131,16 +131,33 @@ describe("InputQueue", () => {
     expect(tick(queue)).toEqual([6 + OWED_TICKS]);
   });
 
-  it("stands in for at most COAST_CAP coasts in a row; the coasts after them are owed", () => {
+  it("stands in for every coast while the client is silent, and ignores its stalled frames", () => {
     const queue = new InputQueue(4);
-    // the client stops sending
-    for (let i = 0; i < COAST_CAP + 1; i++) expect(tick(queue)).toEqual([]);
-    expect(queue.lastSeq).toBe(5 + COAST_CAP);
-    // it comes back with a burst: the stood-in frames are ignored, the owed
-    // one pays its step, the newest steps
-    for (let seq = 5; seq <= 6 + COAST_CAP; seq++) queue.push(frame(seq));
-    expect(tick(queue)).toEqual([6 + COAST_CAP]);
-    expect(queue.depth()).toBe(0);
+    // a second without a frame (an uplink stall)
+    for (let i = 0; i < 20; i++) expect(tick(queue)).toEqual([]);
+    expect(queue.lastSeq).toBe(24);
+    // the stalled messages arrive at once: the frames the coasts stood in for
+    // are ignored, and only the two after them step, one a tick
+    for (let seq = 5; seq <= 26; seq++) queue.push(frame(seq));
+    expect(tick(queue)).toEqual([25]);
+    expect(tick(queue)).toEqual([26]);
+    expect(queue.lastSeq).toBe(26);
+  });
+
+  it("spends credit on coasts too: holding frames back to send in bursts earns no extra steps", () => {
+    const queue = new InputQueue();
+    let steps = 0;
+    for (let t = 0; t < 800; t++) {
+      // two silent ticks, then four frames at once, numbered past the ack
+      if (t % 4 === 2) {
+        const from = queue.lastSeq + 1;
+        for (let seq = from; seq < from + 4; seq++) queue.push(frame(seq));
+      }
+      const taken = tick(queue);
+      steps += taken.length === 0 ? 1 : taken.length;
+    }
+    // the starting credit aside, at most 1 + 3·dt steps a tick (it would be 1.5)
+    expect(steps).toBeLessThanOrEqual(800 * (1 + 3 * DT) + INPUT_CREDIT_CAP);
   });
 
   it("steps a frame that waited HOLD_TICKS ticks without a tick needing it with the next one", () => {

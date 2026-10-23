@@ -13,11 +13,12 @@
  * its snake's length.
  *
  * A human snake steps once for each input frame its client sent (InputQueue),
- * one a tick: the client predicts one step per frame, so the snapshot's `ack`
- * names the last frame the server's state holds and the client's replay
- * reproduces its position. A tick without a frame coasts on the last intent,
- * standing in for the late frame, so every snake moves once a tick. NPCs
- * steer in place and step once a tick.
+ * one a tick unless a backlog builds: the client predicts one step per frame,
+ * so the snapshot's `ack` names the last frame the server's state holds and
+ * the client's replay reproduces its position. Once its first frame stepped,
+ * a tick without a frame coasts on the last intent, and the ack covers the
+ * coast. A tick of several steps checks collisions at every head it passed.
+ * NPCs steer in place and step once a tick.
  */
 
 import type {
@@ -112,6 +113,8 @@ export interface SnakeState {
   inputs: InputQueue;
   /** stepped a frame since it spawned: until then no client has stepped it either */
   fed: boolean;
+  /** heads it passed this tick before its last step (a tick of several): collisions check them too */
+  swept: Vec[];
 }
 
 interface FoodState extends FoodDTO {}
@@ -218,6 +221,7 @@ export class GameWorldSim {
       path: [],
       inputs: new InputQueue(),
       fed: false,
+      swept: [],
     };
     this.spawnSnake(snake);
     this.players.set(id, snake);
@@ -326,7 +330,9 @@ export class GameWorldSim {
       // sent its first, a tick without one coasts on the last intent, and
       // the queue counts the coast for the late frame
       const frames = snake.inputs.take(this.dt);
-      for (const frame of frames) {
+      snake.swept.length = 0;
+      for (const [i, frame] of frames.entries()) {
+        if (i > 0) snake.swept.push({ ...snake.head });
         this.steer(snake, frame);
         this.moveSnake(snake);
         this.eatNearbyFood(snake, foodEaten);
@@ -443,18 +449,21 @@ export class GameWorldSim {
   }
 
   /**
-   * Head-vs-foreign-body collision via a spatial hash of path samples.
-   * Self-collision is intentionally off (slither.io rules — crossing your own
-   * body is allowed; only foreign bodies kill).
+   * Head-vs-foreign-body collision via a spatial hash of path samples, at the
+   * head and at every head a tick of several steps passed (so a catch-up
+   * cannot step over a body). Self-collision is intentionally off (slither.io
+   * rules — crossing your own body is allowed; only foreign bodies kill).
    */
   private resolveCollisions(deaths: GameDeathEvent[], foodSpawned: FoodDTO[]): void {
     const hash = this.buildBodyHash();
     const dying: SnakeState[] = [];
 
     for (const snake of this.players.values()) {
-      if (snake.alive && this.headHitsForeignBody(snake, hash)) {
-        dying.push(snake);
-      }
+      if (!snake.alive) continue;
+      const hit =
+        this.hitsForeignBody(snake, snake.head, hash) ||
+        snake.swept.some((head) => this.hitsForeignBody(snake, head, hash));
+      if (hit) dying.push(snake);
     }
 
     for (const snake of dying) {
@@ -478,19 +487,17 @@ export class GameWorldSim {
     return hash;
   }
 
-  private headHitsForeignBody(snake: SnakeState, hash: Map<string, BodySample[]>): boolean {
+  private hitsForeignBody(snake: SnakeState, head: Vec, hash: Map<string, BodySample[]>): boolean {
     const killDist = this.tunables.headRadius + this.tunables.bodyRadius;
-    const cx = Math.floor(snake.head.x / SPATIAL_CELL);
-    const cy = Math.floor(snake.head.y / SPATIAL_CELL);
+    const cx = Math.floor(head.x / SPATIAL_CELL);
+    const cy = Math.floor(head.y / SPATIAL_CELL);
 
     for (let ix = cx - 1; ix <= cx + 1; ix++) {
       for (let iy = cy - 1; iy <= cy + 1; iy++) {
         const cell = hash.get(`${ix},${iy}`);
         if (!cell) continue;
         const hit = cell.some(
-          (s) =>
-            s.owner !== snake.meta.id &&
-            Math.hypot(s.x - snake.head.x, s.y - snake.head.y) <= killDist,
+          (s) => s.owner !== snake.meta.id && Math.hypot(s.x - head.x, s.y - head.y) <= killDist,
         );
         if (hit) return true;
       }

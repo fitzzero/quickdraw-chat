@@ -37,9 +37,12 @@ const highScoresSchema = z.object({
   limit: z.number().int().min(1).max(100).optional(),
 });
 
+/** The highest frame seq: far below 2^53, where the server's coasts carry the ack on from it. */
+const MAX_INPUT_SEQ = 2 ** 31 - 1;
+
 /** One input frame: a desired direction and boost, numbered for reconciliation. */
 const gameInputSchema = z.object({
-  seq: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  seq: z.number().int().min(0).max(MAX_INPUT_SEQ),
   dx: z.number(),
   dy: z.number(),
   boost: z.boolean(),
@@ -212,7 +215,7 @@ export const gameContract = defineContract("gameService", {
     // `{ room: { prefix: "world:" } }` and read the world from `ctx.room`.
     input: {
       describe:
-        "The caller's steering, one message per tick: the newest frame (a direction and a boost) last, with up to three unacknowledged ones before it, stepped in order one a tick; dropped unless the sending socket is signed in and joined the world with watchWorld or joinGame.",
+        "The caller's steering, one message per tick: the newest frame (a direction and a boost) last, with up to three unacknowledged ones before it, stepped in order, one a tick unless a backlog builds; dropped unless the sending socket is signed in and joined the world with watchWorld or joinGame.",
       payload: gameInputsSchema,
       ratePerSecond: GAME_TICK_RATE * 1.5,
       burst: GAME_TICK_RATE * 3,

@@ -58,7 +58,8 @@ export interface CompareResult {
   failed: boolean;
 }
 
-function judge(
+/** The verdict on one metric's delta (`deltaPct` null: a zero baseline). */
+export function judge(
   deltaAbs: number,
   deltaPct: number | null,
   floor: number,
@@ -68,8 +69,10 @@ function judge(
   if (Math.abs(deltaAbs) <= floor) return "ok";
   if (Math.abs(deltaAbs) <= noise) return "within-noise";
   if (deltaAbs < 0) return "improved";
-  if (deltaPct !== null && deltaPct > thresholds.failPct) return "fail";
-  if (deltaPct !== null && deltaPct > thresholds.warnPct) return "warn";
+  // From zero, any growth past the floor is a regression (a first teleport, a queue that grows)
+  if (deltaPct === null) return "fail";
+  if (deltaPct > thresholds.failPct) return "fail";
+  if (deltaPct > thresholds.warnPct) return "warn";
   return "ok";
 }
 

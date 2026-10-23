@@ -97,6 +97,8 @@ included) — spectators behind the pre-game dialog keep the NPC world running.
   (`persistScore`: a new best only) happens in detached `qd.run` units
   triggered by loop callbacks; the tracked write changes the service topic
   the score queries watch.
+- A tick that steps a snake several times (its client's backlog) checks
+  collisions at every head the snake passed, not only the last.
 - Only snake heads go on the wire — bodies are derived from head-path history
   on both sides. Keep snapshots small; add fields consciously (each stream
   frame also carries its `[service, stream, scope]` envelope).

@@ -58,9 +58,9 @@ export interface GameInput {
  * One message on the input channel: the newest frame last, with up to
  * GAME_INPUT_FRAMES - 1 unacknowledged ones before it, so the frames of a
  * lost or late message arrive with the next one. The server queues each
- * frame once by seq and steps one a tick; a tick with none queued coasts on
- * the last intent and stands in for the late frame, which is then ignored:
- * `PlayerSnap.ack` covers it.
+ * frame once by seq and steps one a tick, up to three while a backlog drains;
+ * a tick with none queued coasts on the last intent, and `PlayerSnap.ack`
+ * covers the coast.
  */
 export interface GameInputs {
   frames: GameInput[];

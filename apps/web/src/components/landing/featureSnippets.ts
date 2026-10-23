@@ -72,7 +72,7 @@ export const chatService = qd.defineService(chatContract, {
   // ── quickdraw-game:start ──
   featGame: {
     path: "packages/shared/src/contracts/game.ts",
-    lines: [210, 238],
+    lines: [213, 241],
     language: "ts",
     code: `// The contract: fire-and-forget input, gated on the world's room; each
 // message is the newest frame with up to three unacknowledged ones before it

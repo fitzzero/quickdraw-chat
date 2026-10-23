@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { GameWorldSim } from "./world.js";
 import { GameLoop, type GameLoopEmits } from "./loop.js";
 
@@ -50,5 +50,42 @@ describe("GameLoop idle gate", () => {
     sim.addPlayer("u1", "Human");
     expect(loop.tickOnce()).not.toBeNull();
     expect(sim.tick).toBe(1);
+  });
+});
+
+describe("GameLoop tick grid", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("aims each tick at a fixed 20 Hz grid, and starts the grid again after a stall", () => {
+    let now = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    const timers: { fire: () => void; ms: number }[] = [];
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fire: () => void, ms: number) => {
+      timers.push({ fire, ms });
+      return { unref: () => undefined };
+    }) as unknown as typeof setTimeout);
+    const { loop, sim } = makeLoop(() => true);
+    const fireAt = (at: number) => {
+      now = at;
+      timers.shift()?.fire();
+    };
+
+    loop.start();
+    expect(timers.map((t) => t.ms)).toEqual([50]);
+    // 20 ms late: the next tick still lands on the grid (100 ms), not 50 ms on
+    fireAt(70);
+    expect(timers[0]?.ms).toBe(30);
+    fireAt(100);
+    expect(timers[0]?.ms).toBe(50);
+    // more than a tick behind (due at 150): one tick now, then the grid runs from here
+    fireAt(270);
+    expect(timers[0]?.ms).toBe(0);
+    fireAt(270);
+    expect(timers[0]?.ms).toBe(50);
+    expect(sim.tick).toBe(4);
+
+    loop.stop();
   });
 });
