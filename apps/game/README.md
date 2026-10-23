@@ -42,7 +42,9 @@ Start the API first (`bun run dev` at the repo root), then run the game
 (F5 in the editor). Open http://localhost:3000/game in a browser at the same
 time — you'll see both snakes in the shared world. A user id the database
 does not know is refused at the handshake (the client says so and does not
-reconnect).
+reconnect). `QUICKDRAW_PARTY_CODE=BAP-XXXX` joins a party instead (host a
+party from the page's dialog first): the editor build plays over the relay
+to the party's host.
 
 ## Architecture
 
@@ -78,6 +80,13 @@ THIS socket in the world's room, which carries the world's events and is
 what the input channel requires. A reconnected socket is in no room until
 it calls again.
 
+In a party (host mode: `Net.party_code`, from `QuickdrawHost.party` on the
+web) the game calls joinParty instead, then subscribes to `partyEvents` and
+`partyWorld` and sends `partyInput` with the party's room: the client links
+to the room's host by itself (`host_of`), WebRTC in a web export and the
+server's relay elsewhere, and subscribes again whenever a link to the host
+opens. The page boots the engine again for each party it enters or leaves.
+
 ## Checks
 
 ```bash
@@ -91,6 +100,10 @@ leaderboard reach both, and each holds the server's food; one misses a
 second of snapshots and asks for a keyframe, and the other, which missed
 none, asks for none; then the API restarts and both
 reconnect, rejoin, see each other again and hold the new world's food.
+Then a Node client hosts a party (`apps/api/src/bench/party-host.ts`, on the
+typed client's core), and both games join it by its code over the relay:
+each sees the other move, a death reaches both on `partyEvents` and the
+dead one respawns, and both hear `partyClosed` when the host ends it.
 `QD_TRACE=1` prints every frame each client writes and reads.
 
 ## Web export

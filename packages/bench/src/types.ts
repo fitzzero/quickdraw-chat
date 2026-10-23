@@ -101,6 +101,30 @@ export interface BotSpec {
   clockScale?: number;
 }
 
+/** A loopback link's lag, both ways: each message `ms` plus up to `jitter` ms, `loss` of `fast` ones lost. */
+export interface LinkLag {
+  ms: number;
+  jitter: number;
+  loss: number;
+}
+
+/**
+ * A party (host mode): no server. A host in process runs the party's sim
+ * and loop, and each bot plays over a loopback link to it.
+ */
+export interface PartySpec {
+  /** The bot of the host's own user: it plays over its own link to the host. */
+  host: string;
+  /** Every other bot's link to the host. */
+  link: LinkLag;
+  /**
+   * The host's own user's link: default `link`, the fair link (as laggy as
+   * the players'); `{ ms: 0, jitter: 0, loss: 0 }` plays with the advantage
+   * the fair link removes.
+   */
+  hostLink?: LinkLag;
+}
+
 export interface Scenario {
   name: string;
   description: string;
@@ -112,6 +136,8 @@ export interface Scenario {
   /** GameTunables overrides (npcCount etc.) — validated server-side */
   tunables?: Record<string, number>;
   clients: BotSpec[];
+  /** A party instead of the server's world; `net` then is the party's links, not a proxy's. */
+  party?: PartySpec;
 }
 
 // ── Scorecard ─────────────────────────────────────────────────────────────
@@ -183,6 +209,16 @@ export interface ClientReport {
   foodResyncs?: number;
 }
 
+/** A party's fairness: the host's own user against the other players, the medians of theirs. */
+export interface PartyFairness {
+  /** The bot of the host's own user. */
+  host: string;
+  /** Input → ack round trip p50 (ms). */
+  inputAckRttP50: { host: number; peers: number };
+  /** Local prediction error p95 (px). */
+  predictionErrorP95: { host: number; peers: number };
+}
+
 export interface Scorecard {
   /** 2 since the food window (clients' food); `loadScorecard` reads 1 too */
   schemaVersion: 1 | 2;
@@ -221,6 +257,8 @@ export interface Scorecard {
     fps: Stats;
     frameTimeMs: Stats;
   };
+  /** A party scenario's fairness (reported, not compared) */
+  party?: PartyFairness;
 }
 
 /** One run's raw material for scoring. */

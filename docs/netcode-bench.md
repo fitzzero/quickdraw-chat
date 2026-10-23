@@ -102,6 +102,29 @@ frame's change of intent. A client whose frames land within a render frame
 (about 17 ms) of the server's tick coasts often, by design; which bot that is
 in a run is the chance of its connect time.
 
+`party-3p-lossy` and `party-3p-unfair` are parties (host mode,
+`Scenario.party`): no server. A host in process runs the party's world
+(`PartyWorld`, the shared sim and loop; its ticks are the ground truth), and
+each bot plays over a loopback link to it (core's `createLoopbackPeerLink`):
+50 ms each way plus up to 15 ms, 5% of `fast` messages lost, so
+`packet.gapRate` measures real loss. The bots and the host exchange the
+app's payloads over the ends (`apps/api/src/bench/party.ts`: input and raw
+snapshots on `fast`, the party's events and keyframes on `rel`); host
+mode's own framing is `check:godot`'s and the browser's to check. The bot
+`host` is the host's own user: in `party-3p-lossy` it plays over a link as
+laggy as the others' (the fair link, which the page sets from its players'
+round trips; the harness knows the profile), in `party-3p-unfair` over a
+0 ms link, the advantage the fair link removes. The scorecard's `party`
+line (`Scorecard.party`, reported, not compared) sets the host's own user
+against the median of the other players: `inputAckRttMs` p50 and
+`predictionErrorPx` p95. A bot's ack time includes the wait for the host's
+next tick, which depends on where its clock steps against the host's tick
+grid, so one bot's p50 can sit up to a tick from another's on an equal link.
+Its prediction error (its own snake against the host's at the same instant)
+is its lead over the host, the same trip and wait, so it follows the round
+trip: the party's 5% loss adds coasted ticks, not prediction error (the
+LEDGER's G6 entry has the A/B).
+
 ## Comparing (the keep/discard gate)
 
 ```bash

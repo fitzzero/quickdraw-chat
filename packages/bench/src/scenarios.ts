@@ -24,6 +24,45 @@ const BASE = {
   tunables: { npcCount: 0 },
 };
 
+/** A party's links: 50 ms each way plus up to 15 ms, 5% of `fast` messages lost (input, snapshots). */
+const PARTY_LINK = { ms: 50, jitter: 15, loss: 0.05 };
+
+/** The host's own user and three players. */
+const PARTY_CLIENTS: Scenario["clients"] = [
+  { name: "host", behavior: { kind: "wander" } },
+  { name: "bot-a", behavior: { kind: "wander" } },
+  { name: "bot-b", behavior: { kind: "wander" } },
+  { name: "bot-c", behavior: { kind: "wander" } },
+];
+
+/**
+ * Party scenarios (host mode): no server. A host in process runs the
+ * party's sim and loop (PartyWorld), and every bot plays over a loopback
+ * link to it, carrying the app's payloads. `packet.gapRate` measures the
+ * link's real loss.
+ */
+const PARTY_SCENARIOS: Record<string, Scenario> = {
+  "party-3p-lossy": {
+    ...BASE,
+    name: "party-3p-lossy",
+    description:
+      "A party: three players and the host's own user, each on a link to the host of 50 ms each " +
+      "way plus up to 15 ms, 5% of fast messages lost; the host's own on a link as laggy (the " +
+      "fair link). Input redundancy and the queue keep prediction tight; the host plays as its players.",
+    clients: PARTY_CLIENTS,
+    party: { host: "host", link: PARTY_LINK },
+  },
+  "party-3p-unfair": {
+    ...BASE,
+    name: "party-3p-unfair",
+    description:
+      "party-3p-lossy without the fair link: the host's own user plays over a link of 0 ms, the " +
+      "advantage the fair link removes (reported, not gated).",
+    clients: PARTY_CLIENTS,
+    party: { host: "host", link: PARTY_LINK, hostLink: { ms: 0, jitter: 0, loss: 0 } },
+  },
+};
+
 export const SCENARIOS: Record<string, Scenario> = {
   "control-0ms": {
     ...BASE,
@@ -214,6 +253,7 @@ export const SCENARIOS: Record<string, Scenario> = {
       { name: "bot-c", behavior: { kind: "wander" }, net: symmetric(wobble(50, 5)) },
     ],
   },
+  ...PARTY_SCENARIOS,
 };
 
 export function getScenario(name: string): Scenario {

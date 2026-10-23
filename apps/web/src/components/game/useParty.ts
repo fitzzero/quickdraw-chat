@@ -135,12 +135,17 @@ export function useParty(options: {
     if (left.worldId === party?.worldId) finish("hostLeft");
   });
 
-  const events = qd.gameService.partyEvents.useStream(party?.worldId ?? null, { max: 200 });
+  const hosting = usePartyHost(party?.role === "host" ? party.worldId : null, options.fairLink);
+  // quickdraw-5.0 finding: the host's own feed of a room it hosts reaches it
+  // over an in-process link, but one subscribed before `serve` (core 5.1.3)
+  // never gets its seed or items: the host's page subscribes once it serves
+  const events = qd.gameService.partyEvents.useStream(party?.worldId ?? null, {
+    max: 200,
+    enabled: party?.role !== "host" || hosting.serving,
+  });
   useNewItems(events.items, (event) => {
     if (event.kind === "death" && event.id === userId) options.onDeath(event);
   });
-
-  const links = usePartyHost(party?.role === "host" ? party.worldId : null, options.fairLink);
 
   return {
     party,
@@ -148,7 +153,7 @@ export function useParty(options: {
     error,
     ended,
     leaderboard: latestBoard(events.items),
-    links,
+    links: hosting.links,
     host: () => {
       setError(undefined);
       setEnded(null);

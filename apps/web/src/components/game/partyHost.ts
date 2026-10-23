@@ -44,6 +44,14 @@ export interface PartyLinks {
   readonly fairLinkMs: number | null;
 }
 
+/** What the host's page knows of the party it hosts. */
+export interface PartyHosting {
+  /** True while this page serves the party: its own feeds of it may subscribe then. */
+  readonly serving: boolean;
+  /** What the links measured, every 5 s; null before the first measure. */
+  readonly links: PartyLinks | null;
+}
+
 /**
  * The tick timer, as a worker's source: one message per tick, on a fixed
  * grid of GAME_TICK_RATE a second (each timeout aims at the next grid
@@ -91,13 +99,14 @@ function settleLinks(
 
 /**
  * Hosts the party `worldId` while this page's socket is its host: runs its
- * world and serves it. Null hosts nothing. Answers what the links measure,
- * every 5 s, for the HUD.
+ * world and serves it. Null hosts nothing. Answers whether it serves, and
+ * what the links measure every 5 s, for the HUD.
  */
 // oxlint-disable-next-line max-lines-per-function -- one effect: the world, its host, its timers
-export function usePartyHost(worldId: string | null, fairLink: boolean): PartyLinks | null {
+export function usePartyHost(worldId: string | null, fairLink: boolean): PartyHosting {
   const { connection, userId } = useQuickdraw();
   const [links, setLinks] = React.useState<PartyLinks | null>(null);
+  const [serving, setServing] = React.useState(false);
   /** The world hosted now, which the server's events reach. */
   const world = React.useRef<PartyWorld | null>(null);
   /** Read at each measure, so turning the fair link off starts no new world. */
@@ -139,9 +148,11 @@ export function usePartyHost(worldId: string | null, fairLink: boolean): PartyLi
       const hosting = hostOf(connection, room) === connection.socket.id;
       if (hosting && host === undefined) {
         host = served.serve(connection, { room });
+        setServing(true);
       } else if (!hosting && host !== undefined) {
         host.close();
         host = undefined;
+        setServing(false);
       }
     };
     const stopHostChange = onHostChange(connection, (changed) => {
@@ -165,8 +176,9 @@ export function usePartyHost(worldId: string | null, fairLink: boolean): PartyLi
       host?.close();
       world.current = null;
       setLinks(null);
+      setServing(false);
     };
   }, [connection, worldId, userId]);
 
-  return links;
+  return { serving, links };
 }

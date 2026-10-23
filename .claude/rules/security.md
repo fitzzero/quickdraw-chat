@@ -45,6 +45,19 @@ closed) is the linked `quickdraw-access.md`.
   (`createCallLimiter()`, 300 calls a minute per IP); one socket holds at
   most 10,000 rows, 1,000 collection scopes and 1,000 topic watches (one
   more is `CONFLICT`).
+  <!-- ── quickdraw-game:start ── -->
+- **Party worlds** (host mode, `peers: true`): the server forwards peer
+  links' signals and relays their messages only between signed-in sockets
+  of one party's room, and `joinParty` admits any signed-in user who has
+  the code (the code is the invitation). What a party's host and its
+  players send each other never reaches the server, and the server trusts
+  none of it: no party score is stored, and the host's word (who died, the
+  leaderboard) stays inside the party. Each player's input is that
+  player's word to the host, which steers only the snake of the user the
+  server named for the link. A host plays on the server's word of who
+  plays (`partyPlayer`), and closing a party is its host's alone (the row
+  policy's `owner("hostUserId")`).
+  <!-- ── quickdraw-game:end ── -->
 - **Admin screens**: each contract's `admin.contract({ editable })` names the
   only fields the admin kit writes (a chat's title, a document's title and
   content, ...), so no owner, chat link or author is rewritten from them;

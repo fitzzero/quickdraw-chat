@@ -90,6 +90,14 @@ export function printSummary(card: Scorecard): string {
         `multi-step ${num(queue.multiStepRate * 100, 2)}%, depth trend ${num(queue.depthTrend, 2)}`,
     );
   }
+  if (card.party) {
+    const { host, inputAckRttP50: rtt, predictionErrorP95: error } = card.party;
+    push(
+      `  Party fairness (${host}, the host's own user, against the other players' median): ` +
+        `ackRTT p50 ${num(rtt.host, 0)} vs ${num(rtt.peers, 0)} ms, ` +
+        `prediction error p95 ${num(error.host)} vs ${num(error.peers)} px`,
+    );
+  }
   if (card.runVariance) {
     const worst = Object.entries(card.runVariance)
       .sort((a, b) => b[1] - a[1])

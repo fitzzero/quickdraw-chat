@@ -113,6 +113,69 @@ when `humanCount() === 0` AND nobody is in the world's room
 (`qd.rooms.size(GLOBAL_WORLD_ROOM) > 0`, spectators and anonymous sockets
 included) — spectators behind the pre-game dialog keep the NPC world running.
 
+## Host mode: party worlds
+
+A party is a world one player's browser hosts (quickdraw's host mode). The
+server keeps the party's row (`GameWorld` with `kind: "party"`, a `code`
+shaped `BAP-XXXX`, `hostUserId`, `closedAt`), its room
+(`partyRoom(worldId)`), its chat, and who hosts it. The world itself runs
+in the host's page. Its contract members sit beside the world's, never in
+place of them: one member is served by the server or by a host, never both.
+
+- **Who is authoritative**: the host's page. It runs `PartyWorld`
+  (`packages/shared/src/game/party.ts`: the same `GameWorldSim` and
+  `GameLoop` as the server's world) and serves the party with `defineHost`
+  (`apps/web/src/components/game/partyHost.ts`) while the server names its
+  socket the room's host (`qd:host`). Players reach the host over peer
+  links: WebRTC where it connects, the server's relay otherwise (always,
+  from headless or native Godot). The server never sees that traffic.
+- **The methods**: `hostParty` (the calling socket joins the room and
+  becomes its host; the caller's other open parties end, since a socket is
+  in one party at a time), `joinParty` by code (the room, the chat and who
+  hosts: the world itself comes from the host), `playParty` (the server
+  tells the room `partyPlayer`, with the name it knows, and the host spawns
+  or respawns that snake), `leaveParty`, and `closeParty` (the host's: the
+  row policy, `anyOf(everyone("Read"), owner("hostUserId"))`, gives a
+  party's host Admin on its row).
+- **The host-served members**: `partyInput` (a player's input, on the
+  link's `fast`, sent every tick as the world's), `partyWorld` (raw
+  `WorldSnapshot`s, volatile; its seed is a keyframe) and `partyEvents`
+  (joins, leaves, deaths and the leaderboard, reliable on `rel`; its seed
+  names every player). Events cannot be host-served, so `partyEvents`
+  replaces the world's events in a party. A host spawns a snake only on
+  the server's `partyPlayer`: a host-served channel rides the link's
+  `fast`, which may lose a one-off command.
+- **What the server trusts**: nothing the host reports. No party score is
+  stored; the party's leaderboard lives in the host's sim. The server says
+  who plays (`partyPlayer`; `partyPlayerLeft` from its `onRoomLeave`, when
+  a user's last socket left the room), when the host left (`onHostLeave`:
+  `hostLeft`, and the party is closed, since no other player takes over),
+  and when the host closed it (`partyClosed`). Both ends take everyone out
+  of the room.
+- **The Worker timer**: a hidden tab throttles the page's timers to about
+  once a second, a dedicated worker's not. The host ticks from a Blob
+  worker on `GameLoop`'s fixed grid, so the party keeps its 20 Hz while the
+  host looks at another tab.
+- **The fair link**: the host's own user plays over a link no network
+  slows, and would win every head-to-head. Every 5 s the host page lags
+  both of its own user's links (its game's, and its own in-process one) by
+  the median of the other players' one-way trips (half of each
+  `link.clock.rtt`), at most 100 ms (`fairLinkMs`), with core's
+  `PeerLink.setLag`, never an app-level delay. The host's input then
+  reaches the sim no sooner than its players', and its snapshots arrive no
+  sooner. `?fairLink=off` on `/game` turns it off for A/B play; the HUD
+  shows each player's round trip and the lag.
+- **Godot**: the page puts the party's code in `QuickdrawHost.party` and
+  boots the engine again (the canvas is keyed by user and party).
+  `game.gd` calls `joinParty`, subscribes to `partyEvents` and `partyWorld`
+  with the party's room (the reference client links to `host_of(room)`
+  itself), sends `partyInput` the same way, and respawns with `playParty`.
+  Never call `peer_link` from app code.
+- **Limits**: a party runs the default tunables (`PARTY_TUNABLES`; admin
+  edits of the snake definition reach the server's world only). A server
+  restart ends every party (hosts are held in memory): `joinParty` answers
+  NOT_FOUND for a party without a host.
+
 ## Simulation rules
 
 - `GameWorldSim` (`packages/shared/src/game/world.ts`, beside its NPCs,
@@ -148,7 +211,11 @@ included) — spectators behind the pre-game dialog keep the NPC world running.
   sockets (`game.int.test.ts`, its frames matched with `streamFrames` and
   `eventFrames`).
 - `bun run check:godot`: two real headless Godot clients in one world, through
-  an API restart (see `apps/game/README.md`).
+  an API restart, then in a party a Node client hosts, over the relay (see
+  `apps/game/README.md`).
+- `bun run --filter @project/api test` covers the party's server half
+  (`party.int.test.ts`): the host frame, joins by code, who may link to the
+  host, and how a party ends.
 
 ## Netcode benchmarking
 
@@ -157,7 +224,8 @@ bench:netcode` runs headless bot clients (TS ports of the Godot netcode in
 `apps/api/src/bench/bot/` — keep them in lockstep with `local_snake.gd` /
 `remote_snake.gd` / `game.gd`'s world clock / `main.gd`'s food) over
 protocol v5 through a
-latency proxy against a live-loop server. See `docs/netcode-bench.md`,
+latency proxy against a live-loop server; a party scenario runs them over
+loopback links to a host in process. See `docs/netcode-bench.md`,
 baselines in `bench-baselines/`, and the `/netcode-rd` skill for the
 hypothesis loop.
 

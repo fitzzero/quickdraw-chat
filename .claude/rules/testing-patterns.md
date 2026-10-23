@@ -59,7 +59,9 @@ through the untracked `testPrisma`.
   <!-- ── quickdraw-game:start ── -->
   With the game: a game runtime with a fixed seed and no NPCs (tests drive
   `loop.tickOnce()`; the loop never starts); the game service's own
-  `onRoomLeave` runs in it as in production.
+  `onRoomLeave` and `onHostLeave` run in it as in production, and it serves
+  peer links (`peers: true`): `party.int.test.ts` hosts a party with a
+  Node client (`defineHost` from the typed client's core) to check them.
   <!-- ── quickdraw-game:end ── -->
 
 Close it in `afterAll`. Then:

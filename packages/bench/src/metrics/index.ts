@@ -3,7 +3,7 @@
  * aggregation across repeated runs of the same scenario.
  */
 
-import type { ClientReport, RunTraces, Scenario, Scorecard } from "../types.js";
+import type { ClientReport, PartyFairness, RunTraces, Scenario, Scorecard } from "../types.js";
 import { computeDivergence, computeFidelity } from "./divergence.js";
 import { computeFood } from "./food.js";
 import { computeInputQueue } from "./inputQueue.js";
@@ -101,6 +101,39 @@ export function computeScorecard(
     ...(fpsValues.length > 0
       ? { tier2: { fps: computeStats(fpsValues), frameTimeMs: computeStats(frameTimes) } }
       : {}),
+    ...partyOf(scenario, clients),
+  };
+}
+
+/** A party scenario's fairness, as the scorecard holds it; nothing for the server's world. */
+function partyOf(
+  scenario: Scenario,
+  clients: Record<string, ClientReport>,
+): { party?: PartyFairness } {
+  return scenario.party ? { party: partyFairness(scenario.party.host, clients) } : {};
+}
+
+/**
+ * A party's fairness: the host's own user's input round trip p50 and
+ * prediction error p95 against the other players' (the median of theirs).
+ * With the fair link the host plays as they do; without it, its input
+ * reaches the sim at once.
+ */
+function partyFairness(host: string, clients: Record<string, ClientReport>): PartyFairness {
+  const own = clients[host];
+  const peers = Object.entries(clients)
+    .filter(([id, report]) => id !== host && report.predictionErrorPx !== undefined)
+    .map(([, report]) => report);
+  return {
+    host,
+    inputAckRttP50: {
+      host: own?.packet.inputAckRttMs.p50 ?? Number.NaN,
+      peers: medianOf(peers.map((c) => c.packet.inputAckRttMs.p50)),
+    },
+    predictionErrorP95: {
+      host: own?.predictionErrorPx?.p95 ?? Number.NaN,
+      peers: medianOf(peers.map((c) => c.predictionErrorPx?.p95 ?? 0)),
+    },
   };
 }
 

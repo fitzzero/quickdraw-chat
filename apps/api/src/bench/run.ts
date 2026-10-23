@@ -6,8 +6,10 @@
  *
  * Per run: fresh bench server (loop running) → one latency proxy per bot
  * (per its scenario net profile) → bots connect and play for the scenario
- * duration → traces → scorecard. Runs aggregate as element-wise medians
- * with a run-variance report. Results land in bench-results/ at repo root.
+ * duration → traces → scorecard. A party scenario has no server: a host in
+ * process and a loopback link per bot (party.ts). Runs aggregate as
+ * element-wise medians with a run-variance report. Results land in
+ * bench-results/ at repo root.
  */
 
 import { execSync } from "node:child_process";
@@ -54,6 +56,8 @@ const {
 } = await import("@project/bench");
 const { startBenchServer, shutdownBenchDatabase } = await import("./server.js");
 const { BotClient } = await import("./bot/client.js");
+const { SocketTransport } = await import("./bot/socket-transport.js");
+const { executePartyRun } = await import("./party.js");
 const { DEFAULT_TUNABLES, GAME_TICK_RATE } = await import("@project/shared");
 
 type Scenario = import("@project/bench").Scenario;
@@ -113,7 +117,12 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+/** One run: a party's (no server: party.ts), or the server's world. */
 async function executeRun(scenario: Scenario): Promise<RunTraces> {
+  return scenario.party ? await executePartyRun(scenario) : await executeServerRun(scenario);
+}
+
+async function executeServerRun(scenario: Scenario): Promise<RunTraces> {
   const server = await startBenchServer(scenario);
   const proxies: LatencyProxy[] = [];
   const bots: InstanceType<typeof BotClient>[] = [];
@@ -136,7 +145,7 @@ async function executeRun(scenario: Scenario): Promise<RunTraces> {
       if (!userId) throw new Error(`no user for bot ${spec.name}`);
       bots.push(
         new BotClient({
-          port,
+          transport: new SocketTransport(port, userId, spec.name),
           userId,
           name: spec.name,
           behaviorKind: spec.behavior.kind,
