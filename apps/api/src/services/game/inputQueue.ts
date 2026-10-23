@@ -147,12 +147,17 @@ export class InputQueue {
     this.taken += 1;
   }
 
-  /** Drops the queued frames and what is owed (the snake died or spawned again); the ack stays. */
+  /**
+   * Drops the queued frames and what is owed (the snake died or spawned
+   * again). The ack stays: the client starts again from it, so its frames
+   * after it are the ones that arrive.
+   */
   public clear(): void {
     this.frames.length = 0;
     this.held = 0;
     this.owed = 0;
-    this.newestTaken = this.newest;
+    this.newest = this.taken;
+    this.newestTaken = this.taken;
   }
 
   /** Pays owed steps by skipping frames while two or more are queued. */

@@ -451,8 +451,9 @@ export class GameWorldSim {
   /**
    * Head-vs-foreign-body collision via a spatial hash of path samples, at the
    * head and at every head a tick of several steps passed (so a catch-up
-   * cannot step over a body). Self-collision is intentionally off (slither.io
-   * rules — crossing your own body is allowed; only foreign bodies kill).
+   * cannot step over a body), against the bodies as they stand at the end
+   * of the tick. Self-collision is intentionally off (slither.io rules —
+   * crossing your own body is allowed; only foreign bodies kill).
    */
   private resolveCollisions(deaths: GameDeathEvent[], foodSpawned: FoodDTO[]): void {
     const hash = this.buildBodyHash();

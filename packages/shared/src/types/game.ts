@@ -44,7 +44,10 @@ export const GAME_INPUT_FRAMES = 4;
  * steps its prediction once per frame; the server steps the snake one frame
  * a tick, in seq order, and echoes the last seq its state holds in
  * PlayerSnap.ack, so the client drops acknowledged frames and replays the
- * rest (reconciliation).
+ * rest (reconciliation). The server coasts a snake through a client's
+ * stall, and the ack runs on: a client whose newest frame falls more than
+ * GAME_INPUT_FRAMES behind the ack numbers its next frame after the ack, or
+ * the server ignores its frames until they catch up.
  */
 export interface GameInput {
   seq: number;
@@ -77,8 +80,9 @@ export interface PlayerSnap {
   len: number;
   boost: boolean;
   /**
-   * Seq of the last input frame the server's state holds for this player:
-   * stepped, or stood in for by a coast (reconciliation anchor).
+   * Seq of the last input frame the server's state holds for this player,
+   * stepped or coasted for (reconciliation anchor). It runs ahead of a
+   * client that stalled.
    */
   ack: number;
 }
