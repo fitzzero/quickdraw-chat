@@ -6,8 +6,8 @@
  * results without timers or I/O.
  */
 
-import type { GameDeathEvent, LeaderboardEntry, WorldSnapshot } from "@project/shared";
-import { GAME_TICK_RATE } from "@project/shared";
+import type { FoodDelta, GameDeathEvent, LeaderboardEntry, WorldSnapshot } from "@project/shared";
+import { GAME_FOOD_WINDOW, GAME_TICK_RATE } from "@project/shared";
 import type { GameWorldSim, TickResult } from "./world.js";
 
 /** What the loop sends, by kind; the runtime puts each on the wire. */
@@ -55,6 +55,8 @@ export class GameLoop {
   /** When the next tick is due (performance.now() ms), on a fixed grid. */
   private nextTickAt = 0;
   private running = false;
+  /** The food changes of the last GAME_FOOD_WINDOW ticks, oldest first: every snapshot repeats them. */
+  private readonly foodWindow: FoodDelta[] = [];
 
   constructor(deps: GameLoopDeps) {
     this.deps = deps;
@@ -112,6 +114,12 @@ export class GameLoop {
     const t0 = this.deps.onTick ? performance.now() : 0;
     const result = this.deps.sim.step();
     const tickDurMs = this.deps.onTick ? performance.now() - t0 : 0;
+    // A volatile snapshot may be dropped: each carries the food changes of
+    // the last ticks, so the next one makes up for it
+    if (result.food) this.foodWindow.push(result.food);
+    const since = result.snapshot.tick - GAME_FOOD_WINDOW;
+    while ((this.foodWindow[0]?.tick ?? Infinity) <= since) this.foodWindow.shift();
+    if (this.foodWindow.length > 0) result.snapshot.food = [...this.foodWindow];
     // Send-time stamp for client clock sync (H2); the sim itself stays
     // wall-clock-free — timing belongs to the transport boundary.
     result.snapshot.t = Math.round(performance.timeOrigin + performance.now());

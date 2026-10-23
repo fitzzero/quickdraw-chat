@@ -11,6 +11,8 @@
 export interface ServerTrace {
   ticks: ServerTick[];
   deaths: { tick: number; tWall: number; id: string }[];
+  /** the food the world held after each of the run's last ticks (ids sorted), to check the clients' */
+  food?: { tick: number; ids: string[] }[];
 }
 
 export interface ServerTick {
@@ -43,6 +45,8 @@ export interface ClientTrace {
   inputs: { seq: number; tSent: number; tAcked?: number }[];
   /** Tier 2 only */
   fpsSamples?: { tWall: number; fps: number }[];
+  /** the food the client held at the end, as of `tick`, and the keyframes it asked for after gaps */
+  food?: { tick: number; ids: string[]; resyncs: number };
 }
 
 export interface ClientFrame {
@@ -170,10 +174,15 @@ export interface ClientReport {
   effectiveFps: number;
   /** the server's view of this client's own snake (players only) */
   inputQueue?: InputQueueReport;
+  /** food ids the client and the server disagreed on at the client's last tick (0: none) */
+  foodMismatchAtEnd?: number;
+  /** keyframes the client asked for after missing more snapshots than the food window */
+  foodResyncs?: number;
 }
 
 export interface Scorecard {
-  schemaVersion: 1;
+  /** 2 since the food window (clients' food); `loadScorecard` reads 1 too */
+  schemaVersion: 1 | 2;
   scenario: string;
   seed: number;
   tier: 1 | 2;

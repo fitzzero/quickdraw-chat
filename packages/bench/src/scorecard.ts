@@ -21,7 +21,7 @@ export function saveScorecard(card: Scorecard, resultsDir: string): string {
 
 export function loadScorecard(path: string): Scorecard {
   const card = JSON.parse(readFileSync(path, "utf8")) as Scorecard;
-  if (card.schemaVersion !== 1) {
+  if (card.schemaVersion !== 1 && card.schemaVersion !== 2) {
     throw new Error(`unsupported scorecard schemaVersion ${String(card.schemaVersion)}: ${path}`);
   }
   return card;
@@ -69,6 +69,12 @@ export function printSummary(card: Scorecard): string {
     }
     if (c.predictionErrorPx) {
       push(`    ${id} local prediction error p95: ${num(c.predictionErrorPx.p95)} px`);
+    }
+    if (c.foodMismatchAtEnd !== undefined) {
+      push(
+        `    ${id} food at the end: ${num(c.foodMismatchAtEnd, 0)} differing from the server's, ` +
+          `${num(c.foodResyncs ?? 0, 0)} keyframes asked for`,
+      );
     }
   }
   push("");

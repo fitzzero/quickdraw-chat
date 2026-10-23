@@ -66,6 +66,7 @@ real render pipeline, including WASM frame pacing.
 | `server.tickDurMs` / `effectiveTickRate` | Sim cost and loop health.                                                                                              | ≪ 50ms / 20Hz.                                                             |
 | `server.snapshotBytes`                   | The snapshot's JSON (the stream item). On the wire each `qd:stream` frame adds its envelope, 59 bytes.                 | Grows with players; add fields consciously.                                |
 | `server.inputQueue`                      | Server's view of client clocks: queue depth p95, coasted and multi-step tick rates, depth trend; per client too.       | depth 0–1, multi-step < 5%, trend ~0; coasts are cheap (see below).        |
+| `foodMismatchAtEnd` / `foodResyncs`      | Per client: food ids held at the end that differ from the server's at that tick (the worst gates); keyframes asked.    | 0 / 0. Only a gap of more than six ticks asks for a keyframe.              |
 
 Aggregated runs (`--runs 3`) report element-wise medians plus `runVariance`
 (max−min of headline metrics across runs). `bench:compare` treats deltas
@@ -76,8 +77,8 @@ inside the noise band as `within-noise` — don't ship a "win" that lives there.
 The bots stand in for the Godot client; `bun run check:godot` runs the real
 one: two headless copies of `apps/game/godot` (`test/session.gd`) against
 the same bench server, checking a whole session (join, each sees the other
-move, a death, the leaderboard, an API restart with both reconnecting). See
-`apps/game/README.md`.
+move, a death, the leaderboard, each holding the server's food, an API
+restart with both reconnecting). See `apps/game/README.md`.
 
 ## Scenarios
 

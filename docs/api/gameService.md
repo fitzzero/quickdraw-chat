@@ -298,14 +298,14 @@ Feeds of items the server appends; a subscriber starts from the stream's seed.
 
 Every tick of a world, starting from the whole world (every snake and all the food); anyone may watch, signed out too.
 
-| Option   | Value                                                                                                                                                                                                                                      |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Item     | `{ tick: integer; t?: number; players: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; foodSpawned?: { id: string; x: number; y: number; v: number }[]; foodEaten?: string[] }` |
-| Scope    | one feed per `worldId`                                                                                                                                                                                                                     |
-| Seed     | computed by the service when a socket subscribes                                                                                                                                                                                           |
-| Volatile | yes                                                                                                                                                                                                                                        |
-| Access   | `"public"`                                                                                                                                                                                                                                 |
-| Checked  | in development only (`validate: "development"`)                                                                                                                                                                                            |
+| Option   | Value                                                                                                                                                                                                                                                          |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Item     | `{ tick: integer; t?: number; players: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; food?: { tick: integer; spawned?: { id: string; x: number; y: number; v: number }[]; eaten?: string[] }[] }` |
+| Scope    | one feed per `worldId`                                                                                                                                                                                                                                         |
+| Seed     | computed by the service when a socket subscribes                                                                                                                                                                                                               |
+| Volatile | yes                                                                                                                                                                                                                                                            |
+| Access   | `"public"`                                                                                                                                                                                                                                                     |
+| Checked  | in development only (`validate: "development"`)                                                                                                                                                                                                                |
 
 ## Channels
 

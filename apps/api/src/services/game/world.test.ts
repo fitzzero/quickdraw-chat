@@ -216,7 +216,7 @@ describe("GameWorldSim", () => {
       const angle = i * 0.15;
       sim.queueInputs("p1", [input(i, Math.cos(angle), Math.sin(angle))]);
       const result = sim.step();
-      if (result.snapshot.foodEaten?.length) ate = true;
+      if (result.food?.eaten?.length) ate = true;
     }
 
     expect(ate).toBe(true);
@@ -247,7 +247,7 @@ describe("GameWorldSim", () => {
       if (result.deaths.some((d) => d.id === "hunter")) {
         died = true;
         // Death converts body to food
-        expect(result.snapshot.foodSpawned?.length ?? 0).toBeGreaterThan(0);
+        expect(result.food?.spawned?.length ?? 0).toBeGreaterThan(0);
       }
     }
 
@@ -324,7 +324,7 @@ describe("GameWorldSim", () => {
     expect(head.y).toBeLessThanOrEqual(DEFAULT_TUNABLES.worldHeight);
   });
 
-  it("respawns food up to maxFood and reports spawns in snapshots", () => {
+  it("respawns food up to maxFood and reports spawns as the tick's food change", () => {
     const sim = makeSim({ initialFood: 0, maxFood: 3, foodSpawnIntervalTicks: 2 });
     sim.addPlayer("p1", null);
 
@@ -332,7 +332,7 @@ describe("GameWorldSim", () => {
     for (let i = 1; i <= 20; i++) {
       sim.queueInputs("p1", [input(i, 1, 0)]);
       const result = sim.step();
-      spawned.push(result.snapshot.foodSpawned?.length ?? 0);
+      spawned.push(result.food?.spawned?.length ?? 0);
     }
 
     expect(spawned.reduce((a, b) => a + b, 0)).toBe(3);
@@ -390,7 +390,7 @@ describe("NPC snakes", () => {
     let ate = false;
     for (let i = 0; i < 400 && !ate; i++) {
       const result = sim.step();
-      if (result.snapshot.foodEaten?.length) ate = true;
+      if (result.food?.eaten?.length) ate = true;
     }
     expect(ate).toBe(true);
     expect(must(sim.getLength("npc-0"))).toBeGreaterThan(DEFAULT_TUNABLES.startLength);

@@ -43,12 +43,21 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   starts from the current world, which the service computes
   (`streams.world.seed`: the sim's `keyframe()`, every snake and all the
   food, read from memory, never the database), and the snapshots that follow
-  are deltas of it. Snapshots are checked against the schema in development
-  and tests only (`validate: "development"`).
+  are deltas of it. Every snapshot carries every snake's head, so a dropped
+  one costs a frame of motion only; a food change happens on one tick, so
+  each snapshot repeats the food changes of the last six ticks
+  (`GAME_FOOD_WINDOW`: `food`, one entry per tick that changed, kept by the
+  loop). A client applies each tick's entry once, in tick order. A snapshot
+  more than six ticks past the last one it applied means changes were lost:
+  the client subscribes again (a held feed answers a fresh seed), and the
+  keyframe (the seed, the one snapshot without a send time `t`, all the food
+  in one entry) replaces its food. Snapshots are checked against the schema
+  in development and tests only (`validate: "development"`).
 - **Events** (`playerJoined`, `playerLeft`, `death`, `leaderboard`) —
   reliable, sent to the world's room with `qd.rooms.emit` (from the loop) or
   `ctx.rooms.emit` (from a handler). Anything a client must not miss is an
-  event, never a stream item.
+  event, or a stream field repeated as the food changes are (a window of
+  ticks, a keyframe past it); never a stream item sent once.
 
 ## Rooms and the ordering contract (clients)
 

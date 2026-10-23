@@ -18,6 +18,10 @@ var _camera: Camera2D
 var _world_layer: Node2D
 var _status: Label
 var _latest_tick := 0
+## The tick whose food changes _food holds, every one before it too (-1
+## before a keyframe), and whether a keyframe was asked for and not come.
+var _food_tick := -1
+var _food_resyncing := false
 var _player_meta: Dictionary = {}
 var _spectate_focus_id := ""
 var _spectate_target := Vector2.ZERO
@@ -83,6 +87,7 @@ func _on_world_ready(bootstrap: Dictionary) -> void:
 
 	_food.set_all(bootstrap.get("food", []))
 	_latest_tick = int(bootstrap.get("tick", 0))
+	_food_tick = _latest_tick
 
 	for snap in bootstrap.get("snaps", []):
 		_spawn_snake_from_snap(snap as Dictionary, _latest_tick)
@@ -143,7 +148,7 @@ func _spawn_snake_from_snap(snap: Dictionary, tick: int) -> void:
 func _on_snapshot(snapshot: Dictionary) -> void:
 	var tick := int(snapshot["tick"])
 	_latest_tick = tick
-	_food.apply_snapshot_deltas(snapshot)
+	_apply_food(snapshot, tick)
 
 	for raw in snapshot.get("players", []):
 		var snap := raw as Dictionary
@@ -164,6 +169,33 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 		_update_spectate_target(snapshot.get("players", []))
 
 	_prune_stale_remotes(tick)
+
+
+## Each snapshot repeats the food changes of the last GameConfig.FOOD_WINDOW
+## ticks: apply each tick's once, in order, so a dropped snapshot costs
+## nothing. A keyframe (the stream's seed, without a send time) replaces the
+## food; a snapshot past the window asks for one. The bots' port is
+## apps/api/src/bench/bot/food.ts: keep them in lockstep.
+func _apply_food(snapshot: Dictionary, tick: int) -> void:
+	var entries: Array = snapshot.get("food", [])
+	if not snapshot.has("t"):
+		var first: Dictionary = entries[0] if not entries.is_empty() else {}
+		_food.set_all(first.get("spawned", []))
+		_food_tick = tick
+		_food_resyncing = false
+		return
+	if _food_tick >= 0 and tick - _food_tick > GameConfig.FOOD_WINDOW:
+		if not _food_resyncing:
+			_request_keyframe()
+		return
+	_food.apply_deltas(entries, _food_tick)
+	_food_tick = maxi(_food_tick, tick)
+
+
+func _request_keyframe() -> void:
+	_food_resyncing = true
+	if not await Game.resync_world():
+		_food_resyncing = false
 
 
 ## Reliable playerLeft/death events normally clean up remotes; the prune is a

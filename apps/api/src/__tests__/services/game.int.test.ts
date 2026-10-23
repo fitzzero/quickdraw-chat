@@ -19,6 +19,7 @@ import {
   GLOBAL_WORLD_SLUG,
   gameContract,
 } from "@project/shared";
+import { FoodTracker } from "../../bench/bot/food.js";
 import { ensureGlobalWorld } from "../../services/game/bootstrap.js";
 import { gameService } from "../../services/game/index.js";
 import { gameRuntime, persistScore } from "../../services/game/runtime.js";
@@ -497,12 +498,80 @@ describe("GameService on the realtime kit", () => {
     const world = runtime.sim.getBootstrapState();
     expect(must(seed).tick).toBe(runtime.sim.tick);
     expect(must(seed).players.map((p) => p.id)).toEqual(world.snaps.map((s) => s.id));
-    // every piece of food, as spawned: the ticks that follow are deltas of it
+    // every piece of food in one entry at its own tick, which replaces a
+    // client's food; the ticks that follow change it
+    expect(must(seed).food?.map((entry) => entry.tick)).toEqual([runtime.sim.tick]);
     expect(
       must(seed)
-        .foodSpawned?.map((f) => f.id)
+        .food?.[0]?.spawned?.map((f) => f.id)
         .sort(),
     ).toEqual(world.food.map((f) => f.id).sort());
+  });
+
+  describe("food on the volatile world stream", () => {
+    let restore: () => void = () => undefined;
+
+    beforeEach(async () => {
+      // Food spawns every third tick for these tests, so changes land on
+      // dropped and kept snapshots both
+      const { sim } = gameRuntime(testDb);
+      const { foodSpawnIntervalTicks, maxFood } = sim.tunables;
+      sim.applyTunables({ foodSpawnIntervalTicks: 3, maxFood: 10_000 });
+      restore = () => sim.applyTunables({ foodSpawnIntervalTicks, maxFood });
+      // a player keeps the world ticking
+      await as(users.regular.id).gameService.joinGame(WORLD);
+    });
+
+    afterEach(() => {
+      restore();
+    });
+
+    function serverFood(): string[] {
+      return gameRuntime(testDb)
+        .sim.getBootstrapState()
+        .food.map((f) => f.id)
+        .sort();
+    }
+
+    it("repeats each tick's food change: a client that drops every other snapshot ends with the server's food", async () => {
+      const socket = await connect(null);
+      const food = new FoodTracker();
+      for (const seed of await subscribeWorld(socket)) food.apply(seed);
+
+      let missed = 0;
+      for (let i = 0; i < 40; i++) {
+        const snapshot = await tickTo(socket);
+        if (i % 2 === 0) {
+          // dropped: a change of its own tick reaches the client with the next
+          if (snapshot.food?.some((entry) => entry.tick === snapshot.tick)) missed++;
+          continue;
+        }
+        expect(food.apply(snapshot)).toBe(false);
+      }
+
+      expect(missed).toBeGreaterThan(0);
+      expect(food.tick).toBe(gameRuntime(testDb).sim.tick);
+      expect(food.ids()).toEqual(serverFood());
+      expect(food.resyncs).toBe(0);
+    });
+
+    it("a client that misses more snapshots than the window subscribes again, and converges on the keyframe", async () => {
+      const socket = await connect(null);
+      const food = new FoodTracker();
+      for (const seed of await subscribeWorld(socket)) food.apply(seed);
+
+      // ten snapshots lost: food spawned meanwhile that no window holds now
+      for (let i = 0; i < 10; i++) await tickTo(socket);
+      expect(food.apply(await tickTo(socket))).toBe(true);
+      expect(food.awaitingKeyframe).toBe(true);
+      // the stream again: its seed is the world now
+      for (const seed of await subscribeWorld(socket)) food.apply(seed);
+      expect(food.awaitingKeyframe).toBe(false);
+      expect(food.apply(await tickTo(socket))).toBe(false);
+
+      expect(food.ids()).toEqual(serverFood());
+      expect(food.resyncs).toBe(1);
+    });
   });
 
   it("a second joiner arrives at the first player as a playerJoined event", async () => {

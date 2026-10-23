@@ -5,6 +5,7 @@
 
 import type { ClientReport, RunTraces, Scenario, Scorecard } from "../types.js";
 import { computeDivergence, computeFidelity } from "./divergence.js";
+import { computeFood } from "./food.js";
 import { computeInputQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
 import { computeSmoothness } from "./smoothness.js";
@@ -54,6 +55,7 @@ export function computeScorecard(
       effectiveFps:
         windowEnd > windowStart ? frames.length / ((windowEnd - windowStart) / 1000) : 0,
       ...(ownQueue ? { inputQueue: ownQueue } : {}),
+      ...computeFood(client, traces.server),
     };
   }
   const inputQueue = computeInputQueue(windowed);
@@ -77,7 +79,7 @@ export function computeScorecard(
   });
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     scenario: scenario.name,
     seed: scenario.seed,
     tier: meta.tier,
@@ -128,7 +130,20 @@ export function headlineMetrics(card: Scorecard): Record<string, number> {
     ...(card.server.inputQueue
       ? { "server.inputQueue.depthP95": card.server.inputQueue.depthP95 }
       : {}),
+    ...foodMetric(clientReports),
   };
+}
+
+/**
+ * The most food ids any client ended up differing from the server on: 0, or
+ * a food change lost. Compared once both cards carry it (scorecards made
+ * before the food window do not).
+ */
+function foodMetric(clients: ClientReport[]): Record<string, number> {
+  const mismatches = clients.flatMap((c) =>
+    c.foodMismatchAtEnd === undefined ? [] : [c.foodMismatchAtEnd],
+  );
+  return mismatches.length > 0 ? { "food.mismatchAtEnd": Math.max(...mismatches) } : {};
 }
 
 function medianOf(values: number[]): number {

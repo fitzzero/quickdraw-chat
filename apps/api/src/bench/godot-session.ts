@@ -14,9 +14,12 @@
  *   3. a death reaches both (the snakes meet in the centre), and the dead
  *      player respawns;
  *   4. the leaderboard reaches both, naming both players;
- *   5. the API restarts on the same port: both clients reconnect by
+ *   5. each holds the server's food: each tick's change applied once, from
+ *      the window every snapshot repeats;
+ *   6. the API restarts on the same port: both clients reconnect by
  *      themselves, rejoin the new world, and see each other move again,
- *      their world clocks on the new world's ticks (which start over).
+ *      their world clocks on the new world's ticks (which start over);
+ *   7. each holds the new world's food, none of the old world's left.
  *
  * Exit code 0 when every check held. QD_TRACE=1 also prints each client's
  * frames (the GDScript client's `trace`).
@@ -167,6 +170,26 @@ function clockOnTime(client: GodotClient, from: number): boolean {
   return behind > 0 && behind < 10;
 }
 
+/** A food probe's ids, sorted, as one string. */
+function idsOf(probe: Probe): string {
+  return [...(probe.ids as string[])].sort().join(",");
+}
+
+/**
+ * True when `client`'s latest food since probe `from` is the food the server
+ * held at the same tick, and not its first since then: the client applied
+ * the world's food changes, each tick's once, and kept no stale food.
+ */
+function heldServerFood(client: GodotClient, server: BenchServer, from: number): boolean {
+  const probes = client.since(from, "food");
+  const first = probes[0];
+  const last = probes.at(-1);
+  if (first === undefined || last === undefined) return false;
+  const truth = server.recorder.trace().food?.find((entry) => entry.tick === last.tick);
+  const held = idsOf(last);
+  return truth !== undefined && held === truth.ids.join(",") && held !== idsOf(first);
+}
+
 async function step(label: string, check: () => Promise<unknown>): Promise<void> {
   const started = Date.now();
   await check();
@@ -220,6 +243,23 @@ async function checkDeathAndLeaderboard({ ada, bo, both }: Players): Promise<voi
 /** The server the clients talk to: the restart check replaces it. */
 interface Running {
   server: BenchServer;
+}
+
+/** Each client's food against the server's, from probe `fromOf(client)` on. */
+async function checkFood(
+  label: string,
+  { both }: Players,
+  running: Running,
+  fromOf: (client: GodotClient) => number,
+): Promise<void> {
+  await step(label, async () => {
+    for (const client of both) {
+      const from = fromOf(client);
+      await client.waitFor("a match with the server's food", from, () =>
+        heldServerFood(client, running.server, from),
+      );
+    }
+  });
 }
 
 /** Stops the server and starts a new one on its port. */
@@ -278,14 +318,27 @@ async function session(): Promise<void> {
   try {
     await checkJoinAndMove(players);
     await checkDeathAndLeaderboard(players);
+    await checkFood(
+      "each holds the server's food, each tick's change applied once",
+      players,
+      running,
+      () => 0,
+    );
     await checkRestart(players, running);
+    // the new world's ids repeat the old one's: its keyframe must replace them
+    await checkFood(
+      "each holds the new world's food, none of the old world's",
+      players,
+      running,
+      (client) => client.probes.map((probe) => probe.kind).lastIndexOf("world"),
+    );
   } finally {
     for (const client of players.both) client.stop();
     await running.server.stop();
   }
   const counts = players.both.map(
     (client) =>
-      `${client.name}: ${String(client.since(0, "seen").length)} sightings, ${String(client.since(0, "death").length)} deaths, ${String(client.since(0, "leaderboard").length)} leaderboards, ${String(client.since(0, "connected").length)} hellos`,
+      `${client.name}: ${String(client.since(0, "seen").length)} sightings, ${String(client.since(0, "death").length)} deaths, ${String(client.since(0, "leaderboard").length)} leaderboards, ${String(client.since(0, "connected").length)} hellos, ${String(client.since(0, "food").length)} food checks`,
   );
   console.log(`check:godot: every check held (${counts.join("; ")})`);
 }

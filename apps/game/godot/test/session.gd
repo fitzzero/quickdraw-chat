@@ -12,6 +12,8 @@ extends SceneTree
 ##                  latest snapshot of the world stream, and where the
 ##                  others are drawn (their RemoteSnake, interpolated on the
 ##                  world clock) and the clock's render tick
+##   food           every 0.5 s: the food main.gd holds (its FoodLayer's ids)
+##                  and the tick whose changes it holds
 ##   death, leaderboard, left   the world's events
 ##   disconnected, refused      the connection
 ##
@@ -95,6 +97,7 @@ func _process(delta: float) -> bool:
 	if _since_probe >= PROBE_EVERY_S and not _latest.is_empty():
 		_since_probe = 0.0
 		_probe_seen()
+		_probe_food()
 	return false
 
 
@@ -132,6 +135,16 @@ func _probe_seen() -> void:
 		"others": others,
 		"drawn": drawn,
 	})
+
+
+## The food main.gd holds, and the tick whose changes it holds (every one
+## before it too), for the driver to check against the server's.
+func _probe_food() -> void:
+	var layer: Variant = _main.get("_food")
+	if not (layer is Node):
+		return
+	var ids: Array = ((layer as Node).get("_food") as Dictionary).keys()
+	_probe({"kind": "food", "tick": _main.get("_food_tick"), "ids": ids})
 
 
 func _probe(payload: Dictionary) -> void:

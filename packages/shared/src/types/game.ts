@@ -95,12 +95,26 @@ export interface FoodDTO {
   v: number;
 }
 
+/** Ticks of food changes every snapshot repeats, so a dropped one costs nothing. */
+export const GAME_FOOD_WINDOW = 6;
+
+/** The food one tick changed. */
+export interface FoodDelta {
+  tick: number;
+  spawned?: FoodDTO[];
+  eaten?: string[];
+}
+
 /**
- * Pushed to the world stream every tick (volatile). Food is delta-encoded;
- * players are full. The stream's seed is one keyframe of the current world
- * (every snake, and all the food as `foodSpawned`, with no `t`), which the
- * ticks that follow change; the watchWorld/joinGame bootstrap holds the same
- * world too.
+ * Pushed to the world stream every tick (volatile). Players are full; food
+ * is delta-encoded, and each snapshot repeats the changes of the
+ * GAME_FOOD_WINDOW ticks up to its own (`food`, the ticks that changed food,
+ * oldest first), so a client that missed a snapshot applies them with the
+ * next. A client applies each tick's change once, in tick order. One that
+ * missed more than the window subscribes to the stream again: its seed is a
+ * keyframe of the current world (every snake, and all the food in one entry
+ * at its own tick, with no `t`), which replaces the food the client holds.
+ * The watchWorld/joinGame bootstrap holds the same world too.
  */
 export interface WorldSnapshot {
   tick: number;
@@ -112,8 +126,7 @@ export interface WorldSnapshot {
    */
   t?: number;
   players: PlayerSnap[];
-  foodSpawned?: FoodDTO[];
-  foodEaten?: string[];
+  food?: FoodDelta[];
 }
 
 export interface GamePlayerMeta {

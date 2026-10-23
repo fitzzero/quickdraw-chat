@@ -282,6 +282,16 @@ func send_inputs(frames: Array) -> void:
 	Net.client.send_channel("gameService", "input", {"frames": frames})
 
 
+## Missed more snapshots than the food window repeats: subscribe to the
+## world stream again. Its seed (a keyframe, through stream_seeded) replaces
+## the food. False when the server refused it.
+func resync_world() -> bool:
+	if world_id.is_empty():
+		return false
+	var sub: Dictionary = await Net.client.subscribe_stream("gameService", "world", world_id)
+	return sub.get("ok", false)
+
+
 ## Commands stay quickdraw methods — the same call a React button makes.
 func respawn() -> void:
 	if world_id.is_empty():

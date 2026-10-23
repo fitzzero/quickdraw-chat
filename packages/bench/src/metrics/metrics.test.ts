@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { getScenario } from "../scenarios.js";
 import type { ClientTrace, ServerTick, ServerTrace } from "../types.js";
 import { computeStats, sampleTrack, buildDiscontinuityMask } from "./tracks.js";
 import { computeDivergence } from "./divergence.js";
+import { computeFood } from "./food.js";
+import { computeScorecard, headlineMetrics } from "./index.js";
 import { computeInputQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
 
@@ -154,5 +157,59 @@ describe("computeInputQueue", () => {
     expect(own?.depthTrend).toBeGreaterThan(4);
     expect(own?.depthP95).toBe(5);
     expect(computeInputQueue(ticks, "p2")?.depthTrend).toBe(0);
+  });
+});
+
+describe("computeFood", () => {
+  const server: ServerTrace = {
+    ...makeServerTrace(),
+    food: [
+      { tick: 99, ids: ["a", "b"] },
+      { tick: 100, ids: ["a", "c"] },
+    ],
+  };
+
+  it("counts the food ids a client and the server disagree on at its last tick", () => {
+    const client = makeClientTrace("c1", 0);
+    expect(
+      computeFood({ ...client, food: { tick: 100, ids: ["a", "c"], resyncs: 0 } }, server),
+    ).toEqual({ foodMismatchAtEnd: 0, foodResyncs: 0 });
+    // a ghost (b, eaten on the server) and a miss (c)
+    expect(
+      computeFood({ ...client, food: { tick: 100, ids: ["a", "b"], resyncs: 1 } }, server),
+    ).toEqual({ foodMismatchAtEnd: 2, foodResyncs: 1 });
+  });
+
+  it("reports no mismatch without food at the client's tick, and nothing without food", () => {
+    const client = makeClientTrace("c1", 0);
+    expect(computeFood({ ...client, food: { tick: 7, ids: [], resyncs: 0 } }, server)).toEqual({
+      foodResyncs: 0,
+    });
+    expect(computeFood(client, server)).toEqual({});
+  });
+});
+
+describe("headlineMetrics", () => {
+  const scenario = { ...getScenario("control-0ms"), warmupMs: 0 };
+  const meta = { tier: 1 as const, gitCommit: "test", branch: "test" };
+
+  it("gates on the worst client's food, once the card carries it", () => {
+    const server: ServerTrace = { ...makeServerTrace(), food: [{ tick: 100, ids: ["a"] }] };
+    const fed = (clientId: string, ids: string[]): ClientTrace => ({
+      ...makeClientTrace(clientId, 0),
+      food: { tick: 100, ids, resyncs: 0 },
+    });
+    const card = computeScorecard(
+      { server, clients: [fed("c1", ["a"]), fed("c2", ["b", "c"])] },
+      scenario,
+      meta,
+    );
+    expect(headlineMetrics(card)["food.mismatchAtEnd"]).toBe(3);
+    const bare = computeScorecard(
+      { server: makeServerTrace(), clients: [makeClientTrace("c1", 0)] },
+      scenario,
+      meta,
+    );
+    expect(headlineMetrics(bare)).not.toHaveProperty(["food.mismatchAtEnd"]);
   });
 });

@@ -14,6 +14,9 @@ const FIXED_DT := 1.0 / TICK_RATE
 ## Frames one input message carries at most: its newest and the three before
 ## it (GAME_INPUT_FRAMES in packages/shared/src/types/game.ts).
 const INPUT_FRAMES := 4
+## Ticks of food changes every snapshot repeats (GAME_FOOD_WINDOW in
+## packages/shared/src/types/game.ts).
+const FOOD_WINDOW := 6
 
 static var base_speed := 180.0
 static var boost_speed := 320.0

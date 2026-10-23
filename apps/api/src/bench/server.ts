@@ -109,6 +109,7 @@ export async function startBenchServer(
     tunables: scenario.tunables ?? {},
     onTick: recorder.onTick,
   });
+  recorder.seedFood(game.sim.keyframe());
   await new Promise<void>((resolvePort) => {
     server.httpServer.listen(options.port ?? 0, () => resolvePort());
   });

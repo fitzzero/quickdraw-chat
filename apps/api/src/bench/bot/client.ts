@@ -34,6 +34,7 @@ import type {
   WorldSnapshot,
 } from "@project/shared";
 import { GLOBAL_WORLD_ID } from "@project/shared";
+import { FoodTracker } from "./food.js";
 import { LocalPredictor, type PredictionTunables } from "./prediction.js";
 import { RemoteInterpolator } from "./interpolation.js";
 import { WorldClock } from "./world-clock.js";
@@ -98,6 +99,8 @@ async function callGame<T>(socket: Socket, id: number, method: string, input: un
 
 export class BotClient {
   private socket: Socket | null = null;
+  /** The food this client holds (food.ts, the port of main.gd's). */
+  private readonly food = new FoodTracker();
   private readonly worldClock: WorldClock;
   private predictor: LocalPredictor | null = null;
   private readonly interpolators = new Map<string, RemoteInterpolator>();
@@ -178,11 +181,7 @@ export class BotClient {
     // Ordering contract: the world stream FIRST (its snapshots supersede the
     // bootstrap's after it), then join/watch, which puts this socket in the
     // world's room: its events, and the input channel's requirement.
-    const subscribed = await request<StreamSubscribeReply>(socket, "qd:stream:sub", {
-      s: "gameService",
-      stream: "world",
-      scope: GLOBAL_WORLD_ID,
-    });
+    const subscribed = await this.subscribeWorld(socket);
     if (!subscribed.ok) throw new Error(`bot ${this.opts.name}: ${subscribed.e.message}`);
 
     if (this.opts.behaviorKind === "spectator") {
@@ -202,6 +201,29 @@ export class BotClient {
     this.scheduleRenderFrame();
   }
 
+  /** Subscribes to the world stream; its seed (a keyframe) replaces the food held. */
+  private async subscribeWorld(socket: Socket): Promise<StreamSubscribeReply<WorldSnapshot>> {
+    const reply = await request<StreamSubscribeReply<WorldSnapshot>>(socket, "qd:stream:sub", {
+      s: "gameService",
+      stream: "world",
+      scope: GLOBAL_WORLD_ID,
+    });
+    if (reply.ok) for (const seed of reply.seed) this.food.apply(seed);
+    return reply;
+  }
+
+  /** Missed more snapshots than the food window repeats: a keyframe puts the food right. */
+  private requestKeyframe(): void {
+    const socket = this.socket;
+    if (!socket) return;
+    this.subscribeWorld(socket).then(
+      (reply) => {
+        if (!reply.ok) this.food.keyframeRefused();
+      },
+      () => this.food.keyframeRefused(),
+    );
+  }
+
   /** A call id no call in flight on this socket has. */
   private callId(): number {
     this.nextCallId += 1;
@@ -212,6 +234,7 @@ export class BotClient {
     this.stopped = true;
     if (this.renderTimer) clearTimeout(this.renderTimer);
     this.socket?.close();
+    this.trace.food = { tick: this.food.tick, ids: this.food.ids(), resyncs: this.food.resyncs };
     return this.trace;
   }
 
@@ -296,6 +319,7 @@ export class BotClient {
     this.trace.snapshots.push({ tWall, tick: snapshot.tick });
     this.latestTick = snapshot.tick;
     this.worldClock.observe(snapshot.tick, snapshot.t, tWall);
+    if (this.food.apply(snapshot)) this.requestKeyframe();
 
     for (const snap of snapshot.players) {
       if (snap.id === this.opts.userId && this.predictor) {

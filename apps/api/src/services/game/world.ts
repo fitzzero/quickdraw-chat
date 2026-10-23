@@ -22,6 +22,7 @@
  */
 
 import type {
+  FoodDelta,
   FoodDTO,
   GameDeathEvent,
   GameInput,
@@ -134,7 +135,10 @@ export interface TickInputs {
 }
 
 export interface TickResult {
+  /** The tick's snapshot; the loop adds the food changes of the last ticks (`food`). */
   snapshot: WorldSnapshot;
+  /** The food this tick changed (none: null). */
+  food: FoodDelta | null;
   deaths: GameDeathEvent[];
   /**
    * Per human snake alive and fed this tick: what the server sees of its
@@ -352,13 +356,16 @@ export class GameWorldSim {
     this.resolveCollisions(deaths, foodSpawned);
     this.respawnFood(foodSpawned);
 
+    const changed = foodSpawned.length > 0 || foodEaten.length > 0;
     return {
-      snapshot: {
-        tick: this.tick,
-        players: this.buildSnaps(),
-        ...(foodSpawned.length > 0 ? { foodSpawned } : {}),
-        ...(foodEaten.length > 0 ? { foodEaten } : {}),
-      },
+      snapshot: { tick: this.tick, players: this.buildSnaps() },
+      food: changed
+        ? {
+            tick: this.tick,
+            ...(foodSpawned.length > 0 ? { spawned: foodSpawned } : {}),
+            ...(foodEaten.length > 0 ? { eaten: foodEaten } : {}),
+          }
+        : null,
       deaths,
       inputs,
     };
@@ -575,14 +582,14 @@ export class GameWorldSim {
 
   /**
    * The world now as one snapshot (a keyframe): every snake's head and all
-   * the food, as spawned. The world stream's seed: the snapshots that follow
-   * are deltas of it.
+   * the food in one entry at this tick, which replaces a client's food. The
+   * world stream's seed: the snapshots that follow change it.
    */
   public keyframe(): WorldSnapshot {
     return {
       tick: this.tick,
       players: this.buildSnaps(),
-      foodSpawned: Array.from(this.food.values()).map((f) => ({ ...f })),
+      food: [{ tick: this.tick, spawned: Array.from(this.food.values()).map((f) => ({ ...f })) }],
     };
   }
 
