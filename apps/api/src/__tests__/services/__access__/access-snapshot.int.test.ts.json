@@ -169,15 +169,15 @@
       "stranger": "FORBIDDEN"
     },
     "chatService.joinWorldChat": {
-      "admin": "ok",
-      "agent": "ok",
-      "agentAdmin": "ok",
+      "admin": "FORBIDDEN",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
       "anonymous": "UNAUTHENTICATED",
-      "member": "ok",
-      "moderator": "ok",
-      "owner": "ok",
-      "serviceModerator": "ok",
-      "stranger": "ok"
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
     },
     "chatService.leaveChat": {
       "admin": "NOT_FOUND",
@@ -565,13 +565,13 @@
       "stranger": "FORBIDDEN"
     },
     "gameService.closeParty": {
-      "admin": "NOT_FOUND",
-      "agent": "FORBIDDEN",
-      "agentAdmin": "NOT_FOUND",
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
       "anonymous": "UNAUTHENTICATED",
       "member": "FORBIDDEN",
       "moderator": "FORBIDDEN",
-      "owner": "FORBIDDEN",
+      "owner": "ok",
       "serviceModerator": "FORBIDDEN",
       "stranger": "FORBIDDEN"
     },
@@ -631,15 +631,15 @@
       "stranger": "NOT_FOUND"
     },
     "gameService.joinParty": {
-      "admin": "NOT_FOUND",
-      "agent": "NOT_FOUND",
-      "agentAdmin": "NOT_FOUND",
+      "admin": "VALIDATION",
+      "agent": "VALIDATION",
+      "agentAdmin": "VALIDATION",
       "anonymous": "UNAUTHENTICATED",
-      "member": "NOT_FOUND",
-      "moderator": "NOT_FOUND",
-      "owner": "NOT_FOUND",
-      "serviceModerator": "NOT_FOUND",
-      "stranger": "NOT_FOUND"
+      "member": "VALIDATION",
+      "moderator": "VALIDATION",
+      "owner": "VALIDATION",
+      "serviceModerator": "VALIDATION",
+      "stranger": "VALIDATION"
     },
     "gameService.leaveGame": {
       "admin": "NOT_FOUND",
@@ -664,15 +664,15 @@
       "stranger": "ok"
     },
     "gameService.playParty": {
-      "admin": "NOT_FOUND",
-      "agent": "NOT_FOUND",
-      "agentAdmin": "NOT_FOUND",
+      "admin": "FORBIDDEN",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
       "anonymous": "UNAUTHENTICATED",
-      "member": "NOT_FOUND",
-      "moderator": "NOT_FOUND",
-      "owner": "NOT_FOUND",
-      "serviceModerator": "NOT_FOUND",
-      "stranger": "NOT_FOUND"
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
     },
     "gameService.respawn": {
       "admin": "NOT_FOUND",

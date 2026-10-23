@@ -9,6 +9,7 @@ import {
   GLOBAL_WORLD_ID,
   GLOBAL_WORLD_ROOM,
   GAME_TICK_RATE,
+  PARTY_WORLD_KIND,
   gameContract,
   partyRoom,
 } from "@project/shared";
@@ -18,13 +19,18 @@ import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
 import {
   PARTY_BOUNDS,
+  assertInParty,
+  assertRoomInParty,
   createPartyRow,
   endParties,
+  enterPartyRoom,
   hostedParties,
+  oneHostPartyAtATime,
   onPartyHostLeave,
   openParty,
-  openPartyByCode,
+  openPartyForJoin,
   partyRoomsLeft,
+  partySocketLeft,
 } from "./party.js";
 import {
   activeGameRuntime,
@@ -38,6 +44,11 @@ type Db = typeof appDb;
 
 function unknownWorld(): never {
   throw new QuickdrawError("NOT_FOUND", "Unknown world");
+}
+
+/** A party without a host has ended: its host left, or the server restarted. */
+function partyEnded(): never {
+  throw new QuickdrawError("NOT_FOUND", "That party has ended");
 }
 
 /** The world's chat (the in-game chat overlay), read for a caller who is not signed in. */
@@ -163,43 +174,63 @@ export const gameService = qd.defineService(gameContract, {
       access: "authenticated",
       handler: async ({ ctx, db }): Promise<PartyHosted> => {
         // the host serves the party over peer links, which only a socket has
-        if (ctx.socketId === undefined) {
+        const { socketId } = ctx;
+        if (socketId === undefined) {
           throw new QuickdrawError("VALIDATION", "Host a party over a socket");
         }
-        // a socket is in one party at a time: the caller's other parties end
-        await endParties(db, ctx, await hostedParties(db, ctx.principal.userId), "partyClosed");
-        const world = await createPartyRow(db, ctx.principal.userId);
-        // its chat, the chat service's to make: the host is its Admin
-        const { id: chatId } = await ctx.services.chatService.createChat({
-          title: `🎉 Party ${world.code}`,
+        const hostUserId = ctx.principal.userId;
+        return await oneHostPartyAtATime(hostUserId, async () => {
+          // a user hosts one party at a time: their other parties end
+          await endParties(db, ctx, await hostedParties(db, hostUserId), "partyClosed");
+          const world = await createPartyRow(db, hostUserId);
+          try {
+            // its chat, the chat service's to make: the host is its Admin
+            const { id: chatId } = await ctx.services.chatService.createChat({
+              title: `🎉 Party ${world.code}`,
+            });
+            await db.gameWorld.update({
+              where: { id: world.id },
+              data: { chatId },
+              select: { id: true },
+            });
+            // in the room first (and out of any other party's): setHost
+            // refuses a socket outside it
+            const room = partyRoom(world.id);
+            enterPartyRoom(ctx.rooms, socketId, room);
+            if (!ctx.rooms.setHost(room)) throw new QuickdrawError("INTERNAL", "No host was set");
+            return { worldId: world.id, code: world.code, chatId };
+          } catch (error) {
+            // a party nobody hosts has ended: its code is free again
+            await endParties(db, ctx, [world.id], "partyClosed");
+            throw error;
+          }
         });
-        await db.gameWorld.update({
-          where: { id: world.id },
-          data: { chatId },
-          select: { id: true },
-        });
-        // in the room first: setHost refuses a socket outside it
-        const room = partyRoom(world.id);
-        ctx.rooms.join(room);
-        ctx.rooms.setHost(room);
-        return { worldId: world.id, code: world.code, chatId };
       },
     },
     joinParty: {
       // any signed-in user with the code: the code is how a host invites
       access: "authenticated",
       handler: async ({ input, ctx, db }): Promise<PartyBootstrap> => {
-        const party = await openPartyByCode(db, input.code);
+        // the world comes from the host over a peer link, which only a socket has
+        if (ctx.socketId === undefined) {
+          throw new QuickdrawError("VALIDATION", "Join a party over a socket");
+        }
+        const userId = ctx.principal.userId;
+        const party = await openPartyForJoin(db, userId, input.code);
         const room = partyRoom(party.id);
+        if (ctx.rooms.hostOf(room) === null) partyEnded();
+        await assertRoomInParty(ctx.presence, room, userId);
+        // The calling socket hears the party, and may link to its host
+        enterPartyRoom(ctx.rooms, ctx.socketId, room);
+        // the host may have left while this call waited, before the socket
+        // was in the room to hear it
         const hostSocketId = ctx.rooms.hostOf(room);
         if (hostSocketId === null) {
-          // its host is gone, and the party with it (a server restart forgets hosts)
-          await endParties(db, ctx, [party.id], "hostLeft");
-          throw new QuickdrawError("NOT_FOUND", "That party has ended");
+          ctx.rooms.leave(room);
+          partyEnded();
         }
+        // its chat, which only the users its room holds may join
         const { chatId } = await ctx.services.chatService.joinWorldChat({ worldId: party.id });
-        // The calling socket hears the party, and may link to its host
-        ctx.rooms.join(room);
         // The world itself (snakes, food, names) comes from the host's streams
         return {
           worldId: party.id,
@@ -217,7 +248,8 @@ export const gameService = qd.defineService(gameContract, {
       },
     },
     playParty: {
-      // a signed-in user, on a world, as joinGame
+      // a signed-in user, on a world, as joinGame; in a party, a user its
+      // room holds (joinParty first: the code is the invitation)
       access: IN_WORLD,
       handler: async ({ input, ctx, db }) => {
         const [party, user] = await Promise.all([
@@ -225,8 +257,10 @@ export const gameService = qd.defineService(gameContract, {
           db.user.findUnique({ where: { id: ctx.principal.userId }, select: { name: true } }),
         ]);
         const room = partyRoom(party.id);
+        await assertInParty(ctx.presence, room, ctx.principal.userId);
+        if (ctx.rooms.hostOf(room) === null) partyEnded();
         // The calling socket hears the party (on every connection, as joinGame)
-        ctx.rooms.join(room);
+        enterPartyRoom(ctx.rooms, ctx.socketId, room);
         // The host spawns the snake on the server's word, named as the server knows the user
         ctx.rooms.emit(room, gameContract, "partyPlayer", {
           worldId: party.id,
@@ -260,9 +294,11 @@ export const gameService = qd.defineService(gameContract, {
       handler: async ({ input, db }) => {
         const world = await db.gameWorld.findUnique({
           where: { slug: input.slug },
-          select: { id: true, name: true, chatId: true },
+          select: { id: true, name: true, chatId: true, kind: true },
         });
-        return world ?? null;
+        // a server's world: a party is found by its code alone (joinParty)
+        if (world === null || world.kind === PARTY_WORLD_KIND) return null;
+        return { id: world.id, name: world.name, chatId: world.chatId };
       },
     },
     getMyBest: {
@@ -334,6 +370,7 @@ export const gameService = qd.defineService(gameContract, {
   // server this service runs in
   onRoomLeave: (leave, ctx) => {
     onGameRoomLeave(leave, ctx);
+    partySocketLeft(leave.socketId, leave.rooms);
     if (leave.principal !== null) partyRoomsLeft(leave.principal.userId, leave.rooms);
   },
   // A party ends when its host leaves (no other player takes over)

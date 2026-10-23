@@ -258,6 +258,12 @@ export const PARTY_CODE_PREFIX = "BAP-";
 /** The characters of a party code: letters and digits, without 0, O, 1, I and L. */
 export const PARTY_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
+/** The `kind` of a world a player's browser hosts (GameWorld.kind); a server's world is "server". */
+export const PARTY_WORLD_KIND = "party";
+
+/** The most users a party holds: each a page and a game, so two links to its host. */
+export const PARTY_MAX_USERS = 16;
+
 /** What hostParty answers: the party's world, its code and its chat. */
 export interface PartyHosted {
   worldId: string;

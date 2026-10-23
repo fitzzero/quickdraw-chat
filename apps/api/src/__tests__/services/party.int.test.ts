@@ -160,6 +160,8 @@ describe("hosting and joining a party", () => {
       chatId: party.chatId,
       closedAt: null,
     });
+    // its slug says nothing of its code
+    expect(row.slug).not.toContain(party.code.toLowerCase());
     // the host is its chat's Admin, as a chat's maker is
     const member = await testPrisma.chatMember.findFirst({
       where: { chatId: party.chatId ?? "", userId: users.regular.id },
@@ -167,8 +169,13 @@ describe("hosting and joining a party", () => {
     expect(member?.level).toBe("Admin");
   });
 
-  it("refuses hostParty without a socket: the host serves the party over peer links", async () => {
+  it("refuses hostParty and joinParty without a socket: a party's world goes over peer links", async () => {
     await expectCode(app.as(user(users.regular.id)).gameService.hostParty({}), "VALIDATION");
+    const { party } = await hosting(users.regular.id);
+    await expectCode(
+      app.as(user(users.moderator.id)).gameService.joinParty({ code: party.code }),
+      "VALIDATION",
+    );
   });
 
   it("joinParty finds the party by its code, typed in any case, and names its host", async () => {
@@ -205,6 +212,39 @@ describe("hosting and joining a party", () => {
     await expectCode(guest.call.gameService.joinParty({ code: "BAP-ZZZZ" }), "NOT_FOUND");
   });
 
+  it("joinParty refuses a party without a host, and leaves the socket out of its room", async () => {
+    const { party } = await hosting(users.regular.id);
+    const room = partyRoom(party.worldId);
+    app.server.rooms.clearHost(room);
+    const guest = await connect(users.moderator.id);
+
+    await expectCode(guest.call.gameService.joinParty({ code: party.code }), "NOT_FOUND");
+    expect(app.server.rooms.size(room)).toBe(1);
+  });
+
+  it("joinParty refuses a user who tried too many wrong codes, the right one too", async () => {
+    const { party } = await hosting(users.regular.id);
+    const guesser = await connect((await createTestUser()).id);
+    for (let i = 0; i < 10; i++) {
+      await expectCode(guesser.call.gameService.joinParty({ code: "BAP-ZZZZ" }), "NOT_FOUND");
+    }
+    await expectCode(guesser.call.gameService.joinParty({ code: party.code }), "RATE_LIMITED");
+  });
+
+  it("joining another party takes the socket out of the first: its host hears the user leave", async () => {
+    const first = await hosting(users.regular.id);
+    const second = await hosting(users.admin.id);
+    const guest = await connect(users.moderator.id);
+    await guest.call.gameService.joinParty({ code: first.party.code });
+
+    await guest.call.gameService.joinParty({ code: second.party.code });
+    expect(
+      await heard(first.socket, "partyPlayerLeft", (p) => p.worldId === first.party.worldId),
+    ).toEqual({ worldId: first.party.worldId, id: users.moderator.id });
+    await vi.waitFor(() => expect(app.server.rooms.size(partyRoom(first.party.worldId))).toBe(1));
+    expect(app.server.rooms.size(partyRoom(second.party.worldId))).toBe(2);
+  });
+
   it("playParty tells the room who asked to play, by the server's name for them", async () => {
     const { socket: host, party } = await hosting(users.regular.id);
     const guest = await connect(users.moderator.id);
@@ -220,6 +260,29 @@ describe("hosting and joining a party", () => {
       id: users.moderator.id,
       name,
     });
+  });
+
+  it("playParty refuses a user the party's room does not hold: the code is the invitation", async () => {
+    const { party } = await hosting(users.regular.id);
+    const stranger = await connect(users.moderator.id);
+
+    await expectCode(
+      stranger.call.gameService.playParty({ worldId: party.worldId }),
+      "FORBIDDEN",
+    );
+    expect(app.server.rooms.size(partyRoom(party.worldId))).toBe(1);
+  });
+
+  it("a party's chat is for the users its room holds, and getWorld finds no party", async () => {
+    const { party } = await hosting(users.regular.id);
+    const stranger = await connect(users.moderator.id);
+
+    await expectCode(
+      stranger.call.chatService.joinWorldChat({ worldId: party.worldId }),
+      "FORBIDDEN",
+    );
+    const row = await testPrisma.gameWorld.findUniqueOrThrow({ where: { id: party.worldId } });
+    expect(await app.as(null).gameService.getWorld({ slug: row.slug })).toBeNull();
   });
 
   it("names to the room a user whose last socket left it, not one whose other socket stays", async () => {
@@ -257,7 +320,24 @@ describe("how a party ends", () => {
     expect(app.server.rooms.hostOf(room)).toBeNull();
     const row = await testPrisma.gameWorld.findUniqueOrThrow({ where: { id: party.worldId } });
     expect(row.closedAt).not.toBeNull();
+    // its code is free again
+    expect(row.code).toBeNull();
     await expectCode(guest.call.gameService.joinParty({ code: party.code }), "NOT_FOUND");
+    // and its chat is no longer the guest's to join
+    await expectCode(
+      guest.call.chatService.joinWorldChat({ worldId: party.worldId }),
+      "FORBIDDEN",
+    );
+  });
+
+  it("the host's leaveParty ends the party: its room hears hostLeft", async () => {
+    const { socket: host, party } = await hosting(users.regular.id);
+    const guest = await connect(users.moderator.id);
+    await guest.call.gameService.joinParty({ code: party.code });
+
+    await host.call.gameService.leaveParty({ worldId: party.worldId });
+    expect(await heard(guest, "hostLeft")).toEqual({ worldId: party.worldId });
+    await expectCode(guest.call.gameService.playParty({ worldId: party.worldId }), "NOT_FOUND");
   });
 
   it("the host's disconnect ends the party: its room hears hostLeft", async () => {
@@ -350,15 +430,17 @@ describe("party access matrix", () => {
           input: {},
           expect: { host: "VALIDATION", player: "VALIDATION", gameAdmin: "VALIDATION" },
         },
+        // in process there is no socket to join with either
         {
           method: "joinParty",
           input: async () => ({ code: (await fresh()).code }),
-          allow: ["host", "player", "gameAdmin"],
+          expect: { host: "VALIDATION", player: "VALIDATION", gameAdmin: "VALIDATION" },
         },
+        // a user the party's room holds: its host's socket is in it, the others never joined
         {
           method: "playParty",
           input: async () => ({ worldId: (await fresh()).worldId }),
-          allow: ["host", "player", "gameAdmin"],
+          expect: { host: "allow", player: "FORBIDDEN", gameAdmin: "FORBIDDEN" },
         },
         {
           method: "leaveParty",

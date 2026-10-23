@@ -254,19 +254,19 @@ export const gameContract = defineContract("gameService", {
       input: z.object({}),
       output: partyHostedSchema,
       describe:
-        "Starts a party the caller's browser hosts: makes its world row, a code to join it by and its chat, puts the calling socket in the party's room and makes it the room's host. Ends the caller's other open parties first.",
+        "Starts a party the caller's browser hosts, over a socket: makes its world row, a code to join it by and its chat, puts the calling socket in the party's room (out of any other party's) and makes it the room's host. Ends the caller's other open parties first; one call at a time per user (CONFLICT).",
     }),
     joinParty: query({
       input: partyCodeSchema,
       output: partyBootstrapSchema,
       describe:
-        "Finds an open party by its code and puts the calling socket in the party's room: answers its world, chat and host. The snakes and the food come from the host, over partyWorld.",
+        "Finds an open party by its code and puts the calling socket (a socket only) in the party's room, out of any other party's: answers its world, chat and host. The snakes and the food come from the host, over partyWorld. NOT_FOUND for a code no open party holds or a party without a host, RATE_LIMITED after too many wrong codes, CONFLICT for a full party.",
     }),
     playParty: mutation({
       input: worldScopedSchema,
       output: okSchema,
       describe:
-        "Asks a party's host to spawn the caller's snake, or respawn it after a death: puts the calling socket in the party's room and tells the room (partyPlayer).",
+        "Asks a party's host to spawn the caller's snake, or respawn it after a death: puts the calling socket in the party's room and tells the room (partyPlayer). For a user the party's room holds (joinParty first: the code is the invitation).",
     }),
     leaveParty: mutation({
       input: worldScopedSchema,
@@ -278,14 +278,15 @@ export const gameContract = defineContract("gameService", {
       input: worldScopedSchema,
       output: okSchema,
       describe:
-        "Ends a party, for its host only: tells the room (partyClosed) and takes everyone out of it.",
+        "Ends a party, for its host (or a service-wide Admin): tells the room (partyClosed), takes everyone out of it and frees its code.",
     }),
     getWorld: query({
       input: getWorldSchema,
       output: z
         .object({ id: z.string(), name: z.string(), chatId: z.string().nullable() })
         .nullable(),
-      describe: "Reads a world by its slug (its id, name and chat), or null.",
+      describe:
+        "Reads a server's world by its slug (its id, name and chat), or null: a party is found by its code alone (joinParty).",
     }),
     // The scores are GameScore rows, which no service owns: gameService
     // writes them, so a stored score changes its service topic. Both queries
@@ -336,7 +337,7 @@ export const gameContract = defineContract("gameService", {
     // it to the host of the one party room its socket is in, over its link
     partyInput: {
       describe:
-        "The caller's steering in a party, as input is the world's: to the party's host over the caller's peer link (its fast channel), never to the server; the host drops it unless the socket is in the party's room.",
+        "The caller's steering in a party, as input is the world's: to the party's host over the caller's peer link (its fast channel), never to the server. It requires a party's room (any room named party:<worldId>, one per socket); the host drops it from a socket outside the room.",
       payload: gameInputsSchema,
       ratePerSecond: GAME_TICK_RATE * 1.5,
       burst: GAME_TICK_RATE * 3,
@@ -416,7 +417,8 @@ export const gameContract = defineContract("gameService", {
       payload: partyEndedSchema,
     },
     partyClosed: {
-      describe: "A party's host ended it (closeParty).",
+      describe:
+        "A party ended: its host closed it (closeParty) or hosted another party, or a service-wide Admin closed it.",
       payload: partyEndedSchema,
     },
   },

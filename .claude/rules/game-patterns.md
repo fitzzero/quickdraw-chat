@@ -130,13 +130,23 @@ place of them: one member is served by the server or by a host, never both.
   links: WebRTC where it connects, the server's relay otherwise (always,
   from headless or native Godot). The server never sees that traffic.
 - **The methods**: `hostParty` (the calling socket joins the room and
-  becomes its host; the caller's other open parties end, since a socket is
-  in one party at a time), `joinParty` by code (the room, the chat and who
-  hosts: the world itself comes from the host), `playParty` (the server
-  tells the room `partyPlayer`, with the name it knows, and the host spawns
-  or respawns that snake), `leaveParty`, and `closeParty` (the host's: the
-  row policy, `anyOf(everyone("Read"), owner("hostUserId"))`, gives a
-  party's host Admin on its row).
+  becomes its host; the caller's other open parties end, and one call runs
+  at a time per user), `joinParty` by code (the room, the chat and who
+  hosts: the world itself comes from the host), `playParty` (for a user the
+  room holds: the server tells the room `partyPlayer`, with the name it
+  knows, and the host spawns or respawns that snake), `leaveParty`, and
+  `closeParty` (the host's: the row policy,
+  `anyOf(everyone("Read"), owner("hostUserId"))`, gives a party's host
+  Admin on its row; or a service-wide Admin's). A socket is in one party at
+  a time (a player's client sends `partyInput` to the first party room
+  whose host it knows): hosting, joining or playing takes it out of any
+  other party's room. `hostParty` and `joinParty` need a socket.
+- **Who gets in**: the code is the invitation. `joinParty` answers
+  NOT_FOUND for a code no open party holds (an ended party frees its code)
+  and for a party without a host, RATE_LIMITED after ten wrong codes in a
+  minute, and CONFLICT when the room holds `PARTY_MAX_USERS` (16) users.
+  Only a user the room holds plays in a party or joins its chat
+  (`joinWorldChat` refuses the rest), and `getWorld` finds no party.
 - **The host-served members**: `partyInput` (a player's input, on the
   link's `fast`, sent every tick as the world's), `partyWorld` (raw
   `WorldSnapshot`s, volatile; its seed is a keyframe) and `partyEvents`
@@ -160,7 +170,8 @@ place of them: one member is served by the server or by a host, never both.
   slows, and would win every head-to-head. Every 5 s the host page lags
   both of its own user's links (its game's, and its own in-process one) by
   the median of the other players' one-way trips (half of each
-  `link.clock.rtt`), at most 100 ms (`fairLinkMs`), with core's
+  `link.clock.rtt`), at most 100 ms (`settleFairLink` in the shared
+  `party.ts`, which the bench's party scenario runs too), with core's
   `PeerLink.setLag`, never an app-level delay. The host's input then
   reaches the sim no sooner than its players', and its snapshots arrive no
   sooner. `?fairLink=off` on `/game` turns it off for A/B play; the HUD
@@ -173,8 +184,8 @@ place of them: one member is served by the server or by a host, never both.
   Never call `peer_link` from app code.
 - **Limits**: a party runs the default tunables (`PARTY_TUNABLES`; admin
   edits of the snake definition reach the server's world only). A server
-  restart ends every party (hosts are held in memory): `joinParty` answers
-  NOT_FOUND for a party without a host.
+  restart ends every party (hosts are held in memory): `ensureGlobalWorld`
+  closes the rows a previous run left open. A party's chat outlives it.
 
 ## Simulation rules
 
