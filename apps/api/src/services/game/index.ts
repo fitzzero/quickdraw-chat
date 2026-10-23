@@ -183,11 +183,12 @@ export const gameService = qd.defineService(gameContract, {
     }),
   },
   channels: {
-    // Fire-and-forget at about the tick rate: the contract's token bucket and
-    // room requirement drop what is over the rate or from a socket outside
-    // the world; the next frame supersedes a lost one
+    // Fire-and-forget, one message per client tick: the contract's token
+    // bucket and room requirement drop what is over the rate or from a socket
+    // outside the world; each message repeats the unacknowledged frames
+    // before its newest, so the next one carries a lost one's
     input: (payload, ctx) => {
-      activeGameRuntime()?.sim.applyInput(ctx.principal.userId, payload);
+      activeGameRuntime()?.sim.queueInputs(ctx.principal.userId, payload.frames);
     },
   },
   streams: {

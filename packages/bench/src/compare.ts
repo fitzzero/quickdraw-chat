@@ -35,6 +35,7 @@ export const DEFAULT_THRESHOLDS: CompareThresholds = {
     "fidelity.shapeErrorPx.p95": 0.5,
     "fidelity.renderLatencyMs": 5,
     "server.tickDurMs.p95": 0.05,
+    "server.inputQueue.depthP95": 0.05,
   },
 };
 

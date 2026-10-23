@@ -7,12 +7,14 @@
 import { admin, defineContract, mutation, query } from "@fitzzero/quickdraw-core";
 import { z } from "zod";
 import {
+  GAME_INPUT_FRAMES,
   GAME_TICK_RATE,
   GLOBAL_WORLD_ROOM,
   type FoodDTO,
   type GameBootstrap,
   type GameDeathEvent,
   type GameInput,
+  type GameInputs,
   type GamePlayerMeta,
   type HighScoreEntry,
   type LeaderboardEntry,
@@ -42,6 +44,11 @@ const gameInputSchema = z.object({
   dy: z.number(),
   boost: z.boolean(),
 }) satisfies z.ZodType<GameInput>;
+
+/** One input message: the newest frame last, with up to three unacknowledged ones before it. */
+const gameInputsSchema = z.object({
+  frames: z.array(gameInputSchema).min(1).max(GAME_INPUT_FRAMES),
+}) satisfies z.ZodType<GameInputs>;
 
 const gamePlayerMetaSchema = z.object({
   id: z.string(),
@@ -205,8 +212,8 @@ export const gameContract = defineContract("gameService", {
     // `{ room: { prefix: "world:" } }` and read the world from `ctx.room`.
     input: {
       describe:
-        "The caller's steering (a direction and a boost), sent at about the tick rate; dropped unless the sending socket is signed in and joined the world with watchWorld or joinGame.",
-      payload: gameInputSchema,
+        "The caller's steering, one message per tick: the newest frame (a direction and a boost) last, with up to three unacknowledged ones before it, stepped in order one a tick; dropped unless the sending socket is signed in and joined the world with watchWorld or joinGame.",
+      payload: gameInputsSchema,
       ratePerSecond: GAME_TICK_RATE * 1.5,
       burst: GAME_TICK_RATE * 3,
       requires: { room: GLOBAL_WORLD_ROOM },

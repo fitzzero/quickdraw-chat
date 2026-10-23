@@ -72,12 +72,13 @@ export const chatService = qd.defineService(chatContract, {
   // ── quickdraw-game:start ──
   featGame: {
     path: "packages/shared/src/contracts/game.ts",
-    lines: [203, 231],
+    lines: [210, 238],
     language: "ts",
-    code: `// The contract: fire-and-forget input, gated on the world's room
+    code: `// The contract: fire-and-forget input, gated on the world's room; each
+// message is the newest frame with up to three unacknowledged ones before it
 channels: {
   input: {
-    payload: gameInputSchema,
+    payload: gameInputsSchema,
     ratePerSecond: GAME_TICK_RATE * 1.5,
     burst: GAME_TICK_RATE * 3,
     requires: { room: GLOBAL_WORLD_ROOM },
@@ -90,7 +91,7 @@ streams: {
 
 // The service: joinGame/watchWorld put the calling socket in the room
 input: (payload, ctx) => {
-  activeGameRuntime()?.sim.applyInput(ctx.principal.userId, payload);
+  activeGameRuntime()?.sim.queueInputs(ctx.principal.userId, payload.frames);
 },
 // ...and each subscriber starts from the world now (every snake, all the food)
 streams: { world: { seed: () => [runtime.sim.keyframe()], validate: "development" } },

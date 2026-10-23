@@ -25,6 +25,11 @@ export function createGroundTruthRecorder(): GroundTruthRecorder {
         tickDurMs: stats.tickDurMs,
         snapshotBytes: stats.snapshotBytes,
         players: result.snapshot.players.map((p) => ({ id: p.id, x: p.x, y: p.y })),
+        inputs: Object.entries(result.inputs).map(([id, entry]) => ({
+          id,
+          stepped: entry.stepped,
+          depth: entry.depth,
+        })),
       });
       for (const death of result.deaths) {
         trace.deaths.push({ tick: stats.tick, tWall: stats.tWall, id: death.id });

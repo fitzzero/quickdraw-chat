@@ -10,7 +10,7 @@ netcode R&D loop (`.claude/skills/netcode-rd`), useful for any perf work.
 ```bash
 bun run bench:netcode                          # baseline-3p-100ms, 1 run
 bun run bench:netcode -- --scenario control-0ms --duration 15
-bun run bench:netcode -- --all --runs 3        # full sweep, median-of-3 (~22 min)
+bun run bench:netcode -- --all --runs 3        # full sweep, median-of-3 (~38 min)
 bun run bench:compare bench-baselines/baseline-3p-100ms.json bench-results/baseline-3p-100ms/<card>.json
 ```
 
@@ -65,6 +65,7 @@ real render pipeline, including WASM frame pacing.
 | `packet.inputAckRttMs`                   | Input send → first snapshot acking it.                                                                                 | RTT + up-to-one-tick alignment.                                            |
 | `server.tickDurMs` / `effectiveTickRate` | Sim cost and loop health.                                                                                              | ≪ 50ms / 20Hz.                                                             |
 | `server.snapshotBytes`                   | The snapshot's JSON (the stream item). On the wire each `qd:stream` frame adds its envelope, 59 bytes.                 | Grows with players; add fields consciously.                                |
+| `server.inputQueue`                      | Server's view of client clocks: queue depth p95, coasted and multi-step tick rates, depth trend; per client too.       | depth 0–1, starved < 0.5%, multi-step < 5%, trend ~0.                      |
 
 Aggregated runs (`--runs 3`) report element-wise medians plus `runVariance`
 (max−min of headline metrics across runs). `bench:compare` treats deltas
@@ -84,7 +85,11 @@ See `packages/bench/src/scenarios.ts`. `control-0ms` is the harness
 self-check: run it after ANY harness change — expect ~0 divergence, 0
 teleports, interArrival ≈ 50ms. The others put ~75–150ms RTT with different
 jitter shapes (normal wobble, spikes, backpressure stalls, asymmetric peers)
-under wandering or deliberately-crossing bots.
+under wandering or deliberately-crossing bots. `drift-fast-client` and
+`drift-slow-client` (120 s each) give one bot a tick clock 1% fast or slow
+(`BotSpec.clockScale`, which scales only its predictor's clock): the input
+queue must hold the fast one's depth (`depthTrend` ~0, no ratchet toward the
+cap) and starve the slow one about one tick in a hundred.
 
 ## Comparing (the keep/discard gate)
 

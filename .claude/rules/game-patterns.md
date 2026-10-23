@@ -24,11 +24,17 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   counts the member) the first time only. A death stores a new best only.
 - **The `input` channel** — fire-and-forget (`qd:ch`, never answered),
   per-socket token bucket, payload checked against the contract. Use ONLY for
-  tick-rate traffic where the next message supersedes the last (player
-  input). `requires: { room: GLOBAL_WORLD_ROOM }`: dropped unless the sending
-  socket is in the world's room; anonymous sockets are always dropped. One
-  world, so one room by name; a game of many worlds requires
-  `{ room: { prefix: "world:" } }` and reads the world from `ctx.room`.
+  tick-rate traffic (player input): one message per client tick, its newest
+  frame last with up to three unacknowledged ones before it, so a lost
+  message's frames ride the next. The sim queues each frame once by seq
+  (`InputQueue`) and steps one a tick (a frame that waited a tick steps with
+  the next); a tick without one coasts on the last intent and the late frame
+  is skipped, so every snake moves once a tick and `PlayerSnap.ack` names
+  the last frame stepped. `requires: { room: GLOBAL_WORLD_ROOM }`: dropped
+  unless the sending socket is in the world's room; anonymous sockets are
+  always dropped. One world, so one room by name; a game of many worlds
+  requires `{ room: { prefix: "world:" } }` and reads the world from
+  `ctx.room`.
 - **The `world` stream** — every tick's snapshot, pushed by the loop with
   `qd.stream(gameContract, "world").push(worldId, snapshot)`: volatile
   (backpressured clients drop frames), public (signed-out visitors spectate,
@@ -55,7 +61,8 @@ connection:
    holds the feed, `is_subscribed`, and subscribes again by itself after a
    reconnect);
 2. call `watchWorld` or `joinGame` over the same socket (bootstrap);
-3. send input frames; reconcile against `PlayerSnap.ack`.
+3. send input frames (each message with the unacknowledged ones before its
+   newest); reconcile against `PlayerSnap.ack`.
 
 The web boots Godot into SPECTATE (`watchWorld`: full bootstrap, no spawn);
 the React pre-game dialog then joins the game on the page's own socket and

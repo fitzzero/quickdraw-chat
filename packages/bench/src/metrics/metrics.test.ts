@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { ClientTrace, ServerTrace } from "../types.js";
+import type { ClientTrace, ServerTick, ServerTrace } from "../types.js";
 import { computeStats, sampleTrack, buildDiscontinuityMask } from "./tracks.js";
 import { computeDivergence } from "./divergence.js";
+import { computeInputQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
 
 function makeServerTrace(): ServerTrace {
@@ -12,6 +13,7 @@ function makeServerTrace(): ServerTrace {
     tickDurMs: 0.1,
     snapshotBytes: 100,
     players: [{ id: "e1", x: (i + 1) * 10, y: 0 }],
+    inputs: [],
   }));
   return { ticks, deaths: [] };
 }
@@ -112,5 +114,45 @@ describe("computePacketHealth", () => {
     expect(health.gapRate).toBeCloseTo(1 / 3);
     expect(health.maxConsecutiveMissedTicks).toBe(1);
     expect(health.inputAckRttMs.p50).toBe(80);
+  });
+});
+
+describe("computeInputQueue", () => {
+  /** 60 s of ticks at 20 Hz; `entry(i)` is each tick's accounting of one snake. */
+  function ticksOf(entry: (i: number) => { stepped: number; depth: number }): ServerTick[] {
+    return Array.from({ length: 1200 }, (_, i) => ({
+      tick: i + 1,
+      tWall: 1000 + i * 50,
+      tickDurMs: 0.1,
+      snapshotBytes: 100,
+      players: [],
+      inputs: [
+        { id: "p1", ...entry(i) },
+        { id: "p2", stepped: 1, depth: 0 },
+      ],
+    }));
+  }
+
+  it("counts starved and catch-up ticks per snake, and across them", () => {
+    // p1 starves one tick in a hundred and steps two on the next
+    const ticks = ticksOf((i) => ({
+      stepped: i % 100 === 0 ? 0 : i % 100 === 1 ? 2 : 1,
+      depth: 0,
+    }));
+    const own = computeInputQueue(ticks, "p1");
+    expect(own?.starvedRate).toBeCloseTo(0.01, 5);
+    expect(own?.multiStepRate).toBeCloseTo(0.01, 5);
+    expect(own?.depthP95).toBe(0);
+    expect(computeInputQueue(ticks)?.starvedRate).toBeCloseTo(0.005, 5);
+    expect(computeInputQueue(ticks, "nobody")).toBeUndefined();
+  });
+
+  it("reports a queue that grows over the run as a depth trend", () => {
+    // p1's depth climbs one frame every 10 s
+    const ticks = ticksOf((i) => ({ stepped: 1, depth: Math.floor(i / 200) }));
+    const own = computeInputQueue(ticks, "p1");
+    expect(own?.depthTrend).toBeGreaterThan(4);
+    expect(own?.depthP95).toBe(5);
+    expect(computeInputQueue(ticks, "p2")?.depthTrend).toBe(0);
   });
 });

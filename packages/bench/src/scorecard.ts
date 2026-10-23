@@ -77,6 +77,13 @@ export function printSummary(card: Scorecard): string {
       `snapshot p95 ${num(card.server.snapshotBytes.p95, 0)}B, ` +
       `rate ${num(card.server.effectiveTickRate, 2)}Hz`,
   );
+  const queue = card.server.inputQueue;
+  if (queue) {
+    push(
+      `  Input queue: depth p95 ${num(queue.depthP95, 0)}, starved ${num(queue.starvedRate * 100, 2)}%, ` +
+        `multi-step ${num(queue.multiStepRate * 100, 2)}%, depth trend ${num(queue.depthTrend, 2)}`,
+    );
+  }
   if (card.runVariance) {
     const worst = Object.entries(card.runVariance)
       .sort((a, b) => b[1] - a[1])

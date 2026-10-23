@@ -55,6 +55,8 @@ export interface BotOptions {
   behaviorKind: "wander" | "cross" | "orbit" | "spectator";
   /** optional oscillating render clock (BotSpec.render) */
   render?: { minFps: number; maxFps: number; periodS: number; phaseS?: number };
+  /** the predictor's clock against wall time (BotSpec.clockScale); default 1 */
+  clockScale?: number;
   scenario: Scenario;
   tunables: PredictionTunables;
   tickRate: number;
@@ -244,7 +246,9 @@ export class BotClient {
 
     if (this.predictor && this.alive) {
       const tSec = (tWall - this.spawnedAt) / 1000;
-      const frames = this.predictor.renderFrame(deltaS, () =>
+      // Only the predictor's clock drifts (BotSpec.clockScale): its fixed
+      // steps, so the frames it sends; the world and render clocks do not
+      const messages = this.predictor.renderFrame(deltaS * (this.opts.clockScale ?? 1), () =>
         this.behavior({
           tSec,
           selfX: this.predictor?.simPos.x ?? 0,
@@ -254,7 +258,7 @@ export class BotClient {
           bounds: this.bounds,
         }),
       );
-      for (const frame of frames) this.sendInput(frame);
+      for (const frames of messages) this.sendInput(frames);
       entities[this.opts.userId] = this.predictor.getRenderedPos();
     }
 
@@ -273,9 +277,13 @@ export class BotClient {
     this.scheduleRenderFrame();
   }
 
-  private sendInput(frame: GameInput): void {
-    // `qd:ch`: fire and forget, dropped rather than queued when backed up
-    this.socket?.volatile.emit("qd:ch", ["gameService", "input", frame]);
+  /** One message: the step's frame last, with up to three unacknowledged ones before it. */
+  private sendInput(frames: GameInput[]): void {
+    const frame = frames.at(-1);
+    if (!frame) return;
+    // `qd:ch`: fire and forget, dropped rather than queued when backed up; the
+    // next message repeats a dropped one's frames
+    this.socket?.volatile.emit("qd:ch", ["gameService", "input", { frames }]);
     const tSent = now();
     this.trace.inputs.push({ seq: frame.seq, tSent });
     this.unacked.push({ seq: frame.seq, tSent });
