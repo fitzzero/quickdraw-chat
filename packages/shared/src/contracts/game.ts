@@ -10,6 +10,8 @@ import {
   GAME_INPUT_FRAMES,
   GAME_TICK_RATE,
   GLOBAL_WORLD_ROOM,
+  PARTY_ROOM_PREFIX,
+  partyRoom,
   type FoodDelta,
   type FoodDTO,
   type GameBootstrap,
@@ -20,6 +22,10 @@ import {
   type HighScoreEntry,
   type LeaderboardEntry,
   type PackedWorldItem,
+  type PartyBootstrap,
+  type PartyEvent,
+  type PartyHosted,
+  type PartyPlayer,
   type PlayerSnap,
   type WorldBootstrap,
   type WorldSnapshot,
@@ -133,6 +139,49 @@ export const gameBootstrapSchema = worldBootstrapSchema.extend({
   you: gamePlayerMetaSchema,
 }) satisfies z.ZodType<GameBootstrap>;
 
+/** A party's join code, as a player types it (joinParty trims it and reads it in capitals). */
+const partyCodeSchema = z.object({
+  code: z.string().min(1).max(16),
+});
+
+/** What hostParty answers: the party's world, its code and its chat. */
+const partyHostedSchema = z.object({
+  worldId: z.string(),
+  code: z.string(),
+  chatId: z.string().nullable(),
+}) satisfies z.ZodType<PartyHosted>;
+
+/** What joinParty answers: the bootstrap's shape without the world, which the host sends, and who hosts. */
+export const partyBootstrapSchema = worldBootstrapSchema.extend({
+  code: z.string(),
+  hostUserId: z.string().nullable(),
+  hostSocketId: z.string().nullable(),
+}) satisfies z.ZodType<PartyBootstrap>;
+
+/** One item of a party's events stream, from its host. */
+const partyEventSchema = z.discriminatedUnion("kind", [
+  gamePlayerMetaSchema.extend({ kind: z.literal("joined") }),
+  z.object({ kind: z.literal("left"), id: z.string() }),
+  gameDeathSchema.extend({ kind: z.literal("death") }),
+  z.object({
+    kind: z.literal("leaderboard"),
+    entries: z.array(leaderboardEntrySchema),
+    rttMs: z.record(z.string(), z.number()),
+    fairLinkMs: z.number().nullable(),
+  }),
+]) satisfies z.ZodType<PartyEvent>;
+
+/** The server's word that a user asked to play in a party. */
+const partyPlayerSchema = z.object({
+  worldId: z.string(),
+  id: z.string(),
+  name: z.string().nullable(),
+}) satisfies z.ZodType<PartyPlayer>;
+
+const partyScopedEventSchema = z.object({ worldId: z.string(), id: z.string() });
+
+const partyEndedSchema = z.object({ worldId: z.string() });
+
 /** One row of a world's high scores. */
 export const highScoreEntrySchema = z.object({
   userId: z.string(),
@@ -150,6 +199,14 @@ export const gameWorldSchema = z.object({
   id: z.string(),
   slug: z.string(),
   name: z.string(),
+  /** "server" (the server runs it) or "party" (a player's browser hosts it). */
+  kind: z.string(),
+  /** A party's join code; null for a server world. */
+  code: z.string().nullable(),
+  /** The user who hosts a party; null for a server world. */
+  hostUserId: z.string().nullable(),
+  /** When a party ended; null while it is open, and for a server world. */
+  closedAt: isoDateSchema.nullable(),
   chatId: z.string().nullable(),
   createdAt: isoDateSchema,
   updatedAt: isoDateSchema,
@@ -187,6 +244,41 @@ export const gameContract = defineContract("gameService", {
       input: worldScopedSchema,
       output: okSchema,
       describe: "Takes the caller's snake out of the world; their sockets stay as spectators.",
+    }),
+    // A party: a world one player's browser hosts (host mode). The server
+    // keeps its row, code, room and chat, and names its host; the world
+    // itself runs in the host's page, which serves partyInput, partyWorld
+    // and partyEvents over peer links. What the host sends is one player's
+    // word: the server trusts none of it and stores no party score.
+    hostParty: mutation({
+      input: z.object({}),
+      output: partyHostedSchema,
+      describe:
+        "Starts a party the caller's browser hosts: makes its world row, a code to join it by and its chat, puts the calling socket in the party's room and makes it the room's host. Ends the caller's other open parties first.",
+    }),
+    joinParty: query({
+      input: partyCodeSchema,
+      output: partyBootstrapSchema,
+      describe:
+        "Finds an open party by its code and puts the calling socket in the party's room: answers its world, chat and host. The snakes and the food come from the host, over partyWorld.",
+    }),
+    playParty: mutation({
+      input: worldScopedSchema,
+      output: okSchema,
+      describe:
+        "Asks a party's host to spawn the caller's snake, or respawn it after a death: puts the calling socket in the party's room and tells the room (partyPlayer).",
+    }),
+    leaveParty: mutation({
+      input: worldScopedSchema,
+      output: okSchema,
+      describe:
+        "Takes every socket of the caller out of a party's room; the host takes their snake out. A host who leaves ends the party.",
+    }),
+    closeParty: mutation({
+      input: worldScopedSchema,
+      output: okSchema,
+      describe:
+        "Ends a party, for its host only: tells the room (partyClosed) and takes everyone out of it.",
     }),
     getWorld: query({
       input: getWorldSchema,
@@ -240,6 +332,17 @@ export const gameContract = defineContract("gameService", {
       burst: GAME_TICK_RATE * 3,
       requires: { room: GLOBAL_WORLD_ROOM },
     },
+    // Served by the party's host, never the server: a player's client sends
+    // it to the host of the one party room its socket is in, over its link
+    partyInput: {
+      describe:
+        "The caller's steering in a party, as input is the world's: to the party's host over the caller's peer link (its fast channel), never to the server; the host drops it unless the socket is in the party's room.",
+      payload: gameInputsSchema,
+      ratePerSecond: GAME_TICK_RATE * 1.5,
+      burst: GAME_TICK_RATE * 3,
+      requires: { room: { prefix: PARTY_ROOM_PREFIX } },
+      serve: "host",
+    },
   },
   streams: {
     // Every tick of a world, volatile (a backed-up client drops frames), each
@@ -259,6 +362,26 @@ export const gameContract = defineContract("gameService", {
       volatile: true,
       access: "public",
     },
+    // A party's two feeds, pushed by its host over peer links: only the
+    // party room's sockets subscribe, and the server never sees an item
+    partyWorld: {
+      describe:
+        "Every tick of a party's world, from its host: a snapshot as the world stream unpacks to, volatile; the seed is the world now. Only sockets in the party's room subscribe.",
+      item: worldSnapshotSchema,
+      scope: "worldId",
+      seed: 1,
+      volatile: true,
+      access: { room: partyRoom },
+      serve: "host",
+    },
+    partyEvents: {
+      describe:
+        "A party's joins, leaves, deaths and leaderboard, from its host, reliable and in order: what the world's events are to the server's world. The seed names every player.",
+      item: partyEventSchema,
+      scope: "worldId",
+      access: { room: partyRoom },
+      serve: "host",
+    },
   },
   // Sent to the world's room, reliably
   events: {
@@ -277,6 +400,24 @@ export const gameContract = defineContract("gameService", {
     leaderboard: {
       describe: "The world's longest snakes, once a second while the world runs.",
       payload: z.array(leaderboardEntrySchema),
+    },
+    // A party's room hears these from the server; its host acts on the first two
+    partyPlayer: {
+      describe:
+        "A user asked to play in a party (playParty), with their name: the host spawns their snake, or respawns it.",
+      payload: partyPlayerSchema,
+    },
+    partyPlayerLeft: {
+      describe: "A user's last socket left a party's room: the host takes their snake out.",
+      payload: partyScopedEventSchema,
+    },
+    hostLeft: {
+      describe: "A party's host left its room or disconnected: the party has ended.",
+      payload: partyEndedSchema,
+    },
+    partyClosed: {
+      describe: "A party's host ended it (closeParty).",
+      payload: partyEndedSchema,
     },
   },
 });

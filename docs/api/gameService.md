@@ -6,13 +6,13 @@ The realtime snake game: spectate or join a world, steer and respawn a snake, an
 
 ## Access
 
-| Option             | Value                                                                            |
-| ------------------ | -------------------------------------------------------------------------------- |
-| Row policy         | `everyone`: Read for every signed-in user, on every row                          |
-| Service-wide Admin | passes every check of the service                                                |
-| Principal kinds    | `user`, `agent`: its methods, subscriptions and channels refuse every other kind |
-| Change topic       | `"public"`: anyone, signed in or not                                             |
-| Field levels       | none: every caller who may read a row receives all of it                         |
+| Option             | Value                                                                                                                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Row policy         | `anyOf`: the highest level of (`everyone`: Read for every signed-in user, on every row), (`owner`: Admin for the user the `hostUserId` column names) |
+| Service-wide Admin | passes every check of the service                                                                                                                    |
+| Principal kinds    | `user`, `agent`: its methods, subscriptions and channels refuse every other kind                                                                     |
+| Change topic       | `"public"`: anyone, signed in or not                                                                                                                 |
+| Field levels       | none: every caller who may read a row receives all of it                                                                                             |
 
 Each method below says who may call it.
 
@@ -24,14 +24,18 @@ It also `writes` models no service's rows live in: `gameScore`.
 
 ## Entity
 
-| Field       | Type             | Notes            |
-| ----------- | ---------------- | ---------------- |
-| `id`        | `string`         |                  |
-| `slug`      | `string`         |                  |
-| `name`      | `string`         |                  |
-| `chatId`    | `string \| null` |                  |
-| `createdAt` | `string`         | format date-time |
-| `updatedAt` | `string`         | format date-time |
+| Field        | Type             | Notes            |
+| ------------ | ---------------- | ---------------- |
+| `id`         | `string`         |                  |
+| `slug`       | `string`         |                  |
+| `name`       | `string`         |                  |
+| `kind`       | `string`         |                  |
+| `code`       | `string \| null` |                  |
+| `hostUserId` | `string \| null` |                  |
+| `closedAt`   | `string \| null` |                  |
+| `chatId`     | `string \| null` |                  |
+| `createdAt`  | `string`         | format date-time |
+| `updatedAt`  | `string`         | format date-time |
 
 ## Methods
 
@@ -103,6 +107,98 @@ A mutation.
 - Callable by: `user`, `agent`
 
 Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
+
+Input:
+
+| Field     | Type     | Notes                |
+| --------- | -------- | -------------------- |
+| `worldId` | `string` | at least 1 character |
+
+Output: `{ ok: true }`.
+
+### `hostParty`
+
+Starts a party the caller's browser hosts: makes its world row, a code to join it by and its chat, puts the calling socket in the party's room and makes it the room's host. Ends the caller's other open parties first.
+
+A mutation.
+
+- MCP tool (default name): `gameService_hostParty`
+- Callable by: `user`, `agent`
+
+Access: `"authenticated"`: any signed-in caller.
+
+Input: `{}`.
+
+Output: `{ worldId: string; code: string; chatId: string | null }`.
+
+### `joinParty`
+
+Finds an open party by its code and puts the calling socket in the party's room: answers its world, chat and host. The snakes and the food come from the host, over partyWorld.
+
+A query.
+
+- MCP tool (default name): `gameService_joinParty`
+- MCP read-only hint: yes, as on every query's tool
+- Callable by: `user`, `agent`
+
+Access: `"authenticated"`: any signed-in caller.
+
+Input:
+
+| Field  | Type     | Notes              |
+| ------ | -------- | ------------------ |
+| `code` | `string` | 1 to 16 characters |
+
+Output: `{ worldId: string; chatId: string | null; tick: integer; tickRate: number; bounds: { w: number; h: number }; players: { id: string; name: string | null; hue: number }[]; snaps: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; food: { id: string; x: number; y: number; v: number }[]; code: string; hostUserId: string | null; hostSocketId: string | null }`.
+
+### `playParty`
+
+Asks a party's host to spawn the caller's snake, or respawn it after a death: puts the calling socket in the party's room and tells the room (partyPlayer).
+
+A mutation.
+
+- MCP tool (default name): `gameService_playParty`
+- Callable by: `user`, `agent`
+
+Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
+
+Input:
+
+| Field     | Type     | Notes                |
+| --------- | -------- | -------------------- |
+| `worldId` | `string` | at least 1 character |
+
+Output: `{ ok: true }`.
+
+### `leaveParty`
+
+Takes every socket of the caller out of a party's room; the host takes their snake out. A host who leaves ends the party.
+
+A mutation.
+
+- MCP tool (default name): `gameService_leaveParty`
+- Callable by: `user`, `agent`
+
+Access: `{ entry: "Read", id: "worldId" }`: Read or more on the row `input.worldId` names.
+
+Input:
+
+| Field     | Type     | Notes                |
+| --------- | -------- | -------------------- |
+| `worldId` | `string` | at least 1 character |
+
+Output: `{ ok: true }`.
+
+### `closeParty`
+
+Ends a party, for its host only: tells the room (partyClosed) and takes everyone out of it.
+
+A mutation.
+
+- MCP tool (default name): `gameService_closeParty`
+- Callable by: `user`, `agent`
+
+Access: `{ entry: "Admin", id: "worldId" }`: Admin or more on the row `input.worldId` names.
 
 Input:
 
@@ -193,7 +289,7 @@ Input:
 | `page?`     | `integer`                                                                 | 1 to 1000000; default 1 |
 | `pageSize?` | `integer`                                                                 | 1 to 100; default 20    |
 
-Output: `{ items: { id?: string; slug?: string; name?: string; chatId?: string | null; createdAt?: string; updatedAt?: string }[]; total: integer; page: integer; pageSize: integer; totalPages: integer }`.
+Output: `{ items: { id?: string; slug?: string; name?: string; kind?: string; code?: string | null; hostUserId?: string | null; closedAt?: string | null; chatId?: string | null; createdAt?: string; updatedAt?: string }[]; total: integer; page: integer; pageSize: integer; totalPages: integer }`.
 
 ### `adminGet`
 
@@ -213,7 +309,7 @@ Input:
 | ----- | -------- | -------------------- |
 | `id`  | `string` | at least 1 character |
 
-Output: `{ id?: string; slug?: string; name?: string; chatId?: string | null; createdAt?: string; updatedAt?: string }`.
+Output: `{ id?: string; slug?: string; name?: string; kind?: string; code?: string | null; hostUserId?: string | null; closedAt?: string | null; chatId?: string | null; createdAt?: string; updatedAt?: string }`.
 
 ### `adminUpdate`
 
@@ -233,7 +329,7 @@ Input:
 | `id`   | `string`            | at least 1 character |
 | `data` | `{ name?: string }` |                      |
 
-Output: `{ id?: string; slug?: string; name?: string; chatId?: string | null; createdAt?: string; updatedAt?: string }`.
+Output: `{ id?: string; slug?: string; name?: string; kind?: string; code?: string | null; hostUserId?: string | null; closedAt?: string | null; chatId?: string | null; createdAt?: string; updatedAt?: string }`.
 
 ### `adminMeta`
 
@@ -307,6 +403,34 @@ Every tick of a world, starting from the whole world (every snake and all the fo
 | Access   | `"public"`                                       |
 | Checked  | in development only (`validate: "development"`)  |
 
+### `partyWorld`
+
+Every tick of a party's world, from its host: a snapshot as the world stream unpacks to, volatile; the seed is the world now. Only sockets in the party's room subscribe.
+
+| Option    | Value                                                                                                                                                                                                                                                          |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Served by | the room's host (`serve: "host"`), over peer links: the server never handles it                                                                                                                                                                                |
+| Item      | `{ tick: integer; t?: number; players: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; food?: { tick: integer; spawned?: { id: string; x: number; y: number; v: number }[]; eaten?: string[] }[] }` |
+| Scope     | one feed per `worldId`                                                                                                                                                                                                                                         |
+| Seed      | the latest item the host kept, or the host's own                                                                                                                                                                                                               |
+| Volatile  | yes                                                                                                                                                                                                                                                            |
+| Access    | `{ room: (scope) => ... }`                                                                                                                                                                                                                                     |
+| Checked   | always                                                                                                                                                                                                                                                         |
+
+### `partyEvents`
+
+A party's joins, leaves, deaths and leaderboard, from its host, reliable and in order: what the world's events are to the server's world. The seed names every player.
+
+| Option    | Value                                                                                                                                                                                                                                                                                                 |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Served by | the room's host (`serve: "host"`), over peer links: the server never handles it                                                                                                                                                                                                                       |
+| Item      | `{ id: string; name: string \| null; hue: number; kind: "joined" } \| { kind: "left"; id: string } \| { id: string; len: number; kind: "death" } \| { kind: "leaderboard"; entries: { id: string; name: string \| null; len: number }[]; rttMs: Record<string, number>; fairLinkMs: number \| null }` |
+| Scope     | one feed per `worldId`                                                                                                                                                                                                                                                                                |
+| Seed      | none kept by the host; the host may compute one                                                                                                                                                                                                                                                       |
+| Volatile  | no                                                                                                                                                                                                                                                                                                    |
+| Access    | `{ room: (scope) => ... }`                                                                                                                                                                                                                                                                            |
+| Checked   | always                                                                                                                                                                                                                                                                                                |
+
 ## Channels
 
 Fire-and-forget messages from clients, dropped over the rate.
@@ -322,6 +446,18 @@ The caller's steering, one message per tick: the newest frame (a direction and a
 | Burst    | 60                                                                       |
 | Requires | the sending socket in the app room `world:gameworld_global`              |
 | Access   | `"authenticated"`: any signed-in caller                                  |
+
+### `partyInput`
+
+The caller's steering in a party, as input is the world's: to the party's host over the caller's peer link (its fast channel), never to the server; the host drops it unless the socket is in the party's room.
+
+| Option    | Value                                                                           |
+| --------- | ------------------------------------------------------------------------------- |
+| Served by | the room's host (`serve: "host"`), over peer links: the server never handles it |
+| Payload   | `{ frames: { seq: integer; dx: number; dy: number; boost: boolean }[] }`        |
+| Rate      | 30 a second per socket                                                          |
+| Burst     | 60                                                                              |
+| Requires  | the sending socket in the app room a function of the payload names              |
 
 ## Events
 
@@ -358,3 +494,35 @@ The world's longest snakes, once a second while the world runs.
 | Option  | Value                                                 |
 | ------- | ----------------------------------------------------- |
 | Payload | `{ id: string; name: string \| null; len: number }[]` |
+
+### `partyPlayer`
+
+A user asked to play in a party (playParty), with their name: the host spawns their snake, or respawns it.
+
+| Option  | Value                                                   |
+| ------- | ------------------------------------------------------- |
+| Payload | `{ worldId: string; id: string; name: string \| null }` |
+
+### `partyPlayerLeft`
+
+A user's last socket left a party's room: the host takes their snake out.
+
+| Option  | Value                             |
+| ------- | --------------------------------- |
+| Payload | `{ worldId: string; id: string }` |
+
+### `hostLeft`
+
+A party's host left its room or disconnected: the party has ended.
+
+| Option  | Value                 |
+| ------- | --------------------- |
+| Payload | `{ worldId: string }` |
+
+### `partyClosed`
+
+A party's host ended it (closeParty).
+
+| Option  | Value                 |
+| ------- | --------------------- |
+| Payload | `{ worldId: string }` |

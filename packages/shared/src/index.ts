@@ -11,8 +11,10 @@ export * from "./game/movement.js";
 export * from "./game/snapshotCodec.js";
 export * from "./game/snapshotDecoder.js";
 export * from "./game/snapshotEncoder.js";
-// The simulation and its loop: the API's world, the bench's ground truth
+// The simulation and its loop: the API's world, the bench's ground truth,
+// and a party's world in its host (PartyWorld)
 export * from "./game/world.js";
 export * from "./game/loop.js";
+export * from "./game/party.js";
 // ── quickdraw-game:end ──
 export * from "./contracts/index.js";

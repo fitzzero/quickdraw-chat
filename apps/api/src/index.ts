@@ -189,6 +189,12 @@ const server = qd.createServer({
   // logs the slowest methods when a handler holds the event loop (sampled
   // every 20 ms, read every 10 s: about 0.05% of one CPU when idle)
   stallWatchdog: true,
+  // ── quickdraw-game:start ──
+  // Peer links between the sockets of an app room, and host mode over them:
+  // a party's host serves its world to its players. The server forwards the
+  // links' signals and relays their messages, and never reads them
+  peers: true,
+  // ── quickdraw-game:end ──
 });
 
 // Service-worker resubscribe endpoint (REST: SWs have no socket) — rare,

@@ -17,6 +17,9 @@
 //                  world)
 //   server → room  qd:event ["gameService", "playerJoined" | "playerLeft" |
 //                  "death" | "leaderboard", payload] (reliable)
+//
+// A party (host mode) is a world one player's browser hosts; see the party
+// section at the end of this file.
 // ============================================================================
 
 /**
@@ -210,4 +213,93 @@ export interface QuickdrawHostConfig {
   authToken?: string | null;
   /** World to join (slug). */
   worldSlug: string;
+  /**
+   * A party to join instead of the world, by its code: the page sets it
+   * once it hosts a party or joined one, and boots the engine again.
+   */
+  party?: { code: string } | null;
+}
+
+// ============================================================================
+// Party worlds (host mode). One player's browser hosts the party: its page
+// runs the sim (PartyWorld, game/party.ts) and serves the party's
+// host-served members over peer links. The server keeps the row, the code,
+// the room, the chat and who hosts, and never sees the party's traffic.
+//
+//   commands        qd:call gameService.hostParty | joinParty | playParty |
+//                   leaveParty | closeParty (hostParty, joinParty and
+//                   playParty put the CALLING socket in partyRoom(worldId))
+//   player → host   partyInput: GameInputs (host-served channel, the
+//                   link's fast)
+//   host → player   partyWorld: WorldSnapshot, raw (host-served stream,
+//                   volatile; its seed is a keyframe)
+//                   partyEvents: PartyEvent (host-served stream, reliable,
+//                   the link's rel; its seed names every player)
+//   server → room   qd:event partyPlayer | partyPlayerLeft | hostLeft |
+//                   partyClosed (reliable)
+// ============================================================================
+
+/** The prefix of every party's app room: the party input channel requires one. */
+export const PARTY_ROOM_PREFIX = "party:";
+
+/** A party's app room: the sockets of its players, and its host's. */
+export function partyRoom(worldId: string): string {
+  return `${PARTY_ROOM_PREFIX}${worldId}`;
+}
+
+/** The party a room is, or null for any other room. */
+export function partyOfRoom(room: string): string | null {
+  return room.startsWith(PARTY_ROOM_PREFIX) ? room.slice(PARTY_ROOM_PREFIX.length) : null;
+}
+
+/** A party code is this prefix and four characters of PARTY_CODE_ALPHABET. */
+export const PARTY_CODE_PREFIX = "BAP-";
+
+/** The characters of a party code: letters and digits, without 0, O, 1, I and L. */
+export const PARTY_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+/** What hostParty answers: the party's world, its code and its chat. */
+export interface PartyHosted {
+  worldId: string;
+  code: string;
+  chatId: string | null;
+}
+
+/**
+ * What joinParty answers: a WorldBootstrap without the world (`tick` 0, no
+ * players, snakes or food: the host's streams carry them), plus the party's
+ * code and its host. `hostSocketId` is null while the party has no host.
+ */
+export interface PartyBootstrap extends WorldBootstrap {
+  code: string;
+  hostUserId: string | null;
+  hostSocketId: string | null;
+}
+
+/** A party's leaderboard, from its host: each player's round trip to it, and the fair link's lag. */
+export interface PartyLeaderboard {
+  kind: "leaderboard";
+  entries: LeaderboardEntry[];
+  /** Each linked player's round trip to the host (ms), by user id, as the host's links measure it. */
+  rttMs: Record<string, number>;
+  /** The lag the fair link gives the host's own user (ms), or null when it is off. */
+  fairLinkMs: number | null;
+}
+
+/**
+ * One item of a party's events stream: what the world's events are to the
+ * server's world. Reliable, in order; the seed has a `joined` for every
+ * player in the party and the latest leaderboard.
+ */
+export type PartyEvent =
+  | ({ kind: "joined" } & GamePlayerMeta)
+  | { kind: "left"; id: string }
+  | ({ kind: "death" } & GameDeathEvent)
+  | PartyLeaderboard;
+
+/** The server's word to a party's room that a user asked to play: the host spawns (or respawns) them. */
+export interface PartyPlayer {
+  worldId: string;
+  id: string;
+  name: string | null;
 }

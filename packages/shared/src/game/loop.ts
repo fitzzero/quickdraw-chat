@@ -6,13 +6,7 @@
  * results without timers or I/O.
  */
 
-import type {
-  FoodDelta,
-  GameDeathEvent,
-  LeaderboardEntry,
-  PackedWorldItem,
-  WorldSnapshot,
-} from "../types/game.js";
+import type { FoodDelta, GameDeathEvent, LeaderboardEntry, WorldSnapshot } from "../types/game.js";
 import { GAME_FOOD_WINDOW, GAME_TICK_RATE } from "../types/game.js";
 import type { GameWorldSim, TickResult } from "./world.js";
 
@@ -20,9 +14,10 @@ import type { GameWorldSim, TickResult } from "./world.js";
 export interface GameLoopEmits {
   /**
    * Every tick, volatile: droppable under backpressure (the world stream).
-   * Returns the stream item it sent, which `onTick` measures.
+   * Returns the stream item it sent, which `onTick` measures: the packed
+   * item on the server's world, the snapshot itself on a party's.
    */
-  snapshot: (snapshot: WorldSnapshot) => PackedWorldItem;
+  snapshot: (snapshot: WorldSnapshot) => unknown;
   /** Reliable: a snake died (the world's room). */
   death: (death: GameDeathEvent) => void;
   /** Reliable, 1Hz: the longest snakes (the world's room). */
@@ -52,7 +47,7 @@ export interface TickStats {
   /** epoch ms with sub-ms precision (performance.timeOrigin + now) */
   tWall: number;
   tickDurMs: number;
-  /** The stream item's JSON: the packed snapshot, base64, in `{ b }`. */
+  /** The stream item's JSON: the packed snapshot, base64 in `{ b }`, on the server's world. */
   snapshotBytes: number;
 }
 

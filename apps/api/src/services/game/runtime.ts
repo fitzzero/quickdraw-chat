@@ -54,6 +54,12 @@ export interface GameRuntimeOptions {
 export interface GameRuntime {
   readonly sim: GameWorldSim;
   readonly loop: GameLoop;
+  /**
+   * The database its root built it with (the app's, the test app's, the
+   * bench's): what the game's hooks write through, which have no handler's
+   * `db` (a party's end, when its host leaves).
+   */
+  readonly db: Db;
   /** Users who joined the game (spawned). */
   readonly playingUsers: Set<string>;
   /**
@@ -168,6 +174,7 @@ export function createGameRuntime(db: Db, options: GameRuntimeOptions = {}): Gam
   current = {
     sim,
     loop,
+    db,
     playingUsers,
     keyframe: () => ({ b: bytesToBase64(encoder.encodeKeyframe(sim.keyframe())) }),
   };

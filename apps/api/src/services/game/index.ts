@@ -1,9 +1,31 @@
-import type { GameBootstrap, HighScoreEntry, WorldBootstrap } from "@project/shared";
-import { GLOBAL_WORLD_ID, GLOBAL_WORLD_ROOM, GAME_TICK_RATE, gameContract } from "@project/shared";
+import type {
+  GameBootstrap,
+  HighScoreEntry,
+  PartyBootstrap,
+  PartyHosted,
+  WorldBootstrap,
+} from "@project/shared";
+import {
+  GLOBAL_WORLD_ID,
+  GLOBAL_WORLD_ROOM,
+  GAME_TICK_RATE,
+  gameContract,
+  partyRoom,
+} from "@project/shared";
 import { QuickdrawError } from "@fitzzero/quickdraw-core";
-import { admin, everyone } from "@fitzzero/quickdraw-core/server";
+import { admin, anyOf, everyone, owner } from "@fitzzero/quickdraw-core/server";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
+import {
+  PARTY_BOUNDS,
+  createPartyRow,
+  endParties,
+  hostedParties,
+  onPartyHostLeave,
+  openParty,
+  openPartyByCode,
+  partyRoomsLeft,
+} from "./party.js";
 import {
   activeGameRuntime,
   gameRuntime,
@@ -44,10 +66,11 @@ function buildWorldBootstrap(runtime: GameRuntime, chatId: string | null): World
 
 /**
  * Every signed-in user reads every world: a world is public game content,
- * and the methods that act in one ask `{ entry: "Read" }` of it. Writes need
- * a service-wide grant (the admin kit's Admin).
+ * and the methods that act in one ask `{ entry: "Read" }` of it. A party's
+ * host has Admin on its row (closeParty). Other writes need a service-wide
+ * grant (the admin kit's Admin).
  */
-const anyWorld = everyone("Read");
+const anyWorld = anyOf(everyone("Read"), owner("hostUserId"));
 
 /** `{ entry: "Read" }` on the world the input names: every signed-in user, by the policy above. */
 const IN_WORLD = { entry: "Read", id: "worldId" } as const;
@@ -135,6 +158,103 @@ export const gameService = qd.defineService(gameContract, {
         return Promise.resolve({ ok: true as const });
       },
     },
+    hostParty: {
+      // any signed-in user, guests too, as joinGame: names no row
+      access: "authenticated",
+      handler: async ({ ctx, db }): Promise<PartyHosted> => {
+        // the host serves the party over peer links, which only a socket has
+        if (ctx.socketId === undefined) {
+          throw new QuickdrawError("VALIDATION", "Host a party over a socket");
+        }
+        // a socket is in one party at a time: the caller's other parties end
+        await endParties(db, ctx, await hostedParties(db, ctx.principal.userId), "partyClosed");
+        const world = await createPartyRow(db, ctx.principal.userId);
+        // its chat, the chat service's to make: the host is its Admin
+        const { id: chatId } = await ctx.services.chatService.createChat({
+          title: `🎉 Party ${world.code}`,
+        });
+        await db.gameWorld.update({
+          where: { id: world.id },
+          data: { chatId },
+          select: { id: true },
+        });
+        // in the room first: setHost refuses a socket outside it
+        const room = partyRoom(world.id);
+        ctx.rooms.join(room);
+        ctx.rooms.setHost(room);
+        return { worldId: world.id, code: world.code, chatId };
+      },
+    },
+    joinParty: {
+      // any signed-in user with the code: the code is how a host invites
+      access: "authenticated",
+      handler: async ({ input, ctx, db }): Promise<PartyBootstrap> => {
+        const party = await openPartyByCode(db, input.code);
+        const room = partyRoom(party.id);
+        const hostSocketId = ctx.rooms.hostOf(room);
+        if (hostSocketId === null) {
+          // its host is gone, and the party with it (a server restart forgets hosts)
+          await endParties(db, ctx, [party.id], "hostLeft");
+          throw new QuickdrawError("NOT_FOUND", "That party has ended");
+        }
+        const { chatId } = await ctx.services.chatService.joinWorldChat({ worldId: party.id });
+        // The calling socket hears the party, and may link to its host
+        ctx.rooms.join(room);
+        // The world itself (snakes, food, names) comes from the host's streams
+        return {
+          worldId: party.id,
+          chatId,
+          code: party.code,
+          hostUserId: party.hostUserId,
+          hostSocketId,
+          tick: 0,
+          tickRate: GAME_TICK_RATE,
+          bounds: PARTY_BOUNDS,
+          players: [],
+          snaps: [],
+          food: [],
+        };
+      },
+    },
+    playParty: {
+      // a signed-in user, on a world, as joinGame
+      access: IN_WORLD,
+      handler: async ({ input, ctx, db }) => {
+        const [party, user] = await Promise.all([
+          openParty(db, input.worldId),
+          db.user.findUnique({ where: { id: ctx.principal.userId }, select: { name: true } }),
+        ]);
+        const room = partyRoom(party.id);
+        // The calling socket hears the party (on every connection, as joinGame)
+        ctx.rooms.join(room);
+        // The host spawns the snake on the server's word, named as the server knows the user
+        ctx.rooms.emit(room, gameContract, "partyPlayer", {
+          worldId: party.id,
+          id: ctx.principal.userId,
+          name: user?.name ?? null,
+        });
+        return { ok: true as const };
+      },
+    },
+    leaveParty: {
+      // a signed-in user, on a world, as leaveGame; leaving a party the
+      // caller is not in (or one that ended) does nothing
+      access: IN_WORLD,
+      handler: async ({ input, ctx }) => {
+        await ctx.rooms.leave(partyRoom(input.worldId), { userId: ctx.principal.userId });
+        return { ok: true as const };
+      },
+    },
+    closeParty: {
+      // the party's host, whom the policy gives Admin on the row (as a
+      // service-wide Admin grant)
+      access: { entry: "Admin", id: "worldId" },
+      handler: async ({ input, ctx, db }) => {
+        const party = await openParty(db, input.worldId);
+        await endParties(db, ctx, [party.id], "partyClosed");
+        return { ok: true as const };
+      },
+    },
     getWorld: {
       access: "public",
       handler: async ({ input, db }) => {
@@ -209,7 +329,13 @@ export const gameService = qd.defineService(gameContract, {
   // stored score changes it; an edit of a world row changes it too, which
   // they skip), and they are public: anyone may watch it
   watchAccess: "public",
-  // A player whose last socket left the world's room leaves the sim, in
-  // every server this service runs in
-  onRoomLeave: onGameRoomLeave,
+  // A player whose last socket left the world's room leaves the sim, and a
+  // party's host hears of a user whose last socket left its room, in every
+  // server this service runs in
+  onRoomLeave: (leave, ctx) => {
+    onGameRoomLeave(leave, ctx);
+    if (leave.principal !== null) partyRoomsLeft(leave.principal.userId, leave.rooms);
+  },
+  // A party ends when its host leaves (no other player takes over)
+  onHostLeave: onPartyHostLeave,
 });
