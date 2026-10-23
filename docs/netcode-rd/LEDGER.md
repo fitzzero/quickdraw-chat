@@ -229,10 +229,10 @@ Template:
   food: the Godot client hands a reply over a frame after the stream items
   that came with it, so a keyframe can be handled after newer snapshots.
   Deaths, joins and the leaderboard stay reliable events.
-- The plan's gap rule (the oldest entry's tick past the last one applied
-  - 1. counts from the snapshot's tick instead: entries exist only for
-       ticks that changed food, so an oldest entry past the last tick applied
-  - 1 is normal.
+- The plan's gap rule (the oldest entry's tick past the last tick applied,
+  plus one) counts from the snapshot's tick instead: entries exist only
+  for ticks that changed food, so an oldest entry past the last tick
+  applied, plus one, is normal.
 - Scenarios (the sweep, `--all --runs 3`, at 210e697 against the
   `g1-queue-final` baselines): every scenario passes, no `warn`, nothing
   past the noise. A first sweep at 11f0180, before the review's fixes,
