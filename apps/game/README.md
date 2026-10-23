@@ -59,6 +59,8 @@ scripts/local_snake.gd                 Client-side prediction + reconciliation (
 scripts/remote_snake.gd                Snapshot-buffer interpolation (75–300ms render delay)
 scripts/snake_body.gd                  Body derived from head-path history (matches server)
 scripts/main.gd                        World bootstrap, snapshot routing, minimal in-canvas UI
+scripts/snapshot_decoder.gd            Unpacks the world stream's packed snapshots — MUST mirror
+                                       packages/shared/src/game/snapshotDecoder.ts
 test/session.gd                        The headless two-client check (below); not exported
 ```
 
@@ -86,7 +88,8 @@ Runs two copies of this project headless (`test/session.gd`) against the
 API's real services (`apps/api/src/bench/godot-session.ts`, PGlite, the game
 loop running): both join, see each other's snakes move, a death and the
 leaderboard reach both, and each holds the server's food; one misses a
-second of snapshots and asks for a keyframe; then the API restarts and both
+second of snapshots and asks for a keyframe, and the other, which missed
+none, asks for none; then the API restarts and both
 reconnect, rejoin, see each other again and hold the new world's food.
 `QD_TRACE=1` prints every frame each client writes and reads.
 

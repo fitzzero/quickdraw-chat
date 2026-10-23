@@ -9,8 +9,8 @@
  * Key design choice: only snake HEADS exist on the wire. Each side keeps a
  * per-snake path history of head positions and derives body segments at fixed
  * arc-length spacing along it — the server for collision, clients for
- * rendering. Each player adds about 110 bytes to a snapshot (JSON), whatever
- * its snake's length.
+ * rendering. Each player adds 21 bytes to a packed snapshot (28 in its
+ * base64, about 110 as JSON), whatever its snake's length.
  *
  * A human snake steps once for each input frame its client sent (InputQueue),
  * one a tick unless a backlog builds: the client predicts one step per frame,

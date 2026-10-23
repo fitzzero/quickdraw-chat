@@ -223,6 +223,14 @@ editJson("apps/api/package.json", (data) => {
   delete data.dependencies?.["@project/bench"];
 });
 
+// The shared package's tests are the game's (packages/shared/src/game):
+// without them its test run would find none, and fail
+editJson("packages/shared/package.json", (data) => {
+  delete data.scripts?.test;
+  delete data.scripts?.["test:unit"];
+  delete data.devDependencies?.vitest;
+});
+
 // Lint allowances recorded for files DELETE_PATHS removed (a fork that adopted
 // a new rule with `quickdraw-lint baseline` has one)
 if (existsSync(".quickdraw-lint-baseline.json")) {

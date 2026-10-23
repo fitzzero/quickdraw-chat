@@ -22,7 +22,7 @@ export class FoodTracker {
   public tick = -1;
   /** A keyframe was asked for and has not arrived. */
   public awaitingKeyframe = false;
-  /** Keyframes asked for after a gap. */
+  /** Keyframes asked for: after a gap, or for players the snapshots could not name. */
   public resyncs = 0;
 
   /**
@@ -30,12 +30,7 @@ export class FoodTracker {
    * keyframe (subscribe to the world stream again).
    */
   public apply(snapshot: WorldSnapshot): boolean {
-    if (this.tick >= 0 && snapshot.tick - this.tick > GAME_FOOD_WINDOW) {
-      if (this.awaitingKeyframe) return false;
-      this.awaitingKeyframe = true;
-      this.resyncs += 1;
-      return true;
-    }
+    if (this.tick >= 0 && snapshot.tick - this.tick > GAME_FOOD_WINDOW) return this.askKeyframe();
     for (const entry of snapshot.food ?? []) {
       if (entry.tick <= this.tick) continue;
       for (const item of entry.spawned ?? []) this.food.set(item.id, item);
@@ -55,6 +50,18 @@ export class FoodTracker {
     for (const item of keyframe.food?.[0]?.spawned ?? []) this.food.set(item.id, item);
     this.tick = keyframe.tick;
     this.awaitingKeyframe = false;
+  }
+
+  /**
+   * The client needs a keyframe (a gap, or a player the snapshots name by
+   * an introduction it missed). Returns true when it must ask for one: none
+   * is on its way.
+   */
+  public askKeyframe(): boolean {
+    if (this.awaitingKeyframe) return false;
+    this.awaitingKeyframe = true;
+    this.resyncs += 1;
+    return true;
   }
 
   /** The keyframe request ended, its seed applied if one came: the next snapshot past the window asks again. */

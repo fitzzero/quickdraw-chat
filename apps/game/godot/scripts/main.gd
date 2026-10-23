@@ -152,6 +152,10 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 	var tick := int(snapshot["tick"])
 	_latest_tick = tick
 	_apply_food(snapshot, tick)
+	# A player the snapshot names by an introduction this client missed (the
+	# decoder leaves them out): the keyframe a gap asks for names them again
+	if Game.world_needs_keyframe() and not _food_resyncing:
+		_request_keyframe()
 
 	for raw in snapshot.get("players", []):
 		var snap := raw as Dictionary

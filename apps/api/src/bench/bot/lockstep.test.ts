@@ -4,12 +4,22 @@
  * drifts from the server (a Godot food window wider than the server's
  * leaves ghost food, a narrower one asks for keyframes it does not need).
  * game.gd's playback delay must name playback-delay.ts's, or the bench
- * measures a delay the game does not render.
+ * measures a delay the game does not render. snapshot_decoder.gd must read
+ * the layout snapshotCodec.ts packs, or Godot misreads every snapshot.
  */
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { GAME_FOOD_WINDOW, GAME_INPUT_FRAMES, GAME_TICK_RATE } from "@project/shared";
+import {
+  GAME_FOOD_WINDOW,
+  GAME_INPUT_FRAMES,
+  GAME_TICK_RATE,
+  SNAPSHOT_CODEC_VERSION,
+  SNAPSHOT_FLAG_KEYFRAME,
+  SNAPSHOT_FLAG_T,
+  SNAPSHOT_PLAYER_BYTES,
+  SNAPSHOT_SPAWNED_BYTES,
+} from "@project/shared";
 import { describe, expect, it } from "vitest";
 import {
   PLAYBACK_DEAD_BAND_MS,
@@ -58,6 +68,15 @@ describe("the Godot client's constants", () => {
     expect(gd("PLAYBACK_MAX_LAG_TICKS")).toBe(PLAYBACK_MAX_LAG_TICKS);
     expect(gd("PLAYBACK_MAX_AHEAD_TICKS")).toBe(PLAYBACK_MAX_AHEAD_TICKS);
     expect(gd("PLAYBACK_MAX_FRAME_MS")).toBe(PLAYBACK_MAX_FRAME_MS);
+  });
+
+  it("snapshot_decoder.gd reads the layout snapshotCodec.ts packs", () => {
+    const gd = gdConsts("snapshot_decoder.gd");
+    expect(gd("VERSION")).toBe(SNAPSHOT_CODEC_VERSION);
+    expect(gd("FLAG_T")).toBe(SNAPSHOT_FLAG_T);
+    expect(gd("FLAG_KEYFRAME")).toBe(SNAPSHOT_FLAG_KEYFRAME);
+    expect(gd("PLAYER_BYTES")).toBe(SNAPSHOT_PLAYER_BYTES);
+    expect(gd("SPAWNED_BYTES")).toBe(SNAPSHOT_SPAWNED_BYTES);
   });
 
   it("lets the render clock run ahead by exactly the interpolators' extrapolation budget", () => {

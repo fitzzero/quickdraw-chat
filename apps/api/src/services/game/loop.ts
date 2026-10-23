@@ -6,14 +6,23 @@
  * results without timers or I/O.
  */
 
-import type { FoodDelta, GameDeathEvent, LeaderboardEntry, WorldSnapshot } from "@project/shared";
+import type {
+  FoodDelta,
+  GameDeathEvent,
+  LeaderboardEntry,
+  PackedWorldItem,
+  WorldSnapshot,
+} from "@project/shared";
 import { GAME_FOOD_WINDOW, GAME_TICK_RATE } from "@project/shared";
 import type { GameWorldSim, TickResult } from "./world.js";
 
 /** What the loop sends, by kind; the runtime puts each on the wire. */
 export interface GameLoopEmits {
-  /** Every tick, volatile: droppable under backpressure (the world stream). */
-  snapshot: (snapshot: WorldSnapshot) => void;
+  /**
+   * Every tick, volatile: droppable under backpressure (the world stream).
+   * Returns the stream item it sent, which `onTick` measures.
+   */
+  snapshot: (snapshot: WorldSnapshot) => PackedWorldItem;
   /** Reliable: a snake died (the world's room). */
   death: (death: GameDeathEvent) => void;
   /** Reliable, 1Hz: the longest snakes (the world's room). */
@@ -43,6 +52,7 @@ export interface TickStats {
   /** epoch ms with sub-ms precision (performance.timeOrigin + now) */
   tWall: number;
   tickDurMs: number;
+  /** The stream item's JSON: the packed snapshot, base64, in `{ b }`. */
   snapshotBytes: number;
 }
 
@@ -123,7 +133,7 @@ export class GameLoop {
     // Send-time stamp for client clock sync (H2); the sim itself stays
     // wall-clock-free — timing belongs to the transport boundary.
     result.snapshot.t = Math.round(performance.timeOrigin + performance.now());
-    this.deps.emit.snapshot(result.snapshot);
+    const item = this.deps.emit.snapshot(result.snapshot);
 
     for (const death of result.deaths) {
       this.deps.emit.death(death);
@@ -134,7 +144,7 @@ export class GameLoop {
       tick: result.snapshot.tick,
       tWall: performance.timeOrigin + performance.now(),
       tickDurMs,
-      snapshotBytes: JSON.stringify(result.snapshot).length,
+      snapshotBytes: JSON.stringify(item).length,
     });
 
     return result;

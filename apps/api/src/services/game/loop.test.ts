@@ -1,7 +1,10 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import type { WorldSnapshot } from "@project/shared";
+import type { PackedWorldItem, WorldSnapshot } from "@project/shared";
 import { GameWorldSim } from "./world.js";
 import { GameLoop, type GameLoopEmits } from "./loop.js";
+
+/** What these loops' world stream sends: no stream here, so nothing packed. */
+const SENT: PackedWorldItem = { b: "" };
 
 function makeLoop(hasAudience?: () => boolean): {
   sim: GameWorldSim;
@@ -15,6 +18,7 @@ function makeLoop(hasAudience?: () => boolean): {
     emit: {
       snapshot: () => {
         events.push("snapshot");
+        return SENT;
       },
       death: () => {
         events.push("death");
@@ -104,7 +108,10 @@ describe("GameLoop food window", () => {
     const loop = new GameLoop({
       sim,
       emit: {
-        snapshot: (s) => snapshots.push(s),
+        snapshot: (s) => {
+          snapshots.push(s);
+          return SENT;
+        },
         death: () => undefined,
         leaderboard: () => undefined,
       },

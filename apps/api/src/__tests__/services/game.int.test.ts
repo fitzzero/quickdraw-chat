@@ -12,12 +12,15 @@ import {
   streamFrames,
 } from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
-import type { GameBootstrap, GameInput, WorldSnapshot } from "@project/shared";
+import type { GameBootstrap, GameInput, PackedWorldItem, WorldSnapshot } from "@project/shared";
 import {
+  GAME_FOOD_WINDOW,
   GLOBAL_WORLD_ID,
   GLOBAL_WORLD_ROOM,
   GLOBAL_WORLD_SLUG,
+  SnapshotDecoder,
   gameContract,
+  worldSnapshotSchema,
 } from "@project/shared";
 import { FoodTracker } from "../../bench/bot/food.js";
 import { ensureGlobalWorld } from "../../services/game/bootstrap.js";
@@ -111,25 +114,44 @@ async function settled(connection: ApiConnection): Promise<void> {
   await connection.call.gameService.getWorld({ slug: GLOBAL_WORLD_SLUG });
 }
 
-/** Subscribes the socket to the world stream; answers the seed. */
+/** Each socket's world stream decoder: snapshots name players by the stream's id table. */
+const decoders = new WeakMap<ApiConnection, SnapshotDecoder>();
+
+function decoderOf(connection: ApiConnection): SnapshotDecoder {
+  let decoder = decoders.get(connection);
+  if (decoder === undefined) decoders.set(connection, (decoder = new SnapshotDecoder()));
+  return decoder;
+}
+
+/** A packed snapshot's tick, read without a table (a decoder of its own). */
+function tickOf(item: PackedWorldItem): number {
+  return new SnapshotDecoder().decode(item.b).tick;
+}
+
+/** Subscribes the socket to the world stream; answers the seed, decoded. */
 async function subscribeWorld(connection: ApiConnection): Promise<WorldSnapshot[]> {
-  const reply = await emitWithAck<{ ok: boolean; seed?: WorldSnapshot[] }>(
+  const reply = await emitWithAck<{ ok: boolean; seed?: PackedWorldItem[] }>(
     connection.socket,
     "qd:stream:sub",
     { s: "gameService", stream: "world", scope: GLOBAL_WORLD_ID },
   );
   expect(reply.ok).toBe(true);
-  return reply.seed ?? [];
+  return (reply.seed ?? []).map((item) => decoderOf(connection).decode(item.b));
 }
 
-/** Runs one tick of the world; answers the snapshot `connection` received on the world stream. */
-async function tickTo(connection: ApiConnection): Promise<WorldSnapshot> {
+/** Runs one tick of the world; answers the packed item `connection` received on the world stream. */
+async function tickToItem(connection: ApiConnection): Promise<PackedWorldItem> {
   const tick = must(gameRuntime(testDb).loop.tickOnce()).snapshot.tick;
   const { data } = await app.frames.waitFor({
-    ...streamFrames(gameContract, "world", (snapshot) => snapshot.tick === tick, GLOBAL_WORLD_ID),
+    ...streamFrames(gameContract, "world", (item) => tickOf(item) === tick, GLOBAL_WORLD_ID),
     socketId: connection.socket.id,
   });
   return data[3];
+}
+
+/** Runs one tick of the world; answers the snapshot `connection` received, decoded. */
+async function tickTo(connection: ApiConnection): Promise<WorldSnapshot> {
+  return decoderOf(connection).decode((await tickToItem(connection)).b);
 }
 
 /** The next `event` of the world `connection` receives (one received already counts). */
@@ -486,6 +508,28 @@ describe("GameService on the realtime kit", () => {
     const third = await mine();
     expect(third.ack).toBe(5);
     expect([third.x, third.y]).not.toEqual([second.x, second.y]);
+  });
+
+  it("packs each snapshot: the stream's table names a player who joins after the seed", async () => {
+    const { socket } = await joined(users.regular.id);
+    await subscribeWorld(socket);
+    await tickTo(socket);
+
+    // the next snapshot introduces the moderator, whom the seed did not name
+    await as(users.moderator.id).gameService.joinGame(WORLD);
+    const snapshot = await tickTo(socket);
+    expect(snapshot.players.map((p) => p.id).sort()).toEqual(
+      [users.regular.id, users.moderator.id].sort(),
+    );
+    expect(decoderOf(socket).unnamed).toBe(0);
+    // what it decodes to is a world snapshot
+    expect(worldSnapshotSchema.safeParse(snapshot).success).toBe(true);
+    // once the window's snapshots introduced both, one is a fraction of its JSON
+    for (let i = 0; i < GAME_FOOD_WINDOW; i++) await tickTo(socket);
+    const steady = await tickToItem(socket);
+    const decoded = decoderOf(socket).decode(steady.b);
+    expect(decoded.players).toHaveLength(2);
+    expect(JSON.stringify(steady).length).toBeLessThan(JSON.stringify(decoded).length / 2);
   });
 
   it("seeds a subscriber with the current world, food included, computed from the running sim", async () => {

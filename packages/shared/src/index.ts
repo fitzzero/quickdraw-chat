@@ -8,5 +8,8 @@ export type * from "./types.js";
 export * from "./types/game.js";
 export * from "./types/definition.js";
 export * from "./game/movement.js";
+export * from "./game/snapshotCodec.js";
+export * from "./game/snapshotDecoder.js";
+export * from "./game/snapshotEncoder.js";
 // ── quickdraw-game:end ──
 export * from "./contracts/index.js";

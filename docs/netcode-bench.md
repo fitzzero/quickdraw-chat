@@ -65,7 +65,7 @@ real render pipeline, including WASM frame pacing.
 | `packet.gapRate`                         | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted). | ~0 except bursty scenarios.                                                |
 | `packet.inputAckRttMs`                   | Input send → first snapshot acking it.                                                                                 | RTT + up-to-one-tick alignment.                                            |
 | `server.tickDurMs` / `effectiveTickRate` | Sim cost and loop health.                                                                                              | ≪ 50ms / 20Hz.                                                             |
-| `server.snapshotBytes`                   | The snapshot's JSON (the stream item). On the wire each `qd:stream` frame adds its envelope, 59 bytes.                 | Grows with players; add fields consciously.                                |
+| `server.snapshotBytes`                   | The stream item's JSON: the packed snapshot, base64 in `{ b }`. On the wire each `qd:stream` frame adds 59 bytes.      | 21 B a player (28 in base64); add fields consciously.                      |
 | `server.inputQueue`                      | Server's view of client clocks: queue depth p95, coasted and multi-step tick rates, depth trend; per client too.       | depth 0–1, multi-step < 5%, trend ~0; coasts are cheap (see below).        |
 | `foodMismatchAtEnd` / `foodResyncs`      | Per client: food ids held at the end that differ from the server's at that tick (the worst gates); keyframes asked.    | 0 / 0. Tier 1 only (Godot reports none); check:godot checks Godot's.       |
 
@@ -79,8 +79,8 @@ The bots stand in for the Godot client; `bun run check:godot` runs the real
 one: two headless copies of `apps/game/godot` (`test/session.gd`) against
 the same bench server, checking a whole session (join, each sees the other
 move, a death, the leaderboard, each holding the server's food, one that
-missed a second of snapshots asking for a keyframe, an API restart with
-both reconnecting). See `apps/game/README.md`.
+missed a second of snapshots asking for a keyframe and the other for none,
+an API restart with both reconnecting). See `apps/game/README.md`.
 
 ## Scenarios
 

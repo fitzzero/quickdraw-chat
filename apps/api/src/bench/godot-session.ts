@@ -199,7 +199,7 @@ function heldServerFood(client: GodotClient, server: BenchServer, from: number):
   return foodMatches(last, server) && idsOf(last) !== idsOf(first);
 }
 
-async function step(label: string, check: () => Promise<unknown>): Promise<void> {
+async function step(label: string, check: () => unknown): Promise<void> {
   const started = Date.now();
   await check();
   console.log(`  ✓ ${label} (${String(Date.now() - started)} ms)`);
@@ -300,6 +300,21 @@ async function checkFoodResync({ ada }: Players, running: Running): Promise<void
   );
 }
 
+/**
+ * bo's main scene heard every snapshot: it asked for no keyframe, neither
+ * for food nor for a player its decoder could not name (ada's blackout was
+ * main.gd's alone, so ada's decoder saw every snapshot too).
+ */
+async function checkNoResync({ bo }: Players): Promise<void> {
+  await step("a client that missed no snapshot asks for no keyframe", () => {
+    const last = bo.since(0, "food").at(-1);
+    if (last === undefined) throw new Error("bo sent no food probe");
+    if (Number(last.resyncs) !== 0) {
+      throw new Error(`bo asked for ${String(last.resyncs)} keyframes, and missed nothing`);
+    }
+  });
+}
+
 /** Stops the server and starts a new one on its port. */
 async function checkRestart({ both, pairs }: Players, running: Running): Promise<void> {
   await step("the API restarts: both reconnect, rejoin and see each other move", async () => {
@@ -363,6 +378,7 @@ async function session(): Promise<void> {
       () => 0,
     );
     await checkFoodResync(players, running);
+    await checkNoResync(players);
     await checkRestart(players, running);
     // the new world's ids repeat the old one's: its keyframe and its
     // bootstrap must replace them

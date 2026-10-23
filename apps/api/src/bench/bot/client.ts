@@ -3,10 +3,10 @@
  * production wire, quickdraw protocol v5 as the Godot client does
  * (handshake → `qd:hello` → `qd:stream:sub` of the world stream →
  * joinGame/watchWorld, which puts the socket in the world's room → `qd:ch`
- * input → volatile `qd:stream` snapshots and `qd:event` world events),
- * through an optional latency proxy, runs the same netcode as the Godot
- * client (LocalPredictor + RemoteInterpolator), and records a ClientTrace
- * for the metrics pipeline.
+ * input → volatile `qd:stream` snapshots, packed, and `qd:event` world
+ * events), through an optional latency proxy, runs the same netcode as the
+ * Godot client (SnapshotDecoder + LocalPredictor + RemoteInterpolator), and
+ * records a ClientTrace for the metrics pipeline.
  *
  * The render loop targets 60Hz like a browser; ACTUAL frame times are
  * recorded, so timer wobble shows up in the data instead of being assumed
@@ -29,11 +29,12 @@ import type {
   GameBootstrap,
   GameDeathEvent,
   GameInput,
+  PackedWorldItem,
   PlayerSnap,
   WorldBootstrap,
   WorldSnapshot,
 } from "@project/shared";
-import { GLOBAL_WORLD_ID } from "@project/shared";
+import { GLOBAL_WORLD_ID, SnapshotDecoder } from "@project/shared";
 import { FoodTracker } from "./food.js";
 import { LocalPredictor, type PredictionTunables } from "./prediction.js";
 import { RemoteInterpolator } from "./interpolation.js";
@@ -101,6 +102,10 @@ export class BotClient {
   private socket: Socket | null = null;
   /** The food this client holds (food.ts, the port of main.gd's). */
   private readonly food = new FoodTracker();
+  /** Unpacks the world stream (game.gd's `_decoder`): one per subscription's world. */
+  private readonly decoder = new SnapshotDecoder();
+  /** The server whose world the decoder holds the table of (its hello's `serverId`). */
+  private serverId: string | null = null;
   private readonly worldClock: WorldClock;
   private predictor: LocalPredictor | null = null;
   private readonly interpolators = new Map<string, RemoteInterpolator>();
@@ -148,6 +153,9 @@ export class BotClient {
     // The hello names the server, whose world the clock follows (a restarted
     // one starts its ticks over)
     socket.on("qd:hello", (hello: HelloFrame) => {
+      // Another server's world (its ticks start over) has another id table
+      if (hello.serverId !== this.serverId) this.decoder.reset();
+      this.serverId = hello.serverId;
       this.worldClock.followServer(hello.serverId);
     });
     // The server is ready for calls once it said hello
@@ -168,7 +176,7 @@ export class BotClient {
 
     socket.on("qd:stream", ([service, stream, , item]: StreamFrame) => {
       if (service === "gameService" && stream === "world") {
-        this.onSnapshot(item as WorldSnapshot);
+        this.onSnapshot(this.decoder.decode((item as PackedWorldItem).b));
       }
     });
     socket.on("qd:event", ([service, event, payload]: EventFrame) => {
@@ -201,18 +209,24 @@ export class BotClient {
     this.scheduleRenderFrame();
   }
 
-  /** Subscribes to the world stream; its seed (a keyframe) replaces the food held. */
-  private async subscribeWorld(socket: Socket): Promise<StreamSubscribeReply<WorldSnapshot>> {
-    const reply = await request<StreamSubscribeReply<WorldSnapshot>>(socket, "qd:stream:sub", {
+  /**
+   * Subscribes to the world stream; its seed (a keyframe) names every player
+   * and replaces the food held.
+   */
+  private async subscribeWorld(socket: Socket): Promise<StreamSubscribeReply<PackedWorldItem>> {
+    const reply = await request<StreamSubscribeReply<PackedWorldItem>>(socket, "qd:stream:sub", {
       s: "gameService",
       stream: "world",
       scope: GLOBAL_WORLD_ID,
     });
-    if (reply.ok) for (const seed of reply.seed) this.food.keyframe(seed);
+    if (reply.ok) for (const seed of reply.seed) this.food.keyframe(this.decoder.decode(seed.b));
     return reply;
   }
 
-  /** Missed more snapshots than the food window repeats: a keyframe puts the food right. */
+  /**
+   * Missed more snapshots than the food window repeats, or a player the
+   * snapshots no longer introduce: a keyframe puts the food and the names right.
+   */
   private requestKeyframe(): void {
     const socket = this.socket;
     if (!socket) return;
@@ -337,7 +351,9 @@ export class BotClient {
     this.trace.snapshots.push({ tWall, tick: snapshot.tick });
     this.latestTick = snapshot.tick;
     this.worldClock.observe(snapshot.tick, snapshot.t, tWall);
-    if (this.food.apply(snapshot)) this.requestKeyframe();
+    if (this.food.apply(snapshot) || (this.decoder.needsKeyframe && this.food.askKeyframe())) {
+      this.requestKeyframe();
+    }
 
     for (const snap of snapshot.players) {
       if (snap.id === this.opts.userId && this.predictor) {

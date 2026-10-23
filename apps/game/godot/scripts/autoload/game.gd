@@ -4,7 +4,8 @@ extends Node
 ##
 ## Client ordering contract (see .claude/rules/game-patterns.md), on every
 ## (re)connect — a new socket is in no room until a call joins it:
-##   world stream (gameService "world")  → snapshots, seeded with the world now
+##   world stream (gameService "world")  → snapshots, packed, seeded with the
+##                                        world now (SnapshotDecoder unpacks them)
 ##   watchWorld / joinGame              → bootstrap state; puts THIS socket in
 ##                                        the world's room (its events, and
 ##                                        the input channel's requirement)
@@ -35,6 +36,11 @@ var chat_id := ""
 var my_id := ""
 var bounds := Vector2(2400, 2400)
 var is_in_world := false
+
+## Unpacks the world stream (snapshot_decoder.gd): its snapshots name the
+## players by the stream's id table, which the seed and each snapshot
+## introduce. Another server's world has another table.
+var _decoder := SnapshotDecoder.new()
 
 ## ── World clock — shared server-timeline estimate ─────────────────────────
 ## Port of the bench harness's WorldClock (apps/api/src/bench/bot/
@@ -283,6 +289,8 @@ func _on_ready_to_join() -> void:
 	# The hello names the server (a restarted one has a new id and a new
 	# world) and the user the socket acts for (null when anonymous); spectate
 	# mode never calls joinGame, so this is where my_id comes from.
+	if Net.client.server_id != _clock_server_id:
+		_decoder.reset()
 	clock_follow_server(Net.client.server_id)
 	my_id = "" if Net.client.user_id == null else str(Net.client.user_id)
 	_enter_world()
@@ -368,10 +376,12 @@ func _load_tunables() -> void:
 			GameConfig.apply_tunables(definition["data"] as Dictionary)
 
 
-## A snapshot pushed to the world stream (`qd:stream`, 20Hz, volatile).
+## A snapshot pushed to the world stream (`qd:stream`, 20Hz, volatile), packed.
 func _on_stream_item(service: String, stream: String, _scope: String, item: Variant) -> void:
 	if service == "gameService" and stream == "world" and item is Dictionary:
-		var snapshot := item as Dictionary
+		var snapshot := _decoder.decode(str((item as Dictionary).get("b", "")))
+		if snapshot.is_empty():
+			return
 		clock_observe(int(snapshot.get("tick", 0)), float(snapshot.get("t", 0.0)))
 		if Bench.enabled:
 			Bench.on_snapshot(int(snapshot.get("tick", 0)))
@@ -389,7 +399,15 @@ func _on_stream_seeded(service: String, stream: String, _scope: String, seed: Ar
 		return
 	for item in seed:
 		if item is Dictionary:
-			world_keyframe.emit(item as Dictionary)
+			var keyframe := _decoder.decode(str((item as Dictionary).get("b", "")))
+			if not keyframe.is_empty():
+				world_keyframe.emit(keyframe)
+
+
+## A snapshot named a player by an introduction this client missed (it lost
+## more snapshots than they repeat it in): a keyframe names them all again.
+func world_needs_keyframe() -> bool:
+	return _decoder.needs_keyframe()
 
 
 ## The world's reliable events (`qd:event`), heard while this socket is in its room.

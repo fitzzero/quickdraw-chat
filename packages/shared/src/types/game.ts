@@ -11,8 +11,10 @@
 //                  (one per client tick, ~20Hz, fire-and-forget; dropped
 //                  unless the sending socket is in the world's room)
 //   server → client qd:stream ["gameService", "world", worldId,
-//                  WorldSnapshot]
-//                  (20Hz, volatile; the subscribe answers the current world)
+//                  PackedWorldItem]
+//                  (20Hz, volatile; each item a packed WorldSnapshot, see
+//                  game/snapshotCodec.ts; the subscribe answers the current
+//                  world)
 //   server → room  qd:event ["gameService", "playerJoined" | "playerLeft" |
 //                  "death" | "leaderboard", payload] (reliable)
 // ============================================================================
@@ -129,6 +131,17 @@ export interface WorldSnapshot {
   t?: number;
   players: PlayerSnap[];
   food?: FoodDelta[];
+}
+
+/**
+ * The world stream's item: a WorldSnapshot packed into bytes, base64
+ * (`b`). Decode it with a SnapshotDecoder (game/snapshotCodec.ts; the Godot
+ * client's port is snapshot_decoder.gd), one per subscription: the players
+ * are named by the stream's id table, which each snapshot and keyframe
+ * introduces.
+ */
+export interface PackedWorldItem {
+  b: string;
 }
 
 export interface GamePlayerMeta {

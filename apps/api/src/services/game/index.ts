@@ -198,7 +198,7 @@ export const gameService = qd.defineService(gameContract, {
       // database: it runs on every subscribe
       seed: (worldId) => {
         const runtime = activeGameRuntime();
-        return worldId === GLOBAL_WORLD_ID && runtime !== undefined ? [runtime.sim.keyframe()] : [];
+        return worldId === GLOBAL_WORLD_ID && runtime !== undefined ? [runtime.keyframe()] : [];
       },
       // 20 snapshots a second the loop builds itself: checked against the
       // schema where outputs are (development and tests), not in production

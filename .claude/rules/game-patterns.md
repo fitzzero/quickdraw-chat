@@ -36,14 +36,21 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   is in the world's room; anonymous sockets are always dropped. One world,
   so one room by name; a game of many worlds requires
   `{ room: { prefix: "world:" } }` and reads the world from `ctx.room`.
-- **The `world` stream** — every tick's snapshot, pushed by the loop with
-  `qd.stream(gameContract, "world").push(worldId, snapshot)`: volatile
-  (backpressured clients drop frames), public (signed-out visitors spectate,
-  and clients subscribe before they join the world's room). Each subscriber
-  starts from the current world, which the service computes
-  (`streams.world.seed`: the sim's `keyframe()`, every snake and all the
-  food, read from memory, never the database), and the snapshots that follow
-  are deltas of it. Every snapshot carries every snake's head, so a dropped
+- **The `world` stream** — every tick's snapshot, packed into bytes and
+  pushed by the loop with
+  `qd.stream(gameContract, "world").push(worldId, { b })` (base64, about a
+  quarter of its JSON; `game/snapshotCodec.ts` in the shared package has
+  the layout): volatile (backpressured clients drop frames), public
+  (signed-out visitors spectate, and clients subscribe before they join the
+  world's room). Each subscriber starts from the current world, which the
+  service computes (`streams.world.seed`: the runtime's `keyframe()`, every
+  snake and all the food, read from memory, never the database), and the
+  snapshots that follow are deltas of it. A snapshot names its players by
+  the stream's id table, which one SnapshotEncoder per runtime keeps: the
+  keyframe introduces every player, and each snapshot a player given an
+  index in its last six ticks. A client decodes with one SnapshotDecoder
+  (`snapshot_decoder.gd` in Godot) per world, and asks for a keyframe when
+  a snapshot names a player by an introduction it missed (`needsKeyframe`). Every snapshot carries every snake's head, so a dropped
   one costs a frame of motion only; a food change happens on one tick, so
   each snapshot repeats the food changes of the last six ticks
   (`GAME_FOOD_WINDOW`: `food`, one entry per tick that changed, kept by the
@@ -52,7 +59,7 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   the client subscribes again (a held feed answers a fresh seed), and the
   keyframe (the seed, all the food in one entry) replaces its food. A client
   takes only a keyframe's food: it may be handled after newer snapshots,
-  which place the snakes. Snapshots are checked against the schema in
+  which place the snakes. Stream items are checked against the schema in
   development and tests only (`validate: "development"`).
 - **Events** (`playerJoined`, `playerLeft`, `death`, `leaderboard`) —
   reliable, sent to the world's room with `qd.rooms.emit` (from the loop) or
