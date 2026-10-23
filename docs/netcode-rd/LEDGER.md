@@ -19,22 +19,31 @@ Template:
 ## 2026-10-23 — H5: Input queue and redundant frames (the pack's G1) [KEPT]
 
 - Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at
-  a429eea. The variants tried are kept on `wip/g1-input-queue` (F 0749d3b,
+  51d3a76 (a429eea the queue, 38f917b and 51d3a76 the fixes from the
+  review). The variants tried are kept on `wip/g1-input-queue` (F 0749d3b,
   D ed033e4, A 822c3c5, H2 f389b59).
 - Change: the input channel carries `{ frames }`, the newest last with up
   to three unacknowledged ones before it. Each human snake queues its
-  frames once by seq (`InputQueue`) and steps one a tick, so
-  `PlayerSnap.ack` names the last frame the server's state holds. A tick
-  without a frame coasts on the last intent and stands in for the late
-  frame, which is ignored when it arrives. The loop ticks on an exact
-  20 Hz grid (`setInterval` ran at 19.94 Hz).
-- Scenarios (the sweep, `--all --runs 3`, against the `core-5.1.3`
-  baselines): no `fail`, no `warn`. jerkRms asym-2p −65%, jitter-heavy-3p
-  −40%, encounter-3p-100ms −34%, fps-varying-3p −19%, spectator-plus-2p
-  −18%, the rest within noise. inputAckRttMs p95 −5…−14% or within noise.
-- Headline: correctionPx p95 9 px (one movement step) → 0.1 px on most
-  clients; jitter-heavy-3p 9/16/16 → 0.3/0.6/6.9 px. teleportsPerMin 0
-  everywhere.
+  frames once by seq (`InputQueue`) and steps one a tick unless a backlog
+  builds, so `PlayerSnap.ack` names the last frame the server's state
+  holds. A tick without a frame coasts on the last intent: while nothing
+  arrives, the coast stands in for the late frame, which is ignored when
+  it arrives; while frames arrive but none can step (a slow clock, a
+  client back from a pause), the coast is owed (a frame that arrives with
+  another after it pays it, the debt expires after four ticks). A second
+  frame steps in a tick only from a backlog, or after a frame waited 10
+  ticks. Every step, coasts included, spends the 1.15-a-tick credit. A tick
+  of several steps checks collisions at every head it passed. The loop
+  ticks on an exact 20 Hz grid (`setInterval` ran at 19.94 Hz).
+- Scenarios (the sweep, `--all --runs 3`, at 51d3a76 against the
+  `core-5.1.3` baselines): no `fail`. One `warn`: fps-varying-3p
+  ownVsRemotePx p95 65.0 → 72.2 (+11%). jerkRms asym-2p −43%,
+  jitter-heavy-3p −36%, encounter-3p-100ms −29%, fps-varying-3p −17%,
+  spectator-plus-2p −17%, the rest within noise. inputAckRttMs p95 −6…−16%
+  or ok.
+- Headline: correctionPx p95 at most 0.8 px on every client of every
+  scenario, from 9 px (one movement step) and 16 px on jitter-heavy-3p.
+  teleportsPerMin 0 everywhere.
 - The plan's queue (A: full credit, up to three frames a tick, a starved
   tick skipped) fails its own gate: corrections 9 → 0.1 px, but jerkRms
   +202…+225% on the three-player scenarios. A client steps its 20 Hz sim
@@ -42,7 +51,10 @@ Template:
   client whose frames reach the server within that of the tick (about one
   in three, by the chance of its connect time) flips them between ticks:
   stepping what arrived gives "2, 0", which every viewer's interpolation
-  shows as a pause and a double step.
+  shows as a pause and a double step. Every server-only rule makes such a
+  client pay one of input latency (a held frame), stutter (the skip) or a
+  correction (a coast); a coast that stands in for the late frame makes
+  the correction only that frame's change of intent.
 - Dead ends, one run each against the same baselines:
   - A plus the exact loop: jerk +65% / +188% / +151% (baseline-3p-100ms /
     jitter-heavy-3p / control-0ms).
@@ -56,36 +68,47 @@ Template:
   - G40 (D's rules, a coasted step paid only by a frame that arrives with
     another): corrections 0.1 px, but control-0ms ack +19%, ownVsRemotePx
     +27%: the client at the tick keeps a frame held.
-  - H (a coast stands in for the late frame): the best jitter-heavy-3p,
-    but it switched between coasting and holding a frame and double-
-    stepped: baseline-3p-100ms jerk +38%.
-- What held: every server-only rule makes a client at the tick pay one of
-  input latency (a held frame), stutter (the skip) or a correction (a
-  coast). H2's coast stands in for the late frame, so the correction is
-  only that frame's change of intent; a stood-in frame that arrives with
-  nothing after it (a slow clock), or a fifth coast in a row, makes the
-  next coast owed instead (a frame that arrives with another pays it;
-  the debt expires after four ticks); a second frame steps in a tick only
-  from a backlog or after a frame waited 10 ticks.
-- tickDurMs: every single run before the sweep measured 0.21 → 0.30 ms
-  p95, G1 or not. The unchanged pre-G1 code measured the same in the same
-  hour (control-0ms 0.26, baseline-3p-100ms 0.35 ms p95), and the sim's
-  step alone costs 0.026 ms p50 with or without G1. The machine moved it;
-  in the sweep it was back to 0.17–0.24 ms.
-- Bounds the plan set for the skip design: control-0ms `starvedRate` 1.00%
-  (bound < 0.5%; bot-a, at the tick, coasted 3%); drift-slow-client 2.11%,
-  6.2% for the slow client (bound 0.5–2%). A coasted tick is cheap: the
-  snake moves and nothing stutters. `multiStepRate` stays under 0.4%
-  everywhere (bound < 5%). drift-fast-client: depth p95 1, trend 0.14,
-  starved 0.15% (bounds met).
-- predictionErrorPx p95: jitter-heavy-3p 12.3/17.7/17.8 → 10.9/7.4/10.4;
-  baseline-3p-100ms 10.0/13.0/12.2 → 4.5/11.2/15.4. It is mostly the
-  client's one-tick lead; with the exact loop a client's phase holds for a
-  whole run, so it spreads per client.
-- `server.inputQueue.depthP95` joins the headline metrics with a floor of
-  one frame, not the planned 0.05: a client's queue holds 0 or 1 by its
-  phase, and a ratchet grows by more.
-- Baselines: all ten scenarios are this sweep's (label `g1-queue`),
+  - H (a coast stands in for the late frame, at most four in a row): it
+    switched between coasting and holding a frame and double-stepped:
+    baseline-3p-100ms jerk +38%.
+  - H2 (H, a stood-in frame that arrives alone makes the next coast owed):
+    no fail in its sweep (a429eea, the verdict of 317a820), but the review
+    found four faults: coasts were free steps (a client that held frames
+    back for bursts moved about 1.5× as fast); a three-step boosted tick
+    (48 px) could step over a body (19 px kill distance); after an uplink
+    stall of more than four coasts the capped debt let stale frames step
+    again (a lurch of about 100 px); and a client back from a pause had no
+    prediction for as long as it paused (its seqs stayed under the ack).
+  - Clients numbering past any ack ahead of them (the first fix for the
+    last fault): at 0 ms a stand-in often runs the ack one ahead of a frame
+    the client has not stepped yet, and renumbering there made the queue
+    hold and drain frames in a cycle (control-0ms double steps 1.4%, jerk
+    +30%). They number past the ack only when it ran more than four ahead.
+- tickDurMs: every single run before the first sweep measured 0.21 → 0.30
+  ms p95, G1 or not. The unchanged pre-G1 code measured the same in the
+  same hour (control-0ms 0.26, baseline-3p-100ms 0.35 ms p95), and the
+  sim's step alone costs 0.026 ms p50 with or without G1. The machine
+  moved it; in the sweeps it was 0.17–0.26 ms.
+- The exact loop keeps each client's phase for a whole run, so the metrics
+  that depend on a client's phase now spread across runs: control-0ms
+  ownVsRemotePx p95 by 5–11 px (the drifting loop averaged every phase),
+  which is why its +18% is within noise. predictionErrorPx p95, mostly the
+  client's one-tick lead, spreads per client: baseline-3p-100ms
+  10.0/13.0/12.2 → 3.6/11.0/15.6, jitter-heavy-3p 12.3/17.7/17.8 →
+  11.2/8.4/18.5.
+- Bounds the plan set for the skip design: control-0ms `starvedRate` 0.73%
+  (bound < 0.5%); drift-slow-client 2.00%, 5.9% for the slow client (bound
+  0.5–2%). A coasted tick is cheap: the snake moves and nothing stutters.
+  `multiStepRate` stays at or under 0.35% everywhere (bound < 5%), 1.03%
+  for the fast client. drift-fast-client: depth p95 1, trend 0.17, starved
+  0.10% (bounds met).
+- inputAckRttMs is partly shorter by definition: a stand-in coast
+  acknowledges its frame before the frame arrives.
+- The gate: `server.inputQueue.depthP95` joins the headline metrics with a
+  floor of one frame, not the planned 0.05 (a client's queue holds 0 or 1
+  by its phase; a ratchet grows by more), and any growth past a floor from
+  a zero baseline now fails (it was called ok, a first teleport included).
+- Baselines: all ten scenarios are this sweep's (label `g1-queue-final`),
   drift-fast-client and drift-slow-client new.
 
 ## 2026-10-23 — Re-baseline: quickdraw-core 5.1.3 on the pod machine [BASELINE]

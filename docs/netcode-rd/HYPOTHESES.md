@@ -80,8 +80,9 @@ Each message now carries the last four frames (`{ frames }`), the server
 steps one frame a tick from a per-snake queue (`InputQueue`), and a tick
 without a frame coasts and stands in for the late frame.
 
-- Result: `correctionPx` p95 9 → 0.1 px on most clients, `jerkRms` −18…−65%
-  where it moved; see the 2026-10-23 LEDGER entry, with the dead ends.
+- Result: `correctionPx` p95 at most 0.8 px on every client, from 9–16 px;
+  `jerkRms` −17…−43% where it moved. See the 2026-10-23 LEDGER entry, with
+  the dead ends.
 
 ## 6. Correction tuning sweep
 
