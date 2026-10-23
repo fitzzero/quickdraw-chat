@@ -54,7 +54,7 @@ real render pipeline, including WASM frame pacing.
 
 | Metric                                   | Meaning                                                                                                                | Healthy shape                                                              |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `divergence.remoteVsRemotePx`            | Same entity, same instant, two clients that BOTH see it remotely. The purest desync signal.                            | ~0–2px. Growth = inconsistent interpolation clocks.                        |
+| `divergence.remoteVsRemotePx`            | Same entity, same instant, two clients that BOTH see it remotely. The purest desync signal.                            | ~0–1px on equal links; unequal ones: speed × the delays' gap (10–20px).    |
 | `divergence.ownVsRemotePx`               | Owner's predicted-now view vs another client's delayed view.                                                           | ≈ (RTT + interp delay) × speed. Dropping it means cutting perceived delay. |
 | `perEntity.renderLatencyMs`              | Lag that best aligns a client's render with the server track (staleness incl. the intentional interp delay).           | ~transport + the playback delay (75–300ms) for remotes; ~0 for the local.  |
 | `perEntity.shapeErrorPx`                 | Residual error after removing that lag — trajectory fidelity.                                                          | Low single digits. Spikes = warping/snapping.                              |
@@ -117,6 +117,11 @@ any client ended up differing from the server on) must be 0 in every run
 (`MUST_BE_ZERO`, judged on an aggregated card's `runWorst`, each headline
 metric's worst run): any other value fails, whatever the baseline and the
 noise, and so does a candidate without it once the baseline has it.
+
+`bench-baselines/thresholds/` holds the thresholds a change that moved
+metrics on purpose was judged with, each saying what it accepts and
+against which baselines: `g3-adaptive-delay.json`, the adaptive delay
+against the baselines before it.
 
 ## Honest limits
 

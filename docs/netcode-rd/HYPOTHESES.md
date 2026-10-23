@@ -36,18 +36,25 @@ min-over-window) instead of nudging toward the freshest tick.
   propagating into rendered motion (`jerkRms` ↓ in bursty-3p).
 - Wire: +~8 bytes/snapshot. Cheap.
 
-## 3. Adaptive interpolation delay
+## 3. Adaptive interpolation delay — SHIPPED
 
-`INTERP_DELAY_TICKS := 2.5` is fixed. Under clean 50ms links it wastes
-~50ms of perceived delay; under 150ms+spiky links it underruns into
-extrapolation (visible warps).
+Resolved 2026-10-23 (the netcode pack's G3) and recorded KEPT in
+`LEDGER.md`. Kept here for the record; do not pick it up again.
 
-- Change: per-client delay = clamp(p99 of recent snapshot inter-arrival
-  jitter + margin, min 1.5, max 6 ticks), slewed slowly (≤0.1 tick/s) so the
-  timeline never jumps.
-- Confirm: jitter-heavy: `teleportsPerMin`/`jerkRms` ↓; control/baseline:
-  `renderLatencyMs` ↓ vs today with no smoothness cost.
-- Wire: none.
+`INTERP_DELAY_TICKS := 2.5` was fixed, which wasted ~50ms of perceived
+delay on clean links. Each client now renders as far behind as its own
+arrivals need (`PlaybackDelay`): mean + 3σ of the time between them (about
+the last 10 s) plus a frame, clamped to 1.5–6 ticks, reached by running the
+render clock 5% fast or slow, at most 2 ticks past the newest snapshot.
+
+- Result: remotes render 40–50 ms sooner on clean and mildly jittery
+  links (`renderLatencyMs` −15…−35%), jitter-heavy-3p holds, and
+  bursty-3p's stalled clients render further behind so their buffers stop
+  running dry. `jerkRms` −10…−60%, teleports 0. The accepted cost: clients
+  on unequal or jittery links render one snake at different moments
+  (`remoteVsRemotePx` p50 up to 17 px on bursty-3p), and `shapeErrorPx`
+  rises 1–2 px where the delay follows the link. See the 2026-10-23 LEDGER
+  entry.
 
 ## 4. Velocity-aware (Hermite) interpolation
 
@@ -60,7 +67,12 @@ visible direction popping at segment boundaries.
 - Confirm: `shapeErrorPx` ↓, `jerkRms` ↓ at unchanged `renderLatencyMs`.
 - Wire: none.
 
-## 4b. Server-coordinated uniform interpolation delay
+## 4b. Server-coordinated uniform interpolation delay — CLOSED
+
+Closed 2026-10-23 untested: the user chose per-client delays (2026-10-22),
+accepting cross-client divergence on unequal links for a lower delay on
+good ones, and #3 shipped them. One delay for the room would hold every
+client at its worst link's. Kept here for the record.
 
 Per-client adaptive delay (tried in iteration 2, discarded) desyncs clients
 on unequal links. The server sees per-socket backpressure/drop rates and

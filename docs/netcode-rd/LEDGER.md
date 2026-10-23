@@ -16,6 +16,90 @@ Template:
 
 ---
 
+## 2026-10-23 — H3: Adaptive interpolation delay per client (the pack's G3) [KEPT]
+
+- Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at
+  aebcd16 (76e89c9 the delay; 6798884 a 10 s memory, a 2-tick allowance
+  and the fixes from the review; aebcd16 a reconnect that anchors the
+  render timeline again, and the last review's fixes).
+- Change: `PlaybackDelay` keeps exponentially weighted means (k = 2/201,
+  about the last 10 s at 20 Hz) of the time between snapshot arrivals, of
+  its variance, and of the frame time. The target delay is mean + 3σ + a
+  frame, in ticks, clamped to 1.5–6. `WorldClock` keeps its H2 estimate
+  and adds a render timeline behind it, which runs 5% fast or slow toward
+  the target outside a 5 ms dead band, at most 2 ticks past the newest
+  tick (the interpolators' extrapolation budget) and at most 12 ticks
+  behind the estimate. A gap counts as 300 ms at most and a frame as
+  250 ms. The GDScript port is `game.gd`'s playback section;
+  `remote_snake.gd` renders at the render tick, as before.
+- Scenarios (the sweep, `--all --runs 3`, at 6798884 against the
+  `g2-final` baselines, with `bench-baselines/thresholds/g3-adaptive-delay.json`):
+  every scenario passes, no `warn`. With the default thresholds six fail,
+  each only on the metrics the user accepted (see the costs below).
+- Headline: remotes render 40–50 ms sooner wherever the link is clean or
+  mildly jittery, per client: control-0ms 125 → 80 ms; baseline-3p-100ms,
+  encounter-3p-100ms, fps-varying-3p, spectator-plus-2p and both drift
+  scenarios 175 → 125–130 ms; asym-2p 160/200 → 115/160 ms; mixed-3p's
+  clean client 145 → 95 ms (its wobble 175 → 150, its spiky one
+  unchanged). jitter-heavy-3p holds 175 ms. bursty-3p's two stalled
+  clients render further behind (165 → 210/230 ms), so their buffers stop
+  running dry; its clean client 165 → 115 ms. jerkRms −10…−60% everywhere
+  (asym-2p −60%, encounter-3p-100ms −46%, bursty-3p −33%,
+  spectator-plus-2p −33%, jitter-heavy-3p −28%). teleportsPerMin,
+  hardSnapsPerMin and food.mismatchAtEnd 0 everywhere.
+- Costs, the trade the user accepted on 2026-10-22: clients on unequal
+  links render one snake at different moments. remoteVsRemotePx p50/p95:
+  bursty-3p 0.02/0.78 → 17.4/22.2 px, mixed-3p 5.4/9.6 → 9.6/18.6 px,
+  jitter-heavy-3p 0.02/0.19 → 0.59/2.27 px, at most 0.25/0.75 px
+  elsewhere. A delay that follows the link leaves more residual after the
+  best constant lag: shapeErrorPx p95 jitter-heavy-3p 4.60 → 6.86,
+  bursty-3p 2.35 → 3.52, mixed-3p 3.47 → 4.89 px. bursty-3p
+  ownVsRemotePx p95 58.8 → 74.5 px and its headline renderLatencyMs
+  +12%: the stalled clients' longer delay.
+- The plan's literal design (k = 2/31, the render clock never past the
+  newest tick; the sweep of 76e89c9) failed its own gate on
+  jitter-heavy-3p: jerkRms +36%, shapeErrorPx p95 +107%, though clean
+  links already rendered 26–33% sooner. Two causes, each measured alone
+  (one run each, jitter-heavy-3p):
+  - A 1.5 s memory forgets a spike before the next one, so the delay sank
+    to the floor between spikes and chased each one. k = 2/201 keeps a
+    spiky link's spikes in σ, and one delay: remoteVsRemotePx p95
+    10.9 → 4.0 px, but jerk still +37%.
+  - Holding the render clock at the newest tick froze every remote on
+    each late snapshot, a stop and a start. Two ticks of allowance make a
+    late snapshot cost a short extrapolation, as with the fixed delay:
+    jerk −30% (bursty-3p −37%), shapeErrorPx +14%, remoteVsRemotePx p95
+    1.9 px. (k = 2/31 with the allowance: jerk −11%, shapeErrorPx +103%.)
+- Fixed since the first sweep, from the review and after it: the delay
+  had no ceiling after a stall of seconds (the 12-tick lag cap now), one
+  outage or hitch held the target up (the gap and frame caps), and a
+  reconnect to the same server counted the outage as a gap and restarted
+  the render timeline from an estimate that drifted while nothing arrived
+  (it now forgets the timeline, keeps what it learned of the link, and
+  anchors on the next snapshot). Bots never reconnect within a run
+  (`reconnection: false`), so the reconnect change moves no bench number.
+- The 2026-08-01 dead end (per-client adaptive delay, bursty
+  remoteVsRemotePx p50 38 px) is re-adopted on purpose: with the floor,
+  the ceiling, the warp and the 10 s memory, bursty-3p's p50 is 17 px.
+  HYPOTHESES.md #4b (one delay for the room) is closed untested.
+- Godot: the port settles at about 1.57 ticks on a clean link in
+  check:godot, as the bots do. An arrival there is the frame that polled
+  it, so a link's gaps carry up to a frame more spread than the bots'.
+- Tier-2 (`apps/bench-web`, baseline-3p-100ms, headless, one run each,
+  back to back: the pre-G3 pck, then the G3 pck): headless Chromium in the
+  pod renders the game at 8 fps, so this checks that the port runs, not
+  how smooth it is. At 125 ms a frame, snapshots arrive in bursts of two
+  or three and the frame term is 2.5 ticks, so the delay goes to its
+  6-tick ceiling: remotes render 465–530 ms behind, from 310–350 ms.
+  remoteVsRemotePx p50/p95 2.6/16.0 → 1.6/13.2 px, jerkRms
+  306/430/884 → 311/265/689, teleports 0. G3 leaves the local snake as it
+  was; its numbers vary from run to run at 8 fps.
+- Gate: `bench-baselines/thresholds/g3-adaptive-delay.json` raises the
+  floors of the accepted metrics only, for G3's sweep against the pre-G3
+  baselines. The new baselines are this sweep's cards (label `g3-final`),
+  so later changes take the default thresholds again; mixed-3p is new,
+  its pre-G3 baseline at 44d9c31.
+
 ## 2026-10-23 — Food window: food changes repeated for six ticks (the pack's G2) [KEPT]
 
 - Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at
