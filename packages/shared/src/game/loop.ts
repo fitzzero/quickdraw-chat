@@ -12,8 +12,8 @@ import type {
   LeaderboardEntry,
   PackedWorldItem,
   WorldSnapshot,
-} from "@project/shared";
-import { GAME_FOOD_WINDOW, GAME_TICK_RATE } from "@project/shared";
+} from "../types/game.js";
+import { GAME_FOOD_WINDOW, GAME_TICK_RATE } from "../types/game.js";
 import type { GameWorldSim, TickResult } from "./world.js";
 
 /** What the loop sends, by kind; the runtime puts each on the wire. */

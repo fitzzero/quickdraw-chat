@@ -1,7 +1,7 @@
 class_name GameConfig
 extends RefCounted
 ## Movement tunables. Defaults mirror DEFAULT_TUNABLES in
-## apps/api/src/services/game/world.ts; the live values are fetched from
+## packages/shared/src/game/world.ts; the live values are fetched from
 ## DefinitionService at load (see game.gd → load_tunables), so the server
 ## sim and every client share one source of truth and balance edits in
 ## /admin/definitionService apply without re-exporting the game.

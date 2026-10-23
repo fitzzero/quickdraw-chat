@@ -8,8 +8,7 @@
  */
 
 import type { ServerTrace } from "@project/bench";
-import type { FoodDTO, WorldSnapshot } from "@project/shared";
-import type { GameLoopDeps } from "../services/game/loop.js";
+import type { FoodDTO, GameLoopDeps, WorldSnapshot } from "@project/shared";
 
 /**
  * Ticks of the server's food the trace keeps (10 s): a client's latest

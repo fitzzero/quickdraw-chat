@@ -14,20 +14,27 @@
  * (`qd.rooms.size`).
  */
 
-import type { GameDeathEvent, PackedWorldItem } from "@project/shared";
+import type {
+  GameDeathEvent,
+  GameLoopDeps,
+  GameLoopEmits,
+  GameTunables,
+  PackedWorldItem,
+} from "@project/shared";
 import {
   GLOBAL_WORLD_ID,
   GLOBAL_WORLD_ROOM,
+  GameLoop,
+  GameWorldSim,
   SnapshotEncoder,
   bytesToBase64,
   gameContract,
+  isNpcId,
 } from "@project/shared";
 import type { RoomLeaveHandler } from "@fitzzero/quickdraw-core/server";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
 import { logger } from "../../utils/logger.js";
-import { GameLoop, type GameLoopDeps, type GameLoopEmits } from "./loop.js";
-import { GameWorldSim, isNpcId, type GameTunables } from "./world.js";
 
 type Db = typeof appDb;
 

@@ -18,7 +18,8 @@ error codes) and the testing helpers (`createTestApp`, `describeAccessMatrix`,
 - **Unit** (`*.test.ts`, not `.int.`): pure logic, no database
   (`bun run test:unit`): the API's utilities, the PWA helpers.
   <!-- ── quickdraw-game:start ── -->
-  Also the game sim and loop, and the bench's metrics.
+  Also the bench's metrics, and the shared package's game tests: the sim,
+  its loop and the snapshot codec.
   <!-- ── quickdraw-game:end ── -->
 - **Integration** (`*.int.test.ts(x)`): the real server against a real
   database (`bun run test:int`). The API's suites are

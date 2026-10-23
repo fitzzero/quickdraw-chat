@@ -150,6 +150,7 @@ includes them.
   scorecard type (bump `schemaVersion` if the shape changes), and register
   it in `headlineMetrics()` if it should gate comparisons.
 - New netcode variant: implement in `apps/api/src/bench/bot/prediction.ts` /
-  `interpolation.ts` (server changes in `services/game/`), benchmark, and
+  `interpolation.ts` (server changes in `packages/shared/src/game/`, the sim
+  and its loop, or `apps/api/src/services/game/`), benchmark, and
   only port winners to GDScript. Keep the ports and `local_snake.gd` /
   `remote_snake.gd` in lockstep otherwise.

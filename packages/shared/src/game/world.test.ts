@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { GameInput } from "@project/shared";
+import type { GameInput } from "../types/game.js";
 import { COUNT_TUNABLE_MAX, GameWorldSim, DEFAULT_TUNABLES, type SnakeState } from "./world.js";
 
 function makeSim(overrides?: Partial<typeof DEFAULT_TUNABLES>): GameWorldSim {
@@ -134,7 +134,7 @@ describe("GameWorldSim", () => {
   });
 
   it("a tick without a frame coasts, standing in for the late frame, which is ignored when it arrives", () => {
-    const steer = (seq: number) => input(seq, Math.cos(seq / 5), Math.sin(seq / 5));
+    const steer = (seq: number): GameInput => input(seq, Math.cos(seq / 5), Math.sin(seq / 5));
 
     // Lossless: one message per tick
     const lossless = makeSim();

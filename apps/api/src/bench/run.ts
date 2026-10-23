@@ -54,8 +54,7 @@ const {
 } = await import("@project/bench");
 const { startBenchServer, shutdownBenchDatabase } = await import("./server.js");
 const { BotClient } = await import("./bot/client.js");
-const { DEFAULT_TUNABLES } = await import("../services/game/world.js");
-const { GAME_TICK_RATE } = await import("@project/shared");
+const { DEFAULT_TUNABLES, GAME_TICK_RATE } = await import("@project/shared");
 
 type Scenario = import("@project/bench").Scenario;
 type Scorecard = import("@project/bench").Scorecard;

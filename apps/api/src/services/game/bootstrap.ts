@@ -7,6 +7,7 @@
  */
 
 import type { GameWorld, PrismaClient } from "@project/db";
+import type { GameTunables } from "@project/shared";
 import {
   DEFINITION_TYPES,
   GLOBAL_WORLD_ID,
@@ -15,7 +16,6 @@ import {
 } from "@project/shared";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
-import type { GameTunables } from "./world.js";
 
 type Db = typeof appDb;
 

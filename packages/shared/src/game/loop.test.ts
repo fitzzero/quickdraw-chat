@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import type { PackedWorldItem, WorldSnapshot } from "@project/shared";
+import type { PackedWorldItem, WorldSnapshot } from "../types/game.js";
 import { GameWorldSim } from "./world.js";
 import { GameLoop, type GameLoopEmits } from "./loop.js";
 
@@ -16,14 +16,14 @@ function makeLoop(hasAudience?: () => boolean): {
   const loop = new GameLoop({
     sim,
     emit: {
-      snapshot: () => {
+      snapshot: (): PackedWorldItem => {
         events.push("snapshot");
         return SENT;
       },
-      death: () => {
+      death: (): void => {
         events.push("death");
       },
-      leaderboard: () => {
+      leaderboard: (): void => {
         events.push("leaderboard");
       },
     },
@@ -65,14 +65,14 @@ describe("GameLoop tick grid", () => {
 
   it("aims each tick at a fixed 20 Hz grid, and starts the grid again after a stall", () => {
     let now = 0;
-    vi.spyOn(performance, "now").mockImplementation(() => now);
+    vi.spyOn(performance, "now").mockImplementation((): number => now);
     const timers: { fire: () => void; ms: number }[] = [];
     vi.spyOn(globalThis, "setTimeout").mockImplementation(((fire: () => void, ms: number) => {
       timers.push({ fire, ms });
-      return { unref: () => undefined };
+      return { unref: (): undefined => undefined };
     }) as unknown as typeof setTimeout);
-    const { loop, sim } = makeLoop(() => true);
-    const fireAt = (at: number) => {
+    const { loop, sim } = makeLoop((): boolean => true);
+    const fireAt = (at: number): void => {
       now = at;
       timers.shift()?.fire();
     };
@@ -108,14 +108,14 @@ describe("GameLoop food window", () => {
     const loop = new GameLoop({
       sim,
       emit: {
-        snapshot: (s) => {
+        snapshot: (s): PackedWorldItem => {
           snapshots.push(s);
           return SENT;
         },
-        death: () => undefined,
-        leaderboard: () => undefined,
+        death: (): undefined => undefined,
+        leaderboard: (): undefined => undefined,
       },
-      hasAudience: () => true,
+      hasAudience: (): boolean => true,
     });
     return { loop, snapshots };
   }

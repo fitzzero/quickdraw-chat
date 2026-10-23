@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { GameInput } from "@project/shared";
+import type { GameInput } from "../types/game.js";
 import {
   HOLD_TICKS,
   INPUT_CREDIT_CAP,
@@ -203,7 +203,7 @@ describe("InputQueue", () => {
   });
 
   it("holds a client 1% fast near an empty queue, and coasts twice for each frame a 1% slow one misses", () => {
-    const run = (scale: number) => {
+    const run = (scale: number): { coasted: number; deepest: number; missed: number } => {
       const queue = new InputQueue();
       let due = 0;
       let next = 0;

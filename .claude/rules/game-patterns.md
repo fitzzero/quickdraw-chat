@@ -115,8 +115,10 @@ included) — spectators behind the pre-game dialog keep the NPC world running.
 
 ## Simulation rules
 
-- `GameWorldSim` (services/game/world.ts) is **pure and deterministic**: no
-  I/O, no `Date.now()`, seeded RNG, fixed timestep (`GAME_TICK_RATE`). Unit
+- `GameWorldSim` (`packages/shared/src/game/world.ts`, beside its NPCs,
+  its input queue and `GameLoop`) is **pure and deterministic**: no I/O, no
+  `Date.now()`, seeded RNG, fixed timestep (`GAME_TICK_RATE`). It imports
+  nothing from Node, so the API, the bench and a browser run one sim. Unit
   tests drive it directly; integration tests drive `gameRuntime(db).loop.tickOnce()`
   (the loop is never auto-started in tests).
 - **No database access anywhere in the tick path.** Persistence
@@ -140,9 +142,11 @@ included) — spectators behind the pre-game dialog keep the NPC world running.
 
 ## Checks
 
-- `bun run --filter @project/api test`: the sim, the loop, and the game over
-  real protocol 5 sockets (`game.int.test.ts`, its frames matched with
-  `streamFrames` and `eventFrames`).
+- `bun run --filter @project/shared test`: the sim, the loop and the
+  snapshot codec.
+- `bun run --filter @project/api test`: the game over real protocol 5
+  sockets (`game.int.test.ts`, its frames matched with `streamFrames` and
+  `eventFrames`).
 - `bun run check:godot`: two real headless Godot clients in one world, through
   an API restart (see `apps/game/README.md`).
 

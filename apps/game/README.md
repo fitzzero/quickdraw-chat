@@ -53,7 +53,7 @@ scripts/autoload/net.gd                Host config (web bridge vs editor dev) + 
 scripts/autoload/game.gd               world stream → joinGame/watchWorld → events fan-out
                                        (ordering contract), the shared world clock
 scripts/game_config.gd                 Movement tunables + shared sim_step — MUST mirror
-                                       apps/api/src/services/game/world.ts
+                                       packages/shared/src/game/world.ts
 scripts/local_snake.gd                 Client-side prediction + reconciliation (ack replay,
                                        decaying visual offset — no rubber-banding)
 scripts/remote_snake.gd                Snapshot-buffer interpolation (75–300ms render delay)

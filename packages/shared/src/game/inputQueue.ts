@@ -39,7 +39,7 @@
  * average.
  */
 
-import type { GameInput } from "@project/shared";
+import type { GameInput } from "../types/game.js";
 
 /** Frames a queue holds; past it the oldest gives way. */
 export const INPUT_QUEUE_CAP = 15;

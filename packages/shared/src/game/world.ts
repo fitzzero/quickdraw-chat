@@ -30,8 +30,9 @@ import type {
   LeaderboardEntry,
   PlayerSnap,
   WorldSnapshot,
-} from "@project/shared";
-import { GAME_TICK_RATE, NPC_ID_PREFIX, stepMovement } from "@project/shared";
+} from "../types/game.js";
+import { GAME_TICK_RATE, NPC_ID_PREFIX } from "../types/game.js";
+import { stepMovement } from "./movement.js";
 import { InputQueue } from "./inputQueue.js";
 import { NpcController } from "./npc.js";
 
@@ -386,13 +387,14 @@ export class GameWorldSim {
     this.npcController ??= new NpcController({
       tunables: this.tunables,
       rng: this.rng,
-      getSnake: (id) => this.players.get(id),
-      addPlayer: (id, name) => void this.addPlayer(id, name),
-      removePlayer: (id) => void this.players.delete(id),
-      respawn: (id) => void this.respawn(id),
-      nearestFood: (from) => this.nearestFood(from),
-      buildBodyHash: () => this.buildBodyHash(),
-      probeHitsForeignBody: (selfId, x, y, hash) => this.probeHitsForeignBody(selfId, x, y, hash),
+      getSnake: (id): SnakeState | undefined => this.players.get(id),
+      addPlayer: (id, name): void => void this.addPlayer(id, name),
+      removePlayer: (id): void => void this.players.delete(id),
+      respawn: (id): void => void this.respawn(id),
+      nearestFood: (from): FoodDTO | null => this.nearestFood(from),
+      buildBodyHash: (): Map<string, BodySample[]> => this.buildBodyHash(),
+      probeHitsForeignBody: (selfId, x, y, hash): boolean =>
+        this.probeHitsForeignBody(selfId, x, y, hash),
     });
     return this.npcController;
   }
