@@ -10,6 +10,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     // Components against the real server: vitest.int.config.ts
     exclude: ["**/node_modules/**", "**/.next/**", "src/**/*.int.test.ts", "src/**/*.int.test.tsx"],
+    setupFiles: ["./src/__tests__/dom-setup.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],

@@ -122,7 +122,9 @@ Close it in `afterAll`. Then:
 - `apps/web/src/__tests__/chat.int.test.tsx` renders the real pages and
   components with `renderWithQuickdraw` against the API's test app (the
   web's integration config reuses the API's database set-up, plus
-  `dom-setup.ts`, which calls `installJsdomShims()` for what jsdom lacks).
+  `dom-setup.ts`, which calls `installJsdomShims()` for what jsdom lacks
+  and puts jsdom's storage where Node 25+ hides it; the unit config loads
+  it too).
 - Component tests without a server use `createMockClient(contracts)`; a
   component that reads `useQuickdraw()` renders inside `mock.$Provider`,
   with the session set by `mock.$session({ userId, serviceAccess, ... })`,
