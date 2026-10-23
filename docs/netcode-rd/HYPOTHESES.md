@@ -68,18 +68,20 @@ could broadcast a single recommended delay for the room (slow-moving, e.g.
 p95 of observed client jitter envelopes) — adaptivity without breaking
 cross-client alignment. Only worth testing on mixed-link scenarios.
 
-## 5. Input redundancy
+## 5. Input redundancy — SHIPPED
 
-Each input frame is sent once, fire-and-forget. A delayed/dropped frame
-stalls the server's view of intent for ≥50ms → reconciliation corrections.
+Resolved 2026-10-23 (the netcode pack's G1) and recorded KEPT in
+`LEDGER.md`. Kept here for the record; do not pick it up again.
 
-- Change: send the last N (=3) unacked frames per packet; server applies
-  latest-wins (already seq-guarded — `applyInput` ignores stale seqs).
-  Mind the channel rate limit (30/s) — bundle in ONE message, not N.
-- Files: shared channel schema (array payload), `game/index.ts` channel
-  handler, bot prediction sender, then GDScript.
-- Confirm: `predictionErrorPx` ↓, `correctionPx` ↓ (esp. jitter-heavy).
-- Wire: ~3× input payload (still tiny).
+Each input frame used to be sent once and applied latest-wins, so a late
+frame stretched the previous intent over extra ticks and clumped frames
+collapsed into one step: reconciliation corrected about one movement step.
+Each message now carries the last four frames (`{ frames }`), the server
+steps one frame a tick from a per-snake queue (`InputQueue`), and a tick
+without a frame coasts and stands in for the late frame.
+
+- Result: `correctionPx` p95 9 → 0.1 px on most clients, `jerkRms` −18…−65%
+  where it moved; see the 2026-10-23 LEDGER entry, with the dead ends.
 
 ## 6. Correction tuning sweep
 
@@ -102,3 +104,17 @@ Not a jitter fix — do only after the smoothness items.
 Collisions resolve at present-tick positions; high-ping players die to
 things they never saw. Fairness feature, not smoothness — needs server
 world-state history ring buffer. Last.
+
+## 8b. Lag compensation without rewind: latency-dilated action timing
+
+For any action with a windup and a recovery (a cast, a charge, a dash with
+a startup), the server shortens the actor's windup by that player's one-way
+latency (ack RTT / 2, capped at 200 ms) and lengthens the recovery by the
+same amount. The action lands when the actor expected it to, the total
+animation keeps its length, so other clients see the normal animation and
+the actor gains no tempo. No world-state history, no re-simulation of other
+players: one subtraction when the action starts. Source: Project B (studied
+2026-10-22) applies dil = min(0.2, ping / 1000). Not applicable to the snake
+world today (direction and boost have no windup); applies the day a fork
+adds abilities. Measure with ownVsRemotePx around the action and a new
+actionLandedLateMs (the actor's expected landing tick against the server's).

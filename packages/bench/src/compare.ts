@@ -35,7 +35,9 @@ export const DEFAULT_THRESHOLDS: CompareThresholds = {
     "fidelity.shapeErrorPx.p95": 0.5,
     "fidelity.renderLatencyMs": 5,
     "server.tickDurMs.p95": 0.05,
-    "server.inputQueue.depthP95": 0.05,
+    // A client's queue holds 0 or 1 frames by the phase it connected at; a
+    // ratchet toward the cap grows by more
+    "server.inputQueue.depthP95": 1,
   },
 };
 
