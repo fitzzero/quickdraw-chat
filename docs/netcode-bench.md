@@ -112,8 +112,9 @@ absolute floor), `within-noise` (below measured run spread), `warn` (>5%),
 in `packages/bench/src/compare.ts` (`DEFAULT_THRESHOLDS`); pass
 `--thresholds file.json` to override. `food.mismatchAtEnd` (the most food
 any client ended up differing from the server on) must be 0 in every run
-(`MUST_BE_ZERO`): any other value, or a card without it, fails, whatever the
-baseline and the noise.
+(`MUST_BE_ZERO`, judged on an aggregated card's `runWorst`, each headline
+metric's worst run): any other value fails, whatever the baseline and the
+noise, and so does a candidate without it once the baseline has it.
 
 ## Honest limits
 

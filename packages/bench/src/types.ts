@@ -212,6 +212,11 @@ export interface Scorecard {
   };
   /** spread of headline p50s across the N runs (comparability guard) */
   runVariance?: Record<string, number>;
+  /**
+   * aggregated cards: each headline metric's worst (highest) run; a run
+   * without the metric makes it NaN, which a saved card holds as null
+   */
+  runWorst?: Record<string, number | null>;
   tier2?: {
     fps: Stats;
     frameTimeMs: Stats;

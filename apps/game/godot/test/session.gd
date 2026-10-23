@@ -31,8 +31,8 @@ extends SceneTree
 
 const PROBE_EVERY_S := 0.5
 const RESPAWN_AFTER_S := 1.0
-## 20 ticks: more than the food window, so main.gd must ask for a keyframe
 const BLACKOUT_AFTER_S := 4.0
+## 20 ticks: more than the food window, so main.gd must ask for a keyframe
 const BLACKOUT_FOR_S := 1.0
 
 var _main: Node

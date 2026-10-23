@@ -8,8 +8,9 @@
  * and a dropped snapshot costs nothing. A snapshot more than the window
  * past the last one applied means changes were lost: the client asks for a
  * keyframe (it subscribes to the stream again), and the keyframe, the
- * stream's seed, replaces what it holds. The bots never call watchWorld for
- * its bootstrap, whose food main.gd's `_on_world_ready` applies the same way.
+ * stream's seed, replaces what it holds. The bots ignore the food of the
+ * bootstrap that watchWorld or joinGame answers, which main.gd's
+ * `_on_world_ready` applies as a keyframe.
  */
 
 import type { FoodDTO, WorldSnapshot } from "@project/shared";

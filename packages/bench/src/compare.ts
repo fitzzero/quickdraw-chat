@@ -44,9 +44,9 @@ export const DEFAULT_THRESHOLDS: CompareThresholds = {
 export type Verdict = "ok" | "improved" | "within-noise" | "warn" | "fail";
 
 /**
- * Headline metrics that must be 0 in every run: any other value fails,
- * whatever the baseline and the run spread. A food mismatch is a change a
- * client lost.
+ * Headline metrics that must be 0 in every run (judged on the worst one):
+ * any other value fails, whatever the baseline and the run spread. A food
+ * mismatch is a change a client lost.
  */
 export const MUST_BE_ZERO: readonly string[] = ["food.mismatchAtEnd"];
 
@@ -84,12 +84,12 @@ export function judge(
 }
 
 /**
- * The verdict on a must-be-zero metric, from the candidate alone: its value
- * (an aggregated card's median) and its run spread are both 0 only when
- * every run was. A missing value fails too: the harness lost the metric.
+ * The verdict on a must-be-zero metric, from the candidate's worst run (an
+ * aggregated card's `runWorst`, or a single run's value). A missing value
+ * (or NaN, a run without the metric) fails too: the harness lost it.
  */
-export function judgeZero(candidate: number | undefined, spread: number): Verdict {
-  return candidate === 0 && spread === 0 ? "ok" : "fail";
+export function judgeZero(worst: number | null | undefined): Verdict {
+  return worst === 0 ? "ok" : "fail";
 }
 
 /**
@@ -99,18 +99,19 @@ export function judgeZero(candidate: number | undefined, spread: number): Verdic
 function zeroComparisons(
   base: Record<string, number>,
   cand: Record<string, number>,
-  spread: Record<string, number> | undefined,
+  candidate: Scorecard,
 ): MetricComparison[] {
   return MUST_BE_ZERO.filter((metric) => metric in base || metric in cand).map((metric) => {
+    const worst = candidate.runWorst ? candidate.runWorst[metric] : cand[metric];
     const baseValue = base[metric] ?? 0;
-    const candValue = cand[metric] ?? Number.NaN;
+    const candValue = worst ?? Number.NaN;
     return {
       metric,
       baseline: baseValue,
       candidate: candValue,
       deltaAbs: candValue - baseValue,
       deltaPct: null,
-      verdict: judgeZero(cand[metric], spread?.[metric] ?? 0),
+      verdict: judgeZero(worst),
     };
   });
 }
@@ -156,7 +157,7 @@ export function compareScorecards(
     });
   }
 
-  comparisons.push(...zeroComparisons(base, cand, candidate.runVariance));
+  comparisons.push(...zeroComparisons(base, cand, candidate));
 
   return {
     scenario: baseline.scenario,

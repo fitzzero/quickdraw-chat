@@ -4,7 +4,8 @@ import type { ClientTrace, ServerTick, ServerTrace } from "../types.js";
 import { computeStats, sampleTrack, buildDiscontinuityMask } from "./tracks.js";
 import { computeDivergence } from "./divergence.js";
 import { computeFood } from "./food.js";
-import { computeScorecard, headlineMetrics } from "./index.js";
+import { compareScorecards } from "../compare.js";
+import { aggregateScorecards, computeScorecard, headlineMetrics } from "./index.js";
 import { computeInputQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
 
@@ -220,5 +221,29 @@ describe("headlineMetrics", () => {
       meta,
     );
     expect(headlineMetrics(bare)).not.toHaveProperty(["food.mismatchAtEnd"]);
+  });
+
+  it("keeps each metric's worst run in an aggregated card, which the food gate judges", () => {
+    const server: ServerTrace = { ...makeServerTrace(), food: [{ tick: 100, ids: ["a"] }] };
+    const ids = ["c1", "c2", "c3"];
+    const run = (wrong: string | null) =>
+      computeScorecard(
+        {
+          server,
+          clients: ids.map((id) => ({
+            ...makeClientTrace(id, 0),
+            food: { tick: 100, latestTick: 100, ids: id === wrong ? [] : ["a"], resyncs: 0 },
+          })),
+        },
+        scenario,
+        meta,
+      );
+    // each run, another client lost a change: every client's median is 0
+    const lossy = aggregateScorecards(ids.map(run));
+    expect(headlineMetrics(lossy)["food.mismatchAtEnd"]).toBe(0);
+    expect(lossy.runWorst?.["food.mismatchAtEnd"]).toBe(1);
+    const clean = aggregateScorecards([run(null), run(null), run(null)]);
+    expect(compareScorecards(clean, lossy).failed).toBe(true);
+    expect(compareScorecards(clean, clean).failed).toBe(false);
   });
 });

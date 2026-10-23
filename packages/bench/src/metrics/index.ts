@@ -194,5 +194,19 @@ export function aggregateScorecards(cards: Scorecard[]): Scorecard {
     }
   }
   aggregated.runVariance = variance;
+  aggregated.runWorst = worstRuns(perRun);
   return aggregated;
+}
+
+/**
+ * Each headline metric's worst (highest) run, over the metrics any run
+ * reports: a run without one makes it NaN (null once saved). The medians
+ * cannot say it: a client's median hides the one run it went wrong in.
+ */
+function worstRuns(perRun: Record<string, number>[]): Record<string, number> {
+  const worst: Record<string, number> = {};
+  for (const key of new Set(perRun.flatMap((r) => Object.keys(r)))) {
+    worst[key] = Math.max(...perRun.map((r) => r[key] ?? Number.NaN));
+  }
+  return worst;
 }

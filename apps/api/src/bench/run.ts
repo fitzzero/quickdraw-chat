@@ -159,6 +159,8 @@ async function executeRun(scenario: Scenario): Promise<RunTraces> {
     }
 
     await sleep(scenario.durationMs);
+    // A resync the end of the run would cut in half is no lost food
+    await Promise.all(bots.map((b) => b.foodSettled(1_000)));
 
     const clients = bots.map((b) => b.stop());
     return { server: server.recorder.trace(), clients };

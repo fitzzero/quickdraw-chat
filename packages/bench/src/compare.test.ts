@@ -23,11 +23,12 @@ describe("judge", () => {
 });
 
 describe("judgeZero", () => {
-  it("passes only a zero in every run, and fails a missing value", () => {
-    expect(judgeZero(0, 0)).toBe("ok");
-    expect(judgeZero(2, 0)).toBe("fail");
-    // the median run held none, another did: the spread says so
-    expect(judgeZero(0, 3)).toBe("fail");
-    expect(judgeZero(undefined, 0)).toBe("fail");
+  it("passes only a worst run of zero, and fails a missing value", () => {
+    expect(judgeZero(0)).toBe("ok");
+    expect(judgeZero(2)).toBe("fail");
+    // a run without the metric (NaN, null once saved), or a card without it
+    expect(judgeZero(Number.NaN)).toBe("fail");
+    expect(judgeZero(null)).toBe("fail");
+    expect(judgeZero(undefined)).toBe("fail");
   });
 });

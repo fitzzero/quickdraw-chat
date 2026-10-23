@@ -220,6 +220,23 @@ export class BotClient {
     this.subscribeWorld(socket).then(ended, ended);
   }
 
+  /**
+   * Resolves once the food this client holds is as of its latest snapshot
+   * (no keyframe request in flight, none applied past it), or after
+   * `timeoutMs`: the trace then compares it with the server's at that tick.
+   */
+  public async foodSettled(timeoutMs: number): Promise<void> {
+    const until = performance.now() + timeoutMs;
+    while (
+      (this.food.awaitingKeyframe || this.food.tick !== this.latestTick) &&
+      performance.now() < until
+    ) {
+      await new Promise((resolveWait) => {
+        setTimeout(resolveWait, 20);
+      });
+    }
+  }
+
   /** A call id no call in flight on this socket has. */
   private callId(): number {
     this.nextCallId += 1;
