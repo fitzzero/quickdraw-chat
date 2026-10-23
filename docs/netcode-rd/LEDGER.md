@@ -16,6 +16,36 @@ Template:
 
 ---
 
+## 2026-10-23 — Re-baseline: quickdraw-core 5.1.3 on the pod machine [BASELINE]
+
+- Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at 7845843
+  (the netcode pack's first child: core, lint and skills 5.1.2 → 5.1.3). No
+  netcode change; this entry resets the baselines so the pack's first
+  verdict (G1, the input queue) is judged against the new core on the
+  machine that will judge it.
+- Scenarios (the sweep, `--all --runs 3`, against the committed baselines):
+  every scenario but `control-0ms` fails on one metric only,
+  `server.tickDurMs.p95`: 0.05–0.08 ms → 0.15–0.24 ms (baseline-3p-100ms
+  0.05 → 0.21). Nothing else fails or warns. `control-0ms`, `asym-2p` and
+  `spectator-plus-2p` improve a lot (jerkRms −29…−40%, renderLatency
+  −12…−17%, remoteVsRemote p95 −83…−88%): their baseline files were last
+  written before H1/H2/H3b, which the two regenerations of 2026-08-01 did
+  not rewrite.
+- Attribution (same machine, same code, baseline-3p-100ms, 3 runs):
+  5.1.2 and 5.1.3 measure the same (`tickDurMs` p95 0.208 against
+  0.206 ms, every headline metric ok or within noise). The tick's rise is
+  this machine's: the pure sim step costs about 0.2 ms p95 here, against
+  0.05 on the machine of 2026-08-01. Not the core's.
+- Reference numbers on the new baselines (pre-G1): `correctionPx` p95 is
+  9.0 px on most clients, one movement step (180 px/s × 50 ms), 16 px on
+  jitter-heavy; `predictionErrorPx` p95 6–18 px; the server ticks at
+  19.95 Hz, so a client stepping 20 times a second by its own clock runs
+  ahead of it now and then; a 3-player snapshot is 457 B p95, each player
+  about 112 B of it.
+- Baselines: all eight regenerated from this sweep, label `core-5.1.3`.
+
+---
+
 ## 2026-08-01 — Iteration 3: GDScript port of H1+H2+H3b + Tier-2 validation [KEPT]
 
 - Branch: netcode/godot-port (merged into netcode/rd). TS bot netcode
