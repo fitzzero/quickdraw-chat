@@ -16,6 +16,53 @@ Template:
 
 ---
 
+## 2026-10-23 — H7: Packed snapshots (the pack's G4) [KEPT]
+
+- Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at
+  aed1669 (e78ea26 the codec; aed1669 the fixes from the review).
+- Change: each world stream item packs one snapshot into bytes, base64 in
+  `{ b }` (`packages/shared/src/game/snapshotCodec.ts` has the layout): a
+  player is 21 B (28 in base64), against about 110 B of JSON. A player is
+  an index into the stream's id table, which one `SnapshotEncoder` per
+  runtime keeps. The keyframe (the seed) introduces every player, and each
+  snapshot repeats the introductions of its last six ticks, as the food
+  window repeats food. Positions are u32 tenths, directions i16
+  thousandths: the sim's own rounding, so a decoded snapshot equals the
+  JSON one. The bots and Godot (`snapshot_decoder.gd`) decode with one
+  decoder per client, and ask for a keyframe when a snapshot names a
+  player by an introduction they missed.
+- Scenarios (the sweep, `--all --runs 3`, at aed1669 against the
+  `g3-final` baselines, default thresholds): every scenario passes, no
+  `warn`.
+- Headline: `server.snapshotBytes` p95 501 → 168 B (−66%) in every
+  3-player scenario, asym-2p 368 → 124, spectator-plus-2p 386 → 128; the
+  mean 433 → 144 B. The plan's gate was −50%. Every other headline
+  metric holds: teleportsPerMin, hardSnapsPerMin and food.mismatchAtEnd 0
+  everywhere, renderLatencyMs unchanged, and each change inside its noise
+  band (the largest: mixed-3p shapeErrorPx p95 4.89 → 6.00 px and jerkRms
+  +12%, control-0ms inputAckRttMs p95 +15%).
+- The first sweep (at e78ea26) failed two metrics: encounter-3p-100ms
+  `server.tickDurMs.p95` 0.23 → 0.29 ms and jitter-heavy-3p jerkRms
+  529 → 648. Review agents ran probes on the pod during it. The quiet
+  sweep at aed1669 measures 0.25 ms and 557, both passing. The codec
+  cannot move tickDurMs: the loop times `sim.step()` alone, before it
+  packs the snapshot.
+- Fixed from the review: a player the seed named was introduced in no
+  snapshot after it, so a client that lost the seed's newer snapshots
+  never learned the name (the introductions now repeat from the tick the
+  index was first given). A keyframe more than six ticks older than the
+  newest snapshot no longer names players, whose indexes may be another
+  player's since. The count tunables (maxFood, initialFood, npcCount) stay
+  at or under 65535, the layout's u16 counts.
+- Godot: check:godot runs the GDScript decoder over the TS encoder's
+  fixtures first (`apps/api/src/bench/codec-fixtures.ts`,
+  `apps/game/godot/test/codec.gd`) and compares its players, food and
+  keyframe asks with the TS decoder's, step by step; then the two-client
+  session, through an API restart.
+- Follow-up: Socket.IO's binary attachments would save the base64's third,
+  once the GDScript client reads that format.
+- Gate: the new baselines are this sweep's cards (label `g4-final`).
+
 ## 2026-10-23 — H3: Adaptive interpolation delay per client (the pack's G3) [KEPT]
 
 - Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at

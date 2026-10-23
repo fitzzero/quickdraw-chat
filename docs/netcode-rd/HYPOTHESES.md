@@ -106,11 +106,17 @@ operating point, especially interacting with #3.
   with Tier-2 confirmation (feel is the ultimate judge here).
 - Confirm: `correctionPx` p95 and `jerkRms` ↓ without `predictionErrorPx` ↑.
 
-## 7. Snapshot delta/binary encoding
+## 7. Snapshot delta/binary encoding — SHIPPED
 
-Full player array every tick as JSON. At 3 players it's ~440B/tick
-(~9KB/s/client); fine now, but a bandwidth win compounds with more players.
-Not a jitter fix — do only after the smoothness items.
+Resolved 2026-10-23 (the netcode pack's G4) and recorded KEPT in
+`LEDGER.md`. Kept here for the record; do not pick it up again.
+
+The full player array went every tick as JSON: about 110 B a player.
+Each snapshot is now packed (`game/snapshotCodec.ts`): 21 B a player, a
+player named by an index into the stream's id table, base64 in the stream
+item (`{ b }`), since the Godot client reads text frames only. A binary
+attachment would save the base64's third; it needs the Socket.IO binary
+format in GDScript.
 
 ## 8. Lag compensation (server-side rewind)
 
