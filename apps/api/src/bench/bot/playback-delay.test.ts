@@ -1,6 +1,8 @@
-import { mulberry32, normal } from "@project/bench";
+import { mulberry32 } from "@project/bench";
 import { describe, expect, it } from "vitest";
 import {
+  PLAYBACK_MAX_AHEAD_TICKS,
+  PLAYBACK_MAX_LAG_TICKS,
   PLAYBACK_MAX_TICKS,
   PLAYBACK_MIN_TICKS,
   PLAYBACK_START_TICKS,
@@ -38,48 +40,77 @@ describe("PlaybackDelay", () => {
     expect(fed(100, () => TICK_MS).targetTicks()).toBe(PLAYBACK_MIN_TICKS);
   });
 
-  it("renders a link whose arrivals wobble by 15 ms over two ticks behind", () => {
-    const rng = mulberry32(7);
-    const target = fed(400, () => Math.max(0, TICK_MS + 15 * normal(rng))).targetTicks();
-    // mean + 3σ + a frame: (50 + 45 + 17) / 50
-    expect(target).toBeGreaterThan(1.9);
-    expect(target).toBeLessThan(2.8);
+  it("covers the mean gap, three standard deviations of it, and a frame", () => {
+    // gaps of 35 and 65 ms: σ 15 (14.5 as the weighted variance sees it), so
+    // (50 + 3 × 14.5 + 16.7) / 50 ticks
+    expect(fed(400, (i) => (i % 2 === 0 ? 35 : 65)).targetTicks()).toBeCloseTo(2.2, 1);
   });
 
-  it("asks for no more than the ceiling", () => {
+  it("asks for no more than the ceiling, and counts a gap as the ceiling at most", () => {
     expect(fed(60, (i) => (i % 2 === 0 ? 0 : 400)).targetTicks()).toBe(PLAYBACK_MAX_TICKS);
+    // one 2 s gap weighs what a 300 ms one does
+    const long = fed(100, (i) => (i === 50 ? 2000 : TICK_MS));
+    const capped = fed(100, (i) => (i === 50 ? PLAYBACK_MAX_TICKS * TICK_MS : TICK_MS));
+    expect(long.targetTicks()).toBe(capped.targetTicks());
   });
 
-  it("runs the render clock 5% fast or slow toward the target, and not within 5 ms of it", () => {
+  it("leaves out the gap before an arrival it was told to forget (an outage)", () => {
+    const told = fed(100, () => TICK_MS);
+    told.forgetArrival();
+    told.observe(100 * TICK_MS + 3000);
+    expect(told.targetTicks()).toBe(PLAYBACK_MIN_TICKS);
+    const untold = fed(100, () => TICK_MS);
+    untold.observe(100 * TICK_MS + 3000);
+    expect(untold.targetTicks()).toBeGreaterThan(PLAYBACK_MIN_TICKS);
+  });
+
+  it("counts a frame as 250 ms at most", () => {
+    const hitch = fed(100, () => TICK_MS);
+    hitch.frame(5000);
+    const capped = fed(100, () => TICK_MS);
+    capped.frame(250);
+    expect(hitch.targetTicks()).toBe(capped.targetTicks());
+  });
+
+  it("runs the render clock 5% fast or slow past 5 ms from the target, and at 1 within it", () => {
     const delay = fed(100, () => TICK_MS);
-    expect(delay.rate(3)).toBe(1 + PLAYBACK_WARP);
-    expect(delay.rate(1)).toBe(1 - PLAYBACK_WARP);
-    expect(delay.rate(PLAYBACK_MIN_TICKS + 0.05)).toBe(1);
+    const at = (ms: number): number => delay.rate(PLAYBACK_MIN_TICKS + ms / TICK_MS);
+    expect(at(6)).toBe(1 + PLAYBACK_WARP);
+    expect(at(-6)).toBe(1 - PLAYBACK_WARP);
+    expect(at(4)).toBe(1);
+    expect(at(-4)).toBe(1);
   });
 });
 
 describe("WorldClock's render timeline", () => {
   /**
    * A client at 60 fps: snapshots sent every 50 ms from tick 1000 arrive
-   * 40 ms later, unless a stall holds them.
+   * 40 ms later (plus `jitter()` ms), unless a stall holds them; `stamped`
+   * false sends them without `t` (the H1 fallback).
    */
-  function client() {
+  function client(jitter: () => number = () => 0, stamped = true) {
     const clock = new WorldClock(20);
     let now = 10_000;
     let tick = 1000;
+    let latest = 0;
     let nextSend = now - 40;
-    let held: { tick: number; sendT: number }[] = [];
+    let held: { tick: number; sendT: number; at: number }[] = [];
     const step = (frames: number, deliver = true): void => {
       for (let f = 0; f < frames; f++) {
         now += FRAME_MS;
         while (nextSend + 40 <= now) {
-          held.push({ tick, sendT: nextSend });
+          held.push({ tick, sendT: nextSend, at: nextSend + 40 + jitter() });
           tick++;
           nextSend += TICK_MS;
         }
         if (deliver) {
-          for (const snap of held) clock.observe(snap.tick, snap.sendT, now);
-          held = [];
+          const frameAt = now;
+          const due = held.filter((snap) => snap.at <= frameAt);
+          held = held.filter((snap) => snap.at > frameAt);
+          for (const snap of due) {
+            clock.observe(snap.tick, stamped ? snap.sendT : undefined, now);
+            latest = Math.max(latest, snap.tick);
+          }
         }
         clock.advance(FRAME_MS / 1000, now);
       }
@@ -94,8 +125,16 @@ describe("WorldClock's render timeline", () => {
       }
       return out;
     };
-    return { clock, step, advances };
+    /** A reconnect: what the outage held never arrives (the stream does not replay it). */
+    const drop = (): void => {
+      held = [];
+    };
+    return { clock, step, advances, drop, latest: () => latest };
   }
+
+  /** Within the dead band (5 ms) of the floor, or `slack` ticks. */
+  const atFloor = (delay: number | null, slack = 0.1): boolean =>
+    Math.abs((delay ?? 0) - PLAYBACK_MIN_TICKS) <= slack + 1e-6;
 
   it("converges on the floor without a jump", () => {
     const { clock, step, advances } = client();
@@ -104,31 +143,77 @@ describe("WorldClock's render timeline", () => {
       expect(advance).toBeGreaterThanOrEqual(0);
       expect(advance).toBeLessThanOrEqual(FASTEST_FRAME_TICKS);
     }
-    // within the dead band (5 ms) of the floor
-    expect(Math.abs((clock.delayTicks() ?? 0) - PLAYBACK_MIN_TICKS)).toBeLessThanOrEqual(
-      0.1 + 1e-6,
-    );
+    expect(atFloor(clock.delayTicks())).toBe(true);
   });
 
-  it("holds at the newest tick through a 250 ms stall, then gives the delay it grew back at the warp's pace", () => {
-    const { clock, step, advances } = client();
+  it("never renders more than two ticks past the newest tick it saw, though arrivals wobble", () => {
+    const rng = mulberry32(3);
+    const { clock, step, latest } = client(() => rng() * 30);
+    for (let f = 0; f < 1200; f++) {
+      step(1);
+      expect(clock.renderTick() ?? 0).toBeLessThanOrEqual(latest() + PLAYBACK_MAX_AHEAD_TICKS);
+    }
+  });
+
+  it("holds two ticks past the newest through a 250 ms stall, then gives the delay it grew back at the warp's pace", () => {
+    const { clock, step, advances, latest } = client();
     step(1200);
     const before = clock.delayTicks() ?? 0;
-    // 250 ms with nothing delivered: the render clock stops at the newest tick
+    // 250 ms with nothing delivered: the render clock stops two ticks past the newest
     step(15, false);
-    const grown = clock.delayTicks() ?? 0;
-    expect(grown).toBeGreaterThan(before + 3);
+    expect(clock.renderTick()).toBeCloseTo(latest() + PLAYBACK_MAX_AHEAD_TICKS, 6);
+    expect(clock.delayTicks()).toBeGreaterThan(before + 1);
     // the held snapshots arrive at once; the render clock resumes, never jumping
     for (const advance of advances(60)) {
       expect(advance).toBeGreaterThanOrEqual(0);
       expect(advance).toBeLessThanOrEqual(FASTEST_FRAME_TICKS);
     }
-    // a second at 5% fast gives back a tick at most
-    expect(grown - (clock.delayTicks() ?? 0)).toBeLessThanOrEqual(1 + 1e-6);
-    // once the stall leaves the estimate, the delay is back at the floor
+    // once the stall leaves the estimate (its 10 s memory), the delay is back at the floor
+    step(1800);
+    expect(atFloor(clock.delayTicks())).toBe(true);
+  });
+
+  it("gives a 500 ms stall's delay back at the warp's pace, a tick a second", () => {
+    const { clock, step } = client();
+    step(1200);
+    step(30, false);
+    step(1);
+    const grown = clock.delayTicks() ?? 0;
+    step(60);
+    const given = grown - (clock.delayTicks() ?? 0);
+    expect(given).toBeGreaterThan(0.9);
+    expect(given).toBeLessThanOrEqual(1 + 1e-6);
+  });
+
+  it("resumes a 3 s stall at most twice the ceiling behind", () => {
+    const { clock, step } = client();
     step(600);
-    expect(Math.abs((clock.delayTicks() ?? 0) - PLAYBACK_MIN_TICKS)).toBeLessThanOrEqual(
-      0.1 + 1e-6,
-    );
+    step(180, false);
+    step(1);
+    // capped against the estimate before the frame's advance
+    expect(clock.delayTicks()).toBeLessThanOrEqual(PLAYBACK_MAX_LAG_TICKS + FASTEST_FRAME_TICKS);
+  });
+
+  it("starts the render timeline again on a hello from the same server, and forgets it on another's", () => {
+    const { clock, step, drop } = client();
+    clock.followServer("one");
+    step(600);
+    // a 3 s outage, then the same server's hello: the fixed delay again
+    step(180, false);
+    drop();
+    clock.followServer("one");
+    step(1);
+    expect(clock.delayTicks()).toBeLessThanOrEqual(PLAYBACK_START_TICKS + FASTEST_FRAME_TICKS);
+    step(600);
+    expect(atFloor(clock.delayTicks())).toBe(true);
+    clock.followServer("two");
+    expect(clock.renderTick()).toBeNull();
+  });
+
+  it("renders near the floor from arrivals alone when snapshots carry no send time", () => {
+    const { clock, step } = client(() => 0, false);
+    step(1800);
+    // the H1 estimate moves in nudges at each arrival, so the delay sits at the band's edge
+    expect(atFloor(clock.delayTicks(), 0.15)).toBe(true);
   });
 });

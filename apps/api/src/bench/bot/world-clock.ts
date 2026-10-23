@@ -17,15 +17,22 @@
  *
  * Remote snakes render on a timeline of their own behind the estimate: as
  * far behind as this client's arrivals need (PlaybackDelay), reached by
- * running the render clock 5% fast or slow, never by a jump, and never past
- * the newest tick seen. A stall freezes it at that tick; the delay it grew
- * shrinks back at the warp's pace once snapshots arrive again.
+ * running the render clock 5% fast or slow, never by a jump, and at most
+ * PLAYBACK_MAX_AHEAD_TICKS past the newest tick seen (the interpolators'
+ * extrapolation budget). A stall holds it there; the delay it grew shrinks
+ * back at the warp's pace once snapshots arrive again, from at most
+ * PLAYBACK_MAX_LAG_TICKS behind (a longer stall resumes there, a jump).
  *
  * Falls back to the H1 exponential estimator when snapshots carry no `t`
  * (tolerant parsing — older servers).
  */
 
-import { PLAYBACK_START_TICKS, PlaybackDelay } from "./playback-delay.js";
+import {
+  PLAYBACK_MAX_AHEAD_TICKS,
+  PLAYBACK_MAX_LAG_TICKS,
+  PLAYBACK_START_TICKS,
+  PlaybackDelay,
+} from "./playback-delay.js";
 
 /** H1 fallback: baseline 5%/frame at 60fps ≈ exp decay with τ ≈ 0.325s. */
 const CLOCK_TAU_S = 0.3;
@@ -57,6 +64,8 @@ export class WorldClock {
   private readonly playback: PlaybackDelay;
   private render = 0;
   private hasRender = false;
+  /** The newest tick when a hello restarted the render timeline: it starts on a newer one. */
+  private restartAfter = -1;
 
   constructor(private readonly tickRate: number) {
     this.playback = new PlaybackDelay(1000 / tickRate);
@@ -64,11 +73,19 @@ export class WorldClock {
 
   /**
    * Follows the world of the server a hello names: another server (a
-   * restart: a new world, ticks from 0) starts the timeline over, a network
-   * blip keeps it. Pinned to game.gd clock_follow_server.
+   * restart: a new world, ticks from 0) starts the timeline over. A network
+   * blip keeps the estimate, but not the outage as a gap between arrivals,
+   * and the render timeline starts again from the fixed delay: the world
+   * is rebuilt from the bootstrap after it, so no snake jumps. Pinned to
+   * game.gd clock_follow_server.
    */
   public followServer(serverId: string): void {
-    if (serverId === this.serverId) return;
+    if (serverId === this.serverId) {
+      this.playback.forgetArrival();
+      this.hasRender = false;
+      this.restartAfter = this.latest;
+      return;
+    }
     this.serverId = serverId;
     this.reset();
   }
@@ -138,16 +155,26 @@ export class WorldClock {
     this.est += Math.max(-maxStep, Math.min(maxStep, error));
   }
 
-  /** Runs the render clock toward the playback delay's target, never past the newest tick. */
+  /**
+   * Runs the render clock toward the playback delay's target, at most
+   * PLAYBACK_MAX_LAG_TICKS behind the estimate and PLAYBACK_MAX_AHEAD_TICKS
+   * past the newest tick.
+   */
   private advanceRender(deltaS: number): void {
     if (this.hasRender) {
       this.playback.frame(deltaS * 1000);
       this.render += deltaS * this.tickRate * this.playback.rate(this.est - this.render);
-    } else {
+    } else if (this.latest > this.restartAfter) {
       this.render = this.est - PLAYBACK_START_TICKS;
       this.hasRender = true;
+    } else {
+      // After a hello: the newest tick is the outage's, so start on a fresh one
+      return;
     }
-    this.render = Math.min(this.render, this.latest);
+    this.render = Math.min(
+      Math.max(this.render, this.est - PLAYBACK_MAX_LAG_TICKS),
+      this.latest + PLAYBACK_MAX_AHEAD_TICKS,
+    );
   }
 
   /** Forgets the timeline: the next snapshot anchors it again. */
@@ -162,5 +189,6 @@ export class WorldClock {
     this.playback.reset();
     this.render = 0;
     this.hasRender = false;
+    this.restartAfter = -1;
   }
 }

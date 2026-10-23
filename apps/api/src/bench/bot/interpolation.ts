@@ -24,14 +24,16 @@ import type { PlayerSnap } from "@project/shared";
 const MAX_EXTRAPOLATION_TICKS = 2.0;
 const BUFFER_LIMIT = 40;
 
-// H3b: graceful stall recovery. Past the linear extrapolation budget the
-// snake COASTS to a stop over SOFT_STOP_TICKS instead of freezing; when
-// data resumes (buffer refill after a stall), the raw render target jumps —
-// the discontinuity is folded into a fast-decaying render offset (the same
-// visual-offset trick local_snake.gd uses for reconciliation) so remotes
-// glide back onto the true path instead of teleporting. The render clock
-// never passes the newest tick (world-clock.ts), so extrapolation and the
-// glide are a safety net.
+// H3b: graceful underrun recovery. The render clock runs at most this
+// budget past the newest tick (world-clock.ts, PLAYBACK_MAX_AHEAD_TICKS):
+// a late snapshot costs a remote a linear extrapolation, a stall holds it
+// at the budget's end, and a remote the newest snapshots lack COASTS to a
+// stop over SOFT_STOP_TICKS instead of freezing. When data is back, the raw
+// render target jumps — the discontinuity is folded into a fast-decaying
+// render offset (the same visual-offset trick local_snake.gd uses for
+// reconciliation) so remotes glide back onto the true path instead of
+// teleporting. A render clock resuming past a long stall (more than
+// PLAYBACK_MAX_LAG_TICKS) jumps the same way.
 const SOFT_STOP_TICKS = 3.0;
 const GLIDE_HALF_LIFE_S = 0.1;
 /** Fold jumps below this into the glide; beyond it, snap (respawn-scale). */

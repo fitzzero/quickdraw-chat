@@ -56,7 +56,7 @@ scripts/game_config.gd                 Movement tunables + shared sim_step — M
                                        apps/api/src/services/game/world.ts
 scripts/local_snake.gd                 Client-side prediction + reconciliation (ack replay,
                                        decaying visual offset — no rubber-banding)
-scripts/remote_snake.gd                Snapshot-buffer interpolation (~125ms render delay)
+scripts/remote_snake.gd                Snapshot-buffer interpolation (75–300ms render delay)
 scripts/snake_body.gd                  Body derived from head-path history (matches server)
 scripts/main.gd                        World bootstrap, snapshot routing, minimal in-canvas UI
 test/session.gd                        The headless two-client check (below); not exported

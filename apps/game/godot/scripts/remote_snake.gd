@@ -6,12 +6,15 @@ extends SnakeBody
 ## per client — see game.gd) instead of a per-entity estimator, so every
 ## remote renders the same moment of the world. We render at its render
 ## tick (behind it by this client's playback delay, game.gd) and interpolate
-## between the bracketing snapshots. On buffer underrun (late/stalled
-## snapshots, a safety net: the render tick never passes the newest) we extrapolate
-## along the last velocity, then COAST to a stop instead of freezing; when
-## data resumes, the target jump is folded into a fast-decaying glide offset
-## so the snake slides back onto its true path instead of teleporting.
-## Mirrors the bench bots' interpolation.ts — keep in lockstep.
+## between the bracketing snapshots. The render tick runs at most
+## MAX_EXTRAPOLATION_TICKS past the newest snapshot (game.gd), so a late
+## snapshot costs a short extrapolation along the last velocity and a stall
+## holds every remote at its end; a remote the newest snapshots lack COASTS
+## to a stop instead of freezing. When data is back, the target jump is
+## folded into a fast-decaying glide offset so the snake slides onto its
+## true path instead of teleporting (a render tick resuming past a long
+## stall jumps the same way). Mirrors the bench bots' interpolation.ts —
+## keep in lockstep.
 
 const MAX_EXTRAPOLATION_TICKS := 2.0
 const SOFT_STOP_TICKS := 3.0
