@@ -16,7 +16,9 @@
  * PLAYBACK_MAX_FRAME_MS: one long stall or a hitch (a background tab) does
  * not hold the target up.
  *
- * The render clock never jumps to a new delay: WorldClock runs it 5% fast
+ * The render clock never jumps to a new delay (only the lag cap moves it at
+ * once, as snapshots resume after a stall longer than about 0.7 s):
+ * WorldClock runs it 5% fast
  * while the delay is more than PLAYBACK_DEAD_BAND_MS above the target and
  * 5% slow while it is that much below (`rate`), so a tick of change takes a
  * second of wall time.
@@ -26,13 +28,18 @@
 export const PLAYBACK_MIN_TICKS = 1.5;
 /** The most: 300 ms at 20 Hz. */
 export const PLAYBACK_MAX_TICKS = 6;
-/** Where the render clock starts, before it has seen arrivals: the fixed delay before it. */
+/**
+ * Where the render clock starts when a snapshot anchors it (the first one,
+ * and the first after a hello): the fixed delay before it.
+ */
 export const PLAYBACK_START_TICKS = 2.5;
 /** How much faster or slower than real time the render clock runs to converge. */
 export const PLAYBACK_WARP = 0.05;
 /**
- * The most the render clock lags the estimate (twice the ceiling): past a
- * long stall it resumes this far behind, not the whole stall behind.
+ * The most the render clock lags the estimate once snapshots arrive (twice
+ * the ceiling): past a long stall it resumes this far behind, not the
+ * whole stall behind. Through the stall itself, the bound past the newest
+ * tick holds it, and the lag grows.
  */
 export const PLAYBACK_MAX_LAG_TICKS = 2 * PLAYBACK_MAX_TICKS;
 /**

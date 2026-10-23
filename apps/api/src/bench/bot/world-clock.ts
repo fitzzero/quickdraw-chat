@@ -64,8 +64,6 @@ export class WorldClock {
   private readonly playback: PlaybackDelay;
   private render = 0;
   private hasRender = false;
-  /** The newest tick when a hello restarted the render timeline: it starts on a newer one. */
-  private restartAfter = -1;
 
   constructor(private readonly tickRate: number) {
     this.playback = new PlaybackDelay(1000 / tickRate);
@@ -73,21 +71,26 @@ export class WorldClock {
 
   /**
    * Follows the world of the server a hello names: another server (a
-   * restart: a new world, ticks from 0) starts the timeline over. A network
-   * blip keeps the estimate, but not the outage as a gap between arrivals,
-   * and the render timeline starts again from the fixed delay: the world
-   * is rebuilt from the bootstrap after it, so no snake jumps. Pinned to
+   * restart: a new world, ticks from 0) starts everything over. The same
+   * server's (a reconnect) keeps what the playback delay learned of the
+   * link, but not the outage as a gap between arrivals, and the timeline
+   * anchors again on the next snapshot, as at the start: the estimate
+   * drifted while nothing arrived (the H1 nudge toward a stale tick, a
+   * world that paused while its room was empty). Until the bootstrap
+   * rebuilds the world, a snake held through the outage moves from its last
+   * snapshot before it to the first after it, as with a fixed delay
+   * (remote_snake.gd snaps one that moved MAX_GLIDE_PX or more). Pinned to
    * game.gd clock_follow_server.
    */
   public followServer(serverId: string): void {
     if (serverId === this.serverId) {
       this.playback.forgetArrival();
-      this.hasRender = false;
-      this.restartAfter = this.latest;
+      this.forgetTimeline();
       return;
     }
     this.serverId = serverId;
-    this.reset();
+    this.forgetTimeline();
+    this.playback.reset();
   }
 
   public observe(tick: number, sendT?: number, arrivalMs?: number): void {
@@ -158,18 +161,17 @@ export class WorldClock {
   /**
    * Runs the render clock toward the playback delay's target, at most
    * PLAYBACK_MAX_LAG_TICKS behind the estimate and PLAYBACK_MAX_AHEAD_TICKS
-   * past the newest tick.
+   * past the newest tick. The second bound wins: through a long stall the
+   * render clock holds, and the lag cap moves it on (a jump) once snapshots
+   * arrive again.
    */
   private advanceRender(deltaS: number): void {
     if (this.hasRender) {
       this.playback.frame(deltaS * 1000);
       this.render += deltaS * this.tickRate * this.playback.rate(this.est - this.render);
-    } else if (this.latest > this.restartAfter) {
+    } else {
       this.render = this.est - PLAYBACK_START_TICKS;
       this.hasRender = true;
-    } else {
-      // After a hello: the newest tick is the outage's, so start on a fresh one
-      return;
     }
     this.render = Math.min(
       Math.max(this.render, this.est - PLAYBACK_MAX_LAG_TICKS),
@@ -178,7 +180,7 @@ export class WorldClock {
   }
 
   /** Forgets the timeline: the next snapshot anchors it again. */
-  private reset(): void {
+  private forgetTimeline(): void {
     this.est = 0;
     this.latest = 0;
     this.hasEst = false;
@@ -186,9 +188,7 @@ export class WorldClock {
     this.lastTick = 0;
     this.lastSendT = 0;
     this.hasTimestamps = false;
-    this.playback.reset();
     this.render = 0;
     this.hasRender = false;
-    this.restartAfter = -1;
   }
 }

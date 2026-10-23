@@ -23,6 +23,7 @@ import {
   PLAYBACK_START_TICKS,
   PLAYBACK_WARP,
 } from "./playback-delay.js";
+import { MAX_EXTRAPOLATION_TICKS } from "./interpolation.js";
 
 const SCRIPTS = "../../../../game/godot/scripts/";
 
@@ -57,5 +58,10 @@ describe("the Godot client's constants", () => {
     expect(gd("PLAYBACK_MAX_LAG_TICKS")).toBe(PLAYBACK_MAX_LAG_TICKS);
     expect(gd("PLAYBACK_MAX_AHEAD_TICKS")).toBe(PLAYBACK_MAX_AHEAD_TICKS);
     expect(gd("PLAYBACK_MAX_FRAME_MS")).toBe(PLAYBACK_MAX_FRAME_MS);
+  });
+
+  it("lets the render clock run ahead by exactly the interpolators' extrapolation budget", () => {
+    expect(PLAYBACK_MAX_AHEAD_TICKS).toBe(MAX_EXTRAPOLATION_TICKS);
+    expect(gdConsts("remote_snake.gd")("MAX_EXTRAPOLATION_TICKS")).toBe(MAX_EXTRAPOLATION_TICKS);
   });
 });

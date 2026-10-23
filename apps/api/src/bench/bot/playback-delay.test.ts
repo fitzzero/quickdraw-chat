@@ -2,6 +2,7 @@ import { mulberry32 } from "@project/bench";
 import { describe, expect, it } from "vitest";
 import {
   PLAYBACK_MAX_AHEAD_TICKS,
+  PLAYBACK_MAX_FRAME_MS,
   PLAYBACK_MAX_LAG_TICKS,
   PLAYBACK_MAX_TICKS,
   PLAYBACK_MIN_TICKS,
@@ -41,9 +42,27 @@ describe("PlaybackDelay", () => {
   });
 
   it("covers the mean gap, three standard deviations of it, and a frame", () => {
-    // gaps of 35 and 65 ms: σ 15 (14.5 as the weighted variance sees it), so
-    // (50 + 3 × 14.5 + 16.7) / 50 ticks
-    expect(fed(400, (i) => (i % 2 === 0 ? 35 : 65)).targetTicks()).toBeCloseTo(2.2, 1);
+    // gaps of 35 and 65 ms: σ 15, so (50 + 3 × 15 + 16.7) / 50 = 2.23 ticks;
+    // 2σ would give 1.93, no frame 1.9, 4σ 2.53
+    const target = fed(400, (i) => (i % 2 === 0 ? 35 : 65)).targetTicks();
+    expect(target).toBeGreaterThan(2.15);
+    expect(target).toBeLessThan(2.3);
+  });
+
+  it("holds a spiky link's delay between its spikes (about ten seconds of memory)", () => {
+    const delay = new PlaybackDelay(TICK_MS);
+    let at = 0;
+    const arrive = (gap: number): void => {
+      at += gap;
+      delay.observe(at);
+      delay.frame(FRAME_MS);
+    };
+    // a 200 ms gap every 20 arrivals (a second), the last arrival a spike's
+    for (let i = 0; i < 400; i++) arrive(i % 20 === 19 ? 200 : TICK_MS);
+    const atSpike = delay.targetTicks();
+    // up to the next spike, the target barely sinks (a 1.5 s memory loses a third)
+    for (let i = 0; i < 19; i++) arrive(TICK_MS);
+    expect(delay.targetTicks()).toBeGreaterThan(0.9 * atSpike);
   });
 
   it("asks for no more than the ceiling, and counts a gap as the ceiling at most", () => {
@@ -65,11 +84,17 @@ describe("PlaybackDelay", () => {
   });
 
   it("counts a frame as 250 ms at most", () => {
-    const hitch = fed(100, () => TICK_MS);
+    // a link whose target sits above the floor, so the frame term shows
+    const jittery = (): PlaybackDelay => fed(400, (i) => (i % 2 === 0 ? 35 : 65));
+    const hitch = jittery();
     hitch.frame(5000);
-    const capped = fed(100, () => TICK_MS);
-    capped.frame(250);
+    const capped = jittery();
+    capped.frame(PLAYBACK_MAX_FRAME_MS);
+    const shorter = jittery();
+    shorter.frame(PLAYBACK_MAX_FRAME_MS / 2);
+    expect(capped.targetTicks()).toBeGreaterThan(PLAYBACK_MIN_TICKS);
     expect(hitch.targetTicks()).toBe(capped.targetTicks());
+    expect(shorter.targetTicks()).toBeLessThan(capped.targetTicks());
   });
 
   it("runs the render clock 5% fast or slow past 5 ms from the target, and at 1 within it", () => {
@@ -146,13 +171,19 @@ describe("WorldClock's render timeline", () => {
     expect(atFloor(clock.delayTicks())).toBe(true);
   });
 
-  it("never renders more than two ticks past the newest tick it saw, though arrivals wobble", () => {
+  it("runs at most two ticks past the newest tick it saw, through wobble and stalls", () => {
     const rng = mulberry32(3);
     const { clock, step, latest } = client(() => rng() * 30);
-    for (let f = 0; f < 1200; f++) {
-      step(1);
-      expect(clock.renderTick() ?? 0).toBeLessThanOrEqual(latest() + PLAYBACK_MAX_AHEAD_TICKS);
+    let ahead = -Infinity;
+    for (let f = 0; f < 2400; f++) {
+      // a 250 ms stall every 2 s
+      step(1, f % 120 >= 15);
+      const past = (clock.renderTick() ?? 0) - latest();
+      ahead = Math.max(ahead, past);
+      expect(past).toBeLessThanOrEqual(PLAYBACK_MAX_AHEAD_TICKS + 1e-9);
     }
+    // the stalls did take it past the newest tick
+    expect(ahead).toBeGreaterThan(0);
   });
 
   it("holds two ticks past the newest through a 250 ms stall, then gives the delay it grew back at the warp's pace", () => {
@@ -191,23 +222,51 @@ describe("WorldClock's render timeline", () => {
     step(180, false);
     step(1);
     // capped against the estimate before the frame's advance
-    expect(clock.delayTicks()).toBeLessThanOrEqual(PLAYBACK_MAX_LAG_TICKS + FASTEST_FRAME_TICKS);
+    const delay = clock.delayTicks() ?? 0;
+    expect(delay).toBeGreaterThanOrEqual(PLAYBACK_MAX_LAG_TICKS);
+    expect(delay).toBeLessThanOrEqual(PLAYBACK_MAX_LAG_TICKS + FASTEST_FRAME_TICKS);
   });
 
-  it("starts the render timeline again on a hello from the same server, and forgets it on another's", () => {
+  it("anchors the timeline again on the next snapshot after a hello from the same server", () => {
     const { clock, step, drop } = client();
     clock.followServer("one");
     step(600);
-    // a 3 s outage, then the same server's hello: the fixed delay again
+    // a 3 s outage, then the same server's hello
     step(180, false);
     drop();
     clock.followServer("one");
-    step(1);
+    // nothing renders until a snapshot anchors the timeline again
+    expect(clock.renderTick()).toBeNull();
+    step(3, false);
+    expect(clock.renderTick()).toBeNull();
+    step(3);
+    // then from the fixed delay, back to the floor: the outage was no gap
     expect(clock.delayTicks()).toBeLessThanOrEqual(PLAYBACK_START_TICKS + FASTEST_FRAME_TICKS);
     step(600);
     expect(atFloor(clock.delayTicks())).toBe(true);
     clock.followServer("two");
     expect(clock.renderTick()).toBeNull();
+  });
+
+  it("keeps what it learned of the link through the same server's hello, and forgets it on another's", () => {
+    // a jittery link, whose delay sits well above the floor: one that
+    // learned it settles back near it, one that starts over settles lower
+    // for as long as its new memory is short
+    const rng = mulberry32(7);
+    const { clock, step, drop } = client(() => rng() * 60);
+    clock.followServer("one");
+    step(1200);
+    const learned = clock.delayTicks() ?? 0;
+    expect(learned).toBeGreaterThan(PLAYBACK_START_TICKS);
+    const outage = (server: string): number => {
+      step(180, false);
+      drop();
+      clock.followServer(server);
+      step(180);
+      return clock.delayTicks() ?? 0;
+    };
+    expect(outage("one")).toBeGreaterThan(learned - 0.1);
+    expect(outage("two")).toBeLessThan(learned - 0.2);
   });
 
   it("renders near the floor from arrivals alone when snapshots carry no send time", () => {

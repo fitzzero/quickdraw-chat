@@ -90,8 +90,10 @@ the player (and sends `playerLeft`) when the last one leaves or disconnects,
 in every server the service runs in (the API, the test app, the bench).
 
 A server restart is a new world whose ticks start over: the Godot client
-tells it from a network blip by the hello's `server_id` (the world clock
-starts over on another server), as the bench bots do with `serverId`.
+tells it from a network blip by the hello's `server_id`, as the bench bots
+do with `serverId`. Every hello anchors the world clock again on the next
+snapshot; another server's also forgets what the playback delay learned of
+the link (a blip keeps it).
 
 NPCs (`npc-` ids) live inside `GameWorldSim` (seeded, deterministic,
 `npcCount` tunable) and reach clients as ordinary remote players; they never

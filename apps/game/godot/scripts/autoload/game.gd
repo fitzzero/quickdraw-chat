@@ -49,9 +49,10 @@ const CLOCK_TAU_S := 0.3
 const CLOCK_WINDOW_S := 4.0
 const CLOCK_MAX_SLEW_TICKS_PER_S := 2.0
 
-## The server whose world the clock follows (its hello's `serverId`): a
-## reconnect to another one reached a restarted server (a new world, ticks
-## from 0), and the clock starts over; a network blip keeps it.
+## The server whose world the clock follows (its hello's `serverId`). Every
+## hello anchors the clock again on the next snapshot; one from another
+## server (a restarted one: a new world, ticks from 0) also forgets what the
+## playback delay learned of the link, which a network blip keeps.
 var _clock_server_id := ""
 var _clock_est := 0.0
 var _clock_latest := 0.0
@@ -70,14 +71,15 @@ var _clock_has_timestamps := false
 ## of arrivals) of the time between snapshot arrivals, of its variance, and
 ## of the frame time. The target delay is mean + 3σ + a frame, in ticks,
 ## clamped to [1.5, 6]. The render clock runs 5% fast or slow to reach it
-## (outside a 5 ms dead band), never jumps, and runs at most 2 ticks past
-## the newest tick seen (remote_snake.gd's extrapolation budget): a stall
-## holds it there, and the delay that grew shrinks back at the warp's pace,
-## from at most twice the ceiling behind (a longer stall resumes there). A
-## gap counts as the ceiling at most, and a frame as 250 ms. An arrival
-## here is the frame that polled it, so the gaps carry up to a frame of
-## polling the bots' do not: Godot renders a little further behind than they
-## do for the same link.
+## (outside a 5 ms dead band), never jumps to it (only the lag cap moves it
+## at once, as snapshots resume after a stall longer than about 0.7 s), and
+## runs at most 2 ticks past the newest tick seen (remote_snake.gd's
+## extrapolation budget): a stall holds it there, and the delay that grew
+## shrinks back at the warp's pace, from at most twice the ceiling behind (a
+## longer stall resumes there). A gap counts as the ceiling at most, and a
+## frame as 250 ms. An arrival here is the frame that polled it, so the gaps
+## carry up to a frame of polling the bots' do not: Godot renders a little
+## further behind than they do for the same link.
 
 const PLAYBACK_MIN_TICKS := 1.5
 const PLAYBACK_MAX_TICKS := 6.0
@@ -86,7 +88,8 @@ const PLAYBACK_WARP := 0.05
 const PLAYBACK_EWMA_K := 2.0 / 201.0
 const PLAYBACK_SIGMAS := 3.0
 const PLAYBACK_DEAD_BAND_MS := 5.0
-## Twice the ceiling: the most the render clock lags the estimate
+## Twice the ceiling: the most the render clock lags the estimate once
+## snapshots arrive (through a stall, the bound past the newest tick holds it)
 const PLAYBACK_MAX_LAG_TICKS := 12.0
 ## remote_snake.gd's MAX_EXTRAPOLATION_TICKS: how far past the newest tick it runs
 const PLAYBACK_MAX_AHEAD_TICKS := 2.0
@@ -100,8 +103,6 @@ var _pb_arrivals := 0
 var _pb_frame_ms := -1.0
 var _render_tick := 0.0
 var _has_render := false
-## The newest tick when a hello restarted the render timeline: it starts on a newer one
-var _render_restart_after := -1.0
 
 
 func clock_observe(tick: int, send_t: float) -> void:
@@ -126,23 +127,22 @@ func clock_observe(tick: int, send_t: float) -> void:
 
 
 ## Follows the world of the server `server_id` names: another server's ticks
-## start over, so the clock forgets its timeline; the same server's keeps
-## the estimate (see world-clock.ts followServer).
+## start over, so the clock forgets everything. The same server's (a
+## reconnect) keeps what the playback delay learned of the link, but not the
+## outage as a gap, and the timeline anchors again on the next snapshot (see
+## world-clock.ts followServer).
 func clock_follow_server(server_id: String) -> void:
 	if server_id != _clock_server_id:
 		_clock_server_id = server_id
-		_clock_reset()
+		_clock_forget_timeline()
+		_playback_reset()
 	else:
-		# The outage before this hello is no gap between snapshots, and the
-		# render timeline starts again from the fixed delay (the bootstrap
-		# rebuilds the world after it, so no snake jumps)
 		_pb_last_arrival_ms = -1.0
-		_has_render = false
-		_render_restart_after = _clock_latest
+		_clock_forget_timeline()
 
 
 ## Forgets the timeline: the next snapshot anchors it again.
-func _clock_reset() -> void:
+func _clock_forget_timeline() -> void:
 	_clock_est = 0.0
 	_clock_latest = 0.0
 	_clock_has_est = false
@@ -151,14 +151,17 @@ func _clock_reset() -> void:
 	_clock_last_tick = 0.0
 	_clock_last_send_t = 0.0
 	_clock_has_timestamps = false
+	_render_tick = 0.0
+	_has_render = false
+
+
+## Forgets the arrivals and frames (another server's world).
+func _playback_reset() -> void:
 	_pb_last_arrival_ms = -1.0
 	_pb_mean_ms = 0.0
 	_pb_var_ms2 = 0.0
 	_pb_arrivals = 0
 	_pb_frame_ms = -1.0
-	_render_tick = 0.0
-	_has_render = false
-	_render_restart_after = -1.0
 
 
 ## The render timeline first: its rate follows the delay as it stood between
@@ -195,18 +198,17 @@ func _advance_estimate(delta: float) -> void:
 
 ## Runs the render clock toward the playback delay's target, at most
 ## PLAYBACK_MAX_LAG_TICKS behind the estimate and PLAYBACK_MAX_AHEAD_TICKS
-## past the newest tick.
+## past the newest tick. The second bound wins: through a long stall the
+## render clock holds, and the lag cap moves it on (a jump) once snapshots
+## arrive again.
 func _advance_render(delta: float) -> void:
 	if _has_render:
 		_playback_frame(delta * 1000.0)
 		var rate := _playback_rate(_clock_est - _render_tick)
 		_render_tick += delta * GameConfig.TICK_RATE * rate
-	elif _clock_latest > _render_restart_after:
+	else:
 		_render_tick = _clock_est - PLAYBACK_START_TICKS
 		_has_render = true
-	else:
-		# After a hello: the newest tick is the outage's, so start on a fresh one
-		return
 	_render_tick = minf(
 		maxf(_render_tick, _clock_est - PLAYBACK_MAX_LAG_TICKS),
 		_clock_latest + PLAYBACK_MAX_AHEAD_TICKS
