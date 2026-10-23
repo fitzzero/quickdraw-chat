@@ -42,12 +42,12 @@ var is_in_world := false
 ## snapshot's `t` stamp, free-runs on the local clock between snapshots,
 ## slew-limited corrections. Replaces remote_snake.gd's per-entity
 ## estimators; falls back to a frame-rate-independent nudge when the server
-## sends no timestamp. Keep the two implementations in lockstep.
+## sends no timestamp. Remotes render on a timeline of their own behind it
+## (the playback delay, below). Keep the two implementations in lockstep.
 
 const CLOCK_TAU_S := 0.3
 const CLOCK_WINDOW_S := 4.0
 const CLOCK_MAX_SLEW_TICKS_PER_S := 2.0
-const INTERP_DELAY_TICKS := 2.5
 
 ## The server whose world the clock follows (its hello's `serverId`): a
 ## reconnect to another one reached a restarted server (a new world, ticks
@@ -64,12 +64,42 @@ var _clock_last_tick := 0.0
 var _clock_last_send_t := 0.0
 var _clock_has_timestamps := false
 
+## ── Playback delay — how far behind the clock remotes render ──────────────
+## Port of apps/api/src/bench/bot/playback-delay.ts (HYPOTHESES.md #3; keep
+## the two in lockstep): exponentially weighted means (k = 2/31) of the time
+## between snapshot arrivals, of its variance, and of the frame time. The
+## target delay is mean + 3σ + a frame, in ticks, clamped to [1.5, 6]. The
+## render clock runs 5% fast or slow to reach it (outside a 5 ms dead band),
+## never jumps, and never passes the newest tick seen: a stall holds it
+## there, and the delay that grew shrinks back at the warp's pace. An arrival
+## here is the frame that polled it, so the gaps carry up to a frame of
+## polling the bots' do not: Godot renders a little further behind than they
+## do for the same link.
+
+const PLAYBACK_MIN_TICKS := 1.5
+const PLAYBACK_MAX_TICKS := 6.0
+const PLAYBACK_START_TICKS := 2.5
+const PLAYBACK_WARP := 0.05
+const PLAYBACK_EWMA_K := 2.0 / 31.0
+const PLAYBACK_SIGMAS := 3.0
+const PLAYBACK_DEAD_BAND_MS := 5.0
+
+## Times in ms, as floats (64-bit; never a Vector2, whose float32 quantizes them)
+var _pb_last_arrival_ms := -1.0
+var _pb_mean_ms := 0.0
+var _pb_var_ms2 := 0.0
+var _pb_arrivals := 0
+var _pb_frame_ms := -1.0
+var _render_tick := 0.0
+var _has_render := false
+
 
 func clock_observe(tick: int, send_t: float) -> void:
 	_clock_latest = maxf(_clock_latest, float(tick))
 	if not _clock_has_est:
 		_clock_est = float(tick)
 		_clock_has_est = true
+	_playback_observe(float(Time.get_ticks_usec()) / 1000.0)
 	if send_t <= 0.0:
 		return
 	var arrival := float(Time.get_ticks_msec())
@@ -103,11 +133,25 @@ func _clock_reset() -> void:
 	_clock_last_tick = 0.0
 	_clock_last_send_t = 0.0
 	_clock_has_timestamps = false
+	_pb_last_arrival_ms = -1.0
+	_pb_mean_ms = 0.0
+	_pb_var_ms2 = 0.0
+	_pb_arrivals = 0
+	_pb_frame_ms = -1.0
+	_render_tick = 0.0
+	_has_render = false
 
 
+## The render timeline first: its rate follows the delay as it stood between
+## frames, the one remotes were drawn with.
 func _process(delta: float) -> void:
 	if not _clock_has_est:
 		return
+	_advance_render(delta)
+	_advance_estimate(delta)
+
+
+func _advance_estimate(delta: float) -> void:
 	if not _clock_has_timestamps:
 		# Fallback: frame-rate-independent nudge toward the freshest tick
 		_clock_est += delta * GameConfig.TICK_RATE
@@ -130,12 +174,71 @@ func _process(delta: float) -> void:
 	_clock_est += clampf(err, -max_step, max_step)
 
 
+## Runs the render clock toward the playback delay's target, never past the
+## newest tick seen.
+func _advance_render(delta: float) -> void:
+	if _has_render:
+		_playback_frame(delta * 1000.0)
+		var rate := _playback_rate(_clock_est - _render_tick)
+		_render_tick += delta * GameConfig.TICK_RATE * rate
+	else:
+		_render_tick = _clock_est - PLAYBACK_START_TICKS
+		_has_render = true
+	_render_tick = minf(_render_tick, _clock_latest)
+
+
+## A snapshot arrived (ms on a clock that only moves forward).
+func _playback_observe(arrival_ms: float) -> void:
+	var last := _pb_last_arrival_ms
+	_pb_last_arrival_ms = arrival_ms
+	if last < 0.0:
+		return
+	var gap := arrival_ms - last
+	if _pb_arrivals == 0:
+		_pb_mean_ms = gap
+	else:
+		# The incremental exponentially weighted mean and variance
+		var diff := gap - _pb_mean_ms
+		var incr := PLAYBACK_EWMA_K * diff
+		_pb_mean_ms += incr
+		_pb_var_ms2 = (1.0 - PLAYBACK_EWMA_K) * (_pb_var_ms2 + diff * incr)
+	_pb_arrivals += 1
+
+
+## A render frame of `frame_ms` passed.
+func _playback_frame(frame_ms: float) -> void:
+	if _pb_frame_ms < 0.0:
+		_pb_frame_ms = frame_ms
+	else:
+		_pb_frame_ms += PLAYBACK_EWMA_K * (frame_ms - _pb_frame_ms)
+
+
+## The delay to converge on, in ticks.
+func _playback_target_ticks() -> float:
+	if _pb_arrivals == 0:
+		return PLAYBACK_START_TICKS
+	var ms := _pb_mean_ms + PLAYBACK_SIGMAS * sqrt(_pb_var_ms2) + maxf(_pb_frame_ms, 0.0)
+	return clampf(ms * GameConfig.TICK_RATE / 1000.0, PLAYBACK_MIN_TICKS, PLAYBACK_MAX_TICKS)
+
+
+## The render clock's rate for a delay of `delay_ticks` now: faster to
+## shorten it, slower to lengthen it, 1 within the dead band.
+func _playback_rate(delay_ticks: float) -> float:
+	var error_ms := (delay_ticks - _playback_target_ticks()) * 1000.0 / GameConfig.TICK_RATE
+	if error_ms > PLAYBACK_DEAD_BAND_MS:
+		return 1.0 + PLAYBACK_WARP
+	if error_ms < -PLAYBACK_DEAD_BAND_MS:
+		return 1.0 - PLAYBACK_WARP
+	return 1.0
+
+
 func has_render_tick() -> bool:
 	return _clock_has_est
 
 
+## The tick remotes render at: the render timeline.
 func render_tick() -> float:
-	return _clock_est - INTERP_DELAY_TICKS
+	return _render_tick if _has_render else _clock_est - PLAYBACK_START_TICKS
 
 
 func _ready() -> void:

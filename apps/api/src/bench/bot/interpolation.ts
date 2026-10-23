@@ -9,7 +9,8 @@
  * This variant (HYPOTHESES.md #1) replaces them with ONE WorldClock per
  * client, fed by every snapshot arrival, advanced with a frame-rate-
  * independent exponential nudge (time-constant form). All interpolators
- * render at the same `clock − INTERP_DELAY_TICKS` timeline. τ = 0.3s is
+ * render at the clock's render tick (behind it by this client's playback
+ * delay, playback-delay.ts). τ = 0.3s is
  * chosen to match the baseline's convergence speed at 60fps, isolating
  * "shared + frame-rate independent" as the only change.
  *
@@ -28,8 +29,9 @@ const BUFFER_LIMIT = 40;
 // data resumes (buffer refill after a stall), the raw render target jumps —
 // the discontinuity is folded into a fast-decaying render offset (the same
 // visual-offset trick local_snake.gd uses for reconciliation) so remotes
-// glide back onto the true path instead of teleporting. Delay stays the
-// uniform 2.5 ticks, preserving cross-client timeline alignment.
+// glide back onto the true path instead of teleporting. The render clock
+// never passes the newest tick (world-clock.ts), so extrapolation and the
+// glide are a safety net.
 const SOFT_STOP_TICKS = 3.0;
 const GLIDE_HALF_LIFE_S = 0.1;
 /** Fold jumps below this into the glide; beyond it, snap (respawn-scale). */

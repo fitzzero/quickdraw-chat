@@ -4,9 +4,10 @@ extends SnakeBody
 ##
 ## The render timeline comes from Game's world clock (timestamp-synced, one
 ## per client — see game.gd) instead of a per-entity estimator, so every
-## remote renders the same moment of the world. We render
-## INTERP_DELAY_TICKS in the past and interpolate between the bracketing
-## snapshots. On buffer underrun (late/stalled snapshots) we extrapolate
+## remote renders the same moment of the world. We render at its render
+## tick (behind it by this client's playback delay, game.gd) and interpolate
+## between the bracketing snapshots. On buffer underrun (late/stalled
+## snapshots, a safety net: the render tick never passes the newest) we extrapolate
 ## along the last velocity, then COAST to a stop instead of freezing; when
 ## data resumes, the target jump is folded into a fast-decaying glide offset
 ## so the snake slides back onto its true path instead of teleporting.
