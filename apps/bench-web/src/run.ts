@@ -52,6 +52,12 @@ for (let i = 0; i < argv.length; i++) {
 }
 
 const scenario: Scenario = getScenario(scenarioName);
+// Tier 2 plays the server's world through latency proxies: a party's bots
+// play over loopback links, which only Tier 1 (bench:netcode) runs
+if (scenario.party !== undefined) {
+  console.error(`${scenario.name} is a party scenario: run it with bench:netcode (Tier 1)`);
+  process.exit(2);
+}
 
 function log(message: string): void {
   console.log(`[bench-web] ${message}`);

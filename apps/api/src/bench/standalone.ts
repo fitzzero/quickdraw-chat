@@ -37,6 +37,12 @@ if (!traceOut) {
 }
 
 const scenario = getScenario(scenarioName);
+// Tier 2 plays the server's world through latency proxies: a party's bots
+// play over loopback links, which only Tier 1 (bench:netcode) runs
+if (scenario.party !== undefined) {
+  console.error(`${scenario.name} is a party scenario: run it with bench:netcode (Tier 1)`);
+  process.exit(2);
+}
 const server = await startBenchServer(scenario);
 const proxies: LatencyProxy[] = [];
 const clients: { name: string; userId: string; port: number }[] = [];

@@ -113,26 +113,44 @@ function partyOf(
   return scenario.party ? { party: partyFairness(scenario.party.host, clients) } : {};
 }
 
+/** A client's ack p50, or NaN when it has none (no input acknowledged). */
+function ackP50(report: ClientReport | undefined): number {
+  const stats = report?.packet.inputAckRttMs;
+  return stats === undefined || stats.n === 0 ? Number.NaN : stats.p50;
+}
+
+/** A client's prediction error p95, or NaN when it has none (a spectator, too few samples). */
+function predictionP95(report: ClientReport | undefined): number {
+  const stats = report?.predictionErrorPx;
+  return stats === undefined || stats.n === 0 ? Number.NaN : stats.p95;
+}
+
+/** The median of the finite values (the mean of the middle two for an even count); NaN for none. */
+export function middleOf(values: readonly number[]): number {
+  const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (sorted.length === 0) return Number.NaN;
+  const half = Math.floor(sorted.length / 2);
+  const upper = sorted[half] ?? Number.NaN;
+  return sorted.length % 2 === 1 ? upper : ((sorted[half - 1] ?? upper) + upper) / 2;
+}
+
 /**
  * A party's fairness: the host's own user's input round trip p50 and
  * prediction error p95 against the other players' (the median of theirs).
  * With the fair link the host plays as they do; without it, its input
- * reaches the sim at once.
+ * reaches the sim at once. A value no client measured is NaN.
  */
-function partyFairness(host: string, clients: Record<string, ClientReport>): PartyFairness {
+export function partyFairness(host: string, clients: Record<string, ClientReport>): PartyFairness {
   const own = clients[host];
   const peers = Object.entries(clients)
-    .filter(([id, report]) => id !== host && report.predictionErrorPx !== undefined)
+    .filter(([id]) => id !== host)
     .map(([, report]) => report);
   return {
     host,
-    inputAckRttP50: {
-      host: own?.packet.inputAckRttMs.p50 ?? Number.NaN,
-      peers: medianOf(peers.map((c) => c.packet.inputAckRttMs.p50)),
-    },
+    inputAckRttP50: { host: ackP50(own), peers: middleOf(peers.map(ackP50)) },
     predictionErrorP95: {
-      host: own?.predictionErrorPx?.p95 ?? Number.NaN,
-      peers: medianOf(peers.map((c) => c.predictionErrorPx?.p95 ?? 0)),
+      host: predictionP95(own),
+      peers: middleOf(peers.map(predictionP95)),
     },
   };
 }
@@ -180,7 +198,9 @@ function foodMetric(clients: ClientReport[]): Record<string, number> {
 }
 
 function medianOf(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
+  // a value no run measured (a party's NaN) is left out; none measured stays NaN
+  const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (sorted.length === 0) return values.length > 0 ? Number.NaN : 0;
   return sorted[Math.floor(sorted.length / 2)] ?? 0;
 }
 

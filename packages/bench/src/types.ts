@@ -113,16 +113,16 @@ export interface LinkLag {
  * and loop, and each bot plays over a loopback link to it.
  */
 export interface PartySpec {
-  /** The bot of the host's own user: it plays over its own link to the host. */
+  /** The bot of the host's own user: its game runs on the host's machine, over a link no network slows. */
   host: string;
   /** Every other bot's link to the host. */
   link: LinkLag;
   /**
-   * The host's own user's link: default `link`, the fair link (as laggy as
-   * the players'); `{ ms: 0, jitter: 0, loss: 0 }` plays with the advantage
-   * the fair link removes.
+   * The fair link, as the host's page sets it (settleFairLink, every
+   * FAIR_LINK_EVERY_MS): the host's own user's link lags by the other
+   * players' median one-way trip. False plays with the advantage it removes.
    */
-  hostLink?: LinkLag;
+  fairLink: boolean;
 }
 
 export interface Scenario {
@@ -136,7 +136,7 @@ export interface Scenario {
   /** GameTunables overrides (npcCount etc.) — validated server-side */
   tunables?: Record<string, number>;
   clients: BotSpec[];
-  /** A party instead of the server's world; `net` then is the party's links, not a proxy's. */
+  /** A party instead of the server's world: its bots play over its links, and take no `net`. */
   party?: PartySpec;
 }
 

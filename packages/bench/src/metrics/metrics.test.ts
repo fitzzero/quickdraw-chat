@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { getScenario } from "../scenarios.js";
-import type { ClientTrace, ServerTick, ServerTrace } from "../types.js";
+import type { ClientReport, ClientTrace, ServerTick, ServerTrace, Stats } from "../types.js";
 import { computeStats, sampleTrack, buildDiscontinuityMask } from "./tracks.js";
 import { computeDivergence } from "./divergence.js";
 import { computeFood } from "./food.js";
 import { compareScorecards } from "../compare.js";
-import { aggregateScorecards, computeScorecard, headlineMetrics } from "./index.js";
+import {
+  aggregateScorecards,
+  computeScorecard,
+  headlineMetrics,
+  middleOf,
+  partyFairness,
+} from "./index.js";
 import { computeInputQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
 
@@ -245,5 +251,57 @@ describe("headlineMetrics", () => {
     const clean = aggregateScorecards([run(null), run(null), run(null)]);
     expect(compareScorecards(clean, lossy).failed).toBe(true);
     expect(compareScorecards(clean, clean).failed).toBe(false);
+  });
+});
+
+/** Stats of `n` samples, all at `value`. */
+function flat(value: number, n = 10): Stats {
+  return { n, mean: value, p50: value, p95: value, max: value };
+}
+
+/** A client report holding what a party's fairness reads: its ack times and its prediction error. */
+function partyClient(ackMs: number, predictionPx: number | null, acks = 10): ClientReport {
+  const stats = flat(0);
+  return {
+    kind: "bot",
+    packet: {
+      interArrivalMs: stats,
+      effectiveRate: 20,
+      gapRate: 0,
+      maxConsecutiveMissedTicks: 0,
+      inputAckRttMs: flat(ackMs, acks),
+    },
+    smoothness: { teleportsPerMin: 0, jerkRms: 0, hardSnapsPerMin: 0, correctionPx: stats },
+    perEntity: {},
+    ...(predictionPx === null ? {} : { predictionErrorPx: flat(predictionPx) }),
+    effectiveFps: 60,
+  };
+}
+
+describe("partyFairness", () => {
+  it("sets the host's own user against the other players' median, the middle two's mean when even", () => {
+    const fairness = partyFairness("host", {
+      host: partyClient(140, 15),
+      a: partyClient(150, 16),
+      b: partyClient(160, 18),
+      c: partyClient(130, 14),
+      d: partyClient(170, 20),
+    });
+    expect(fairness).toEqual({
+      host: "host",
+      inputAckRttP50: { host: 140, peers: 155 },
+      predictionErrorP95: { host: 15, peers: 17 },
+    });
+  });
+
+  it("leaves out what a client did not measure, and says NaN when no client did", () => {
+    const fairness = partyFairness("host", {
+      host: partyClient(0, null, 0),
+      a: partyClient(150, null),
+      spectator: partyClient(0, null, 0),
+    });
+    expect(fairness.inputAckRttP50).toEqual({ host: Number.NaN, peers: 150 });
+    expect(fairness.predictionErrorP95).toEqual({ host: Number.NaN, peers: Number.NaN });
+    expect(middleOf([Number.NaN, 3, 1, 2])).toBe(2);
   });
 });

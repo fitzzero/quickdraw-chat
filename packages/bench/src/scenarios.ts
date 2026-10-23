@@ -46,20 +46,21 @@ const PARTY_SCENARIOS: Record<string, Scenario> = {
     ...BASE,
     name: "party-3p-lossy",
     description:
-      "A party: three players and the host's own user, each on a link to the host of 50 ms each " +
-      "way plus up to 15 ms, 5% of fast messages lost; the host's own on a link as laggy (the " +
-      "fair link). Input redundancy and the queue keep prediction tight; the host plays as its players.",
+      "A party: three players on links to the host of 50 ms each way plus up to 15 ms, 5% of " +
+      "fast messages lost, and the host's own user on a local link the host lags as its page " +
+      "does (the fair link). Input redundancy and the queue keep prediction tight; the host " +
+      "plays as its players.",
     clients: PARTY_CLIENTS,
-    party: { host: "host", link: PARTY_LINK },
+    party: { host: "host", link: PARTY_LINK, fairLink: true },
   },
   "party-3p-unfair": {
     ...BASE,
     name: "party-3p-unfair",
     description:
-      "party-3p-lossy without the fair link: the host's own user plays over a link of 0 ms, the " +
-      "advantage the fair link removes (reported, not gated).",
+      "party-3p-lossy without the fair link: the host's own user plays over its local link, " +
+      "the advantage the fair link removes (reported, not gated).",
     clients: PARTY_CLIENTS,
-    party: { host: "host", link: PARTY_LINK, hostLink: { ms: 0, jitter: 0, loss: 0 } },
+    party: { host: "host", link: PARTY_LINK, fairLink: false },
   },
 };
 

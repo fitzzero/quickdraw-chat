@@ -25,6 +25,8 @@ export interface KeyframeReply {
 export interface PartySide {
   /** The world's bounds (the party's tunables). */
   readonly bounds: { w: number; h: number };
+  /** Resolves at the phase of the host's tick every bot's input clock starts at. */
+  aligned(): Promise<void>;
   /** The server's word that the bot plays (playParty, partyPlayer): the host spawns its snake, or respawns it. */
   play(): void;
   /** The bot's own snake now, once spawned. */
@@ -64,6 +66,8 @@ export class PartyTransport implements BotTransport {
     // The feed's seed first, as a subscribe answers it: the food now
     await this.requestKeyframe();
     if (spectator) return { bounds: this.party.bounds };
+    // The bot's input clock starts once this resolves: at every bot's phase
+    await this.party.aligned();
     this.party.play();
     const own = this.party.own();
     return { bounds: this.party.bounds, ...(own ? { own } : {}) };

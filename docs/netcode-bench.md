@@ -10,7 +10,7 @@ netcode R&D loop (`.claude/skills/netcode-rd`), useful for any perf work.
 ```bash
 bun run bench:netcode                          # baseline-3p-100ms, 1 run
 bun run bench:netcode -- --scenario control-0ms --duration 15
-bun run bench:netcode -- --all --runs 3        # full sweep, median-of-3 (~38 min)
+bun run bench:netcode -- --all --runs 3        # full sweep, median-of-3 (~45 min)
 bun run bench:compare bench-baselines/baseline-3p-100ms.json bench-results/baseline-3p-100ms/<card>.json
 ```
 
@@ -111,18 +111,26 @@ each bot plays over a loopback link to it (core's `createLoopbackPeerLink`):
 app's payloads over the ends (`apps/api/src/bench/party.ts`: input and raw
 snapshots on `fast`, the party's events and keyframes on `rel`); host
 mode's own framing is `check:godot`'s and the browser's to check. The bot
-`host` is the host's own user: in `party-3p-lossy` it plays over a link as
-laggy as the others' (the fair link, which the page sets from its players'
-round trips; the harness knows the profile), in `party-3p-unfair` over a
-0 ms link, the advantage the fair link removes. The scorecard's `party`
-line (`Scorecard.party`, reported, not compared) sets the host's own user
+`host` is the host's own user, whose game runs on the host's machine: it
+plays over a link no network slows (0 ms, no loss). In `party-3p-lossy`
+the harness lags that link as the host's page does, with the page's own
+`settleFairLink`: every 5 s (the first at 2.5 s, before the measured
+window) by the other players' median one-way trip, as their links' clocks
+measure it. In `party-3p-unfair` it never does: the advantage the fair
+link removes. A party's `server.snapshotBytes` is the raw snapshot's JSON
+(its host sends `WorldSnapshot`s), not comparable with the server's
+packed items. The scorecard's `party` line (`Scorecard.party`, reported,
+not compared; `n/a` for what no client measured) sets the host's own user
 against the median of the other players: `inputAckRttMs` p50 and
 `predictionErrorPx` p95. A bot's ack time includes the wait for the host's
-next tick, which depends on where its clock steps against the host's tick
-grid, so one bot's p50 can sit up to a tick from another's on an equal link.
-Its prediction error (its own snake against the host's at the same instant)
-is its lead over the host, the same trip and wait, so it follows the round
-trip: the party's 5% loss adds coasted ticks, not prediction error (the
+next tick, which depends on where its input clock steps against the host's
+tick grid: bots at different phases differ by up to a tick on equal links.
+So every party bot starts its clock 10 ms after a host tick
+(`INPUT_PHASE_MS` in `party.ts`), and the party line compares links, not
+join times. A respawn starts the clock again at the bot's first snapshot,
+as in Godot, so from then on its link sets the phase. Prediction error (the
+own snake against the host's at the same instant) grows with the same trip
+and wait: the party's 5% loss adds coasted ticks, not prediction error (the
 LEDGER's G6 entry has the A/B).
 
 ## Comparing (the keep/discard gate)
