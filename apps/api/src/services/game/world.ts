@@ -9,13 +9,15 @@
  * Key design choice: only snake HEADS exist on the wire. Each side keeps a
  * per-snake path history of head positions and derives body segments at fixed
  * arc-length spacing along it — the server for collision, clients for
- * rendering. Snapshots stay about 100 to 110 bytes per player (JSON) regardless
- * of snake length.
+ * rendering. Each player adds about 110 bytes to a snapshot (JSON), whatever
+ * its snake's length.
  *
- * A human snake steps once per input frame its client sent (InputQueue): the
- * client predicts one step per frame, so the snapshot's `ack` names a frame
- * the server stepped exactly once and the client's replay is exact. NPCs
- * steer in place and step once a tick.
+ * A human snake steps one input frame its client sent per tick (InputQueue):
+ * the client predicts one step per frame, so the snapshot's `ack` names the
+ * frame the server stepped and the client's replay reproduces its position.
+ * A tick without a frame coasts on the last intent, and the late frame is
+ * skipped, so every snake moves once a tick. NPCs steer in place and step
+ * once a tick.
  */
 
 import type {
@@ -122,7 +124,7 @@ export interface BodySample {
 
 /** One human snake's input accounting for a tick. */
 export interface TickInputs {
-  /** frames stepped this tick (0: starved, the snake did not move) */
+  /** frames stepped this tick (0: none had arrived, the snake coasted on its last intent) */
   stepped: number;
   /** frames still queued after the take */
   depth: number;
@@ -280,9 +282,9 @@ export class GameWorldSim {
 
   /**
    * Queues a client's frames (a message carries its newest last and up to
-   * three before it). The ticks that follow step each once, in seq order; a
-   * frame stepped or queued already is ignored, as is everything for a dead
-   * snake.
+   * three before it). The ticks that follow step them in seq order, one a
+   * tick; a frame stepped or queued already is ignored, as is everything for
+   * a dead snake.
    */
   public queueInputs(id: string, frames: readonly GameInput[]): void {
     const snake = this.players.get(id);
@@ -320,14 +322,21 @@ export class GameWorldSim {
         this.eatNearbyFood(snake, foodEaten);
         continue;
       }
-      // One step per frame its client sent, none on a tick without one
+      // One step per frame its client sent, one frame a tick; once it has
+      // sent its first, a tick without one coasts on the last intent
       const frames = snake.inputs.take(this.dt);
       for (const frame of frames) {
         this.steer(snake, frame);
         this.moveSnake(snake);
         this.eatNearbyFood(snake, foodEaten);
       }
-      if (frames.length > 0) snake.fed = true;
+      if (frames.length > 0) {
+        snake.fed = true;
+      } else if (snake.fed) {
+        this.moveSnake(snake);
+        this.eatNearbyFood(snake, foodEaten);
+        snake.inputs.coast();
+      }
       if (snake.fed) {
         inputs[snake.meta.id] = { stepped: frames.length, depth: snake.inputs.depth() };
       }
