@@ -85,9 +85,10 @@ bun run check:godot     # from the repo root (Godot 4.7 as `godot`, or GODOT=...
 Runs two copies of this project headless (`test/session.gd`) against the
 API's real services (`apps/api/src/bench/godot-session.ts`, PGlite, the game
 loop running): both join, see each other's snakes move, a death and the
-leaderboard reach both, and each holds the server's food; then the API
-restarts and both reconnect, rejoin, see each other again and hold the new
-world's food. `QD_TRACE=1` prints every frame each client writes and reads.
+leaderboard reach both, and each holds the server's food; one misses a
+second of snapshots and asks for a keyframe; then the API restarts and both
+reconnect, rejoin, see each other again and hold the new world's food.
+`QD_TRACE=1` prints every frame each client writes and reads.
 
 ## Web export
 

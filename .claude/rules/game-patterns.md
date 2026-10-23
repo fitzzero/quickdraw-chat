@@ -50,9 +50,10 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   loop). A client applies each tick's entry once, in tick order. A snapshot
   more than six ticks past the last one it applied means changes were lost:
   the client subscribes again (a held feed answers a fresh seed), and the
-  keyframe (the seed, the one snapshot without a send time `t`, all the food
-  in one entry) replaces its food. Snapshots are checked against the schema
-  in development and tests only (`validate: "development"`).
+  keyframe (the seed, all the food in one entry) replaces its food. A client
+  takes only a keyframe's food: it may be handled after newer snapshots,
+  which place the snakes. Snapshots are checked against the schema in
+  development and tests only (`validate: "development"`).
 - **Events** (`playerJoined`, `playerLeft`, `death`, `leaderboard`) —
   reliable, sent to the world's room with `qd.rooms.emit` (from the loop) or
   `ctx.rooms.emit` (from a handler). Anything a client must not miss is an
@@ -137,7 +138,8 @@ included) — spectators behind the pre-game dialog keep the NPC world running.
 Netcode changes are judged by scorecards, not eyeballs: `bun run
 bench:netcode` runs headless bot clients (TS ports of the Godot netcode in
 `apps/api/src/bench/bot/` — keep them in lockstep with `local_snake.gd` /
-`remote_snake.gd` / `game.gd`'s world clock) over protocol v5 through a
+`remote_snake.gd` / `game.gd`'s world clock / `main.gd`'s food) over
+protocol v5 through a
 latency proxy against a live-loop server. See `docs/netcode-bench.md`,
 baselines in `bench-baselines/`, and the `/netcode-rd` skill for the
 hypothesis loop.

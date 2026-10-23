@@ -11,7 +11,11 @@ import type { ServerTrace } from "@project/bench";
 import type { FoodDTO, WorldSnapshot } from "@project/shared";
 import type { GameLoopDeps } from "../services/game/loop.js";
 
-/** Ticks of the server's food the trace keeps (10 s): a client's last tick is within them. */
+/**
+ * Ticks of the server's food the trace keeps (10 s): a client's latest
+ * snapshot is a trip behind the server's tick, and the run stops the loop
+ * right after the clients.
+ */
 const FOOD_TAIL_TICKS = 200;
 
 export interface GroundTruthRecorder {

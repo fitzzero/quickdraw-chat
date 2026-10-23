@@ -168,23 +168,32 @@ describe("computeFood", () => {
       { tick: 100, ids: ["a", "c"] },
     ],
   };
-
-  it("counts the food ids a client and the server disagree on at its last tick", () => {
-    const client = makeClientTrace("c1", 0);
-    expect(
-      computeFood({ ...client, food: { tick: 100, ids: ["a", "c"], resyncs: 0 } }, server),
-    ).toEqual({ foodMismatchAtEnd: 0, foodResyncs: 0 });
-    // a ghost (b, eaten on the server) and a miss (c)
-    expect(
-      computeFood({ ...client, food: { tick: 100, ids: ["a", "b"], resyncs: 1 } }, server),
-    ).toEqual({ foodMismatchAtEnd: 2, foodResyncs: 1 });
+  const client = makeClientTrace("c1", 0);
+  const held = (tick: number, ids: string[], resyncs = 0): ClientTrace => ({
+    ...client,
+    food: { tick, latestTick: 100, ids, resyncs },
   });
 
-  it("reports no mismatch without food at the client's tick, and nothing without food", () => {
-    const client = makeClientTrace("c1", 0);
-    expect(computeFood({ ...client, food: { tick: 7, ids: [], resyncs: 0 } }, server)).toEqual({
+  it("counts the food ids a client and the server disagree on at its latest snapshot", () => {
+    expect(computeFood(held(100, ["a", "c"]), server)).toEqual({
+      foodMismatchAtEnd: 0,
       foodResyncs: 0,
     });
+    // a ghost (b, eaten on the server) and a miss (c)
+    expect(computeFood(held(100, ["a", "b"], 1), server)).toEqual({
+      foodMismatchAtEnd: 2,
+      foodResyncs: 1,
+    });
+  });
+
+  it("counts what a client stuck at an older tick lacks", () => {
+    // right as of tick 99, but its latest snapshot is tick 100's
+    expect(computeFood(held(99, ["a", "b"], 1), server).foodMismatchAtEnd).toBe(2);
+  });
+
+  it("reports no mismatch without the server's food at that tick, and nothing without food", () => {
+    const stale: ClientTrace = { ...client, food: { tick: 7, latestTick: 7, ids: [], resyncs: 0 } };
+    expect(computeFood(stale, server)).toEqual({ foodResyncs: 0 });
     expect(computeFood(client, server)).toEqual({});
   });
 });
@@ -197,7 +206,7 @@ describe("headlineMetrics", () => {
     const server: ServerTrace = { ...makeServerTrace(), food: [{ tick: 100, ids: ["a"] }] };
     const fed = (clientId: string, ids: string[]): ClientTrace => ({
       ...makeClientTrace(clientId, 0),
-      food: { tick: 100, ids, resyncs: 0 },
+      food: { tick: 100, latestTick: 100, ids, resyncs: 0 },
     });
     const card = computeScorecard(
       { server, clients: [fed("c1", ["a"]), fed("c2", ["b", "c"])] },

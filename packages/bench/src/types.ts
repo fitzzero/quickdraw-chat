@@ -45,8 +45,11 @@ export interface ClientTrace {
   inputs: { seq: number; tSent: number; tAcked?: number }[];
   /** Tier 2 only */
   fpsSamples?: { tWall: number; fps: number }[];
-  /** the food the client held at the end, as of `tick`, and the keyframes it asked for after gaps */
-  food?: { tick: number; ids: string[]; resyncs: number };
+  /**
+   * the food the client held at the end, as of `tick` (its changes up to that
+   * tick), its latest snapshot's tick, and the keyframes it asked for after gaps
+   */
+  food?: { tick: number; latestTick: number; ids: string[]; resyncs: number };
 }
 
 export interface ClientFrame {
@@ -174,7 +177,7 @@ export interface ClientReport {
   effectiveFps: number;
   /** the server's view of this client's own snake (players only) */
   inputQueue?: InputQueueReport;
-  /** food ids the client and the server disagreed on at the client's last tick (0: none) */
+  /** food ids the client and the server disagreed on at the client's latest snapshot (0: none) */
   foodMismatchAtEnd?: number;
   /** keyframes the client asked for after missing more snapshots than the food window */
   foodResyncs?: number;

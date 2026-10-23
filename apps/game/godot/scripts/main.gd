@@ -19,9 +19,11 @@ var _world_layer: Node2D
 var _status: Label
 var _latest_tick := 0
 ## The tick whose food changes _food holds, every one before it too (-1
-## before a keyframe), and whether a keyframe was asked for and not come.
+## before a keyframe), whether a keyframe was asked for and not come, and
+## the keyframes asked for after a gap.
 var _food_tick := -1
 var _food_resyncing := false
+var _food_resyncs := 0
 var _player_meta: Dictionary = {}
 var _spectate_focus_id := ""
 var _spectate_target := Vector2.ZERO
@@ -32,6 +34,7 @@ func _ready() -> void:
 	Game.world_ready.connect(_on_world_ready)
 	Game.join_failed.connect(_on_join_failed)
 	Game.snapshot_received.connect(_on_snapshot)
+	Game.world_keyframe.connect(_on_keyframe)
 	Game.player_joined.connect(func(meta: Dictionary) -> void:
 		_player_meta[str(meta["id"])] = meta)
 	Game.player_left.connect(_on_player_left)
@@ -173,29 +176,37 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 
 ## Each snapshot repeats the food changes of the last GameConfig.FOOD_WINDOW
 ## ticks: apply each tick's once, in order, so a dropped snapshot costs
-## nothing. A keyframe (the stream's seed, without a send time) replaces the
-## food; a snapshot past the window asks for one. The bots' port is
-## apps/api/src/bench/bot/food.ts: keep them in lockstep.
+## nothing. A snapshot past the window means changes were lost: ask for a
+## keyframe. The bots' port is apps/api/src/bench/bot/food.ts: keep them in
+## lockstep.
 func _apply_food(snapshot: Dictionary, tick: int) -> void:
-	var entries: Array = snapshot.get("food", [])
-	if not snapshot.has("t"):
-		var first: Dictionary = entries[0] if not entries.is_empty() else {}
-		_food.set_all(first.get("spawned", []))
-		_food_tick = tick
-		_food_resyncing = false
-		return
 	if _food_tick >= 0 and tick - _food_tick > GameConfig.FOOD_WINDOW:
 		if not _food_resyncing:
 			_request_keyframe()
 		return
-	_food.apply_deltas(entries, _food_tick)
+	_food.apply_deltas(snapshot.get("food", []), _food_tick)
 	_food_tick = maxi(_food_tick, tick)
 
 
+## A keyframe (the stream's seed) replaces the food, all of it in one entry
+## at the keyframe's tick. It may be older than snapshots applied already:
+## the next snapshot's window applies the changes after it again.
+func _on_keyframe(keyframe: Dictionary) -> void:
+	var entries: Array = keyframe.get("food", [])
+	var first: Dictionary = entries[0] if not entries.is_empty() else {}
+	_food.set_all(first.get("spawned", []))
+	_food_tick = int(keyframe["tick"])
+	_food_resyncing = false
+
+
+## Subscribes to the world stream again; its seed arrives as a keyframe
+## before the call returns. However it ended, the next snapshot past the
+## window asks again.
 func _request_keyframe() -> void:
 	_food_resyncing = true
-	if not await Game.resync_world():
-		_food_resyncing = false
+	_food_resyncs += 1
+	await Game.resync_world()
+	_food_resyncing = false
 
 
 ## Reliable playerLeft/death events normally clean up remotes; the prune is a

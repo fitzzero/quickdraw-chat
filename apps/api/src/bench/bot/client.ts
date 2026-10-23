@@ -208,7 +208,7 @@ export class BotClient {
       stream: "world",
       scope: GLOBAL_WORLD_ID,
     });
-    if (reply.ok) for (const seed of reply.seed) this.food.apply(seed);
+    if (reply.ok) for (const seed of reply.seed) this.food.keyframe(seed);
     return reply;
   }
 
@@ -216,12 +216,8 @@ export class BotClient {
   private requestKeyframe(): void {
     const socket = this.socket;
     if (!socket) return;
-    this.subscribeWorld(socket).then(
-      (reply) => {
-        if (!reply.ok) this.food.keyframeRefused();
-      },
-      () => this.food.keyframeRefused(),
-    );
+    const ended = (): void => this.food.resyncEnded();
+    this.subscribeWorld(socket).then(ended, ended);
   }
 
   /** A call id no call in flight on this socket has. */
@@ -234,7 +230,12 @@ export class BotClient {
     this.stopped = true;
     if (this.renderTimer) clearTimeout(this.renderTimer);
     this.socket?.close();
-    this.trace.food = { tick: this.food.tick, ids: this.food.ids(), resyncs: this.food.resyncs };
+    this.trace.food = {
+      tick: this.food.tick,
+      latestTick: this.latestTick,
+      ids: this.food.ids(),
+      resyncs: this.food.resyncs,
+    };
     return this.trace;
   }
 

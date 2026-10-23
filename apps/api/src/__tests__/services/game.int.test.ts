@@ -536,7 +536,7 @@ describe("GameService on the realtime kit", () => {
     it("repeats each tick's food change: a client that drops every other snapshot ends with the server's food", async () => {
       const socket = await connect(null);
       const food = new FoodTracker();
-      for (const seed of await subscribeWorld(socket)) food.apply(seed);
+      for (const seed of await subscribeWorld(socket)) food.keyframe(seed);
 
       let missed = 0;
       for (let i = 0; i < 40; i++) {
@@ -558,14 +558,14 @@ describe("GameService on the realtime kit", () => {
     it("a client that misses more snapshots than the window subscribes again, and converges on the keyframe", async () => {
       const socket = await connect(null);
       const food = new FoodTracker();
-      for (const seed of await subscribeWorld(socket)) food.apply(seed);
+      for (const seed of await subscribeWorld(socket)) food.keyframe(seed);
 
       // ten snapshots lost: food spawned meanwhile that no window holds now
       for (let i = 0; i < 10; i++) await tickTo(socket);
       expect(food.apply(await tickTo(socket))).toBe(true);
       expect(food.awaitingKeyframe).toBe(true);
       // the stream again: its seed is the world now
-      for (const seed of await subscribeWorld(socket)) food.apply(seed);
+      for (const seed of await subscribeWorld(socket)) food.keyframe(seed);
       expect(food.awaitingKeyframe).toBe(false);
       expect(food.apply(await tickTo(socket))).toBe(false);
 

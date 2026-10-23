@@ -1,14 +1,15 @@
 /**
  * FoodTracker — 1:1 TS port of the Godot client's food (main.gd
- * `_apply_food`, food_layer.gd `apply_deltas`): the food a client holds,
- * kept from the world stream.
+ * `_apply_food`, `_on_keyframe` and `_request_keyframe`, food_layer.gd
+ * `apply_deltas`): the food a client holds, kept from the world stream.
  *
  * Every snapshot repeats the food changes of the GAME_FOOD_WINDOW ticks up
  * to its own, so a client applies each tick's change once, in tick order,
  * and a dropped snapshot costs nothing. A snapshot more than the window
  * past the last one applied means changes were lost: the client asks for a
- * keyframe (it subscribes to the stream again), and the keyframe, the seed
- * without a send time `t`, replaces what it holds.
+ * keyframe (it subscribes to the stream again), and the keyframe, the
+ * stream's seed, replaces what it holds. The bots never call watchWorld for
+ * its bootstrap, whose food main.gd's `_on_world_ready` applies the same way.
  */
 
 import type { FoodDTO, WorldSnapshot } from "@project/shared";
@@ -28,21 +29,13 @@ export class FoodTracker {
    * keyframe (subscribe to the world stream again).
    */
   public apply(snapshot: WorldSnapshot): boolean {
-    const entries = snapshot.food ?? [];
-    if (snapshot.t === undefined) {
-      this.food.clear();
-      for (const item of entries[0]?.spawned ?? []) this.food.set(item.id, item);
-      this.tick = snapshot.tick;
-      this.awaitingKeyframe = false;
-      return false;
-    }
     if (this.tick >= 0 && snapshot.tick - this.tick > GAME_FOOD_WINDOW) {
       if (this.awaitingKeyframe) return false;
       this.awaitingKeyframe = true;
       this.resyncs += 1;
       return true;
     }
-    for (const entry of entries) {
+    for (const entry of snapshot.food ?? []) {
       if (entry.tick <= this.tick) continue;
       for (const item of entry.spawned ?? []) this.food.set(item.id, item);
       for (const id of entry.eaten ?? []) this.food.delete(id);
@@ -51,8 +44,20 @@ export class FoodTracker {
     return false;
   }
 
-  /** A keyframe request failed: the next snapshot past the window asks again. */
-  public keyframeRefused(): void {
+  /**
+   * A keyframe (the stream's seed) replaces the food, all of it in one entry
+   * at the keyframe's tick. It may be older than snapshots applied already:
+   * the next snapshot's window applies the changes after it again.
+   */
+  public keyframe(keyframe: WorldSnapshot): void {
+    this.food.clear();
+    for (const item of keyframe.food?.[0]?.spawned ?? []) this.food.set(item.id, item);
+    this.tick = keyframe.tick;
+    this.awaitingKeyframe = false;
+  }
+
+  /** The keyframe request ended, its seed applied if one came: the next snapshot past the window asks again. */
+  public resyncEnded(): void {
     this.awaitingKeyframe = false;
   }
 

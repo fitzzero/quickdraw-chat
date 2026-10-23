@@ -16,10 +16,13 @@
  *   4. the leaderboard reaches both, naming both players;
  *   5. each holds the server's food: each tick's change applied once, from
  *      the window every snapshot repeats;
- *   6. the API restarts on the same port: both clients reconnect by
+ *   6. ada's main scene misses a second of snapshots (QD_FOOD_BLACKOUT, more
+ *      than the window): it asks for a keyframe and holds the server's food
+ *      again;
+ *   7. the API restarts on the same port: both clients reconnect by
  *      themselves, rejoin the new world, and see each other move again,
  *      their world clocks on the new world's ticks (which start over);
- *   7. each holds the new world's food, none of the old world's left.
+ *   8. each holds the new world's food, none of the old world's left.
  *
  * Exit code 0 when every check held. QD_TRACE=1 also prints each client's
  * frames (the GDScript client's `trace`).
@@ -75,6 +78,7 @@ class GodotClient {
     public readonly name: string,
     public readonly userId: string,
     url: string,
+    env: Record<string, string> = {},
   ) {
     this.child = spawn(
       process.env.GODOT ?? "godot",
@@ -86,6 +90,7 @@ class GodotClient {
           QUICKDRAW_API_URL: url,
           QUICKDRAW_TRACE: process.env.QD_TRACE ?? "",
           QD_SESSION_SECONDS: "180",
+          ...env,
         },
         stdio: ["ignore", "pipe", "pipe"],
       },
@@ -175,6 +180,12 @@ function idsOf(probe: Probe): string {
   return [...(probe.ids as string[])].sort().join(",");
 }
 
+/** True when a food probe holds the food the server held at the probe's tick. */
+function foodMatches(probe: Probe, server: BenchServer): boolean {
+  const truth = server.recorder.trace().food?.find((entry) => entry.tick === probe.tick);
+  return truth !== undefined && idsOf(probe) === truth.ids.join(",");
+}
+
 /**
  * True when `client`'s latest food since probe `from` is the food the server
  * held at the same tick, and not its first since then: the client applied
@@ -185,9 +196,7 @@ function heldServerFood(client: GodotClient, server: BenchServer, from: number):
   const first = probes[0];
   const last = probes.at(-1);
   if (first === undefined || last === undefined) return false;
-  const truth = server.recorder.trace().food?.find((entry) => entry.tick === last.tick);
-  const held = idsOf(last);
-  return truth !== undefined && held === truth.ids.join(",") && held !== idsOf(first);
+  return foodMatches(last, server) && idsOf(last) !== idsOf(first);
 }
 
 async function step(label: string, check: () => Promise<unknown>): Promise<void> {
@@ -262,6 +271,35 @@ async function checkFood(
   });
 }
 
+/**
+ * ada's main scene heard no snapshot for a second (more than the food
+ * window): past its blackout, it asked for a keyframe, and its food is the
+ * server's at a tick after the blackout.
+ */
+async function checkFoodResync({ ada }: Players, running: Running): Promise<void> {
+  await step(
+    "a client that missed a second of snapshots asks for a keyframe, then holds the server's food",
+    async () => {
+      const end = await ada.waitFor(
+        "the end of its blackout",
+        0,
+        (p) => p.kind === "blackout" && p.phase === "end",
+      );
+      const from = ada.probes.indexOf(end);
+      const after = Number(end.tick);
+      await ada.waitFor("a match with the server's food after a keyframe", from, () => {
+        const last = ada.since(from, "food").at(-1);
+        return (
+          last !== undefined &&
+          Number(last.resyncs) >= 1 &&
+          Number(last.tick) > after &&
+          foodMatches(last, running.server)
+        );
+      });
+    },
+  );
+}
+
 /** Stops the server and starts a new one on its port. */
 async function checkRestart({ both, pairs }: Players, running: Running): Promise<void> {
   await step("the API restarts: both reconnect, rejoin and see each other move", async () => {
@@ -304,7 +342,7 @@ async function session(): Promise<void> {
     return id;
   };
   console.log(`check:godot: server on ${url}; two headless games from ${PROJECT}`);
-  const ada = new GodotClient("ada", userOf("ada"), url);
+  const ada = new GodotClient("ada", userOf("ada"), url, { QD_FOOD_BLACKOUT: "1" });
   const bo = new GodotClient("bo", userOf("bo"), url);
   const players: Players = {
     ada,
@@ -324,8 +362,10 @@ async function session(): Promise<void> {
       running,
       () => 0,
     );
+    await checkFoodResync(players, running);
     await checkRestart(players, running);
-    // the new world's ids repeat the old one's: its keyframe must replace them
+    // the new world's ids repeat the old one's: its keyframe and its
+    // bootstrap must replace them
     await checkFood(
       "each holds the new world's food, none of the old world's",
       players,

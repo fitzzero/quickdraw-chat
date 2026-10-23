@@ -38,7 +38,8 @@ when a netcode improvement lands on main).
   snapshots as `qd:stream` frames and deaths as `qd:event` — and running 1:1
   TS ports of the Godot netcode: `prediction.ts` ≡ `local_snake.gd`,
   `interpolation.ts` ≡ `remote_snake.gd`, `world-clock.ts` ≡ `game.gd`'s
-  clock. Bots render at ~60Hz and record every rendered frame.
+  clock, `food.ts` ≡ `main.gd`'s food (`_apply_food`, `_on_keyframe`). Bots
+  render at ~60Hz and record every rendered frame.
 
 Everything shares one machine clock, so cross-client comparisons are exact.
 
@@ -66,7 +67,7 @@ real render pipeline, including WASM frame pacing.
 | `server.tickDurMs` / `effectiveTickRate` | Sim cost and loop health.                                                                                              | ≪ 50ms / 20Hz.                                                             |
 | `server.snapshotBytes`                   | The snapshot's JSON (the stream item). On the wire each `qd:stream` frame adds its envelope, 59 bytes.                 | Grows with players; add fields consciously.                                |
 | `server.inputQueue`                      | Server's view of client clocks: queue depth p95, coasted and multi-step tick rates, depth trend; per client too.       | depth 0–1, multi-step < 5%, trend ~0; coasts are cheap (see below).        |
-| `foodMismatchAtEnd` / `foodResyncs`      | Per client: food ids held at the end that differ from the server's at that tick (the worst gates); keyframes asked.    | 0 / 0. Only a gap of more than six ticks asks for a keyframe.              |
+| `foodMismatchAtEnd` / `foodResyncs`      | Per client: food ids held at the end that differ from the server's at that tick (the worst gates); keyframes asked.    | 0 / 0. Tier 1 only (Godot reports none); check:godot checks Godot's.       |
 
 Aggregated runs (`--runs 3`) report element-wise medians plus `runVariance`
 (max−min of headline metrics across runs). `bench:compare` treats deltas
@@ -77,8 +78,9 @@ inside the noise band as `within-noise` — don't ship a "win" that lives there.
 The bots stand in for the Godot client; `bun run check:godot` runs the real
 one: two headless copies of `apps/game/godot` (`test/session.gd`) against
 the same bench server, checking a whole session (join, each sees the other
-move, a death, the leaderboard, each holding the server's food, an API
-restart with both reconnecting). See `apps/game/README.md`.
+move, a death, the leaderboard, each holding the server's food, one that
+missed a second of snapshots asking for a keyframe, an API restart with
+both reconnecting). See `apps/game/README.md`.
 
 ## Scenarios
 
@@ -108,7 +110,10 @@ All headline metrics are lower-is-better. Verdicts: `improved`, `ok` (below
 absolute floor), `within-noise` (below measured run spread), `warn` (>5%),
 `fail` (>15%). Exit code 1 on any `fail` — CI/loop friendly. Thresholds are
 in `packages/bench/src/compare.ts` (`DEFAULT_THRESHOLDS`); pass
-`--thresholds file.json` to override.
+`--thresholds file.json` to override. `food.mismatchAtEnd` (the most food
+any client ended up differing from the server on) must be 0 in every run
+(`MUST_BE_ZERO`): any other value, or a card without it, fails, whatever the
+baseline and the noise.
 
 ## Honest limits
 

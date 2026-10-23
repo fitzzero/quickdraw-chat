@@ -21,6 +21,10 @@ extends Node
 signal world_ready(bootstrap: Dictionary)
 signal join_failed(error: String)
 signal snapshot_received(snapshot: Dictionary)
+## The world stream's seed: the world now, a keyframe whose food replaces the
+## food a client holds (main.gd takes only its food: snapshots and the
+## bootstrap place the snakes).
+signal world_keyframe(snapshot: Dictionary)
 signal player_joined(meta: Dictionary)
 signal player_left(id: String)
 signal player_died(death: Dictionary)
@@ -242,16 +246,18 @@ func _on_stream_item(service: String, stream: String, _scope: String, item: Vari
 		snapshot_received.emit(snapshot)
 
 
-## The world stream's seed, on subscribing and after every reconnect: the
-## world now (every snake, all the food), which the snapshots that follow
-## change, before the bootstrap lands. Not a tick's arrival (it carries no
-## send time), so the clock skips it.
+## The world stream's seed, on subscribing, after every reconnect and on a
+## resync (resync_world): the world now (every snake, all the food), which
+## the snapshots that follow change. It can be handled after snapshots newer
+## than it (the client hands a reply over on the next frame, stream items at
+## once), so it goes out as a keyframe, never as a snapshot. Not a tick's
+## arrival (it carries no send time), so the clock skips it.
 func _on_stream_seeded(service: String, stream: String, _scope: String, seed: Array) -> void:
 	if service != "gameService" or stream != "world":
 		return
 	for item in seed:
 		if item is Dictionary:
-			snapshot_received.emit(item as Dictionary)
+			world_keyframe.emit(item as Dictionary)
 
 
 ## The world's reliable events (`qd:event`), heard while this socket is in its room.
@@ -283,8 +289,9 @@ func send_inputs(frames: Array) -> void:
 
 
 ## Missed more snapshots than the food window repeats: subscribe to the
-## world stream again. Its seed (a keyframe, through stream_seeded) replaces
-## the food. False when the server refused it.
+## world stream again. Its seed goes out as world_keyframe before this
+## returns. False when the server refused it or no answer came (a timeout, a
+## disconnect).
 func resync_world() -> bool:
 	if world_id.is_empty():
 		return false

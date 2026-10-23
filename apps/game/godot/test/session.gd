@@ -12,13 +12,18 @@ extends SceneTree
 ##                  latest snapshot of the world stream, and where the
 ##                  others are drawn (their RemoteSnake, interpolated on the
 ##                  world clock) and the clock's render tick
-##   food           every 0.5 s: the food main.gd holds (its FoodLayer's ids)
-##                  and the tick whose changes it holds
+##   food           every 0.5 s: the food main.gd holds (its FoodLayer's ids),
+##                  the tick whose changes it holds, and the keyframes it
+##                  asked for after a gap
+##   blackout       with QD_FOOD_BLACKOUT=1: main.gd hears no snapshot for
+##                  BLACKOUT_FOR_S (start, end), once, BLACKOUT_AFTER_S after
+##                  the first bootstrap, as if the stream dropped them
 ##   death, leaderboard, left   the world's events
 ##   disconnected, refused      the connection
 ##
-## Env: QUICKDRAW_DEV_USER_ID and QUICKDRAW_API_URL (read by net.gd), and
-## QD_SESSION_SECONDS (default 90), after which it quits on its own.
+## Env: QUICKDRAW_DEV_USER_ID and QUICKDRAW_API_URL (read by net.gd),
+## QD_SESSION_SECONDS (default 90), after which it quits on its own, and
+## QD_FOOD_BLACKOUT.
 ##
 ## The game's scripts name the autoloads (Game, Net) as globals, which a
 ## --script main loop compiles before they exist: this script refers to them
@@ -26,6 +31,9 @@ extends SceneTree
 
 const PROBE_EVERY_S := 0.5
 const RESPAWN_AFTER_S := 1.0
+## 20 ticks: more than the food window, so main.gd must ask for a keyframe
+const BLACKOUT_AFTER_S := 4.0
+const BLACKOUT_FOR_S := 1.0
 
 var _main: Node
 var _game: Node
@@ -36,6 +44,11 @@ var _elapsed := 0.0
 var _limit_s := 90.0
 var _respawn_in := -1.0
 var _wired := false
+## Seconds until the blackout starts (then ends), counted from the first
+## bootstrap; whether it is planned (once) and on
+var _blackout_in := -1.0
+var _blackout_planned := false
+var _blacked_out := false
 
 
 func _initialize() -> void:
@@ -59,6 +72,9 @@ func _wire() -> void:
 	client.connect("refused", func(code: String, message: String) -> void:
 		_probe({"kind": "refused", "code": code, "message": message}))
 	_game.connect("world_ready", func(bootstrap: Dictionary) -> void:
+		if OS.get_environment("QD_FOOD_BLACKOUT") == "1" and not _blackout_planned:
+			_blackout_planned = true
+			_blackout_in = BLACKOUT_AFTER_S
 		var ids: Array = []
 		for meta in bootstrap.get("players", []):
 			ids.append((meta as Dictionary).get("id"))
@@ -92,6 +108,11 @@ func _process(delta: float) -> bool:
 		_respawn_in -= delta
 		if _respawn_in <= 0.0:
 			_game.call("respawn")
+
+	if _blackout_in > 0.0:
+		_blackout_in -= delta
+		if _blackout_in <= 0.0:
+			_toggle_blackout()
 
 	_since_probe += delta
 	if _since_probe >= PROBE_EVERY_S and not _latest.is_empty():
@@ -144,7 +165,28 @@ func _probe_food() -> void:
 	if not (layer is Node):
 		return
 	var ids: Array = ((layer as Node).get("_food") as Dictionary).keys()
-	_probe({"kind": "food", "tick": _main.get("_food_tick"), "ids": ids})
+	_probe({
+		"kind": "food",
+		"tick": _main.get("_food_tick"),
+		"ids": ids,
+		"resyncs": _main.get("_food_resyncs"),
+	})
+
+
+## Starts the blackout (main.gd stops hearing snapshots), then ends it.
+func _toggle_blackout() -> void:
+	var handler := Callable(_main, "_on_snapshot")
+	_blacked_out = not _blacked_out
+	if _blacked_out:
+		_game.disconnect("snapshot_received", handler)
+		_blackout_in = BLACKOUT_FOR_S
+	else:
+		_game.connect("snapshot_received", handler)
+	_probe({
+		"kind": "blackout",
+		"phase": "start" if _blacked_out else "end",
+		"tick": _latest.get("tick"),
+	})
 
 
 func _probe(payload: Dictionary) -> void:

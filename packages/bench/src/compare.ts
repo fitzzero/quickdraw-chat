@@ -43,6 +43,13 @@ export const DEFAULT_THRESHOLDS: CompareThresholds = {
 
 export type Verdict = "ok" | "improved" | "within-noise" | "warn" | "fail";
 
+/**
+ * Headline metrics that must be 0 in every run: any other value fails,
+ * whatever the baseline and the run spread. A food mismatch is a change a
+ * client lost.
+ */
+export const MUST_BE_ZERO: readonly string[] = ["food.mismatchAtEnd"];
+
 export interface MetricComparison {
   metric: string;
   baseline: number;
@@ -76,6 +83,38 @@ export function judge(
   return "ok";
 }
 
+/**
+ * The verdict on a must-be-zero metric, from the candidate alone: its value
+ * (an aggregated card's median) and its run spread are both 0 only when
+ * every run was. A missing value fails too: the harness lost the metric.
+ */
+export function judgeZero(candidate: number | undefined, spread: number): Verdict {
+  return candidate === 0 && spread === 0 ? "ok" : "fail";
+}
+
+/**
+ * The must-be-zero metrics, judged on the candidate alone, once either card
+ * carries them (a baseline made before one does not).
+ */
+function zeroComparisons(
+  base: Record<string, number>,
+  cand: Record<string, number>,
+  spread: Record<string, number> | undefined,
+): MetricComparison[] {
+  return MUST_BE_ZERO.filter((metric) => metric in base || metric in cand).map((metric) => {
+    const baseValue = base[metric] ?? 0;
+    const candValue = cand[metric] ?? Number.NaN;
+    return {
+      metric,
+      baseline: baseValue,
+      candidate: candValue,
+      deltaAbs: candValue - baseValue,
+      deltaPct: null,
+      verdict: judgeZero(cand[metric], spread?.[metric] ?? 0),
+    };
+  });
+}
+
 export function compareScorecards(
   baseline: Scorecard,
   candidate: Scorecard,
@@ -92,6 +131,7 @@ export function compareScorecards(
   const comparisons: MetricComparison[] = [];
 
   for (const [metric, baseValue] of Object.entries(base)) {
+    if (MUST_BE_ZERO.includes(metric)) continue;
     const candValue = cand[metric] ?? 0;
     const deltaAbs = candValue - baseValue;
     const deltaPct = baseValue === 0 ? null : deltaAbs / baseValue;
@@ -115,6 +155,8 @@ export function compareScorecards(
       verdict,
     });
   }
+
+  comparisons.push(...zeroComparisons(base, cand, candidate.runVariance));
 
   return {
     scenario: baseline.scenario,
