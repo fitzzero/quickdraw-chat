@@ -159,6 +159,42 @@ export const SCENARIOS: Record<string, Scenario> = {
       { name: "spectator", behavior: { kind: "spectator" }, net: symmetric(wobble(50, 5)) },
     ],
   },
+  "drift-fast-client": {
+    ...BASE,
+    name: "drift-fast-client",
+    durationMs: 120_000,
+    description:
+      "Baseline latency, but bot-a's tick clock runs 1% fast: the input queue must hold its " +
+      "depth near 0 (no ratchet toward the cap) with no client-side stall.",
+    clients: [
+      {
+        name: "bot-a",
+        behavior: { kind: "wander" },
+        net: symmetric(wobble(50, 5)),
+        clockScale: 1.01,
+      },
+      { name: "bot-b", behavior: { kind: "wander" }, net: symmetric(wobble(50, 5)) },
+      { name: "bot-c", behavior: { kind: "wander" }, net: symmetric(wobble(50, 5)) },
+    ],
+  },
+  "drift-slow-client": {
+    ...BASE,
+    name: "drift-slow-client",
+    durationMs: 120_000,
+    description:
+      "Baseline latency, but bot-a's tick clock runs 1% slow: its snake coasts about two " +
+      "ticks in a hundred, with no teleport and no worse prediction.",
+    clients: [
+      {
+        name: "bot-a",
+        behavior: { kind: "wander" },
+        net: symmetric(wobble(50, 5)),
+        clockScale: 0.99,
+      },
+      { name: "bot-b", behavior: { kind: "wander" }, net: symmetric(wobble(50, 5)) },
+      { name: "bot-c", behavior: { kind: "wander" }, net: symmetric(wobble(50, 5)) },
+    ],
+  },
 };
 
 export function getScenario(name: string): Scenario {

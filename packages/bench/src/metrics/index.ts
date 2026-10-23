@@ -5,6 +5,7 @@
 
 import type { ClientReport, RunTraces, Scenario, Scorecard } from "../types.js";
 import { computeDivergence, computeFidelity } from "./divergence.js";
+import { computeInputQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
 import { computeSmoothness } from "./smoothness.js";
 import { computeStats } from "./tracks.js";
@@ -43,6 +44,7 @@ export function computeScorecard(
       Object.entries(fidelity.perEntity).map(([id, v]) => [friendly(id), v]),
     );
     const frames = client.frames.filter((f) => f.tWall >= windowStart && f.tWall <= windowEnd);
+    const ownQueue = client.playerId ? computeInputQueue(windowed, client.playerId) : undefined;
     clients[client.clientId] = {
       kind: client.kind,
       packet: computePacketHealth(client, windowStart, windowEnd),
@@ -51,8 +53,10 @@ export function computeScorecard(
       ...(fidelity.predictionErrorPx ? { predictionErrorPx: fidelity.predictionErrorPx } : {}),
       effectiveFps:
         windowEnd > windowStart ? frames.length / ((windowEnd - windowStart) / 1000) : 0,
+      ...(ownQueue ? { inputQueue: ownQueue } : {}),
     };
   }
+  const inputQueue = computeInputQueue(windowed);
 
   // Tier 2: FPS samples + frame-time distribution from the real render loop
   const fpsValues = traces.clients.flatMap((c) =>
@@ -88,6 +92,7 @@ export function computeScorecard(
       snapshotBytes: computeStats(windowed.map((t) => t.snapshotBytes)),
       effectiveTickRate:
         windowEnd > windowStart ? windowed.length / ((windowEnd - windowStart) / 1000) : 0,
+      ...(inputQueue ? { inputQueue } : {}),
     },
     clients,
     divergence: computeDivergence(traces.clients, traces.server, windowStart, windowEnd),
@@ -119,6 +124,10 @@ export function headlineMetrics(card: Scorecard): Record<string, number> {
       clientReports.flatMap((c) => Object.values(c.perEntity).map((e) => e.renderLatencyMs)),
     ),
     "server.tickDurMs.p95": card.server.tickDurMs.p95,
+    // Compared once both cards carry it (scorecards made before the input queue do not)
+    ...(card.server.inputQueue
+      ? { "server.inputQueue.depthP95": card.server.inputQueue.depthP95 }
+      : {}),
   };
 }
 

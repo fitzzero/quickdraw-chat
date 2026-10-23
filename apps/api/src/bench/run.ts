@@ -142,6 +142,7 @@ async function executeRun(scenario: Scenario): Promise<RunTraces> {
           name: spec.name,
           behaviorKind: spec.behavior.kind,
           ...(spec.render ? { render: spec.render } : {}),
+          ...(spec.clockScale === undefined ? {} : { clockScale: spec.clockScale }),
           scenario,
           tunables: { ...DEFAULT_TUNABLES, ...scenario.tunables },
           tickRate: GAME_TICK_RATE,

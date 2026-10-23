@@ -26,8 +26,8 @@ describe("GameWorldSim", () => {
     b.addPlayer("p1", "Player");
 
     for (let i = 1; i <= 50; i++) {
-      a.applyInput("p1", input(i, 1, 0.5));
-      b.applyInput("p1", input(i, 1, 0.5));
+      a.queueInputs("p1", [input(i, 1, 0.5)]);
+      b.queueInputs("p1", [input(i, 1, 0.5)]);
       a.step();
       b.step();
     }
@@ -43,7 +43,7 @@ describe("GameWorldSim", () => {
 
     // Aim exactly where the snake already points so no turning occurs
     const snap = must(sim.step().snapshot.players[0]);
-    sim.applyInput("p1", input(1, snap.dx, snap.dy));
+    sim.queueInputs("p1", [input(1, snap.dx, snap.dy)]);
     const start = must(sim.getHead("p1"));
     sim.step();
     const after = must(sim.getHead("p1"));
@@ -59,7 +59,7 @@ describe("GameWorldSim", () => {
     const first = must(sim.step().snapshot.players[0]);
 
     // Demand a full reversal; the sim may only turn turnRate*dt per tick
-    sim.applyInput("p1", input(1, -first.dx, -first.dy));
+    sim.queueInputs("p1", [input(1, -first.dx, -first.dy)]);
     const next = must(sim.step().snapshot.players[0]);
 
     const angleBefore = Math.atan2(first.dy, first.dx);
@@ -78,7 +78,7 @@ describe("GameWorldSim", () => {
     const startLen = must(sim.getLength("p1"));
 
     for (let i = 1; i <= 200; i++) {
-      sim.applyInput("p1", input(i, 1, 0, true));
+      sim.queueInputs("p1", [input(i, 1, 0, true)]);
       sim.step();
     }
 
@@ -87,15 +87,121 @@ describe("GameWorldSim", () => {
     expect(len).toBeGreaterThanOrEqual(DEFAULT_TUNABLES.minLength);
   });
 
-  it("acknowledges the last applied input seq and ignores stale seqs", () => {
+  it("acknowledges the last frame its state holds, and ignores a frame at or below it", () => {
     const sim = makeSim();
     sim.addPlayer("p1", null);
 
-    sim.applyInput("p1", input(5, 1, 0));
-    sim.applyInput("p1", input(3, 0, 1)); // stale — must be ignored
-    const snap = must(sim.step().snapshot.players[0]);
+    sim.queueInputs("p1", [input(5, 1, 0)]);
+    expect(must(sim.step().snapshot.players[0]).ack).toBe(5);
+    const head = must(sim.getHead("p1"));
 
-    expect(snap.ack).toBe(5);
+    // A regression arrives late: never stepped; the tick has no frame, so the
+    // snake coasts one step on its last intent, standing in for frame 6
+    sim.queueInputs("p1", [input(3, 0, 1)]);
+    const result = sim.step();
+    expect(must(result.snapshot.players[0]).ack).toBe(6);
+    expect(result.inputs).toEqual({ p1: { stepped: 0, depth: 0 } });
+    const coasted = must(sim.getHead("p1"));
+    expect(Math.hypot(coasted.x - head.x, coasted.y - head.y)).toBeCloseTo(
+      DEFAULT_TUNABLES.baseSpeed * sim.dt,
+      5,
+    );
+  });
+
+  it("steps a backlog two a tick, holding the frame that arrived early for its own tick", () => {
+    const sim = makeSim();
+    sim.addPlayer("p1", null);
+    const start = must(sim.getHead("p1"));
+
+    // Three frames in one message, along the snake's own heading
+    const snap = must(sim.getBootstrapState().snaps[0]);
+    sim.queueInputs(
+      "p1",
+      [1, 2, 3].map((seq) => input(seq, snap.dx, snap.dy)),
+    );
+    let result = sim.step();
+    expect(must(result.snapshot.players[0]).ack).toBe(2);
+    expect(result.inputs).toEqual({ p1: { stepped: 2, depth: 1 } });
+    result = sim.step();
+    expect(must(result.snapshot.players[0]).ack).toBe(3);
+    expect(result.inputs).toEqual({ p1: { stepped: 1, depth: 0 } });
+
+    const after = must(sim.getHead("p1"));
+    expect(Math.hypot(after.x - start.x, after.y - start.y)).toBeCloseTo(
+      3 * DEFAULT_TUNABLES.baseSpeed * sim.dt,
+      1,
+    );
+  });
+
+  it("a tick without a frame coasts, standing in for the late frame, which is ignored when it arrives", () => {
+    const steer = (seq: number) => input(seq, Math.cos(seq / 5), Math.sin(seq / 5));
+
+    // Lossless: one message per tick
+    const lossless = makeSim();
+    lossless.addPlayer("p1", null);
+    for (let seq = 1; seq <= 12; seq++) {
+      lossless.queueInputs("p1", [steer(seq)]);
+      lossless.step();
+    }
+
+    // Lossy: the messages of frames 5 to 7 are lost; each message carries
+    // the three frames before its newest, as the client's pending tail does
+    const lossy = makeSim();
+    lossy.addPlayer("p1", null);
+    const stepped: number[] = [];
+    const acks: number[] = [];
+    let last = must(lossy.getHead("p1"));
+    for (let seq = 1; seq <= 12; seq++) {
+      if (seq < 5 || seq > 7) {
+        const from = Math.max(1, seq - 3);
+        lossy.queueInputs(
+          "p1",
+          Array.from({ length: seq - from + 1 }, (_, i) => steer(from + i)),
+        );
+      }
+      const result = lossy.step();
+      stepped.push(result.inputs.p1?.stepped ?? -1);
+      acks.push(must(result.snapshot.players[0]).ack);
+      // one step every tick: the snake never holds still
+      const head = must(lossy.getHead("p1"));
+      expect(Math.hypot(head.x - last.x, head.y - last.y)).toBeCloseTo(
+        DEFAULT_TUNABLES.baseSpeed * lossy.dt,
+        5,
+      );
+      last = head;
+    }
+
+    // Ticks 5 to 7 coasted on frame 4's intent, each standing in for its
+    // frame; frame 8's message brought 5 to 8, and 5 to 7 were ignored
+    expect(stepped).toEqual([1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1]);
+    expect(acks).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    // The end differs from the lossless end only by the intents of 5 to 7
+    const end = must(lossy.getHead("p1"));
+    const want = must(lossless.getHead("p1"));
+    expect(Math.hypot(end.x - want.x, end.y - want.y)).toBeLessThan(
+      3 * DEFAULT_TUNABLES.baseSpeed * lossy.dt,
+    );
+    expect(lossy.getLength("p1")).toEqual(lossless.getLength("p1"));
+  });
+
+  it("accounts for human snakes that stepped since they spawned, never NPCs", () => {
+    const sim = makeSim({ npcCount: 2 });
+    sim.addPlayer("p1", null);
+    sim.addPlayer("p2", null);
+    const p2 = must(sim.getHead("p2"));
+
+    // Neither client has sent a frame yet: no tick before the first coasts
+    expect(sim.step().inputs).toEqual({});
+    expect(sim.getHead("p2")).toEqual(p2);
+
+    sim.queueInputs("p1", [input(1, 1, 0)]);
+    expect(sim.step().inputs).toEqual({ p1: { stepped: 1, depth: 0 } });
+    // p1 has stepped: a tick without a frame coasts
+    const result = sim.step();
+    expect(result.inputs).toEqual({ p1: { stepped: 0, depth: 0 } });
+    expect(result.snapshot.players.some((p) => p.id.startsWith("npc-"))).toBe(true);
+    // p2 never sent one: it waits where it spawned
+    expect(sim.getHead("p2")).toEqual(p2);
   });
 
   it("grows when eating food", () => {
@@ -108,7 +214,7 @@ describe("GameWorldSim", () => {
     for (let i = 1; i <= 300 && !ate; i++) {
       // Sweep in a spiral-ish pattern to cross food positions
       const angle = i * 0.15;
-      sim.applyInput("p1", input(i, Math.cos(angle), Math.sin(angle)));
+      sim.queueInputs("p1", [input(i, Math.cos(angle), Math.sin(angle))]);
       const result = sim.step();
       if (result.snapshot.foodEaten?.length) ate = true;
     }
@@ -124,8 +230,8 @@ describe("GameWorldSim", () => {
 
     // Build up a body for "wall" by driving it straight for a while
     for (let i = 1; i <= 40; i++) {
-      sim.applyInput("wall", input(i, 1, 0));
-      sim.applyInput("hunter", input(i, 0, 1)); // keep hunter away meanwhile
+      sim.queueInputs("wall", [input(i, 1, 0)]);
+      sim.queueInputs("hunter", [input(i, 0, 1)]); // keep hunter away meanwhile
       sim.step();
     }
 
@@ -135,8 +241,8 @@ describe("GameWorldSim", () => {
       const hunterHead = must(sim.getHead("hunter"));
       const wallHead = must(sim.getHead("wall"));
       const target = { x: wallHead.x - 60, y: wallHead.y };
-      sim.applyInput("hunter", input(i, target.x - hunterHead.x, target.y - hunterHead.y, true));
-      sim.applyInput("wall", input(i, 1, 0));
+      sim.queueInputs("hunter", [input(i, target.x - hunterHead.x, target.y - hunterHead.y, true)]);
+      sim.queueInputs("wall", [input(i, 1, 0)]);
       const result = sim.step();
       if (result.deaths.some((d) => d.id === "hunter")) {
         died = true;
@@ -165,7 +271,7 @@ describe("GameWorldSim", () => {
     let alive = true;
     for (let i = 1; i <= 300 && alive; i++) {
       const angle = i * 0.35;
-      sim.applyInput("p1", input(i, Math.cos(angle), Math.sin(angle)));
+      sim.queueInputs("p1", [input(i, Math.cos(angle), Math.sin(angle))]);
       alive = sim.step().deaths.length === 0;
     }
 
@@ -179,7 +285,7 @@ describe("GameWorldSim", () => {
 
     // Drive hard toward the left wall for a long time
     for (let i = 1; i <= 400; i++) {
-      sim.applyInput("p1", input(i, -1, 0));
+      sim.queueInputs("p1", [input(i, -1, 0)]);
       sim.step();
     }
 
@@ -196,7 +302,7 @@ describe("GameWorldSim", () => {
 
     const spawned: number[] = [];
     for (let i = 1; i <= 20; i++) {
-      sim.applyInput("p1", input(i, 1, 0));
+      sim.queueInputs("p1", [input(i, 1, 0)]);
       const result = sim.step();
       spawned.push(result.snapshot.foodSpawned?.length ?? 0);
     }

@@ -7,9 +7,9 @@
 //   commands       qd:call  gameService.joinGame | watchWorld | respawn | ...
 //                  (watchWorld and joinGame put the CALLING socket in the
 //                  world's room, GLOBAL_WORLD_ROOM)
-//   client → server qd:ch   ["gameService", "input", GameInput]
-//                  (~20Hz, fire-and-forget; dropped unless the sending
-//                  socket is in the world's room)
+//   client → server qd:ch   ["gameService", "input", GameInputs]
+//                  (one per client tick, ~20Hz, fire-and-forget; dropped
+//                  unless the sending socket is in the world's room)
 //   server → client qd:stream ["gameService", "world", worldId,
 //                  WorldSnapshot]
 //                  (20Hz, volatile; the subscribe answers the current world)
@@ -36,10 +36,15 @@ export const GLOBAL_WORLD_ROOM = "world:gameworld_global";
 /** Server simulation tick rate (Hz). Clients run prediction at the same rate. */
 export const GAME_TICK_RATE = 20;
 
+/** Frames one input message carries at most: its newest and the three before it. */
+export const GAME_INPUT_FRAMES = 4;
+
 /**
- * One input frame from a client. `seq` increments per frame; the server
- * echoes the last applied seq back in PlayerSnap.ack so the client can
- * drop acknowledged inputs and replay the rest (reconciliation).
+ * One input frame from a client. `seq` increments per frame, and the client
+ * steps its prediction once per frame; the server steps the snake one frame
+ * a tick, in seq order, and echoes the last seq its state holds in
+ * PlayerSnap.ack, so the client drops acknowledged frames and replays the
+ * rest (reconciliation).
  */
 export interface GameInput {
   seq: number;
@@ -47,6 +52,18 @@ export interface GameInput {
   dx: number;
   dy: number;
   boost: boolean;
+}
+
+/**
+ * One message on the input channel: the newest frame last, with up to
+ * GAME_INPUT_FRAMES - 1 unacknowledged ones before it, so the frames of a
+ * lost or late message arrive with the next one. The server queues each
+ * frame once by seq and steps one a tick; a tick with none queued coasts on
+ * the last intent and stands in for the late frame, which is then ignored:
+ * `PlayerSnap.ack` covers it.
+ */
+export interface GameInputs {
+  frames: GameInput[];
 }
 
 /** Per-player state in a snapshot. Bodies are derived from head paths client-side. */
@@ -59,7 +76,10 @@ export interface PlayerSnap {
   /** Length in segments. */
   len: number;
   boost: boolean;
-  /** Last input seq the server applied for this player (reconciliation anchor). */
+  /**
+   * Seq of the last input frame the server's state holds for this player:
+   * stepped, or stood in for by a coast (reconciliation anchor).
+   */
   ack: number;
 }
 

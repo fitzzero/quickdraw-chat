@@ -20,6 +20,11 @@ export interface ServerTick {
   tickDurMs: number;
   snapshotBytes: number;
   players: { id: string; x: number; y: number }[];
+  /**
+   * Per human snake alive and fed that tick (the sim's TickResult.inputs):
+   * the frames it stepped, and the frames still queued after the take.
+   */
+  inputs: { id: string; stepped: number; depth: number }[];
 }
 
 /** What one client (bot or browser) saw and rendered. */
@@ -80,6 +85,13 @@ export interface BotSpec {
    * load). Omit for a steady 60fps. Deterministic — no randomness.
    */
   render?: { minFps: number; maxFps: number; periodS: number; phaseS?: number };
+  /**
+   * Scales the time the bot's predictor sees (default 1): its fixed-step
+   * accumulator then emits input frames at tickRate × clockScale, while its
+   * world clock and render clock stay on wall time. Models a client whose
+   * tick clock drifts (1.01 runs 1% fast), nothing else.
+   */
+  clockScale?: number;
 }
 
 export interface Scenario {
@@ -130,6 +142,22 @@ export interface EntityFidelity {
   shapeErrorPx: Stats;
 }
 
+/**
+ * The server's view of the clients' clocks, from the input queue: per tick
+ * of a live human snake that has stepped a frame since it spawned, warmup
+ * excluded.
+ */
+export interface InputQueueReport {
+  /** frames still queued after a tick's take, p95 */
+  depthP95: number;
+  /** ticks the snake had no frame to step (it coasted on its last intent) */
+  starvedRate: number;
+  /** ticks the snake stepped two or more frames (catching up) */
+  multiStepRate: number;
+  /** mean depth over the window's last 10 s minus its first 10 s: a queue ratcheting toward its cap grows it */
+  depthTrend: number;
+}
+
 export interface ClientReport {
   kind: "bot" | "browser";
   packet: PacketHealth;
@@ -140,6 +168,8 @@ export interface ClientReport {
   predictionErrorPx?: Stats;
   /** measured render frame rate (bots target 60) */
   effectiveFps: number;
+  /** the server's view of this client's own snake (players only) */
+  inputQueue?: InputQueueReport;
 }
 
 export interface Scorecard {
@@ -158,6 +188,8 @@ export interface Scorecard {
     tickDurMs: Stats;
     snapshotBytes: Stats;
     effectiveTickRate: number;
+    /** every human snake's queue together; absent from scorecards made before the input queue */
+    inputQueue?: InputQueueReport;
   };
   clients: Record<string, ClientReport>;
   divergence: {

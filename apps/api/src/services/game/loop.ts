@@ -50,24 +50,53 @@ const LEADERBOARD_INTERVAL_MS = 1000;
 
 export class GameLoop {
   private readonly deps: GameLoopDeps;
-  private tickTimer: ReturnType<typeof setInterval> | null = null;
+  private tickTimer: ReturnType<typeof setTimeout> | null = null;
   private leaderboardTimer: ReturnType<typeof setInterval> | null = null;
+  /** When the next tick is due (performance.now() ms), on a fixed grid. */
+  private nextTickAt = 0;
+  private running = false;
 
   constructor(deps: GameLoopDeps) {
     this.deps = deps;
   }
 
   public start(): void {
-    if (this.tickTimer) return;
-    this.tickTimer = setInterval(() => this.tickOnce(), 1000 / GAME_TICK_RATE);
+    if (this.running) return;
+    this.running = true;
+    this.nextTickAt = performance.now();
+    this.scheduleTick();
     this.leaderboardTimer = setInterval(() => this.emitLeaderboard(), LEADERBOARD_INTERVAL_MS);
     // Timers must not keep a draining process alive
-    this.tickTimer.unref?.();
     this.leaderboardTimer.unref?.();
   }
 
+  /**
+   * Ticks on a fixed grid of GAME_TICK_RATE a second: each timeout aims at
+   * the next grid point, so lateness does not add up (setInterval's does,
+   * about 0.3% at 20 Hz, and a client stepping at the tick rate by its own
+   * clock would run ahead of the world). The next tick is due before this
+   * one runs; a loop that fell more than a tick behind starts the grid
+   * again from now.
+   */
+  private scheduleTick(): void {
+    if (!this.running) return;
+    const period = 1000 / GAME_TICK_RATE;
+    const now = performance.now();
+    this.nextTickAt += period;
+    if (this.nextTickAt < now - period) this.nextTickAt = now;
+    this.tickTimer = setTimeout(
+      () => {
+        this.scheduleTick();
+        this.tickOnce();
+      },
+      Math.max(0, this.nextTickAt - now),
+    );
+    this.tickTimer.unref?.();
+  }
+
   public stop(): void {
-    if (this.tickTimer) clearInterval(this.tickTimer);
+    this.running = false;
+    if (this.tickTimer) clearTimeout(this.tickTimer);
     if (this.leaderboardTimer) clearInterval(this.leaderboardTimer);
     this.tickTimer = null;
     this.leaderboardTimer = null;

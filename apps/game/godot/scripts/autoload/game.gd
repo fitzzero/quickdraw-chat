@@ -270,19 +270,16 @@ func _wire_events() -> void:
 			leaderboard_updated.emit(entries as Array))
 
 
-func send_input(seq: int, dir: Vector2, boost: bool) -> void:
-	if not is_in_world:
+## One message on the input channel: the newest frame last, with up to three
+## unacknowledged ones before it (local_snake.gd keeps them).
+func send_inputs(frames: Array) -> void:
+	if not is_in_world or frames.is_empty():
 		return
 	if Bench.enabled:
-		Bench.on_input(seq)
+		Bench.on_input(int(frames[-1]["seq"]))
 	# `qd:ch`: fire and forget, never acknowledged; the server drops it unless
 	# this socket is in the world's room
-	Net.client.send_channel("gameService", "input", {
-		"seq": seq,
-		"dx": dir.x,
-		"dy": dir.y,
-		"boost": boost,
-	})
+	Net.client.send_channel("gameService", "input", {"frames": frames})
 
 
 ## Commands stay quickdraw methods — the same call a React button makes.

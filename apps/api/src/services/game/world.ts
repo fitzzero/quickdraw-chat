@@ -9,7 +9,15 @@
  * Key design choice: only snake HEADS exist on the wire. Each side keeps a
  * per-snake path history of head positions and derives body segments at fixed
  * arc-length spacing along it — the server for collision, clients for
- * rendering. Snapshots stay ~35 bytes/player regardless of snake length.
+ * rendering. Each player adds about 110 bytes to a snapshot (JSON), whatever
+ * its snake's length.
+ *
+ * A human snake steps once for each input frame its client sent (InputQueue),
+ * one a tick: the client predicts one step per frame, so the snapshot's `ack`
+ * names the last frame the server's state holds and the client's replay
+ * reproduces its position. A tick without a frame coasts on the last intent,
+ * standing in for the late frame, so every snake moves once a tick. NPCs
+ * steer in place and step once a tick.
  */
 
 import type {
@@ -22,6 +30,7 @@ import type {
   WorldSnapshot,
 } from "@project/shared";
 import { GAME_TICK_RATE, NPC_ID_PREFIX, stepMovement } from "@project/shared";
+import { InputQueue } from "./inputQueue.js";
 import { NpcController } from "./npc.js";
 
 export interface GameTunables {
@@ -99,7 +108,10 @@ export interface SnakeState {
   len: number;
   /** head-position history, oldest → newest (head is the last sample) */
   path: Vec[];
-  lastSeq: number;
+  /** the client's frames waiting to be stepped (humans; NPCs steer in place) */
+  inputs: InputQueue;
+  /** stepped a frame since it spawned: until then no client has stepped it either */
+  fed: boolean;
 }
 
 interface FoodState extends FoodDTO {}
@@ -110,9 +122,22 @@ export interface BodySample {
   y: number;
 }
 
+/** One human snake's input accounting for a tick. */
+export interface TickInputs {
+  /** frames stepped this tick (0: none had arrived, the snake coasted on its last intent) */
+  stepped: number;
+  /** frames still queued after the take */
+  depth: number;
+}
+
 export interface TickResult {
   snapshot: WorldSnapshot;
   deaths: GameDeathEvent[];
+  /**
+   * Per human snake alive and fed this tick: what the server sees of its
+   * client's clock (the bench records it). Never on the wire.
+   */
+  inputs: Record<string, TickInputs>;
 }
 
 /** Deterministic PRNG (mulberry32) so tests and replays are reproducible. */
@@ -191,7 +216,8 @@ export class GameWorldSim {
       boost: false,
       len: this.tunables.startLength,
       path: [],
-      lastSeq: 0,
+      inputs: new InputQueue(),
+      fed: false,
     };
     this.spawnSnake(snake);
     this.players.set(id, snake);
@@ -244,24 +270,35 @@ export class GameWorldSim {
     snake.boost = false;
     snake.path = [{ ...snake.head }];
     snake.alive = true;
+    // What was queued for the old snake is not for this one; its client starts
+    // again from the snapshot's ack, which the queue keeps
+    snake.inputs.clear();
+    snake.fed = false;
   }
 
   // ==========================================================================
   // Input
   // ==========================================================================
 
-  public applyInput(id: string, input: GameInput): void {
+  /**
+   * Queues a client's frames (a message carries its newest last and up to
+   * three before it). The ticks that follow step them in seq order, one a
+   * tick; a frame stepped or queued already is ignored, as is everything for
+   * a dead snake.
+   */
+  public queueInputs(id: string, frames: readonly GameInput[]): void {
     const snake = this.players.get(id);
-    if (!snake || !snake.alive) return;
-    // Latest-wins by sequence number; stale/replayed frames are ignored
-    if (input.seq <= snake.lastSeq) return;
+    if (!snake || !snake.alive || isNpcId(id)) return;
+    for (const frame of frames) snake.inputs.push(frame);
+  }
 
-    const mag = Math.hypot(input.dx, input.dy);
+  /** A frame's intent: its direction (when it has one) and its boost. */
+  private steer(snake: SnakeState, frame: GameInput): void {
+    const mag = Math.hypot(frame.dx, frame.dy);
     if (Number.isFinite(mag) && mag > 1e-6) {
-      snake.targetDir = { x: input.dx / mag, y: input.dy / mag };
+      snake.targetDir = { x: frame.dx / mag, y: frame.dy / mag };
     }
-    snake.boost = input.boost;
-    snake.lastSeq = input.seq;
+    snake.boost = frame.boost;
   }
 
   // ==========================================================================
@@ -273,13 +310,37 @@ export class GameWorldSim {
     const foodEaten: string[] = [];
     const foodSpawned: FoodDTO[] = [];
     const deaths: GameDeathEvent[] = [];
+    const inputs: Record<string, TickInputs> = {};
 
     this.npcs().update(this.tick);
 
     for (const snake of this.players.values()) {
       if (!snake.alive) continue;
-      this.moveSnake(snake);
-      this.eatNearbyFood(snake, foodEaten);
+      if (isNpcId(snake.meta.id)) {
+        // The controller set its intent: one step a tick
+        this.moveSnake(snake);
+        this.eatNearbyFood(snake, foodEaten);
+        continue;
+      }
+      // One step per frame its client sent, one frame a tick; once it has
+      // sent its first, a tick without one coasts on the last intent, and
+      // the queue counts the coast for the late frame
+      const frames = snake.inputs.take(this.dt);
+      for (const frame of frames) {
+        this.steer(snake, frame);
+        this.moveSnake(snake);
+        this.eatNearbyFood(snake, foodEaten);
+      }
+      if (frames.length > 0) {
+        snake.fed = true;
+      } else if (snake.fed) {
+        this.moveSnake(snake);
+        this.eatNearbyFood(snake, foodEaten);
+        snake.inputs.coast();
+      }
+      if (snake.fed) {
+        inputs[snake.meta.id] = { stepped: frames.length, depth: snake.inputs.depth() };
+      }
     }
 
     this.resolveCollisions(deaths, foodSpawned);
@@ -293,6 +354,7 @@ export class GameWorldSim {
         ...(foodEaten.length > 0 ? { foodEaten } : {}),
       },
       deaths,
+      inputs,
     };
   }
 
@@ -485,7 +547,7 @@ export class GameWorldSim {
         dy: Math.round(snake.dir.y * 1000) / 1000,
         len: Math.floor(snake.len),
         boost: snake.boost && snake.len > this.tunables.minLength,
-        ack: snake.lastSeq,
+        ack: snake.inputs.lastSeq,
       });
     }
     return snaps;

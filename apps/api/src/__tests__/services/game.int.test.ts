@@ -12,7 +12,7 @@ import {
   streamFrames,
 } from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
-import type { GameBootstrap, WorldSnapshot } from "@project/shared";
+import type { GameBootstrap, GameInput, WorldSnapshot } from "@project/shared";
 import {
   GLOBAL_WORLD_ID,
   GLOBAL_WORLD_ROOM,
@@ -98,6 +98,11 @@ async function joined(
 /** One message on the input channel: `qd:ch`, never answered. */
 function sendInput(connection: ApiConnection, payload: unknown): void {
   connection.socket.emit("qd:ch", ["gameService", "input", payload]);
+}
+
+/** One input frame, heading along +x unless told otherwise. */
+function frame(seq: number, dx = 1, dy = 0): GameInput {
+  return { seq, dx, dy, boost: false };
 }
 
 /** Resolves once the server read everything the socket sent before (a socket's events keep their order). */
@@ -447,7 +452,7 @@ describe("GameService on the realtime kit", () => {
     // the seed is the current world: every snake, at once
     await subscribeWorld(socket);
 
-    sendInput(socket, { seq: 7, dx: 1, dy: 0, boost: false });
+    sendInput(socket, { frames: [frame(7)] });
     await settled(socket);
     const snapshot = await tickTo(socket);
 
@@ -458,6 +463,28 @@ describe("GameService on the realtime kit", () => {
     // a later subscriber's seed is the world as of that tick
     const late = await connect(users.moderator.id);
     expect((await subscribeWorld(late)).map((seeded) => seeded.tick)).toEqual([snapshot.tick]);
+  });
+
+  it("steps each frame of a message once, in order: four frames advance the ack by 4 over two ticks", async () => {
+    const { socket } = await joined(users.regular.id);
+    await subscribeWorld(socket);
+    const frames = [1, 2, 3, 4].map((seq) => frame(seq));
+
+    sendInput(socket, { frames });
+    // the next message repeats the frames not yet acknowledged
+    sendInput(socket, { frames: frames.slice(1) });
+    await settled(socket);
+
+    const mine = async () =>
+      must((await tickTo(socket)).players.find((p) => p.id === users.regular.id));
+    // a backlog: three in the first tick, the last in its own
+    expect((await mine()).ack).toBe(3);
+    const second = await mine();
+    expect(second.ack).toBe(4);
+    // nothing queued: the snake coasts on its last intent, standing in for frame 5
+    const third = await mine();
+    expect(third.ack).toBe(5);
+    expect([third.x, third.y]).not.toEqual([second.x, second.y]);
   });
 
   it("seeds a subscriber with the current world, food included, computed from the running sim", async () => {
@@ -499,12 +526,12 @@ describe("GameService on the realtime kit", () => {
     // The same user's second socket never called watchWorld or joinGame: the
     // requirement is the sending socket's own, so its input is dropped
     const outside = await connect(users.regular.id);
-    sendInput(outside, { seq: 5, dx: 1, dy: 0, boost: false });
+    sendInput(outside, { frames: [frame(5)] });
     await settled(outside);
     let mine = must((await tickTo(inside)).players.find((p) => p.id === users.regular.id));
     expect(mine.ack).toBe(0);
 
-    sendInput(inside, { seq: 6, dx: 1, dy: 0, boost: false });
+    sendInput(inside, { frames: [frame(6)] });
     await settled(inside);
     mine = must((await tickTo(inside)).players.find((p) => p.id === users.regular.id));
     expect(mine.ack).toBe(6);
@@ -514,10 +541,14 @@ describe("GameService on the realtime kit", () => {
     const { socket } = await joined(users.regular.id);
     await subscribeWorld(socket);
 
-    sendInput(socket, { seq: "nope", dx: "x" });
+    sendInput(socket, { frames: [{ seq: "nope", dx: "x" }] });
     sendInput(socket, null);
     sendInput(socket, "garbage");
-    sendInput(socket, { seq: -1, dx: 1, dy: 0, boost: false });
+    sendInput(socket, { frames: [{ seq: -1, dx: 1, dy: 0, boost: false }] });
+    // a bare frame (no `frames`), none, and more than four
+    sendInput(socket, frame(1));
+    sendInput(socket, { frames: [] });
+    sendInput(socket, { frames: [1, 2, 3, 4, 5].map((seq) => frame(seq)) });
     await settled(socket);
 
     const mine = must((await tickTo(socket)).players.find((p) => p.id === users.regular.id));
@@ -530,12 +561,13 @@ describe("GameService on the realtime kit", () => {
     await subscribeWorld(socket);
 
     for (let seq = 1; seq <= 500; seq++) {
-      sendInput(socket, { seq, dx: 1, dy: 0, boost: false });
+      sendInput(socket, { frames: [frame(seq)] });
     }
     await settled(socket);
 
     const mine = must((await tickTo(socket)).players.find((p) => p.id === users.regular.id));
-    // the burst (3 ticks' worth, 60 frames) went through, the rest was dropped
+    // the burst (3 ticks' worth, 60 messages) went through, the rest was
+    // dropped; the snake's queue keeps its newest 15 frames and steps them
     expect(mine.ack).toBeGreaterThan(0);
     expect(mine.ack).toBeLessThan(500);
     expect(socket.socket.connected).toBe(true);

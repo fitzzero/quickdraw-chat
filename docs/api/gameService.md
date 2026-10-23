@@ -313,15 +313,15 @@ Fire-and-forget messages from clients, dropped over the rate.
 
 ### `input`
 
-The caller's steering (a direction and a boost), sent at about the tick rate; dropped unless the sending socket is signed in and joined the world with watchWorld or joinGame.
+The caller's steering, one message per tick: the newest frame (a direction and a boost) last, with up to three unacknowledged ones before it, stepped in order one a tick; dropped unless the sending socket is signed in and joined the world with watchWorld or joinGame.
 
-| Option   | Value                                                       |
-| -------- | ----------------------------------------------------------- |
-| Payload  | `{ seq: integer; dx: number; dy: number; boost: boolean }`  |
-| Rate     | 30 a second per socket                                      |
-| Burst    | 60                                                          |
-| Requires | the sending socket in the app room `world:gameworld_global` |
-| Access   | `"authenticated"`: any signed-in caller                     |
+| Option   | Value                                                                    |
+| -------- | ------------------------------------------------------------------------ |
+| Payload  | `{ frames: { seq: integer; dx: number; dy: number; boost: boolean }[] }` |
+| Rate     | 30 a second per socket                                                   |
+| Burst    | 60                                                                       |
+| Requires | the sending socket in the app room `world:gameworld_global`              |
+| Access   | `"authenticated"`: any signed-in caller                                  |
 
 ## Events
 
