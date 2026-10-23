@@ -94,9 +94,10 @@ func on_server_snap(snap: Dictionary) -> void:
 	var ack := int(snap.get("ack", 0))
 	while not _pending.is_empty() and int(_pending[0]["seq"]) <= ack:
 		_pending.pop_front()
-	# The server coasted for frames this client never sent (it stalled):
-	# number the next frame after them, or the server ignores it
-	if ack > seq:
+	# The server coasted through a stall of this client's: the ack ran more
+	# than a message's frames past its newest. Number the next frame after
+	# the ack, or the server ignores the frames until the client catches up
+	if ack > seq + GameConfig.INPUT_FRAMES:
 		seq = ack
 
 	# Replay unacknowledged inputs from the authoritative state
