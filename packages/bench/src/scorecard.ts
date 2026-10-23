@@ -34,7 +34,11 @@ const measured = (v: number | null, digits = 1): string =>
   v === null || !Number.isFinite(v) ? "n/a" : num(v, digits);
 
 /** A party scenario's fairness line. */
-function partyLine({ host, inputAckRttP50: rtt, predictionErrorP95: error }: PartyFairness): string {
+function partyLine({
+  host,
+  inputAckRttP50: rtt,
+  predictionErrorP95: error,
+}: PartyFairness): string {
   return (
     `  Party fairness (${host}, the host's own user, against the other players' median): ` +
     `ackRTT p50 ${measured(rtt.host, 0)} vs ${measured(rtt.peers, 0)} ms, ` +

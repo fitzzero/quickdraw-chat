@@ -93,7 +93,8 @@ export function settleFairLink(
   const rttMs = roundTrips(peers);
   const lag = fair ? fairLinkMs(rttMs, hostUserId) : null;
   for (const peer of peers) {
-    if (peer.userId === hostUserId) peer.link.setLag(lag === null || lag === 0 ? null : { ms: lag });
+    if (peer.userId === hostUserId)
+      peer.link.setLag(lag === null || lag === 0 ? null : { ms: lag });
   }
   return { rttMs, fairLinkMs: lag };
 }

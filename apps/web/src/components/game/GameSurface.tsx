@@ -98,10 +98,7 @@ export function GameSurface({
         />
       )}
       {session.chatId && (
-        <GameChatOverlay
-          chatId={session.chatId}
-          {...(partyCode === null ? {} : { partyCode })}
-        />
+        <GameChatOverlay chatId={session.chatId} {...(partyCode === null ? {} : { partyCode })} />
       )}
       {session.dialog}
     </Box>

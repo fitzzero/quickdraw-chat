@@ -266,10 +266,7 @@ describe("hosting and joining a party", () => {
     const { party } = await hosting(users.regular.id);
     const stranger = await connect(users.moderator.id);
 
-    await expectCode(
-      stranger.call.gameService.playParty({ worldId: party.worldId }),
-      "FORBIDDEN",
-    );
+    await expectCode(stranger.call.gameService.playParty({ worldId: party.worldId }), "FORBIDDEN");
     expect(app.server.rooms.size(partyRoom(party.worldId))).toBe(1);
   });
 
@@ -324,10 +321,7 @@ describe("how a party ends", () => {
     expect(row.code).toBeNull();
     await expectCode(guest.call.gameService.joinParty({ code: party.code }), "NOT_FOUND");
     // and its chat is no longer the guest's to join
-    await expectCode(
-      guest.call.chatService.joinWorldChat({ worldId: party.worldId }),
-      "FORBIDDEN",
-    );
+    await expectCode(guest.call.chatService.joinWorldChat({ worldId: party.worldId }), "FORBIDDEN");
   });
 
   it("the host's leaveParty ends the party: its room hears hostLeft", async () => {

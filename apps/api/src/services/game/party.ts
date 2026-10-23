@@ -281,7 +281,8 @@ const hostingNow = new Set<string>();
 
 /** Runs `host` for a user whose other hostParty is not running, else CONFLICT. */
 export async function oneHostPartyAtATime<T>(userId: string, host: () => Promise<T>): Promise<T> {
-  if (hostingNow.has(userId)) throw new QuickdrawError("CONFLICT", "You are starting a party already");
+  if (hostingNow.has(userId))
+    throw new QuickdrawError("CONFLICT", "You are starting a party already");
   hostingNow.add(userId);
   try {
     return await host();

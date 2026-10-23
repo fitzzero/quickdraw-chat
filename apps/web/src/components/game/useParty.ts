@@ -190,9 +190,13 @@ export function useParty(options: {
 
   // the host's page no longer hosts once its socket is gone: the server
   // ended the party (hostLeft), which a new socket does not hear
-  const hosting = usePartyHost(party?.role === "host" ? party.worldId : null, options.fairLink, () => {
-    if (party !== null) endedBy(party.worldId, "hostLeft");
-  });
+  const hosting = usePartyHost(
+    party?.role === "host" ? party.worldId : null,
+    options.fairLink,
+    () => {
+      if (party !== null) endedBy(party.worldId, "hostLeft");
+    },
+  );
   // quickdraw-5.0 finding: the host's own feed of a room it hosts reaches it
   // over an in-process link, but one subscribed before `serve` (core 5.1.3)
   // never gets its seed or items: the host's page subscribes once it serves
