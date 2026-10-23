@@ -68,6 +68,36 @@ export function fairLinkMs(rttMs: Readonly<Record<string, number>>, hostUserId: 
   return Math.min(FAIR_LINK_MAX_MS, Math.max(0, Math.round(median)));
 }
 
+/** A peer whose link a host lags: core's HostPeer has this shape, and so has a loopback end. */
+export interface LaggablePeer extends LinkedPeer {
+  readonly link: LinkedPeer["link"] & { setLag(lag: { readonly ms: number } | null): void };
+}
+
+/** What a host's links measured: each player's round trip (ms, by user) and the fair link's lag. */
+export interface PartyLinks {
+  readonly rttMs: Readonly<Record<string, number>>;
+  /** The lag the host's own user plays with (ms); null when the fair link is off. */
+  readonly fairLinkMs: number | null;
+}
+
+/**
+ * What a host does every FAIR_LINK_EVERY_MS: measures its links, and lags
+ * its own user's links by the fair link, both ways (or ends their lag when
+ * `fair` is false). Answers what it measured.
+ */
+export function settleFairLink(
+  peers: readonly LaggablePeer[],
+  hostUserId: string,
+  fair: boolean,
+): PartyLinks {
+  const rttMs = roundTrips(peers);
+  const lag = fair ? fairLinkMs(rttMs, hostUserId) : null;
+  for (const peer of peers) {
+    if (peer.userId === hostUserId) peer.link.setLag(lag === null || lag === 0 ? null : { ms: lag });
+  }
+  return { rttMs, fairLinkMs: lag };
+}
+
 /** What a party's world sends: one callback per stream. */
 export interface PartyWorldEmits {
   /** Every tick's snapshot (partyWorld, volatile). */

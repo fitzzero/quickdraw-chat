@@ -8,15 +8,20 @@
  * from its host (the page's own death, the leaderboard) and the server's
  * word that it ended (partyClosed, hostLeft). The game itself plays in
  * Godot, which joins the party on its own socket (QuickdrawHost.party).
+ *
+ * The page's socket outlives the page (the provider is the app's): a page
+ * that stops showing its party (another page of the app) ends it as its
+ * host, or leaves it, so no party is left with a host that serves nothing.
  */
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
+import { QuickdrawError } from "@fitzzero/quickdraw-core";
 import { useJoin, useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import type { GameDeathEvent, PartyEvent, PartyLeaderboard } from "@project/shared";
 import { qd } from "../../lib/quickdraw";
 import { useErrorText } from "../../hooks/useErrorText";
-import { usePartyHost, type PartyLinks } from "./partyHost";
+import { usePartyHost } from "./partyHost";
 
 /** The party the page is in. */
 export interface PartyState {
@@ -27,8 +32,11 @@ export interface PartyState {
   readonly role: "host" | "guest";
 }
 
-/** Why the page's last party ended without its leaving. */
-export type PartyEnd = "closed" | "hostLeft";
+/**
+ * Why the page's last party ended without its leaving: its host closed it,
+ * its host left, or it ended while the page was away (a reconnect's join).
+ */
+export type PartyEnd = "closed" | "hostLeft" | "ended";
 
 export interface PartySession {
   readonly party: PartyState | null;
@@ -38,10 +46,8 @@ export interface PartySession {
   readonly error: string | undefined;
   /** Why the last party ended, until the next one starts. */
   readonly ended: PartyEnd | null;
-  /** The party's latest leaderboard, from its host. */
+  /** The party's latest leaderboard, from its host (each player's round trip, the fair link). */
   readonly leaderboard: PartyLeaderboard | null;
-  /** What the host's links measure: on the host's page only. */
-  readonly links: PartyLinks | null;
   host(): void;
   join(code: string): void;
   /** Leaves the party; its host ends it. */
@@ -66,6 +72,48 @@ function useNewItems<T>(items: readonly T[], onItem: (item: T) => void): void {
     last.current = items.at(-1);
     for (const item of fresh) handle.current(item);
   }, [items]);
+}
+
+/**
+ * How long a page that stopped showing its party waits before it ends or
+ * leaves it: a remount in development (StrictMode, a hot reload) shows the
+ * party again first, which calls the end off.
+ */
+const END_AFTER_UNMOUNT_MS = 500;
+
+/** The ends pages scheduled when they stopped showing their party, by world. */
+const pendingEnds = new Map<string, number>();
+
+/** Ends a party as its host, or leaves it, through the provider's connection. */
+function endOrLeave(party: PartyState): Promise<unknown> {
+  const input = { worldId: party.worldId };
+  return party.role === "host"
+    ? qd.gameService.closeParty.call(input)
+    : qd.gameService.leaveParty.call(input);
+}
+
+/** Ends or leaves the page's party once the page stops showing it, unless it shows it again first. */
+function useEndOnUnmount(party: PartyState | null): void {
+  const shown = React.useRef(party);
+  React.useEffect(() => {
+    shown.current = party;
+    if (party === null) return;
+    const pending = pendingEnds.get(party.worldId);
+    if (pending !== undefined) window.clearTimeout(pending);
+    pendingEnds.delete(party.worldId);
+  }, [party]);
+  React.useEffect(
+    () => () => {
+      const last = shown.current;
+      if (last === null) return;
+      const end = (): void => {
+        pendingEnds.delete(last.worldId);
+        endOrLeave(last).catch(() => undefined);
+      };
+      pendingEnds.set(last.worldId, window.setTimeout(end, END_AFTER_UNMOUNT_MS));
+    },
+    [],
+  );
 }
 
 /** The newest leaderboard among a party's events. */
@@ -93,8 +141,9 @@ export function useParty(options: {
   const [ended, setEnded] = React.useState<PartyEnd | null>(null);
 
   const hostParty = qd.gameService.hostParty.useMutation();
-  const leaveParty = qd.gameService.leaveParty.useMutation();
-  const closeParty = qd.gameService.closeParty.useMutation();
+  /** The party the page is ending or leaving itself: its end is no news. */
+  const leaving = React.useRef<string | null>(null);
+  useEndOnUnmount(party);
 
   // A guest's socket in the party's room on every connection (a new socket
   // is in no room until a call joins it)
@@ -114,28 +163,36 @@ export function useParty(options: {
     },
   );
   const joinError = joining.status === "error" ? joining.error : null;
+  /** The refused join handled last: a new join starts with it still reported for a render. */
+  const handledJoinError = React.useRef<QuickdrawError | null>(null);
   React.useEffect(() => {
+    if (joinError === null || joinError === handledJoinError.current) return;
+    handledJoinError.current = joinError;
     // a refused join stands: the code was wrong, or the party ended
-    if (joinError !== null) {
-      setError(joinError.code === "NOT_FOUND" ? t("partyNotFound") : errorText(joinError));
-      setJoinCode(null);
-      setParty(null);
-    }
-  }, [joinError, errorText, t]);
+    setJoinCode(null);
+    setParty(null);
+    // a party the page was in, which a reconnect's join no longer finds
+    if (party !== null && joinError.code === "NOT_FOUND") setEnded("ended");
+    else setError(joinError.code === "NOT_FOUND" ? t("partyNotFound") : errorText(joinError));
+  }, [joinError, party, errorText, t]);
 
   const finish = (end: PartyEnd | null): void => {
     setParty(null);
     setJoinCode(null);
     setEnded(end);
   };
-  qd.gameService.partyClosed.useEvent((closed) => {
-    if (closed.worldId === party?.worldId) finish("closed");
-  });
-  qd.gameService.hostLeft.useEvent((left) => {
-    if (left.worldId === party?.worldId) finish("hostLeft");
-  });
+  /** The party ended, unless the page is ending or leaving it itself. */
+  const endedBy = (worldId: string, end: PartyEnd): void => {
+    if (worldId === party?.worldId && leaving.current !== worldId) finish(end);
+  };
+  qd.gameService.partyClosed.useEvent((closed) => endedBy(closed.worldId, "closed"));
+  qd.gameService.hostLeft.useEvent((left) => endedBy(left.worldId, "hostLeft"));
 
-  const hosting = usePartyHost(party?.role === "host" ? party.worldId : null, options.fairLink);
+  // the host's page no longer hosts once its socket is gone: the server
+  // ended the party (hostLeft), which a new socket does not hear
+  const hosting = usePartyHost(party?.role === "host" ? party.worldId : null, options.fairLink, () => {
+    if (party !== null) endedBy(party.worldId, "hostLeft");
+  });
   // quickdraw-5.0 finding: the host's own feed of a room it hosts reaches it
   // over an in-process link, but one subscribed before `serve` (core 5.1.3)
   // never gets its seed or items: the host's page subscribes once it serves
@@ -153,8 +210,8 @@ export function useParty(options: {
     error,
     ended,
     leaderboard: latestBoard(events.items),
-    links: hosting.links,
     host: () => {
+      leaving.current = null;
       setError(undefined);
       setEnded(null);
       hostParty.mutateAsync({}).then(
@@ -163,17 +220,30 @@ export function useParty(options: {
       );
     },
     join: (code) => {
+      leaving.current = null;
       setError(undefined);
       setEnded(null);
       setJoinCode(code);
     },
+    // the page shows the party until the server ended it (or the user left
+    // it), and says why when it could not
     leave: () => {
       const current = party;
-      finish(null);
       if (current === null) return;
-      const input = { worldId: current.worldId };
-      if (current.role === "host") closeParty.mutate(input);
-      else leaveParty.mutate(input);
+      leaving.current = current.worldId;
+      setError(undefined);
+      endOrLeave(current).then(
+        () => finish(null),
+        (failure: unknown) => {
+          // a party that ended already has nothing left to end
+          if (failure instanceof QuickdrawError && failure.code === "NOT_FOUND") {
+            finish(null);
+            return;
+          }
+          leaving.current = null;
+          setError(errorText(failure));
+        },
+      );
     },
   };
 }

@@ -394,11 +394,11 @@ func _enter_party_once() -> void:
 	chat_id = str(bootstrap.get("chatId", ""))
 	var b := bootstrap["bounds"] as Dictionary
 	bounds = Vector2(float(b["w"]), float(b["h"]))
-	is_in_world = true
 	world_ready.emit(bootstrap)
 
 	# Held feeds: the client subscribes again by itself each time a link to
-	# the room's host opens (a reconnect)
+	# the room's host opens (a reconnect). In the world once both are: a
+	# refused one goes to join_failed, whose retry joins again
 	for stream in ["partyEvents", "partyWorld"]:
 		if Net.client.is_subscribed("gameService", stream, world_id, party_room):
 			continue
@@ -408,6 +408,7 @@ func _enter_party_once() -> void:
 		if not sub.get("ok", false):
 			join_failed.emit(_error_of(sub, "The party's host sent no %s" % stream))
 			return
+	is_in_world = true
 
 	# Editor/desktop and check:godot play at once; on the web the page's dialog does
 	if Net.auto_spawn:

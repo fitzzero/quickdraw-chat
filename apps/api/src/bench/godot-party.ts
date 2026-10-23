@@ -64,7 +64,9 @@ async function checkDeath({ both }: Guests): Promise<void> {
     const dead = both.find((client) => client.userId === death.id);
     // an NPC's death needs no respawn of ours
     if (dead === undefined) return;
-    const after = dead.probes.indexOf(death);
+    // the dead client's own probe of that death (both hear every death, in
+    // order): its snake comes back after it
+    const after = dead.probes.findIndex((p) => p.kind === "death" && p.id === death.id);
     await dead.waitFor("its snake again, from the host", after, playing);
   });
 }

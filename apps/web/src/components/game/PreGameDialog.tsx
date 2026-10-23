@@ -52,7 +52,7 @@ export interface PreGameDialogProps {
   /** Why the last host or join failed, for people. */
   partyError?: string;
   /** Why the last party ended: its host closed it, or left. */
-  partyEnded?: "closed" | "hostLeft";
+  partyEnded?: "closed" | "hostLeft" | "ended";
 }
 
 /**
@@ -213,6 +213,13 @@ export function PreGameDialog(props: PreGameDialogProps): React.ReactElement {
  * otherwise hosting one, or joining one by its code. A party is hosted by
  * a player's browser (host mode), so a signed-out visitor sees none of it.
  */
+/** What the dialog says of why the last party ended. */
+const PARTY_END_TEXT = {
+  closed: "partyClosed",
+  hostLeft: "partyHostLeft",
+  ended: "partyOver",
+} as const satisfies Record<NonNullable<PreGameDialogProps["partyEnded"]>, string>;
+
 function PartySection(props: PreGameDialogProps): React.ReactElement | null {
   const t = useTranslations("GameDialog");
   const [code, setCode] = React.useState("");
@@ -258,7 +265,7 @@ function PartySection(props: PreGameDialogProps): React.ReactElement | null {
       </Box>
       {props.partyEnded !== undefined && (
         <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
-          {t(props.partyEnded === "hostLeft" ? "partyHostLeft" : "partyClosed")}
+          {t(PARTY_END_TEXT[props.partyEnded])}
         </Typography>
       )}
       <Button

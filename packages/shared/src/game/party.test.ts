@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { GameInput, PartyEvent, WorldSnapshot } from "../types/game.js";
 import { GAME_TICK_RATE } from "../types/game.js";
-import { FAIR_LINK_MAX_MS, PartyWorld, fairLinkMs, roundTrips, type LinkedPeer } from "./party.js";
+import {
+  FAIR_LINK_MAX_MS,
+  PartyWorld,
+  fairLinkMs,
+  roundTrips,
+  settleFairLink,
+  type LaggablePeer,
+  type LinkedPeer,
+} from "./party.js";
 import type { GameTunables, SnakeState } from "./world.js";
 
 interface Party {
@@ -31,6 +39,21 @@ function party(tunables: Partial<GameTunables> = {}): Party {
 
 function peer(userId: string, rtt: number, synced = true): LinkedPeer {
   return { userId, link: { clock: { rtt, synced } } };
+}
+
+/** A peer whose link records each lag the host gives it. */
+function laggable(userId: string, rtt: number): LaggablePeer & { lags: ({ ms: number } | null)[] } {
+  const lags: ({ ms: number } | null)[] = [];
+  return {
+    userId,
+    lags,
+    link: {
+      clock: { rtt, synced: true },
+      setLag: (lag): void => {
+        lags.push(lag === null ? null : { ms: lag.ms });
+      },
+    },
+  };
 }
 
 function frame(seq: number, dx: number, dy: number, boost = false): GameInput {
@@ -149,5 +172,26 @@ describe("the fair link", () => {
     expect(fairLinkMs({ host: 30 }, "host")).toBe(0);
     expect(fairLinkMs({}, "host")).toBe(0);
     expect(fairLinkMs({ ada: 1_000 }, "host")).toBe(FAIR_LINK_MAX_MS);
+  });
+
+  it("lags both of the host user's links, and no player's, or ends their lag when off", () => {
+    const game = laggable("host", 2);
+    const page = laggable("host", 1);
+    const ada = laggable("ada", 100);
+    const bo = laggable("bo", 120);
+    const peers = [game, page, ada, bo];
+
+    expect(settleFairLink(peers, "host", true)).toEqual({
+      rttMs: { host: 2, ada: 100, bo: 120 },
+      fairLinkMs: 60,
+    });
+    expect(game.lags).toEqual([{ ms: 60 }]);
+    expect(page.lags).toEqual([{ ms: 60 }]);
+    expect(ada.lags).toEqual([]);
+    expect(bo.lags).toEqual([]);
+
+    expect(settleFairLink(peers, "host", false).fairLinkMs).toBeNull();
+    expect(game.lags.at(-1)).toBeNull();
+    expect(page.lags.at(-1)).toBeNull();
   });
 });

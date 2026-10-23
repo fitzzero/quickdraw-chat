@@ -20,7 +20,8 @@
  * once while its players' wait a trip, and it wins every head-to-head. So
  * every 5 s the page lags both of its own user's links (its game's, and
  * this page's own in-process one) by the median of the players' one-way
- * trips (fairLinkMs), at most 100 ms. `?fairLink=off` on /game turns it off.
+ * trips (settleFairLink), at most 100 ms. `?fairLink=off` on /game turns it
+ * off.
  */
 
 import * as React from "react";
@@ -30,37 +31,27 @@ import {
   FAIR_LINK_EVERY_MS,
   GAME_TICK_RATE,
   PartyWorld,
-  fairLinkMs,
   gameContract,
   partyRoom,
-  roundTrips,
+  settleFairLink,
 } from "@project/shared";
 import { qd } from "../../lib/quickdraw";
-
-/** What the host's links measure: each player's round trip (ms, by user) and the fair link's lag. */
-export interface PartyLinks {
-  readonly rttMs: Readonly<Record<string, number>>;
-  /** The lag the host's own user plays with (ms); null when the fair link is off. */
-  readonly fairLinkMs: number | null;
-}
 
 /** What the host's page knows of the party it hosts. */
 export interface PartyHosting {
   /** True while this page serves the party: its own feeds of it may subscribe then. */
   readonly serving: boolean;
-  /** What the links measured, every 5 s; null before the first measure. */
-  readonly links: PartyLinks | null;
 }
 
 /**
  * The tick timer, as a worker's source: one message per tick, on a fixed
- * grid of GAME_TICK_RATE a second (each timeout aims at the next grid
- * point, so lateness does not add up), starting the grid again after a
- * stall of more than a tick, as GameLoop's own timer does.
+ * grid of GAME_TICK_RATE a second from its first tick (each timeout aims at
+ * the next grid point, so lateness does not add up), starting the grid
+ * again after a stall of more than a tick, as GameLoop's own timer does.
  */
 const TICKER_SOURCE = `
 const period = 1000 / ${GAME_TICK_RATE};
-let next = performance.now();
+let next = performance.now() + period;
 function tick() {
   const now = performance.now();
   next += period;
@@ -82,38 +73,30 @@ function startTicker(onTick: () => void): () => void {
   };
 }
 
-/** Lags the host's own user's links by the fair link (or ends their lag); answers what was measured. */
-function settleLinks(
-  host: Host<typeof gameContract>,
-  hostUserId: string,
-  fair: boolean,
-): PartyLinks {
-  const rttMs = roundTrips(host.peers);
-  const lag = fair ? fairLinkMs(rttMs, hostUserId) : null;
-  for (const peer of host.peers) {
-    if (peer.userId === hostUserId)
-      peer.link.setLag(lag === null || lag === 0 ? null : { ms: lag });
-  }
-  return { rttMs, fairLinkMs: lag };
-}
-
 /**
  * Hosts the party `worldId` while this page's socket is its host: runs its
- * world and serves it. Null hosts nothing. Answers whether it serves, and
- * what the links measure every 5 s, for the HUD.
+ * world and serves it. Null hosts nothing. Answers whether it serves (the
+ * party's leaderboard carries what the links measure, every 5 s). Once it
+ * served, `onLost` hears the socket stop being the host (a reconnect is a
+ * new socket, which no longer is: the server ended the party).
  */
 // oxlint-disable-next-line max-lines-per-function -- one effect: the world, its host, its timers
-export function usePartyHost(worldId: string | null, fairLink: boolean): PartyHosting {
+export function usePartyHost(
+  worldId: string | null,
+  fairLink: boolean,
+  onLost: () => void,
+): PartyHosting {
   const { connection, userId } = useQuickdraw();
-  const [links, setLinks] = React.useState<PartyLinks | null>(null);
   const [serving, setServing] = React.useState(false);
   /** The world hosted now, which the server's events reach. */
   const world = React.useRef<PartyWorld | null>(null);
   /** Read at each measure, so turning the fair link off starts no new world. */
   const fair = React.useRef(fairLink);
+  const lost = React.useRef(onLost);
   React.useEffect(() => {
     fair.current = fairLink;
-  }, [fairLink]);
+    lost.current = onLost;
+  });
 
   // The server's word on who plays; only the host's page acts on it
   qd.gameService.partyPlayer.useEvent((player) => {
@@ -153,6 +136,7 @@ export function usePartyHost(worldId: string | null, fairLink: boolean): PartyHo
         host.close();
         host = undefined;
         setServing(false);
+        lost.current();
       }
     };
     const stopHostChange = onHostChange(connection, (changed) => {
@@ -165,9 +149,8 @@ export function usePartyHost(worldId: string | null, fairLink: boolean): PartyHo
     });
     const measure = window.setInterval(() => {
       if (host === undefined) return;
-      const measured = settleLinks(host, userId, fair.current);
+      const measured = settleFairLink(host.peers, userId, fair.current);
       party.setLinks({ ...measured.rttMs }, measured.fairLinkMs);
-      setLinks(measured);
     }, FAIR_LINK_EVERY_MS);
     return () => {
       window.clearInterval(measure);
@@ -175,10 +158,9 @@ export function usePartyHost(worldId: string | null, fairLink: boolean): PartyHo
       stopHostChange();
       host?.close();
       world.current = null;
-      setLinks(null);
       setServing(false);
     };
   }, [connection, worldId, userId]);
 
-  return { serving, links };
+  return { serving };
 }

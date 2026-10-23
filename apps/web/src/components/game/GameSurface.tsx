@@ -97,10 +97,34 @@ export function GameSurface({
           }
         />
       )}
-      {session.chatId && <GameChatOverlay chatId={session.chatId} />}
+      {session.chatId && (
+        <GameChatOverlay
+          chatId={session.chatId}
+          {...(partyCode === null ? {} : { partyCode })}
+        />
+      )}
       {session.dialog}
     </Box>
   );
+}
+
+/** The server's world, as a run's world: a party's is its world id. */
+const WORLD_KEY = "world";
+
+/** A run: the world the user asked to play in, and their last death there. */
+interface Run {
+  readonly world: string;
+  readonly death: GameDeathEvent | null;
+}
+
+/** The world the page shows (a party's, or the server's), and the run there. */
+function runOf(
+  run: Run | null,
+  partyWorldId: string | null,
+): { worldKey: string; playing: boolean; death: GameDeathEvent | null } {
+  const worldKey = partyWorldId ?? WORLD_KEY;
+  const playing = run?.world === worldKey;
+  return { worldKey, playing, death: playing ? (run?.death ?? null) : null };
 }
 
 interface GameSession {
@@ -128,10 +152,9 @@ function useGameSession(
     phase: "loading",
     progress: null,
   });
-  // The user asked to play (Start, or a start that outlived the guest socket
-  // cycle or a reload)
-  const [playing, setPlaying] = React.useState(false);
-  const [death, setDeath] = React.useState<GameDeathEvent | null>(null);
+  // The world the user asked to play in (Start, or a start that outlived the
+  // guest socket cycle or a reload) and their last death there
+  const [run, setRun] = React.useState<Run | null>(null);
   const [creatingGuest, setCreatingGuest] = React.useState(false);
 
   const ready = loadState.phase === "ready";
@@ -140,15 +163,17 @@ function useGameSession(
   const needsGuest = guestFlow && !userId;
 
   // A party the page hosts or joined: its own world, deaths and leaderboard
-  const partySession = useParty({ onDeath: setDeath, fairLink });
+  const partySession = useParty({ onDeath: (event) => setDeath(event), fairLink });
   const party = partySession.party;
   const inParty = party !== null;
   const partyWorldId = party?.worldId ?? null;
-  // A party is another world: its dialog starts again at Start
-  React.useEffect(() => {
-    setPlaying(false);
-    setDeath(null);
-  }, [partyWorldId]);
+  // A party is another world: its dialog starts again at Start, in the
+  // render that enters or leaves it (no join of one world runs for another)
+  const { worldKey, playing, death } = runOf(run, partyWorldId);
+  const setPlaying = (): void => setRun({ world: worldKey, death: null });
+  function setDeath(event: GameDeathEvent | null): void {
+    setRun((current) => (current?.world === worldKey ? { ...current, death: event } : current));
+  }
 
   const { data: world } = qd.gameService.getWorld.useQuery(GET_WORLD_PAYLOAD);
 
@@ -191,7 +216,7 @@ function useGameSession(
   React.useEffect(() => {
     if (ready && userId && !hasJoined && sessionStorage.getItem(PENDING_START_KEY)) {
       sessionStorage.removeItem(PENDING_START_KEY);
-      setPlaying(true);
+      setRun({ world: WORLD_KEY, death: null });
     }
   }, [ready, userId, hasJoined]);
 
@@ -200,7 +225,7 @@ function useGameSession(
       void createGuestAndReconnect(guestName);
       return;
     }
-    if (joinError === null) setPlaying(true);
+    if (joinError === null) setPlaying();
     else playJoin.retry();
   };
 
@@ -251,7 +276,7 @@ function useGameSession(
     // Guest surfaces boot straight into anonymous spectate; authed surfaces
     // (Discord Activity) wait for their token auth
     bootCanvas: guestFlow || !!userId,
-    canvasKey: `${userId ?? "spectator"}:${partyWorldId ?? "world"}`,
+    canvasKey: `${userId ?? "spectator"}:${worldKey}`,
     showHud: ready,
     chatId: ready && userId ? chatOf(party, world?.chatId) : null,
     dialog,
@@ -298,8 +323,8 @@ function usePlayer({
   const playJoin = worldId === null ? world : party;
   return {
     playJoin,
-    // a party's earlier answer may be another party's: it counts once the user plays
-    hasJoined: worldId === null ? world.data !== undefined : playing && party.data !== undefined,
+    // an earlier answer may be another world's: it counts once the user plays
+    hasJoined: playing && playJoin.data !== undefined,
     // A refused join stands until the next connection: the dialog says why,
     // and its button runs the call again at once on this socket (`retry`)
     joinError: playJoin.status === "error" ? playJoin.error : null,

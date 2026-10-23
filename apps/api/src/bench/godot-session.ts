@@ -142,7 +142,9 @@ async function checkDeathAndLeaderboard({ ada, bo, both }: Players): Promise<voi
     await bo.waitFor("the same death", 0, (p) => p.kind === "death" && p.id === death.id);
     const dead = both.find((client) => client.userId === death.id);
     if (dead === undefined) throw new Error(`a death of ${String(death.id)}, neither player`);
-    const after = dead.probes.indexOf(death);
+    // the dead client's own probe of that death (both hear every death, in
+    // order): its respawned snake comes after it
+    const after = dead.probes.findIndex((p) => p.kind === "death" && p.id === death.id);
     await dead.waitFor("its respawned snake", after, (p) => p.kind === "seen" && p.me !== null);
   });
   await step("the leaderboard reaches both, naming both players", async () => {

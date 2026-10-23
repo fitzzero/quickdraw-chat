@@ -275,6 +275,7 @@
   },
   "GameChat": {
     "title": "🌍 Game Server",
+    "partyTitle": "🎉 Party {code}",
     "open": "Open game chat",
     "minimize": "Minimize chat"
   },
@@ -312,7 +313,8 @@
     "endParty": "End the party",
     "partyNotFound": "No open party has that code.",
     "partyClosed": "The party ended: its host closed it.",
-    "partyHostLeft": "The party ended: its host left."
+    "partyHostLeft": "The party ended: its host left.",
+    "partyOver": "The party ended while you were away."
   },
   "ScoresPage": {
     "title": "High Scores",
