@@ -15,6 +15,7 @@ import {
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import ReplayIcon from "@mui/icons-material/Replay";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import GroupsIcon from "@mui/icons-material/Groups";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { HighScoreEntry } from "@project/shared";
@@ -38,6 +39,20 @@ export interface PreGameDialogProps {
   joinError?: string;
   onStart: (guestName?: string) => void;
   onLogin: () => void;
+  /** The party the page is in: its code to share, and whether this page hosts it. */
+  party?: { code: string; role: "host" | "guest" };
+  /** Hosts a party; with onJoinParty, shows the party section (signed-in players only). */
+  onHostParty?: () => void;
+  /** Joins a party by the code a player typed. */
+  onJoinParty?: (code: string) => void;
+  /** Leaves the party, or ends it for its host. */
+  onLeaveParty?: () => void;
+  /** Hosting or joining in flight. */
+  partyBusy?: boolean;
+  /** Why the last host or join failed, for people. */
+  partyError?: string;
+  /** Why the last party ended: its host closed it, or left. */
+  partyEnded?: "closed" | "hostLeft";
 }
 
 /**
@@ -179,7 +194,9 @@ export function PreGameDialog(props: PreGameDialogProps): React.ReactElement {
           </>
         )}
 
-        <TopScoresList scores={props.topScores} />
+        <PartySection {...props} />
+
+        <TopScoresList scores={props.topScores} hidden={props.party !== undefined} />
 
         <Typography variant="caption" sx={{ display: "block", mt: 2 }}>
           <MuiLink component={Link} href="/scores" color="text.secondary" underline="hover">
@@ -191,10 +208,107 @@ export function PreGameDialog(props: PreGameDialogProps): React.ReactElement {
   );
 }
 
-/** Compact all-time top runs — the /scores page in miniature. */
-function TopScoresList({ scores }: { scores: HighScoreEntry[] }): React.ReactElement | null {
+/**
+ * Playing with friends: in a party, its code to share and the way out;
+ * otherwise hosting one, or joining one by its code. A party is hosted by
+ * a player's browser (host mode), so a signed-out visitor sees none of it.
+ */
+function PartySection(props: PreGameDialogProps): React.ReactElement | null {
   const t = useTranslations("GameDialog");
-  if (scores.length === 0) return null;
+  const [code, setCode] = React.useState("");
+  const { party, onHostParty, onJoinParty, onLeaveParty } = props;
+
+  if (party !== undefined) {
+    return (
+      <>
+        <Divider sx={{ my: 2 }} />
+        <Typography variant="subtitle2" color="text.secondary">
+          {t(party.role === "host" ? "partyHosting" : "partyJoined")}
+        </Typography>
+        <Typography variant="h5" sx={{ fontFamily: "monospace", letterSpacing: 2, my: 0.5 }}>
+          {party.code}
+        </Typography>
+        {party.role === "host" && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+            {t("partyShareHint")}
+          </Typography>
+        )}
+        {onLeaveParty && (
+          <Button fullWidth variant="outlined" onClick={onLeaveParty} sx={{ mt: 1.5 }}>
+            {t(party.role === "host" ? "endParty" : "leaveParty")}
+          </Button>
+        )}
+      </>
+    );
+  }
+  if (!onHostParty || !onJoinParty) return null;
+
+  const trimmed = code.trim();
+  const join = (): void => {
+    if (trimmed.length > 0 && !props.partyBusy) onJoinParty(trimmed);
+  };
+  return (
+    <>
+      <Divider sx={{ my: 2 }} />
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5 }}>
+        <GroupsIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+        <Typography variant="subtitle2" color="text.secondary">
+          {t("playWithFriends")}
+        </Typography>
+      </Box>
+      {props.partyEnded !== undefined && (
+        <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
+          {t(props.partyEnded === "hostLeft" ? "partyHostLeft" : "partyClosed")}
+        </Typography>
+      )}
+      <Button
+        fullWidth
+        variant="outlined"
+        disabled={props.partyBusy}
+        onClick={onHostParty}
+        sx={{ mt: 1.5 }}
+      >
+        {t("hostParty")}
+      </Button>
+      <Box sx={{ display: "flex", gap: 1, mt: 1.5 }}>
+        <TextField
+          size="small"
+          value={code}
+          onChange={(event) => setCode(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") join();
+          }}
+          placeholder={t("partyCodePlaceholder")}
+          slotProps={{ htmlInput: { maxLength: 16, "aria-label": t("partyCodeLabel") } }}
+          sx={{ flex: 1 }}
+        />
+        <Button
+          variant="outlined"
+          disabled={props.partyBusy || trimmed.length === 0}
+          onClick={join}
+        >
+          {t("joinParty")}
+        </Button>
+      </Box>
+      {props.partyError !== undefined && (
+        <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+          {props.partyError}
+        </Typography>
+      )}
+    </>
+  );
+}
+
+/** Compact all-time top runs — the /scores page in miniature; hidden in a party, which stores none. */
+function TopScoresList({
+  scores,
+  hidden,
+}: {
+  scores: HighScoreEntry[];
+  hidden: boolean;
+}): React.ReactElement | null {
+  const t = useTranslations("GameDialog");
+  if (hidden || scores.length === 0) return null;
   return (
     <>
       <Divider sx={{ my: 2 }} />

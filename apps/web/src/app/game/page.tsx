@@ -40,7 +40,15 @@ function GamePageInner(): React.ReactElement {
   if (BENCH_ALLOWED && params.get("bench") === "1" && benchApi && benchUser) {
     return <BenchSurface apiUrl={benchApi} userId={benchUser} />;
   }
-  return <GameSurface hostConfig={HOST_CONFIG} guestFlow guestAuthUrl={`${API_URL}/auth/guest`} />;
+  return (
+    <GameSurface
+      hostConfig={HOST_CONFIG}
+      guestFlow
+      guestAuthUrl={`${API_URL}/auth/guest`}
+      // a party's host plays over an unlagged link with ?fairLink=off (A/B play)
+      fairLink={params.get("fairLink") !== "off"}
+    />
+  );
 }
 
 /**

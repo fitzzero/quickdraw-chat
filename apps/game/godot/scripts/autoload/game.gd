@@ -18,6 +18,12 @@ extends Node
 ## stream are public. That is the point of the demo: commands are ordinary
 ## quickdraw methods callable from any surface. In the editor (no wrapper)
 ## the game auto-joins for fast iteration.
+##
+## A party (host mode, Net.party_code) is another world, which a player's
+## page hosts: joinParty puts this socket in the party's room, and the
+## party's feeds (partyWorld: raw snapshots; partyEvents: joins, leaves,
+## deaths, the leaderboard) and its input (partyInput) go to the room's host
+## over a peer link the client opens itself (each call's `room`).
 
 signal world_ready(bootstrap: Dictionary)
 signal join_failed(error: String)
@@ -30,12 +36,18 @@ signal player_joined(meta: Dictionary)
 signal player_left(id: String)
 signal player_died(death: Dictionary)
 signal leaderboard_updated(entries: Array)
+## The party ended: its host closed it ("closed") or left ("hostLeft"), or
+## joining it found it ended ("ended").
+signal party_ended(reason: String)
 
 var world_id := ""
 var chat_id := ""
 var my_id := ""
 var bounds := Vector2(2400, 2400)
 var is_in_world := false
+## The party's app room, "" in the world: the party's feeds and input go to
+## its host, the room's.
+var party_room := ""
 
 ## Unpacks the world stream (snapshot_decoder.gd): its snapshots name the
 ## players by the stream's id table, which the seed and each snapshot
@@ -312,6 +324,10 @@ func _enter_world() -> void:
 
 
 func _enter_world_once() -> void:
+	if not Net.party_code.is_empty():
+		# a party's host runs the default tunables (PARTY_TUNABLES): no definition
+		await _enter_party_once()
+		return
 	await _load_tunables()
 
 	var world: Dictionary = await Net.client.call_method(
@@ -355,6 +371,50 @@ func _enter_world_once() -> void:
 	Net.notify_web_ready()
 
 
+## A party: joinParty puts this socket in the party's room and names its
+## host. Its bootstrap holds no world, so it goes out first (main.gd clears
+## the world with it); the party's feeds then come from the host, their
+## seeds with the names (partyEvents first) and every snake and all the food
+## (partyWorld). A party that ended answers NOT_FOUND: no retry then.
+func _enter_party_once() -> void:
+	var entry: Dictionary = await Net.client.call_method(
+		"gameService", "joinParty", {"code": Net.party_code}
+	)
+	if not entry.get("ok", false):
+		var error: Variant = entry.get("e")
+		if error is Dictionary and (error as Dictionary).get("code") == "NOT_FOUND":
+			party_ended.emit("ended")
+		else:
+			join_failed.emit(_error_of(entry, "Failed to join the party"))
+		return
+
+	var bootstrap := entry["d"] as Dictionary
+	world_id = str(bootstrap["worldId"])
+	party_room = "party:" + world_id
+	chat_id = str(bootstrap.get("chatId", ""))
+	var b := bootstrap["bounds"] as Dictionary
+	bounds = Vector2(float(b["w"]), float(b["h"]))
+	is_in_world = true
+	world_ready.emit(bootstrap)
+
+	# Held feeds: the client subscribes again by itself each time a link to
+	# the room's host opens (a reconnect)
+	for stream in ["partyEvents", "partyWorld"]:
+		if Net.client.is_subscribed("gameService", stream, world_id, party_room):
+			continue
+		var sub: Dictionary = await Net.client.subscribe_stream(
+			"gameService", stream, world_id, party_room
+		)
+		if not sub.get("ok", false):
+			join_failed.emit(_error_of(sub, "The party's host sent no %s" % stream))
+			return
+
+	# Editor/desktop and check:godot play at once; on the web the page's dialog does
+	if Net.auto_spawn:
+		await Net.client.call_method("gameService", "playParty", {"worldId": world_id})
+	Net.notify_web_ready()
+
+
 ## A failed reply's `e`, as "CODE: message".
 func _error_of(reply: Dictionary, fallback: String) -> String:
 	var error: Variant = reply.get("e")
@@ -376,16 +436,28 @@ func _load_tunables() -> void:
 			GameConfig.apply_tunables(definition["data"] as Dictionary)
 
 
-## A snapshot pushed to the world stream (`qd:stream`, 20Hz, volatile), packed.
+## A snapshot pushed to the world stream (`qd:stream`, 20Hz, volatile),
+## packed; or a party's, raw, or its event, from the party's host.
 func _on_stream_item(service: String, stream: String, _scope: String, item: Variant) -> void:
-	if service == "gameService" and stream == "world" and item is Dictionary:
-		var snapshot := _decoder.decode(str((item as Dictionary).get("b", "")))
-		if snapshot.is_empty():
+	if service != "gameService" or not item is Dictionary:
+		return
+	var snapshot: Dictionary
+	match stream:
+		"world":
+			snapshot = _decoder.decode(str((item as Dictionary).get("b", "")))
+		"partyWorld":
+			snapshot = item as Dictionary
+		"partyEvents":
+			_on_party_event(item as Dictionary)
 			return
-		clock_observe(int(snapshot.get("tick", 0)), float(snapshot.get("t", 0.0)))
-		if Bench.enabled:
-			Bench.on_snapshot(int(snapshot.get("tick", 0)))
-		snapshot_received.emit(snapshot)
+		_:
+			return
+	if snapshot.is_empty():
+		return
+	clock_observe(int(snapshot.get("tick", 0)), float(snapshot.get("t", 0.0)))
+	if Bench.enabled:
+		Bench.on_snapshot(int(snapshot.get("tick", 0)))
+	snapshot_received.emit(snapshot)
 
 
 ## The world stream's seed, on subscribing, after every reconnect and on a
@@ -395,19 +467,42 @@ func _on_stream_item(service: String, stream: String, _scope: String, item: Vari
 ## once), so it goes out as a keyframe, never as a snapshot. Not a tick's
 ## arrival (it carries no send time), so the clock skips it.
 func _on_stream_seeded(service: String, stream: String, _scope: String, seed: Array) -> void:
-	if service != "gameService" or stream != "world":
+	if service != "gameService" or not stream in ["world", "partyWorld", "partyEvents"]:
 		return
 	for item in seed:
-		if item is Dictionary:
-			var keyframe := _decoder.decode(str((item as Dictionary).get("b", "")))
-			if not keyframe.is_empty():
-				world_keyframe.emit(keyframe)
+		if not item is Dictionary:
+			continue
+		if stream == "partyEvents":
+			_on_party_event(item as Dictionary)
+			continue
+		var keyframe: Dictionary = (
+			item as Dictionary
+			if stream == "partyWorld"
+			else _decoder.decode(str((item as Dictionary).get("b", "")))
+		)
+		if not keyframe.is_empty():
+			world_keyframe.emit(keyframe)
+
+
+## One of a party's events, from its host: what the world's events are to
+## the server's world (its seed has a `joined` for every player).
+func _on_party_event(event: Dictionary) -> void:
+	match str(event.get("kind", "")):
+		"joined":
+			player_joined.emit(event)
+		"left":
+			player_left.emit(str(event.get("id", "")))
+		"death":
+			player_died.emit(event)
+		"leaderboard":
+			leaderboard_updated.emit(event.get("entries", []) as Array)
 
 
 ## A snapshot named a player by an introduction this client missed (it lost
 ## more snapshots than they repeat it in): a keyframe names them all again.
 func world_needs_keyframe() -> bool:
-	return _decoder.needs_keyframe()
+	# a party's snapshots name their players inline
+	return party_room.is_empty() and _decoder.needs_keyframe()
 
 
 ## The world's reliable events (`qd:event`), heard while this socket is in its room.
@@ -424,6 +519,17 @@ func _wire_events() -> void:
 	Net.client.on_event("gameService", "leaderboard", func(entries: Variant) -> void:
 		if entries is Array:
 			leaderboard_updated.emit(entries as Array))
+	# A party's end, from the server, to its room
+	Net.client.on_event("gameService", "partyClosed", func(ended: Variant) -> void:
+		_on_party_end(ended, "closed"))
+	Net.client.on_event("gameService", "hostLeft", func(ended: Variant) -> void:
+		_on_party_end(ended, "hostLeft"))
+
+
+func _on_party_end(ended: Variant, reason: String) -> void:
+	if ended is Dictionary and str((ended as Dictionary).get("worldId", "")) == world_id:
+		is_in_world = false
+		party_ended.emit(reason)
 
 
 ## One message on the input channel: the newest frame last, with up to three
@@ -434,8 +540,12 @@ func send_inputs(frames: Array) -> void:
 	if Bench.enabled:
 		Bench.on_input(int(frames[-1]["seq"]))
 	# `qd:ch`: fire and forget, never acknowledged; the server drops it unless
-	# this socket is in the world's room
-	Net.client.send_channel("gameService", "input", {"frames": frames})
+	# this socket is in the world's room. A party's goes to its host, on the
+	# link's fast channel
+	if party_room.is_empty():
+		Net.client.send_channel("gameService", "input", {"frames": frames})
+	else:
+		Net.client.send_channel("gameService", "partyInput", {"frames": frames}, party_room)
 
 
 ## Missed more snapshots than the food window repeats: subscribe to the
@@ -445,7 +555,10 @@ func send_inputs(frames: Array) -> void:
 func resync_world() -> bool:
 	if world_id.is_empty():
 		return false
-	var sub: Dictionary = await Net.client.subscribe_stream("gameService", "world", world_id)
+	var stream := "world" if party_room.is_empty() else "partyWorld"
+	var sub: Dictionary = await Net.client.subscribe_stream(
+		"gameService", stream, world_id, party_room
+	)
 	return sub.get("ok", false)
 
 
@@ -453,4 +566,6 @@ func resync_world() -> bool:
 func respawn() -> void:
 	if world_id.is_empty():
 		return
-	await Net.client.call_method("gameService", "respawn", {"worldId": world_id})
+	# a party's host respawns the snake on the server's word (partyPlayer)
+	var method := "respawn" if party_room.is_empty() else "playParty"
+	await Net.client.call_method("gameService", method, {"worldId": world_id})

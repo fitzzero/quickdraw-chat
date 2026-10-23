@@ -18,12 +18,14 @@ extends SceneTree
 ##   blackout       with QD_FOOD_BLACKOUT=1: main.gd hears no snapshot for
 ##                  BLACKOUT_FOR_S (start, end), once, BLACKOUT_AFTER_S after
 ##                  the first bootstrap, as if the stream dropped them
-##   death, leaderboard, left   the world's events
+##   death, leaderboard, left   the world's events (a party's, from its host)
+##   party_ended    a party's end: its host closed it or left ("reason")
 ##   disconnected, refused      the connection
 ##
 ## Env: QUICKDRAW_DEV_USER_ID and QUICKDRAW_API_URL (read by net.gd),
-## QD_SESSION_SECONDS (default 90), after which it quits on its own, and
-## QD_FOOD_BLACKOUT.
+## QUICKDRAW_PARTY_CODE (net.gd: a party instead of the world, over the
+## relay to its host), QD_SESSION_SECONDS (default 90), after which it quits
+## on its own, and QD_FOOD_BLACKOUT.
 ##
 ## The game's scripts name the autoloads (Game, Net) as globals, which a
 ## --script main loop compiles before they exist: this script refers to them
@@ -89,6 +91,8 @@ func _wire() -> void:
 		_probe({"kind": "leaderboard", "ids": ids}))
 	_game.connect("player_left", func(id: String) -> void:
 		_probe({"kind": "left", "id": id}))
+	_game.connect("party_ended", func(reason: String) -> void:
+		_probe({"kind": "party_ended", "reason": reason}))
 
 
 func _process(delta: float) -> bool:

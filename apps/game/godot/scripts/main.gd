@@ -39,6 +39,7 @@ func _ready() -> void:
 		_player_meta[str(meta["id"])] = meta)
 	Game.player_left.connect(_on_player_left)
 	Game.player_died.connect(_on_player_died)
+	Game.party_ended.connect(_on_party_ended)
 	_set_status("Connecting…")
 
 
@@ -100,6 +101,12 @@ func _on_world_ready(bootstrap: Dictionary) -> void:
 		_update_spectate_target(bootstrap.get("snaps", []))
 		_camera.position = _spectate_target
 		_camera.reset_smoothing()
+
+
+## The party ended: the page's dialog takes over (it boots the engine
+## again into the world); headless, the session ends.
+func _on_party_ended(_reason: String) -> void:
+	_set_status("The party has ended")
 
 
 func _on_join_failed(error: String) -> void:

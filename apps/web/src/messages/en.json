@@ -267,7 +267,11 @@
   "GameHud": {
     "leaderboard": "Leaderboard",
     "anonymous": "Anonymous",
-    "rankedName": "{rank}. {name}"
+    "rankedName": "{rank}. {name}",
+    "partyLeaderboard": "Party",
+    "rtt": "{ms} ms",
+    "fairLink": "Fair link {ms} ms",
+    "fairLinkOff": "Fair link off"
   },
   "GameChat": {
     "title": "🌍 Game Server",
@@ -295,7 +299,20 @@
     "logInHint": "Log in for persistent stats & high scores",
     "topScores": "All-time best",
     "anonymous": "Anonymous",
-    "highScores": "All high scores"
+    "highScores": "All high scores",
+    "playWithFriends": "Play with friends",
+    "hostParty": "Host a party",
+    "joinParty": "Join",
+    "partyCodePlaceholder": "Party code (BAP-…)",
+    "partyCodeLabel": "Party code",
+    "partyHosting": "You host this party",
+    "partyJoined": "You joined this party",
+    "partyShareHint": "Share the code: friends join with it. The party runs in this tab.",
+    "leaveParty": "Leave the party",
+    "endParty": "End the party",
+    "partyNotFound": "No open party has that code.",
+    "partyClosed": "The party ended: its host closed it.",
+    "partyHostLeft": "The party ended: its host left."
   },
   "ScoresPage": {
     "title": "High Scores",

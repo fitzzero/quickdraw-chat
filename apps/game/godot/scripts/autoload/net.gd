@@ -11,7 +11,7 @@ extends Node
 ## 2. Editor/desktop: QUICKDRAW_DEV_USER_ID env var or user://dev.json
 ##    ({"api_url": ..., "user_id": ...}) against the local API's dev
 ##    credentials (ENABLE_DEV_CREDENTIALS=true, the dev default). An unknown
-##    user id is refused (no reconnect).
+##    user id is refused (no reconnect). QUICKDRAW_PARTY_CODE joins a party.
 
 ## The server said hello (again after every reconnect): join the world now,
 ## since a new socket is in no room until a call joins it.
@@ -22,6 +22,10 @@ var api_url := "http://localhost:4000"
 var socket_path := "/socket.io"
 var auth: Dictionary = {}
 var world_slug := "global"
+## A party to join instead of the world (host mode), by its code: the page's
+## QuickdrawHost.party (it boots the engine again for each), or
+## QUICKDRAW_PARTY_CODE in the editor and check:godot. "" for the world.
+var party_code := ""
 var config_ok := false
 ## Editor/desktop runs auto-join on connect (no wrapper dialog to drive it).
 var auto_spawn := true
@@ -71,6 +75,9 @@ func _resolve_web_config() -> void:
 		socket_path = str(host.socketPath)
 	if host.worldSlug:
 		world_slug = str(host.worldSlug)
+	var party: Variant = host.party
+	if party is JavaScriptObject and (party as JavaScriptObject).code:
+		party_code = str((party as JavaScriptObject).code)
 	# Token auth (Discord Activity); otherwise the cookie rides the handshake
 	if host.authToken:
 		auth = {"token": str(host.authToken)}
@@ -93,6 +100,7 @@ func _resolve_web_config() -> void:
 func _resolve_dev_config() -> void:
 	var user_id := OS.get_environment("QUICKDRAW_DEV_USER_ID")
 	var env_api := OS.get_environment("QUICKDRAW_API_URL")
+	party_code = OS.get_environment("QUICKDRAW_PARTY_CODE")
 	if not env_api.is_empty():
 		api_url = env_api
 
