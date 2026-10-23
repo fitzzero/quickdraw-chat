@@ -16,6 +16,73 @@ Template:
 
 ---
 
+## 2026-10-23 — Party worlds over peer links (the pack's G6) [KEPT]
+
+- Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at
+  3677ccf (104e037 the server half, bfa72e9 the clients, 579ebed the
+  party scenarios, 940d77e, 62b437c and 3677ccf the fixes from the
+  review).
+- Change: a second topology on the same contract (quickdraw-core 5.1.3's
+  host mode). A player's page hosts a party world (`PartyWorld`: the
+  shared `GameWorldSim` and `GameLoop`, ticked by a worker) and serves it
+  over peer links: WebRTC where it connects, the server's relay
+  otherwise. Players send `partyInput` and read `partyWorld` (raw
+  snapshots, volatile) and `partyEvents` (reliable). The fair link lags
+  the host's own user's links by the other players' median one-way trip,
+  at most 100 ms (`settleFairLink`, which the page and the harness share).
+- Scenarios (new, `--runs 3`, at 3677ccf): `party-3p-lossy` and
+  `party-3p-unfair`. Three players on loopback links to a host in
+  process, 50 ms each way plus up to 15 ms, 5% of `fast` messages lost;
+  the host's own user on a local link, which the harness lags as the
+  page does (or not, in `party-3p-unfair`). Their cards are the first
+  party baselines (label `g6-final`).
+- Headline, `party-3p-lossy`: teleportsPerMin, hardSnapsPerMin and
+  food.mismatchAtEnd 0 for every client; `packet.gapRate` 4.6–5.3% for
+  the players (the link's 5%, measured at last; 0 for the host's own
+  user, whose link loses nothing); starvedRate 3.4%. Fairness holds: the
+  host's own user's `inputAckRttMs` p50 147 ms against the players'
+  median 144 ms (the plan's bound: within 10 ms), `predictionErrorPx` p95
+  16.4 px against 14.8 px (+11%; the bound: within 25%).
+- Headline, `party-3p-unfair` (no fair link): the host's own user's ack
+  p50 33 ms against 142 ms, prediction error p95 3.2 px against 16.2 px.
+  That is the advantage the fair link removes. The 33 ms is the wait for
+  the host's next tick, not a link.
+- The fair link evens the trip, not the jitter: the host's own user's
+  link has none, so it plays the others back 135 ms behind, where the
+  players play everyone 155–160 ms behind. `remoteVsRemotePx` p95 is 8.4
+  px (3.0 when the host's own user had a player's link). Follow-up
+  hypothesis: lag the host's links with the players' jitter too.
+- Prediction error p95 is 9.6–17.3 px over the four: under the plan's
+  15 px for 2 of 4. An A/B without loss (all four on the same link with
+  `loss: 0`, 3 runs) measured 9.7–17.9 px against 10.9–16.9 px with 5%
+  loss: the loss adds coasted ticks (starved 0.9% → 4.9%), not
+  prediction error. The error is the client's lead over the host, which
+  grows with the round trip (server scenarios at 130–160 ms measure
+  9–20 px with no loss: baseline-3p-100ms bot-c 13.6, mixed-3p bot-b
+  19.7). So the 15 px bound is a bound on the round trip.
+- Harness: every party bot starts its input clock 10 ms after a host
+  tick. Before that, joins in a fixed order over seeded links gave each
+  bot the same phase run after run: in four run sets the host's own
+  user's ack p50 was 127–154 ms against the players' 151–153 ms, and
+  bot-a's always 155–157 ms. Aligned, the four span 141–148 ms. The bot
+  client speaks to a `BotTransport` (the server's socket, or a party's
+  loopback end): `control-0ms --runs 3` after the refactor passes its
+  baseline with default thresholds.
+- Host mode's own framing is checked outside the bench: `check:godot`'s
+  party session (a Node host on `defineHost`, two headless Godot players
+  over the relay: moves, a death on `partyEvents`, a respawn,
+  `partyClosed`), and two Chromium pages on `/game` (connected
+  `RTCPeerConnection`s, the party's leaderboard with each player's round
+  trip, a fair link of about half the guest's round trip, "Fair link off"
+  with `?fairLink=off`, a party that ends when its host leaves the page
+  or goes offline).
+- quickdraw 5.1.3 findings: `qd.rooms` has no `clearHost` or `hostOf` at
+  run time (the host-leave hook needs neither), and a host's own feed of
+  a room it hosts gets no seed or items when it subscribed before
+  `serve` (the page subscribes once it serves). `peers: true` is one
+  switch for the whole server.
+- Gate: the party baselines are this run's cards (label `g6-final`).
+
 ## 2026-10-23 — H7: Packed snapshots (the pack's G4) [KEPT]
 
 - Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at

@@ -137,3 +137,15 @@ players: one subtraction when the action starts. Source: Project B (studied
 world today (direction and boost have no windup); applies the day a fork
 adds abilities. Measure with ownVsRemotePx around the action and a new
 actionLandedLateMs (the actor's expected landing tick against the server's).
+
+## 9. A fair link with the players' jitter
+
+A party's fair link lags the host's own user's links by the players' median
+one-way trip, with no jitter (`settleFairLink`, `setLag({ ms })`). The host's
+own user then plays the others back about 20 ms sooner than its players do
+(`party-3p-lossy`: 135 ms against 155–160 ms), since a jitter-free link needs
+a smaller playback buffer. Lag its links with the players' median jitter
+too (`setLag({ ms, jitter })`, the jitter from each link's clock), so its
+playback delay matches theirs. Measure with `party-3p-lossy`: the host's
+own user's renderLatencyMs against the players', and remoteVsRemotePx p95
+(8.4 px, against 3.0 px when the host's own user has a player's link).
