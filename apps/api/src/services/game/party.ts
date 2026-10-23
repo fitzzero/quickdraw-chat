@@ -245,12 +245,12 @@ export async function openPartyForJoin(db: Db, userId: string, code: string): Pr
       retryAfterMs: 60_000,
     });
   }
-  try {
-    return await openPartyByCode(db, code);
-  } catch (error) {
-    joinMisses.set(userId, misses + 1);
-    throw error;
-  }
+  // counted before the lookup, so guesses sent at once each count; a code
+  // that finds a party gives its count back
+  joinMisses.set(userId, misses + 1);
+  const party = await openPartyByCode(db, code);
+  joinMisses.set(userId, Math.max(0, (joinMisses.get(userId) ?? 1) - 1));
+  return party;
 }
 
 /** Refuses a user a party whose room holds PARTY_MAX_USERS others. */

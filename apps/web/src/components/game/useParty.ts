@@ -143,6 +143,8 @@ export function useParty(options: {
   const hostParty = qd.gameService.hostParty.useMutation();
   /** The party the page is ending or leaving itself: its end is no news. */
   const leaving = React.useRef<string | null>(null);
+  /** The party whose end the page already shows: a later word of its end is no news. */
+  const endedWorld = React.useRef<string | null>(null);
   useEndOnUnmount(party);
 
   // A guest's socket in the party's room on every connection (a new socket
@@ -183,7 +185,10 @@ export function useParty(options: {
   };
   /** The party ended, unless the page is ending or leaving it itself. */
   const endedBy = (worldId: string, end: PartyEnd): void => {
-    if (worldId === party?.worldId && leaving.current !== worldId) finish(end);
+    if (worldId !== party?.worldId || leaving.current === worldId) return;
+    if (endedWorld.current === worldId) return;
+    endedWorld.current = worldId;
+    finish(end);
   };
   qd.gameService.partyClosed.useEvent((closed) => endedBy(closed.worldId, "closed"));
   qd.gameService.hostLeft.useEvent((left) => endedBy(left.worldId, "hostLeft"));
@@ -216,6 +221,7 @@ export function useParty(options: {
     leaderboard: latestBoard(events.items),
     host: () => {
       leaving.current = null;
+      endedWorld.current = null;
       setError(undefined);
       setEnded(null);
       hostParty.mutateAsync({}).then(
@@ -225,6 +231,7 @@ export function useParty(options: {
     },
     join: (code) => {
       leaving.current = null;
+      endedWorld.current = null;
       setError(undefined);
       setEnded(null);
       setJoinCode(code);

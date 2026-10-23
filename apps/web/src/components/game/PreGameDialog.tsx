@@ -208,17 +208,18 @@ export function PreGameDialog(props: PreGameDialogProps): React.ReactElement {
   );
 }
 
-/**
- * Playing with friends: in a party, its code to share and the way out;
- * otherwise hosting one, or joining one by its code. A party is hosted by
- * a player's browser (host mode), so a signed-out visitor sees none of it.
- */
 /** What the dialog says of why the last party ended. */
 const PARTY_END_TEXT = {
   closed: "partyClosed",
   hostLeft: "partyHostLeft",
   ended: "partyOver",
 } as const satisfies Record<NonNullable<PreGameDialogProps["partyEnded"]>, string>;
+
+/**
+ * Playing with friends: in a party, its code to share and the way out;
+ * otherwise hosting one, or joining one by its code. A party is hosted by
+ * a player's browser (host mode), so a signed-out visitor sees none of it.
+ */
 
 function PartySection(props: PreGameDialogProps): React.ReactElement | null {
   const t = useTranslations("GameDialog");

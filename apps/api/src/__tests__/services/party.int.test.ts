@@ -231,6 +231,20 @@ describe("hosting and joining a party", () => {
     await expectCode(guesser.call.gameService.joinParty({ code: party.code }), "RATE_LIMITED");
   });
 
+  it("counts wrong codes sent at once, each of them", async () => {
+    const { party } = await hosting(users.regular.id);
+    const guesser = await connect((await createTestUser()).id);
+    const guesses = Array.from({ length: 12 }, () =>
+      guesser.call.gameService.joinParty({ code: "BAP-ZZZZ" }).then(
+        () => "ok",
+        (failure: unknown) => (failure as QuickdrawError).code,
+      ),
+    );
+    const codes = await Promise.all(guesses);
+    expect(codes.filter((code) => code === "RATE_LIMITED").length).toBeGreaterThanOrEqual(2);
+    await expectCode(guesser.call.gameService.joinParty({ code: party.code }), "RATE_LIMITED");
+  });
+
   it("joining another party takes the socket out of the first: its host hears the user leave", async () => {
     const first = await hosting(users.regular.id);
     const second = await hosting(users.admin.id);
