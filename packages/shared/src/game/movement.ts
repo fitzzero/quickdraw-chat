@@ -2,7 +2,7 @@
  * Shared snake movement step — the single source of truth for one fixed-dt
  * head/direction/length integration.
  *
- * Extracted verbatim from GameWorldSim.moveSnake (apps/api) so the server
+ * Extracted verbatim from GameWorldSim.moveSnake (./world.ts) so the server
  * sim, headless bench bots, and any TS client prediction all run identical
  * math. The Godot client mirrors this in game_config.gd `sim_step()` — keep
  * all three in lockstep when tuning movement.

@@ -9,8 +9,10 @@ import { qd } from "../../lib/quickdraw";
 import { ChatWindow } from "../chat";
 
 interface GameChatOverlayProps {
-  /** The world's chat (from gameService.getWorld). */
+  /** The world's chat (from gameService.getWorld), or a party's. */
   chatId: string;
+  /** The party's code, when the chat is a party's. */
+  partyCode?: string;
 }
 
 /**
@@ -23,7 +25,7 @@ interface GameChatOverlayProps {
  * dialog. ChatWindow is reused as-is — this wrapper adds the unread badge
  * and expand/minimize with canvas focus handoff.
  */
-export function GameChatOverlay({ chatId }: GameChatOverlayProps): React.ReactElement {
+export function GameChatOverlay({ chatId, partyCode }: GameChatOverlayProps): React.ReactElement {
   const t = useTranslations("GameChat");
   const [open, setOpen] = React.useState(false);
 
@@ -91,7 +93,9 @@ export function GameChatOverlay({ chatId }: GameChatOverlayProps): React.ReactEl
           borderColor: "divider",
         }}
       >
-        <Typography variant="subtitle2">{t("title")}</Typography>
+        <Typography variant="subtitle2">
+          {partyCode === undefined ? t("title") : t("partyTitle", { code: partyCode })}
+        </Typography>
         <IconButton size="small" onClick={handleMinimize} aria-label={t("minimize")}>
           <CloseIcon fontSize="small" />
         </IconButton>

@@ -1,0 +1,17 @@
+{
+  "description": "G3, the adaptive interpolation delay, against the baselines made before it (g2-final). Each client renders as far behind as its own link needs, so clients on unequal or jittery links render one snake at different moments (remoteVsRemotePx, ownVsRemotePx), a delay that follows the link leaves more residual after the best constant lag (shapeErrorPx), and a stalled link renders further behind (renderLatencyMs, bursty-3p). The user accepted that trade on 2026-10-22. Five floors are raised, each above the largest change the G3 sweep measured: remoteVsRemotePx p95 (25) and p50 (20), ownVsRemotePx p95 (20), shapeErrorPx p95 (3) and renderLatencyMs (20). The others restate DEFAULT_THRESHOLDS, since this file replaces the whole absoluteFloor map. Use it for G3 runs against pre-G3 baselines only, and the default thresholds against the baselines G3 made.",
+  "absoluteFloor": {
+    "divergence.remoteVsRemotePx.p95": 25,
+    "divergence.remoteVsRemotePx.p50": 20,
+    "divergence.ownVsRemotePx.p95": 20,
+    "smoothness.teleportsPerMin": 0.2,
+    "smoothness.jerkRms": 25,
+    "smoothness.hardSnapsPerMin": 0.2,
+    "packet.gapRate": 0.005,
+    "packet.inputAckRttMs.p95": 3,
+    "fidelity.shapeErrorPx.p95": 3,
+    "fidelity.renderLatencyMs": 20,
+    "server.tickDurMs.p95": 0.05,
+    "server.inputQueue.depthP95": 1
+  }
+}

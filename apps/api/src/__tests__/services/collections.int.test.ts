@@ -389,6 +389,7 @@ describe("myChats (each member's list, through the membership table)", () => {
     warmUp.close();
     const member = await app.connect(user(users.regular.id));
     let total = 0;
+    // a self list follows its service's policy (quickdraw 5.1.1): the page reads its filter too
     await expectBudget(
       async () => {
         total = (await snapshotOf(member, "chatService", "myChats", users.regular.id)).total;

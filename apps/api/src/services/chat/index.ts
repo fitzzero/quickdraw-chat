@@ -16,11 +16,43 @@ import {
   type MembershipChange,
 } from "./membership.js";
 // ── quickdraw-game:start ──
-import { gameContract } from "@project/shared";
+import type { Presence } from "@fitzzero/quickdraw-core/server";
+import { PARTY_WORLD_KIND, gameContract, partyRoom } from "@project/shared";
 import { joinChat } from "./membership.js";
 // ── quickdraw-game:end ──
 
 type Db = typeof appDb;
+
+// ── quickdraw-game:start ──
+/** A world's row, as joinWorldChat reads it. */
+interface WorldChatRow {
+  readonly chatId: string | null;
+  readonly kind: string;
+  readonly closedAt: Date | null;
+}
+
+/**
+ * The chat of a world a user joins. A party's chat is its players': an open
+ * party whose room holds the user (joinParty puts them there first), and it
+ * may be gone (the party's host is its Admin, who may delete it).
+ */
+async function worldChatFor(
+  presence: Presence,
+  userId: string,
+  db: Db,
+  worldId: string,
+  world: WorldChatRow | null,
+): Promise<string | null> {
+  if (world === null) return null;
+  if (world.kind !== PARTY_WORLD_KIND) return world.chatId;
+  if (world.closedAt !== null || !(await presence.users(partyRoom(worldId))).includes(userId)) {
+    throw new QuickdrawError("FORBIDDEN", "Join the party first");
+  }
+  if (world.chatId === null) return null;
+  const chat = await db.chat.findUnique({ where: { id: world.chatId }, select: { id: true } });
+  return chat?.id ?? null;
+}
+// ── quickdraw-game:end ──
 
 /**
  * A chat's roster room: the sockets showing the chat's members, which
@@ -230,14 +262,21 @@ export const chatService = qd.defineService(chatContract, {
     // ── quickdraw-game:start ──
     joinWorldChat: {
       // every signed-in user may be in a world (the game's policy gives
-      // everyone Read on every world), and so in its chat
+      // everyone Read on every world), and so in its chat; a party's chat
+      // is for the users its room holds
       access: { scope: "Read", of: gameContract, id: "worldId" },
       handler: async ({ input, ctx, db }) => {
         const world = await db.gameWorld.findUnique({
           where: { id: input.worldId },
-          select: { chatId: true },
+          select: { chatId: true, kind: true, closedAt: true },
         });
-        const chatId = world?.chatId ?? null;
+        const chatId = await worldChatFor(
+          ctx.presence,
+          ctx.principal.userId,
+          db,
+          input.worldId,
+          world,
+        );
         const joined =
           chatId !== null && (await joinChat(db, chatId, ctx.principal.userId, "Read"));
         // The world chat holds every player: its roster is read again only

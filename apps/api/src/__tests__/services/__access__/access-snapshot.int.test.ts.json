@@ -169,15 +169,15 @@
       "stranger": "FORBIDDEN"
     },
     "chatService.joinWorldChat": {
-      "admin": "ok",
-      "agent": "ok",
-      "agentAdmin": "ok",
+      "admin": "FORBIDDEN",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
       "anonymous": "UNAUTHENTICATED",
-      "member": "ok",
-      "moderator": "ok",
-      "owner": "ok",
-      "serviceModerator": "ok",
-      "stranger": "ok"
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
     },
     "chatService.leaveChat": {
       "admin": "NOT_FOUND",
@@ -564,6 +564,17 @@
       "serviceModerator": "FORBIDDEN",
       "stranger": "FORBIDDEN"
     },
+    "gameService.closeParty": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "ok",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
+    },
     "gameService.getHighScores": {
       "admin": "NOT_FOUND",
       "agent": "NOT_FOUND",
@@ -597,6 +608,17 @@
       "serviceModerator": "ok",
       "stranger": "ok"
     },
+    "gameService.hostParty": {
+      "admin": "VALIDATION",
+      "agent": "VALIDATION",
+      "agentAdmin": "VALIDATION",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "VALIDATION",
+      "moderator": "VALIDATION",
+      "owner": "VALIDATION",
+      "serviceModerator": "VALIDATION",
+      "stranger": "VALIDATION"
+    },
     "gameService.joinGame": {
       "admin": "NOT_FOUND",
       "agent": "NOT_FOUND",
@@ -608,6 +630,17 @@
       "serviceModerator": "NOT_FOUND",
       "stranger": "NOT_FOUND"
     },
+    "gameService.joinParty": {
+      "admin": "VALIDATION",
+      "agent": "VALIDATION",
+      "agentAdmin": "VALIDATION",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "VALIDATION",
+      "moderator": "VALIDATION",
+      "owner": "VALIDATION",
+      "serviceModerator": "VALIDATION",
+      "stranger": "VALIDATION"
+    },
     "gameService.leaveGame": {
       "admin": "NOT_FOUND",
       "agent": "NOT_FOUND",
@@ -618,6 +651,28 @@
       "owner": "NOT_FOUND",
       "serviceModerator": "NOT_FOUND",
       "stranger": "NOT_FOUND"
+    },
+    "gameService.leaveParty": {
+      "admin": "ok",
+      "agent": "ok",
+      "agentAdmin": "ok",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "ok",
+      "moderator": "ok",
+      "owner": "ok",
+      "serviceModerator": "ok",
+      "stranger": "ok"
+    },
+    "gameService.playParty": {
+      "admin": "FORBIDDEN",
+      "agent": "FORBIDDEN",
+      "agentAdmin": "FORBIDDEN",
+      "anonymous": "UNAUTHENTICATED",
+      "member": "FORBIDDEN",
+      "moderator": "FORBIDDEN",
+      "owner": "FORBIDDEN",
+      "serviceModerator": "FORBIDDEN",
+      "stranger": "FORBIDDEN"
     },
     "gameService.respawn": {
       "admin": "NOT_FOUND",

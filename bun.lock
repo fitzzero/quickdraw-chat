@@ -5,8 +5,8 @@
     "": {
       "name": "quickdraw-chat",
       "devDependencies": {
-        "@fitzzero/quickdraw-lint": "^5.1.2",
-        "@fitzzero/quickdraw-skills": "^5.1.2",
+        "@fitzzero/quickdraw-lint": "^5.1.3",
+        "@fitzzero/quickdraw-skills": "^5.1.3",
         "@rallycry/conveyor-skills": "^1.0.4",
         "@types/node": "^24.0.0",
         "@typescript/native-preview": "^7.0.0-dev",
@@ -24,7 +24,7 @@
       "name": "@project/api",
       "version": "0.0.1",
       "dependencies": {
-        "@fitzzero/quickdraw-core": "^5.1.2",
+        "@fitzzero/quickdraw-core": "^5.1.3",
         "@project/bench": "workspace:*",
         "@project/db": "workspace:*",
         "@project/shared": "workspace:*",
@@ -81,7 +81,7 @@
         "@emotion/cache": "^11.11.0",
         "@emotion/react": "^11.11.0",
         "@emotion/styled": "^11.11.0",
-        "@fitzzero/quickdraw-core": "^5.1.2",
+        "@fitzzero/quickdraw-core": "^5.1.3",
         "@mui/icons-material": "^7.0.0",
         "@mui/material": "^7.0.0",
         "@project/shared": "workspace:*",
@@ -128,7 +128,7 @@
       "name": "@project/db",
       "version": "0.0.1",
       "dependencies": {
-        "@fitzzero/quickdraw-core": "^5.1.2",
+        "@fitzzero/quickdraw-core": "^5.1.3",
         "@prisma/adapter-pg": "^7.0.0",
         "@prisma/client": "^7.0.0",
         "pg": "^8.13.0",
@@ -147,12 +147,13 @@
       "name": "@project/shared",
       "version": "0.0.1",
       "dependencies": {
-        "@fitzzero/quickdraw-core": "^5.1.2",
+        "@fitzzero/quickdraw-core": "^5.1.3",
         "zod": "^4.2.0",
       },
       "devDependencies": {
         "tsup": "^8.0.0",
         "typescript": "^5.3.0",
+        "vitest": "^4.0.17",
       },
     },
   },
@@ -317,11 +318,11 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.27.3", "", { "os": "win32", "cpu": "x64" }, "sha512-4uJGhsxuptu3OcpVAzli+/gWusVGwZZHTlS63hh++ehExkVT8SgiEf7/uC/PclrPPkLhZqGgCTjd0VWLo6xMqA=="],
 
-    "@fitzzero/quickdraw-core": ["@fitzzero/quickdraw-core@5.1.2", "", { "dependencies": { "jose": "^6.0.0", "socket.io-parser": "^4.2.4" }, "peerDependencies": { "@electric-sql/pglite": "^0.3.16 || ^0.4.0 || ^0.5.0", "@opentelemetry/api": "^1.7.0", "@prisma/client": "^7.0.0", "@socket.io/redis-adapter": "^8.0.0", "@tanstack/react-query": "^5.20.0", "@testing-library/react": "^16.0.0", "express": "^4.18.0 || ^5.0.0", "express-rate-limit": "^8.0.0", "pg": "^8.13.0", "react": "^19.0.0", "redis": "^4.6.0 || ^5.0.0 || ^6.0.0", "socket.io": "^4.8.0", "socket.io-client": "^4.8.0", "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["@electric-sql/pglite", "@opentelemetry/api", "@prisma/client", "@socket.io/redis-adapter", "@tanstack/react-query", "@testing-library/react", "express", "express-rate-limit", "pg", "react", "redis", "socket.io", "socket.io-client", "zod"], "bin": { "quickdraw-docs": "dist/cli/quickdraw-docs.js" } }, "sha512-WHcGyWswQc//Bv297ba7TRnQ17gI+FMzJFJdBeYV2q+P0dFQ3e96nbubcmSEvJg5PlMsdIXXuWZVqk2jfzboLg=="],
+    "@fitzzero/quickdraw-core": ["@fitzzero/quickdraw-core@5.1.3", "", { "dependencies": { "jose": "^6.0.0", "socket.io-parser": "^4.2.4" }, "peerDependencies": { "@electric-sql/pglite": "^0.3.16 || ^0.4.0 || ^0.5.0", "@opentelemetry/api": "^1.7.0", "@prisma/client": "^7.0.0", "@socket.io/redis-adapter": "^8.0.0", "@tanstack/react-query": "^5.20.0", "@testing-library/react": "^16.0.0", "express": "^4.18.0 || ^5.0.0", "express-rate-limit": "^8.0.0", "pg": "^8.13.0", "react": "^19.0.0", "redis": "^4.6.0 || ^5.0.0 || ^6.0.0", "socket.io": "^4.8.0", "socket.io-client": "^4.8.0", "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["@electric-sql/pglite", "@opentelemetry/api", "@prisma/client", "@socket.io/redis-adapter", "@tanstack/react-query", "@testing-library/react", "express", "express-rate-limit", "pg", "react", "redis", "socket.io", "socket.io-client", "zod"], "bin": { "quickdraw-docs": "dist/cli/quickdraw-docs.js" } }, "sha512-t4vvfiy4qj0XGJ+7OcgbeYgeTTCXmfX3NoXZ2rHYhDxTeSDQkaVjvs9XXBoYoCOZNyLgiqUMdPd69x2iW6ETQg=="],
 
-    "@fitzzero/quickdraw-lint": ["@fitzzero/quickdraw-lint@5.1.2", "", { "peerDependencies": { "oxlint": "^1.52.0" }, "bin": { "quickdraw-lint": "bin/quickdraw-lint.mjs" } }, "sha512-Az/GhFINZa+ab3zvMf/i41F28Aw8geijAns+gzr9zeV4mx42W3HLDW5/Enfrg5e6qoBd7VEQOyivTtF5qjlI/Q=="],
+    "@fitzzero/quickdraw-lint": ["@fitzzero/quickdraw-lint@5.1.3", "", { "peerDependencies": { "oxlint": "^1.52.0" }, "bin": { "quickdraw-lint": "bin/quickdraw-lint.mjs" } }, "sha512-RK0A4/bWf+6bgd0B6Cac/P2nh5pq0b+xb1YZFKAiFeXoeIi883mIlxOg/NO78XnP9bcv0MkLuerX8awwzQweOQ=="],
 
-    "@fitzzero/quickdraw-skills": ["@fitzzero/quickdraw-skills@5.1.2", "", { "bin": { "quickdraw-skills": "bin/cli.mjs" } }, "sha512-R1UOljuPfqM1FBMIxhL885ri+fX+D1I7xxVpnUCfgBhniVRVEnkmgvz2nFhx+FXFGYS2f7/n6WVPv9D/YoXtsw=="],
+    "@fitzzero/quickdraw-skills": ["@fitzzero/quickdraw-skills@5.1.3", "", { "bin": { "quickdraw-skills": "bin/cli.mjs" } }, "sha512-UvNa0At6V0wT5SqUOzYMRP0F1sTKGVA1Ng77mgMltUpG5BgbIUs9ESRQALzpVUp38fvfZuUN+Qcy11I9yIQuWg=="],
 
     "@formatjs/ecma402-abstract": ["@formatjs/ecma402-abstract@3.1.1", "", { "dependencies": { "@formatjs/fast-memoize": "3.1.0", "@formatjs/intl-localematcher": "0.8.1", "decimal.js": "^10.6.0", "tslib": "^2.8.1" } }, "sha512-jhZbTwda+2tcNrs4kKvxrPLPjx8QsBCLCUgrrJ/S+G9YrGHWLhAyFMMBHJBnBoOwuLHd7L14FgYudviKaxkO2Q=="],
 

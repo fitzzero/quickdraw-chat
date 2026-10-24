@@ -3,11 +3,13 @@ extends SnakeBody
 ## The local player: client-side prediction + server reconciliation.
 ##
 ## Every fixed step (at the server tick rate) we sample input, send it on the
-## input channel, and immediately run the SAME movement rules as the server
-## (GameConfig.sim_step). When a snapshot arrives we drop inputs the server
-## has acknowledged (PlayerSnap.ack), re-simulate the unacknowledged rest
-## from the authoritative state, and fold any difference into a decaying
-## visual offset — corrections are invisible instead of rubber-bandy.
+## input channel with up to three unacknowledged frames before it (the server
+## steps each frame once, so a lost message's frames ride the next), and
+## immediately run the SAME movement rules as the server (GameConfig.sim_step).
+## When a snapshot arrives we drop inputs the server has acknowledged
+## (PlayerSnap.ack), re-simulate the unacknowledged rest from the
+## authoritative state, and fold any difference into a decaying visual
+## offset — corrections are invisible instead of rubber-bandy.
 
 const HARD_SNAP_DIST := 64.0
 const CORRECTION_HALF_LIFE := 0.08
@@ -72,7 +74,7 @@ func _step_once() -> void:
 	seq += 1
 	var frame := {"seq": seq, "dx": aim.x, "dy": aim.y, "boost": boost}
 	_pending.append(frame)
-	Game.send_input(seq, aim, boost)
+	Game.send_inputs(_pending.slice(maxi(0, _pending.size() - GameConfig.INPUT_FRAMES)))
 
 	var next: Dictionary = GameConfig.sim_step(sim_pos, sim_dir, aim, boost, sim_len, Game.bounds)
 	sim_pos = next["pos"]
@@ -92,6 +94,11 @@ func on_server_snap(snap: Dictionary) -> void:
 	var ack := int(snap.get("ack", 0))
 	while not _pending.is_empty() and int(_pending[0]["seq"]) <= ack:
 		_pending.pop_front()
+	# The server coasted through a stall of this client's: the ack ran more
+	# than a message's frames past its newest. Number the next frame after
+	# the ack, or the server ignores the frames until the client catches up
+	if ack > seq + GameConfig.INPUT_FRAMES:
+		seq = ack
 
 	# Replay unacknowledged inputs from the authoritative state
 	var rp := Vector2(float(snap["x"]), float(snap["y"]))

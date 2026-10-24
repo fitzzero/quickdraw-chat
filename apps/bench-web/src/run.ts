@@ -18,7 +18,7 @@ import { createInterface } from "node:readline";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { chromium, type Page } from "playwright";
+import { chromium, type Browser, type Page } from "playwright";
 import type { ClientTrace, RunTraces, Scenario, ServerTrace } from "@project/bench";
 import { computeScorecard, getScenario, printSummary, saveScorecard } from "@project/bench";
 
@@ -52,6 +52,12 @@ for (let i = 0; i < argv.length; i++) {
 }
 
 const scenario: Scenario = getScenario(scenarioName);
+// Tier 2 plays the server's world through latency proxies: a party's bots
+// play over loopback links, which only Tier 1 (bench:netcode) runs
+if (scenario.party !== undefined) {
+  console.error(`${scenario.name} is a party scenario: run it with bench:netcode (Tier 1)`);
+  process.exit(2);
+}
 
 function log(message: string): void {
   console.log(`[bench-web] ${message}`);
@@ -213,11 +219,14 @@ const traceOut = join(mkdtempSync(join(tmpdir(), "bench-web-")), "server-trace.j
 log(`starting bench server (scenario ${scenario.name})…`);
 const { child, clients } = await startStandalone(traceOut);
 
-const browser = await chromium.launch({ headless });
+let browser: Browser | undefined;
 const traces = new Map<string, ClientTrace>();
 const pages: { client: BenchClient; page: Page }[] = [];
 
+// The server stops in `finally`, whatever failed: a browser that would not
+// launch included
 try {
+  browser = await chromium.launch({ headless });
   for (const client of clients) {
     const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
     const page = await context.newPage();
@@ -261,7 +270,7 @@ try {
     if (trace) ingestBatches(trace, await drainPage(page));
   }
 } finally {
-  await browser.close();
+  await browser?.close();
   child.stdin?.write("stop\n");
   await new Promise<void>((r) => {
     child.once("exit", () => r());

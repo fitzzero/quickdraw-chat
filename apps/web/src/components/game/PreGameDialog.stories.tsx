@@ -57,3 +57,43 @@ export const EngineLoading: Story = {
 export const JoinRefused: Story = {
   args: { joinError: "Something went wrong. Try again." },
 };
+
+/** A signed-in player: host a party, or join one by its code. */
+export const PartyChoices: Story = {
+  args: { onHostParty: fn(), onJoinParty: fn(), onLeaveParty: fn() },
+};
+
+/** The page hosts a party: its code to share, and the way to end it. */
+export const PartyHost: Story = {
+  args: {
+    party: { code: "K7QD", role: "host" },
+    onHostParty: fn(),
+    onJoinParty: fn(),
+    onLeaveParty: fn(),
+  },
+};
+
+/** The page joined a party by its code. */
+export const PartyGuest: Story = {
+  args: {
+    party: { code: "K7QD", role: "guest" },
+    onHostParty: fn(),
+    onJoinParty: fn(),
+    onLeaveParty: fn(),
+  },
+};
+
+/** A code no open party has: the dialog says so. */
+export const PartyCodeNotFound: Story = {
+  args: {
+    onHostParty: fn(),
+    onJoinParty: fn(),
+    onLeaveParty: fn(),
+    partyError: "No open party has that code.",
+  },
+};
+
+/** The party ended under the player: its host left. */
+export const PartyEnded: Story = {
+  args: { onHostParty: fn(), onJoinParty: fn(), onLeaveParty: fn(), partyEnded: "hostLeft" },
+};

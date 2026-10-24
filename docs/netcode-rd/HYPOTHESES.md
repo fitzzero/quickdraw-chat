@@ -36,18 +36,25 @@ min-over-window) instead of nudging toward the freshest tick.
   propagating into rendered motion (`jerkRms` ↓ in bursty-3p).
 - Wire: +~8 bytes/snapshot. Cheap.
 
-## 3. Adaptive interpolation delay
+## 3. Adaptive interpolation delay — SHIPPED
 
-`INTERP_DELAY_TICKS := 2.5` is fixed. Under clean 50ms links it wastes
-~50ms of perceived delay; under 150ms+spiky links it underruns into
-extrapolation (visible warps).
+Resolved 2026-10-23 (the netcode pack's G3) and recorded KEPT in
+`LEDGER.md`. Kept here for the record; do not pick it up again.
 
-- Change: per-client delay = clamp(p99 of recent snapshot inter-arrival
-  jitter + margin, min 1.5, max 6 ticks), slewed slowly (≤0.1 tick/s) so the
-  timeline never jumps.
-- Confirm: jitter-heavy: `teleportsPerMin`/`jerkRms` ↓; control/baseline:
-  `renderLatencyMs` ↓ vs today with no smoothness cost.
-- Wire: none.
+`INTERP_DELAY_TICKS := 2.5` was fixed, which wasted ~50ms of perceived
+delay on clean links. Each client now renders as far behind as its own
+arrivals need (`PlaybackDelay`): mean + 3σ of the time between them (about
+the last 10 s) plus a frame, clamped to 1.5–6 ticks, reached by running the
+render clock 5% fast or slow, at most 2 ticks past the newest snapshot.
+
+- Result: remotes render 40–50 ms sooner on clean and mildly jittery
+  links (`renderLatencyMs` −15…−35%), jitter-heavy-3p holds, and
+  bursty-3p's stalled clients render further behind so their buffers stop
+  running dry. `jerkRms` −10…−60%, teleports 0. The accepted cost: clients
+  on unequal or jittery links render one snake at different moments
+  (`remoteVsRemotePx` p50 up to 17 px on bursty-3p), and `shapeErrorPx`
+  rises 1–2 px where the delay follows the link. See the 2026-10-23 LEDGER
+  entry.
 
 ## 4. Velocity-aware (Hermite) interpolation
 
@@ -60,7 +67,12 @@ visible direction popping at segment boundaries.
 - Confirm: `shapeErrorPx` ↓, `jerkRms` ↓ at unchanged `renderLatencyMs`.
 - Wire: none.
 
-## 4b. Server-coordinated uniform interpolation delay
+## 4b. Server-coordinated uniform interpolation delay — CLOSED
+
+Closed 2026-10-23 untested: the user chose per-client delays (2026-10-22),
+accepting cross-client divergence on unequal links for a lower delay on
+good ones, and #3 shipped them. One delay for the room would hold every
+client at its worst link's. Kept here for the record.
 
 Per-client adaptive delay (tried in iteration 2, discarded) desyncs clients
 on unequal links. The server sees per-socket backpressure/drop rates and
@@ -68,18 +80,21 @@ could broadcast a single recommended delay for the room (slow-moving, e.g.
 p95 of observed client jitter envelopes) — adaptivity without breaking
 cross-client alignment. Only worth testing on mixed-link scenarios.
 
-## 5. Input redundancy
+## 5. Input redundancy — SHIPPED
 
-Each input frame is sent once, fire-and-forget. A delayed/dropped frame
-stalls the server's view of intent for ≥50ms → reconciliation corrections.
+Resolved 2026-10-23 (the netcode pack's G1) and recorded KEPT in
+`LEDGER.md`. Kept here for the record; do not pick it up again.
 
-- Change: send the last N (=3) unacked frames per packet; server applies
-  latest-wins (already seq-guarded — `applyInput` ignores stale seqs).
-  Mind the channel rate limit (30/s) — bundle in ONE message, not N.
-- Files: shared channel schema (array payload), `game/index.ts` channel
-  handler, bot prediction sender, then GDScript.
-- Confirm: `predictionErrorPx` ↓, `correctionPx` ↓ (esp. jitter-heavy).
-- Wire: ~3× input payload (still tiny).
+Each input frame used to be sent once and applied latest-wins, so a late
+frame stretched the previous intent over extra ticks and clumped frames
+collapsed into one step: reconciliation corrected about one movement step.
+Each message now carries the last four frames (`{ frames }`), the server
+steps one frame a tick from a per-snake queue (`InputQueue`), and a tick
+without a frame coasts and stands in for the late frame.
+
+- Result: `correctionPx` p95 at most 0.8 px on every client, from 9–16 px;
+  `jerkRms` −17…−43% where it moved. See the 2026-10-23 LEDGER entry, with
+  the dead ends.
 
 ## 6. Correction tuning sweep
 
@@ -91,14 +106,46 @@ operating point, especially interacting with #3.
   with Tier-2 confirmation (feel is the ultimate judge here).
 - Confirm: `correctionPx` p95 and `jerkRms` ↓ without `predictionErrorPx` ↑.
 
-## 7. Snapshot delta/binary encoding
+## 7. Snapshot delta/binary encoding — SHIPPED
 
-Full player array every tick as JSON. At 3 players it's ~440B/tick
-(~9KB/s/client); fine now, but a bandwidth win compounds with more players.
-Not a jitter fix — do only after the smoothness items.
+Resolved 2026-10-23 (the netcode pack's G4) and recorded KEPT in
+`LEDGER.md`. Kept here for the record; do not pick it up again.
+
+The full player array went every tick as JSON: about 110 B a player.
+Each snapshot is now packed (`game/snapshotCodec.ts`): 21 B a player, a
+player named by an index into the stream's id table, base64 in the stream
+item (`{ b }`), since the Godot client reads text frames only. A binary
+attachment would save the base64's third; it needs the Socket.IO binary
+format in GDScript.
 
 ## 8. Lag compensation (server-side rewind)
 
 Collisions resolve at present-tick positions; high-ping players die to
 things they never saw. Fairness feature, not smoothness — needs server
 world-state history ring buffer. Last.
+
+## 8b. Lag compensation without rewind: latency-dilated action timing
+
+For any action with a windup and a recovery (a cast, a charge, a dash with
+a startup), the server shortens the actor's windup by that player's one-way
+latency (ack RTT / 2, capped at 200 ms) and lengthens the recovery by the
+same amount. The action lands when the actor expected it to, the total
+animation keeps its length, so other clients see the normal animation and
+the actor gains no tempo. No world-state history, no re-simulation of other
+players: one subtraction when the action starts. Source: Project B (studied
+2026-10-22) applies dil = min(0.2, ping / 1000). Not applicable to the snake
+world today (direction and boost have no windup); applies the day a fork
+adds abilities. Measure with ownVsRemotePx around the action and a new
+actionLandedLateMs (the actor's expected landing tick against the server's).
+
+## 9. A fair link with the players' jitter
+
+A party's fair link lags the host's own user's links by the players' median
+one-way trip, with no jitter (`settleFairLink`, `setLag({ ms })`). The host's
+own user then plays the others back about 20 ms sooner than its players do
+(`party-3p-lossy`: 135 ms against 155–160 ms), since a jitter-free link needs
+a smaller playback buffer. Lag its links with the players' median jitter
+too (`setLag({ ms, jitter })`, the jitter from each link's clock), so its
+playback delay matches theirs. Measure with `party-3p-lossy`: the host's
+own user's renderLatencyMs against the players', and remoteVsRemotePx p95
+(8.4 px, against 3.0 px when the host's own user has a player's link).

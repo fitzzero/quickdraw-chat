@@ -11,6 +11,8 @@
 export interface ServerTrace {
   ticks: ServerTick[];
   deaths: { tick: number; tWall: number; id: string }[];
+  /** the food the world held after each of the run's last ticks (ids sorted), to check the clients' */
+  food?: { tick: number; ids: string[] }[];
 }
 
 export interface ServerTick {
@@ -20,6 +22,11 @@ export interface ServerTick {
   tickDurMs: number;
   snapshotBytes: number;
   players: { id: string; x: number; y: number }[];
+  /**
+   * Per human snake alive and fed that tick (the sim's TickResult.inputs):
+   * the frames it stepped, and the frames still queued after the take.
+   */
+  inputs: { id: string; stepped: number; depth: number }[];
 }
 
 /** What one client (bot or browser) saw and rendered. */
@@ -38,6 +45,11 @@ export interface ClientTrace {
   inputs: { seq: number; tSent: number; tAcked?: number }[];
   /** Tier 2 only */
   fpsSamples?: { tWall: number; fps: number }[];
+  /**
+   * the food the client held at the end, as of `tick` (its changes up to that
+   * tick), its latest snapshot's tick, and the keyframes it asked for after gaps
+   */
+  food?: { tick: number; latestTick: number; ids: string[]; resyncs: number };
 }
 
 export interface ClientFrame {
@@ -80,6 +92,37 @@ export interface BotSpec {
    * load). Omit for a steady 60fps. Deterministic — no randomness.
    */
   render?: { minFps: number; maxFps: number; periodS: number; phaseS?: number };
+  /**
+   * Scales the time the bot's predictor sees (default 1): its fixed-step
+   * accumulator then emits input frames at tickRate × clockScale, while its
+   * world clock and render clock stay on wall time. Models a client whose
+   * tick clock drifts (1.01 runs 1% fast), nothing else.
+   */
+  clockScale?: number;
+}
+
+/** A loopback link's lag, both ways: each message `ms` plus up to `jitter` ms, `loss` of `fast` ones lost. */
+export interface LinkLag {
+  ms: number;
+  jitter: number;
+  loss: number;
+}
+
+/**
+ * A party (host mode): no server. A host in process runs the party's sim
+ * and loop, and each bot plays over a loopback link to it.
+ */
+export interface PartySpec {
+  /** The bot of the host's own user: its game runs on the host's machine, over a link no network slows. */
+  host: string;
+  /** Every other bot's link to the host. */
+  link: LinkLag;
+  /**
+   * The fair link, as the host's page sets it (settleFairLink, every
+   * FAIR_LINK_EVERY_MS): the host's own user's link lags by the other
+   * players' median one-way trip. False plays with the advantage it removes.
+   */
+  fairLink: boolean;
 }
 
 export interface Scenario {
@@ -93,6 +136,8 @@ export interface Scenario {
   /** GameTunables overrides (npcCount etc.) — validated server-side */
   tunables?: Record<string, number>;
   clients: BotSpec[];
+  /** A party instead of the server's world: its bots play over its links, and take no `net`. */
+  party?: PartySpec;
 }
 
 // ── Scorecard ─────────────────────────────────────────────────────────────
@@ -130,6 +175,22 @@ export interface EntityFidelity {
   shapeErrorPx: Stats;
 }
 
+/**
+ * The server's view of the clients' clocks, from the input queue: per tick
+ * of a live human snake that has stepped a frame since it spawned, warmup
+ * excluded.
+ */
+export interface InputQueueReport {
+  /** frames still queued after a tick's take, p95 */
+  depthP95: number;
+  /** ticks the snake had no frame to step (it coasted on its last intent) */
+  starvedRate: number;
+  /** ticks the snake stepped two or more frames (catching up) */
+  multiStepRate: number;
+  /** mean depth over the window's last 10 s minus its first 10 s: a queue ratcheting toward its cap grows it */
+  depthTrend: number;
+}
+
 export interface ClientReport {
   kind: "bot" | "browser";
   packet: PacketHealth;
@@ -140,10 +201,27 @@ export interface ClientReport {
   predictionErrorPx?: Stats;
   /** measured render frame rate (bots target 60) */
   effectiveFps: number;
+  /** the server's view of this client's own snake (players only) */
+  inputQueue?: InputQueueReport;
+  /** food ids the client and the server disagreed on at the client's latest snapshot (0: none) */
+  foodMismatchAtEnd?: number;
+  /** keyframes the client asked for after missing more snapshots than the food window */
+  foodResyncs?: number;
+}
+
+/** A party's fairness: the host's own user against the other players, the medians of theirs. */
+export interface PartyFairness {
+  /** The bot of the host's own user. */
+  host: string;
+  /** Input → ack round trip p50 (ms). */
+  inputAckRttP50: { host: number; peers: number };
+  /** Local prediction error p95 (px). */
+  predictionErrorP95: { host: number; peers: number };
 }
 
 export interface Scorecard {
-  schemaVersion: 1;
+  /** 2 since the food window (clients' food); `loadScorecard` reads 1 too */
+  schemaVersion: 1 | 2;
   scenario: string;
   seed: number;
   tier: 1 | 2;
@@ -158,6 +236,8 @@ export interface Scorecard {
     tickDurMs: Stats;
     snapshotBytes: Stats;
     effectiveTickRate: number;
+    /** every human snake's queue together; absent from scorecards made before the input queue */
+    inputQueue?: InputQueueReport;
   };
   clients: Record<string, ClientReport>;
   divergence: {
@@ -168,10 +248,17 @@ export interface Scorecard {
   };
   /** spread of headline p50s across the N runs (comparability guard) */
   runVariance?: Record<string, number>;
+  /**
+   * aggregated cards: each headline metric's worst (highest) run; a run
+   * without the metric makes it NaN, which a saved card holds as null
+   */
+  runWorst?: Record<string, number | null>;
   tier2?: {
     fps: Stats;
     frameTimeMs: Stats;
   };
+  /** A party scenario's fairness (reported, not compared) */
+  party?: PartyFairness;
 }
 
 /** One run's raw material for scoring. */

@@ -45,6 +45,25 @@ closed) is the linked `quickdraw-access.md`.
   (`createCallLimiter()`, 300 calls a minute per IP); one socket holds at
   most 10,000 rows, 1,000 collection scopes and 1,000 topic watches (one
   more is `CONFLICT`).
+  <!-- ── quickdraw-game:start ── -->
+- **Party worlds** (host mode): `joinParty` admits a signed-in user who
+  has the code, over a socket (the code is the invitation). A code is four
+  characters (31^4, about 920,000) that only an open party holds; ten
+  wrong codes in a minute and `joinParty` refuses the user for a minute
+  (`RATE_LIMITED`), and a party holds at most 16 users. Only a user its
+  room holds plays in it (`playParty`) or joins its chat. What a party's
+  host and its players send each other never reaches the server, and the
+  server trusts none of it: no party score is stored, and the host's word
+  (who died, the leaderboard) stays inside the party. Each player's input
+  is that player's word to the host, which steers only the snake of the
+  user the server named for the link. A host plays on the server's word of
+  who plays (`partyPlayer`), and closing a party is its host's (the row
+  policy's `owner("hostUserId")`) or a service-wide Admin's. A direct
+  (WebRTC) link shows each side's public IP address to the other. And
+  `peers: true` is one switch for the whole server (core 5.1.3): any two
+  signed-in sockets that share an app room may link or relay through the
+  server, the world's room and a chat's roster room included.
+  <!-- ── quickdraw-game:end ── -->
 - **Admin screens**: each contract's `admin.contract({ editable })` names the
   only fields the admin kit writes (a chat's title, a document's title and
   content, ...), so no owner, chat link or author is rewritten from them;

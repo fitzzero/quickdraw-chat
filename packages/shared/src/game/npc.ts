@@ -8,8 +8,8 @@
  * casing, and they never persist scores (GameService skips npc- ids).
  */
 
-import type { FoodDTO } from "@project/shared";
-import { NPC_ID_PREFIX } from "@project/shared";
+import type { FoodDTO } from "../types/game.js";
+import { NPC_ID_PREFIX } from "../types/game.js";
 import type { BodySample, GameTunables, SnakeState } from "./world.js";
 
 const NPC_NAMES = ["Wormy", "Noodle", "Slinky", "Zigzag", "Doodle", "Wiggles", "Pretzel", "Loops"];

@@ -9,10 +9,20 @@
  * Key design choice: only snake HEADS exist on the wire. Each side keeps a
  * per-snake path history of head positions and derives body segments at fixed
  * arc-length spacing along it — the server for collision, clients for
- * rendering. Snapshots stay ~35 bytes/player regardless of snake length.
+ * rendering. Each player adds 21 bytes to a packed snapshot (28 in its
+ * base64, about 110 as JSON), whatever its snake's length.
+ *
+ * A human snake steps once for each input frame its client sent (InputQueue),
+ * one a tick unless a backlog builds: the client predicts one step per frame,
+ * so the snapshot's `ack` names the last frame the server's state holds and
+ * the client's replay reproduces its position. Once its first frame stepped,
+ * a tick without a frame coasts on the last intent, and the ack covers the
+ * coast. A tick of several steps checks collisions at every head it passed.
+ * NPCs steer in place and step once a tick.
  */
 
 import type {
+  FoodDelta,
   FoodDTO,
   GameDeathEvent,
   GameInput,
@@ -20,8 +30,10 @@ import type {
   LeaderboardEntry,
   PlayerSnap,
   WorldSnapshot,
-} from "@project/shared";
-import { GAME_TICK_RATE, NPC_ID_PREFIX, stepMovement } from "@project/shared";
+} from "../types/game.js";
+import { GAME_TICK_RATE, NPC_ID_PREFIX } from "../types/game.js";
+import { stepMovement } from "./movement.js";
+import { InputQueue } from "./inputQueue.js";
 import { NpcController } from "./npc.js";
 
 export interface GameTunables {
@@ -56,6 +68,14 @@ export interface GameTunables {
   /** ticks before a dead NPC respawns */
   npcRespawnTicks: number;
 }
+
+/** The most food (maxFood, initialFood) and NPCs a world holds: a packed snapshot's 16-bit counts. */
+export const COUNT_TUNABLE_MAX = 0xffff;
+const COUNT_TUNABLES: ReadonlySet<keyof GameTunables> = new Set([
+  "maxFood",
+  "initialFood",
+  "npcCount",
+]);
 
 export const DEFAULT_TUNABLES: GameTunables = {
   worldWidth: 2400,
@@ -99,7 +119,12 @@ export interface SnakeState {
   len: number;
   /** head-position history, oldest → newest (head is the last sample) */
   path: Vec[];
-  lastSeq: number;
+  /** the client's frames waiting to be stepped (humans; NPCs steer in place) */
+  inputs: InputQueue;
+  /** stepped a frame since it spawned: until then no client has stepped it either */
+  fed: boolean;
+  /** heads it passed this tick before its last step (a tick of several): collisions check them too */
+  swept: Vec[];
 }
 
 interface FoodState extends FoodDTO {}
@@ -110,9 +135,25 @@ export interface BodySample {
   y: number;
 }
 
+/** One human snake's input accounting for a tick. */
+export interface TickInputs {
+  /** frames stepped this tick (0: none had arrived, the snake coasted on its last intent) */
+  stepped: number;
+  /** frames still queued after the take */
+  depth: number;
+}
+
 export interface TickResult {
+  /** The tick's snapshot; the loop adds the food changes of the last ticks (`food`). */
   snapshot: WorldSnapshot;
+  /** The food this tick changed (none: null). */
+  food: FoodDelta | null;
   deaths: GameDeathEvent[];
+  /**
+   * Per human snake alive and fed this tick: what the server sees of its
+   * client's clock (the bench records it). Never on the wire.
+   */
+  inputs: Record<string, TickInputs>;
 }
 
 /** Deterministic PRNG (mulberry32) so tests and replays are reproducible. */
@@ -153,7 +194,9 @@ export class GameWorldSim {
   /**
    * Apply tunable overrides (boot config or a live DefinitionService edit).
    * Only known keys with finite numeric values are accepted — definitions
-   * are admin-edited JSON, so treat them as untrusted.
+   * are admin-edited JSON, so treat them as untrusted. The counts of food
+   * and NPCs stay within COUNT_TUNABLE_MAX: a packed snapshot counts food
+   * and players in 16 bits, and a seed carries all the food in one entry.
    *
    * Note for live edits: connected Godot clients keep predicting with the
    * values they fetched at load, so movement tunables cause reconciliation
@@ -164,7 +207,7 @@ export class GameWorldSim {
       const value = partial[key];
       // Non-negative finite numbers only (zero is legitimate, e.g. initialFood)
       if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
-        this.tunables[key] = value;
+        this.tunables[key] = COUNT_TUNABLES.has(key) ? Math.min(value, COUNT_TUNABLE_MAX) : value;
       }
     }
   }
@@ -191,7 +234,9 @@ export class GameWorldSim {
       boost: false,
       len: this.tunables.startLength,
       path: [],
-      lastSeq: 0,
+      inputs: new InputQueue(),
+      fed: false,
+      swept: [],
     };
     this.spawnSnake(snake);
     this.players.set(id, snake);
@@ -244,24 +289,35 @@ export class GameWorldSim {
     snake.boost = false;
     snake.path = [{ ...snake.head }];
     snake.alive = true;
+    // What was queued for the old snake is not for this one; its client starts
+    // again from the snapshot's ack, which the queue keeps
+    snake.inputs.clear();
+    snake.fed = false;
   }
 
   // ==========================================================================
   // Input
   // ==========================================================================
 
-  public applyInput(id: string, input: GameInput): void {
+  /**
+   * Queues a client's frames (a message carries its newest last and up to
+   * three before it). The ticks that follow step them in seq order, one a
+   * tick; a frame stepped or queued already is ignored, as is everything for
+   * a dead snake.
+   */
+  public queueInputs(id: string, frames: readonly GameInput[]): void {
     const snake = this.players.get(id);
-    if (!snake || !snake.alive) return;
-    // Latest-wins by sequence number; stale/replayed frames are ignored
-    if (input.seq <= snake.lastSeq) return;
+    if (!snake || !snake.alive || isNpcId(id)) return;
+    for (const frame of frames) snake.inputs.push(frame);
+  }
 
-    const mag = Math.hypot(input.dx, input.dy);
+  /** A frame's intent: its direction (when it has one) and its boost. */
+  private steer(snake: SnakeState, frame: GameInput): void {
+    const mag = Math.hypot(frame.dx, frame.dy);
     if (Number.isFinite(mag) && mag > 1e-6) {
-      snake.targetDir = { x: input.dx / mag, y: input.dy / mag };
+      snake.targetDir = { x: frame.dx / mag, y: frame.dy / mag };
     }
-    snake.boost = input.boost;
-    snake.lastSeq = input.seq;
+    snake.boost = frame.boost;
   }
 
   // ==========================================================================
@@ -273,26 +329,56 @@ export class GameWorldSim {
     const foodEaten: string[] = [];
     const foodSpawned: FoodDTO[] = [];
     const deaths: GameDeathEvent[] = [];
+    const inputs: Record<string, TickInputs> = {};
 
     this.npcs().update(this.tick);
 
     for (const snake of this.players.values()) {
       if (!snake.alive) continue;
-      this.moveSnake(snake);
-      this.eatNearbyFood(snake, foodEaten);
+      if (isNpcId(snake.meta.id)) {
+        // The controller set its intent: one step a tick
+        this.moveSnake(snake);
+        this.eatNearbyFood(snake, foodEaten);
+        continue;
+      }
+      // One step per frame its client sent, one frame a tick; once it has
+      // sent its first, a tick without one coasts on the last intent, and
+      // the queue counts the coast for the late frame
+      const frames = snake.inputs.take(this.dt);
+      snake.swept.length = 0;
+      for (const [i, frame] of frames.entries()) {
+        if (i > 0) snake.swept.push({ ...snake.head });
+        this.steer(snake, frame);
+        this.moveSnake(snake);
+        this.eatNearbyFood(snake, foodEaten);
+      }
+      if (frames.length > 0) {
+        snake.fed = true;
+      } else if (snake.fed) {
+        this.moveSnake(snake);
+        this.eatNearbyFood(snake, foodEaten);
+        snake.inputs.coast();
+      }
+      if (snake.fed) {
+        inputs[snake.meta.id] = { stepped: frames.length, depth: snake.inputs.depth() };
+      }
     }
 
     this.resolveCollisions(deaths, foodSpawned);
     this.respawnFood(foodSpawned);
 
+    const changed = foodSpawned.length > 0 || foodEaten.length > 0;
     return {
-      snapshot: {
-        tick: this.tick,
-        players: this.buildSnaps(),
-        ...(foodSpawned.length > 0 ? { foodSpawned } : {}),
-        ...(foodEaten.length > 0 ? { foodEaten } : {}),
-      },
+      snapshot: { tick: this.tick, players: this.buildSnaps() },
+      food: changed
+        ? {
+            tick: this.tick,
+            ...(foodSpawned.length > 0 ? { spawned: foodSpawned } : {}),
+            ...(foodEaten.length > 0 ? { eaten: foodEaten } : {}),
+          }
+        : null,
       deaths,
+      inputs,
     };
   }
 
@@ -301,13 +387,14 @@ export class GameWorldSim {
     this.npcController ??= new NpcController({
       tunables: this.tunables,
       rng: this.rng,
-      getSnake: (id) => this.players.get(id),
-      addPlayer: (id, name) => void this.addPlayer(id, name),
-      removePlayer: (id) => void this.players.delete(id),
-      respawn: (id) => void this.respawn(id),
-      nearestFood: (from) => this.nearestFood(from),
-      buildBodyHash: () => this.buildBodyHash(),
-      probeHitsForeignBody: (selfId, x, y, hash) => this.probeHitsForeignBody(selfId, x, y, hash),
+      getSnake: (id): SnakeState | undefined => this.players.get(id),
+      addPlayer: (id, name): void => void this.addPlayer(id, name),
+      removePlayer: (id): void => void this.players.delete(id),
+      respawn: (id): void => void this.respawn(id),
+      nearestFood: (from): FoodDTO | null => this.nearestFood(from),
+      buildBodyHash: (): Map<string, BodySample[]> => this.buildBodyHash(),
+      probeHitsForeignBody: (selfId, x, y, hash): boolean =>
+        this.probeHitsForeignBody(selfId, x, y, hash),
     });
     return this.npcController;
   }
@@ -381,18 +468,22 @@ export class GameWorldSim {
   }
 
   /**
-   * Head-vs-foreign-body collision via a spatial hash of path samples.
-   * Self-collision is intentionally off (slither.io rules — crossing your own
-   * body is allowed; only foreign bodies kill).
+   * Head-vs-foreign-body collision via a spatial hash of path samples, at the
+   * head and at every head a tick of several steps passed (so a catch-up
+   * cannot step over a body), against the bodies as they stand at the end
+   * of the tick. Self-collision is intentionally off (slither.io rules —
+   * crossing your own body is allowed; only foreign bodies kill).
    */
   private resolveCollisions(deaths: GameDeathEvent[], foodSpawned: FoodDTO[]): void {
     const hash = this.buildBodyHash();
     const dying: SnakeState[] = [];
 
     for (const snake of this.players.values()) {
-      if (snake.alive && this.headHitsForeignBody(snake, hash)) {
-        dying.push(snake);
-      }
+      if (!snake.alive) continue;
+      const hit =
+        this.hitsForeignBody(snake, snake.head, hash) ||
+        snake.swept.some((head) => this.hitsForeignBody(snake, head, hash));
+      if (hit) dying.push(snake);
     }
 
     for (const snake of dying) {
@@ -416,19 +507,17 @@ export class GameWorldSim {
     return hash;
   }
 
-  private headHitsForeignBody(snake: SnakeState, hash: Map<string, BodySample[]>): boolean {
+  private hitsForeignBody(snake: SnakeState, head: Vec, hash: Map<string, BodySample[]>): boolean {
     const killDist = this.tunables.headRadius + this.tunables.bodyRadius;
-    const cx = Math.floor(snake.head.x / SPATIAL_CELL);
-    const cy = Math.floor(snake.head.y / SPATIAL_CELL);
+    const cx = Math.floor(head.x / SPATIAL_CELL);
+    const cy = Math.floor(head.y / SPATIAL_CELL);
 
     for (let ix = cx - 1; ix <= cx + 1; ix++) {
       for (let iy = cy - 1; iy <= cy + 1; iy++) {
         const cell = hash.get(`${ix},${iy}`);
         if (!cell) continue;
         const hit = cell.some(
-          (s) =>
-            s.owner !== snake.meta.id &&
-            Math.hypot(s.x - snake.head.x, s.y - snake.head.y) <= killDist,
+          (s) => s.owner !== snake.meta.id && Math.hypot(s.x - head.x, s.y - head.y) <= killDist,
         );
         if (hit) return true;
       }
@@ -485,7 +574,7 @@ export class GameWorldSim {
         dy: Math.round(snake.dir.y * 1000) / 1000,
         len: Math.floor(snake.len),
         boost: snake.boost && snake.len > this.tunables.minLength,
-        ack: snake.lastSeq,
+        ack: snake.inputs.lastSeq,
       });
     }
     return snaps;
@@ -505,14 +594,14 @@ export class GameWorldSim {
 
   /**
    * The world now as one snapshot (a keyframe): every snake's head and all
-   * the food, as spawned. The world stream's seed: the snapshots that follow
-   * are deltas of it.
+   * the food in one entry at this tick, which replaces a client's food. The
+   * world stream's seed: the snapshots that follow change it.
    */
   public keyframe(): WorldSnapshot {
     return {
       tick: this.tick,
       players: this.buildSnaps(),
-      foodSpawned: Array.from(this.food.values()).map((f) => ({ ...f })),
+      food: [{ tick: this.tick, spawned: Array.from(this.food.values()).map((f) => ({ ...f })) }],
     };
   }
 

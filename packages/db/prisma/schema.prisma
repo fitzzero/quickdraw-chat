@@ -238,19 +238,28 @@ model PushSubscription {
 // live simulation state is in-memory and never touches the database per tick.
 
 model GameWorld {
-  id        String   @id @default(cuid())
-  slug      String   @unique
-  name      String
-  // The world's global chat (rendered as the in-game chat overlay)
-  chatId    String?  @map("chat_id")
+  id         String    @id @default(cuid())
+  slug       String    @unique
+  name       String
+  // "server" (the server runs its sim) or "party" (a player's browser hosts it)
+  kind       String    @default("server")
+  // A party's join code (four characters, like K7QD); null for a server world
+  code       String?   @unique
+  // The user whose browser hosts a party; null for a server world
+  hostUserId String?   @map("host_user_id")
+  // When a party ended (its host closed it or left); null while it is open
+  closedAt   DateTime? @map("closed_at")
+  // The world's chat (rendered as the in-game chat overlay)
+  chatId     String?   @map("chat_id")
   // Optional world-specific config overrides (tunables come from definitions)
-  config    Json?
+  config     Json?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   scores    GameScore[]
 
+  @@index([hostUserId])
   @@map("game_worlds")
 }
 

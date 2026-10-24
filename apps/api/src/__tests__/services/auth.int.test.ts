@@ -33,7 +33,16 @@ beforeAll(async () => {
   const routes = express();
   routes.use(express.json());
   routes.use(auth.routes);
-  app = await createTestApp({ services, db: testDb, app: routes, auth: auth.server });
+  app = await createTestApp({
+    services,
+    db: testDb,
+    app: routes,
+    auth: auth.server,
+    // ── quickdraw-game:start ──
+    // the game's parties are host mode, which runs over peer links
+    peers: true,
+    // ── quickdraw-game:end ──
+  });
 });
 
 afterAll(async () => {
@@ -448,6 +457,9 @@ describe("the production allow-list on the sign-in routes and cookie sockets", (
       db: testDb,
       app: routes,
       auth: productionAuth.server,
+      // ── quickdraw-game:start ──
+      peers: true,
+      // ── quickdraw-game:end ──
     });
   });
 

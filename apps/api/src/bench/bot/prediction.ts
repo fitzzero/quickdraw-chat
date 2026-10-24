@@ -1,8 +1,9 @@
 /**
  * LocalPredictor — 1:1 TS port of the Godot client's local-snake netcode
  * (apps/game/godot/scripts/local_snake.gd): client-side prediction at the
- * fixed tick rate, seq'd pending-input queue, reconciliation against
- * PlayerSnap.ack with replay of unacknowledged inputs, corrections folded
+ * fixed tick rate, seq'd pending-input queue (each step's message carries its
+ * frame last, with up to three unacknowledged ones before it), reconciliation
+ * against PlayerSnap.ack with replay of unacknowledged inputs, corrections folded
  * into an exponentially decaying visual offset (hard snap past 64px), and
  * render interpolation between the previous and current sim states.
  *
@@ -13,7 +14,7 @@
  */
 
 import type { GameInput, MovementTunables, PlayerSnap } from "@project/shared";
-import { stepMovement } from "@project/shared";
+import { GAME_INPUT_FRAMES, stepMovement } from "@project/shared";
 
 // Constants pinned to local_snake.gd:12-13
 const HARD_SNAP_DIST = 64.0;
@@ -70,18 +71,21 @@ export class LocalPredictor {
    * local_snake.gd _physics_process: advance the fixed-step accumulator
    * (sampling input + stepping the local sim per 50ms boundary), then decay
    * the correction offset and compute the interpolated render position.
-   * Returns the input frames produced this render frame (to be sent).
+   * Returns one message per step taken this render frame, to be sent: the
+   * step's frame last, with up to three unacknowledged frames before it
+   * (local_snake.gd _step_once sends the same).
    */
   public renderFrame(
     deltaS: number,
     sampleInput: () => { dx: number; dy: number; boost: boolean },
-  ): GameInput[] {
-    const sent: GameInput[] = [];
+  ): GameInput[][] {
+    const messages: GameInput[][] = [];
     this.accum += deltaS;
     while (this.accum >= this.fixedDt) {
       this.accum -= this.fixedDt;
       this.prevSimPos = { ...this.simPos };
-      sent.push(this.stepOnce(sampleInput()));
+      this.stepOnce(sampleInput());
+      messages.push(this.pending.slice(-GAME_INPUT_FRAMES));
     }
 
     const decay = Math.pow(0.5, deltaS / CORRECTION_HALF_LIFE);
@@ -92,7 +96,7 @@ export class LocalPredictor {
       x: this.prevSimPos.x + (this.simPos.x - this.prevSimPos.x) * alpha + this.visualOffset.x,
       y: this.prevSimPos.y + (this.simPos.y - this.prevSimPos.y) * alpha + this.visualOffset.y,
     };
-    return sent;
+    return messages;
   }
 
   public getRenderedPos(): Vec {
@@ -100,7 +104,7 @@ export class LocalPredictor {
   }
 
   /** local_snake.gd _step_once */
-  private stepOnce(input: { dx: number; dy: number; boost: boolean }): GameInput {
+  private stepOnce(input: { dx: number; dy: number; boost: boolean }): void {
     const mag = Math.hypot(input.dx, input.dy);
     const aim = mag > 1e-6 ? { x: input.dx / mag, y: input.dy / mag } : { ...this.simDir };
 
@@ -123,7 +127,6 @@ export class LocalPredictor {
     this.simPos = { x: next.x, y: next.y };
     this.simDir = { x: next.dirX, y: next.dirY };
     this.simLen = next.len;
-    return frame;
   }
 
   /** local_snake.gd on_server_snap. Returns the applied correction. */
@@ -131,6 +134,10 @@ export class LocalPredictor {
     while (this.pending.length > 0 && (this.pending[0]?.seq ?? Infinity) <= snap.ack) {
       this.pending.shift();
     }
+    // The server coasted through a stall of this client's: the ack ran more
+    // than a message's frames past its newest. Number the next frame after
+    // the ack, or the server ignores the frames until the client catches up
+    if (snap.ack > this.seq + GAME_INPUT_FRAMES) this.seq = snap.ack;
 
     // Replay unacknowledged inputs from the authoritative state
     let rp: Vec = { x: snap.x, y: snap.y };

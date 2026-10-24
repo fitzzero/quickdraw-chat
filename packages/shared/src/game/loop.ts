@@ -6,14 +6,18 @@
  * results without timers or I/O.
  */
 
-import type { GameDeathEvent, LeaderboardEntry, WorldSnapshot } from "@project/shared";
-import { GAME_TICK_RATE } from "@project/shared";
+import type { FoodDelta, GameDeathEvent, LeaderboardEntry, WorldSnapshot } from "../types/game.js";
+import { GAME_FOOD_WINDOW, GAME_TICK_RATE } from "../types/game.js";
 import type { GameWorldSim, TickResult } from "./world.js";
 
 /** What the loop sends, by kind; the runtime puts each on the wire. */
 export interface GameLoopEmits {
-  /** Every tick, volatile: droppable under backpressure (the world stream). */
-  snapshot: (snapshot: WorldSnapshot) => void;
+  /**
+   * Every tick, volatile: droppable under backpressure (the world stream).
+   * Returns the stream item it sent, which `onTick` measures: the packed
+   * item on the server's world, the snapshot itself on a party's.
+   */
+  snapshot: (snapshot: WorldSnapshot) => unknown;
   /** Reliable: a snake died (the world's room). */
   death: (death: GameDeathEvent) => void;
   /** Reliable, 1Hz: the longest snakes (the world's room). */
@@ -43,6 +47,7 @@ export interface TickStats {
   /** epoch ms with sub-ms precision (performance.timeOrigin + now) */
   tWall: number;
   tickDurMs: number;
+  /** The stream item's JSON: the packed snapshot, base64 in `{ b }`, on the server's world. */
   snapshotBytes: number;
 }
 
@@ -50,24 +55,55 @@ const LEADERBOARD_INTERVAL_MS = 1000;
 
 export class GameLoop {
   private readonly deps: GameLoopDeps;
-  private tickTimer: ReturnType<typeof setInterval> | null = null;
+  private tickTimer: ReturnType<typeof setTimeout> | null = null;
   private leaderboardTimer: ReturnType<typeof setInterval> | null = null;
+  /** When the next tick is due (performance.now() ms), on a fixed grid. */
+  private nextTickAt = 0;
+  private running = false;
+  /** The food changes of the last GAME_FOOD_WINDOW ticks, oldest first: every snapshot repeats them. */
+  private readonly foodWindow: FoodDelta[] = [];
 
   constructor(deps: GameLoopDeps) {
     this.deps = deps;
   }
 
   public start(): void {
-    if (this.tickTimer) return;
-    this.tickTimer = setInterval(() => this.tickOnce(), 1000 / GAME_TICK_RATE);
+    if (this.running) return;
+    this.running = true;
+    this.nextTickAt = performance.now();
+    this.scheduleTick();
     this.leaderboardTimer = setInterval(() => this.emitLeaderboard(), LEADERBOARD_INTERVAL_MS);
     // Timers must not keep a draining process alive
-    this.tickTimer.unref?.();
     this.leaderboardTimer.unref?.();
   }
 
+  /**
+   * Ticks on a fixed grid of GAME_TICK_RATE a second: each timeout aims at
+   * the next grid point, so lateness does not add up (setInterval's does,
+   * about 0.3% at 20 Hz, and a client stepping at the tick rate by its own
+   * clock would run ahead of the world). The next tick is due before this
+   * one runs; a loop that fell more than a tick behind starts the grid
+   * again from now.
+   */
+  private scheduleTick(): void {
+    if (!this.running) return;
+    const period = 1000 / GAME_TICK_RATE;
+    const now = performance.now();
+    this.nextTickAt += period;
+    if (this.nextTickAt < now - period) this.nextTickAt = now;
+    this.tickTimer = setTimeout(
+      () => {
+        this.scheduleTick();
+        this.tickOnce();
+      },
+      Math.max(0, this.nextTickAt - now),
+    );
+    this.tickTimer.unref?.();
+  }
+
   public stop(): void {
-    if (this.tickTimer) clearInterval(this.tickTimer);
+    this.running = false;
+    if (this.tickTimer) clearTimeout(this.tickTimer);
     if (this.leaderboardTimer) clearInterval(this.leaderboardTimer);
     this.tickTimer = null;
     this.leaderboardTimer = null;
@@ -83,10 +119,16 @@ export class GameLoop {
     const t0 = this.deps.onTick ? performance.now() : 0;
     const result = this.deps.sim.step();
     const tickDurMs = this.deps.onTick ? performance.now() - t0 : 0;
+    // A volatile snapshot may be dropped: each carries the food changes of
+    // the last ticks, so the next one makes up for it
+    if (result.food) this.foodWindow.push(result.food);
+    const since = result.snapshot.tick - GAME_FOOD_WINDOW;
+    while ((this.foodWindow[0]?.tick ?? Infinity) <= since) this.foodWindow.shift();
+    if (this.foodWindow.length > 0) result.snapshot.food = [...this.foodWindow];
     // Send-time stamp for client clock sync (H2); the sim itself stays
     // wall-clock-free — timing belongs to the transport boundary.
     result.snapshot.t = Math.round(performance.timeOrigin + performance.now());
-    this.deps.emit.snapshot(result.snapshot);
+    const item = this.deps.emit.snapshot(result.snapshot);
 
     for (const death of result.deaths) {
       this.deps.emit.death(death);
@@ -97,7 +139,7 @@ export class GameLoop {
       tick: result.snapshot.tick,
       tWall: performance.timeOrigin + performance.now(),
       tickDurMs,
-      snapshotBytes: JSON.stringify(result.snapshot).length,
+      snapshotBytes: JSON.stringify(item).length,
     });
 
     return result;

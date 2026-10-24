@@ -7,14 +7,19 @@
 //   commands       qd:call  gameService.joinGame | watchWorld | respawn | ...
 //                  (watchWorld and joinGame put the CALLING socket in the
 //                  world's room, GLOBAL_WORLD_ROOM)
-//   client → server qd:ch   ["gameService", "input", GameInput]
-//                  (~20Hz, fire-and-forget; dropped unless the sending
-//                  socket is in the world's room)
+//   client → server qd:ch   ["gameService", "input", GameInputs]
+//                  (one per client tick, ~20Hz, fire-and-forget; dropped
+//                  unless the sending socket is in the world's room)
 //   server → client qd:stream ["gameService", "world", worldId,
-//                  WorldSnapshot]
-//                  (20Hz, volatile; the subscribe answers the current world)
+//                  PackedWorldItem]
+//                  (20Hz, volatile; each item a packed WorldSnapshot, see
+//                  game/snapshotCodec.ts; the subscribe answers the current
+//                  world)
 //   server → room  qd:event ["gameService", "playerJoined" | "playerLeft" |
 //                  "death" | "leaderboard", payload] (reliable)
+//
+// A party (host mode) is a world one player's browser hosts; see the party
+// section at the end of this file.
 // ============================================================================
 
 /**
@@ -36,10 +41,18 @@ export const GLOBAL_WORLD_ROOM = "world:gameworld_global";
 /** Server simulation tick rate (Hz). Clients run prediction at the same rate. */
 export const GAME_TICK_RATE = 20;
 
+/** Frames one input message carries at most: its newest and the three before it. */
+export const GAME_INPUT_FRAMES = 4;
+
 /**
- * One input frame from a client. `seq` increments per frame; the server
- * echoes the last applied seq back in PlayerSnap.ack so the client can
- * drop acknowledged inputs and replay the rest (reconciliation).
+ * One input frame from a client. `seq` increments per frame, and the client
+ * steps its prediction once per frame; the server steps the snake one frame
+ * a tick, in seq order, and echoes the last seq its state holds in
+ * PlayerSnap.ack, so the client drops acknowledged frames and replays the
+ * rest (reconciliation). The server coasts a snake through a client's
+ * stall, and the ack runs on: a client whose newest frame falls more than
+ * GAME_INPUT_FRAMES behind the ack numbers its next frame after the ack, or
+ * the server ignores its frames until they catch up.
  */
 export interface GameInput {
   seq: number;
@@ -47,6 +60,18 @@ export interface GameInput {
   dx: number;
   dy: number;
   boost: boolean;
+}
+
+/**
+ * One message on the input channel: the newest frame last, with up to
+ * GAME_INPUT_FRAMES - 1 unacknowledged ones before it, so the frames of a
+ * lost or late message arrive with the next one. The server queues each
+ * frame once by seq and steps one a tick, up to three while a backlog drains;
+ * a tick with none queued coasts on the last intent, and `PlayerSnap.ack`
+ * covers the coast.
+ */
+export interface GameInputs {
+  frames: GameInput[];
 }
 
 /** Per-player state in a snapshot. Bodies are derived from head paths client-side. */
@@ -59,7 +84,11 @@ export interface PlayerSnap {
   /** Length in segments. */
   len: number;
   boost: boolean;
-  /** Last input seq the server applied for this player (reconciliation anchor). */
+  /**
+   * Seq of the last input frame the server's state holds for this player,
+   * stepped or coasted for (reconciliation anchor). It runs ahead of a
+   * client that stalled.
+   */
   ack: number;
 }
 
@@ -71,12 +100,28 @@ export interface FoodDTO {
   v: number;
 }
 
+/** Ticks of food changes every snapshot repeats, so a dropped one costs nothing. */
+export const GAME_FOOD_WINDOW = 6;
+
+/** The food one tick changed. */
+export interface FoodDelta {
+  tick: number;
+  spawned?: FoodDTO[];
+  eaten?: string[];
+}
+
 /**
- * Pushed to the world stream every tick (volatile). Food is delta-encoded;
- * players are full. The stream's seed is one keyframe of the current world
- * (every snake, and all the food as `foodSpawned`, with no `t`), which the
- * ticks that follow change; the watchWorld/joinGame bootstrap holds the same
- * world too.
+ * Pushed to the world stream every tick (volatile). Players are full; food
+ * is delta-encoded, and each snapshot repeats the changes of the
+ * GAME_FOOD_WINDOW ticks up to its own (`food`, the ticks that changed food,
+ * oldest first), so a client that missed a snapshot applies them with the
+ * next. A client applies each tick's change once, in tick order. One that
+ * missed more than the window subscribes to the stream again: its seed is a
+ * keyframe of the current world (every snake, and all the food in one entry
+ * at its own tick, with no `t`), which replaces the food the client holds.
+ * A client takes a keyframe's food and its player names, never its snakes:
+ * it may be handled after newer snapshots.
+ * The watchWorld/joinGame bootstrap holds the same world too.
  */
 export interface WorldSnapshot {
   tick: number;
@@ -88,8 +133,19 @@ export interface WorldSnapshot {
    */
   t?: number;
   players: PlayerSnap[];
-  foodSpawned?: FoodDTO[];
-  foodEaten?: string[];
+  food?: FoodDelta[];
+}
+
+/**
+ * The world stream's item: a WorldSnapshot packed into bytes, base64
+ * (`b`). Decode it with a SnapshotDecoder (game/snapshotDecoder.ts; the
+ * Godot client's port is snapshot_decoder.gd), one per client, kept across
+ * its subscriptions and reset for another server's world: the players are
+ * named by the stream's id table, which each snapshot and keyframe
+ * introduces.
+ */
+export interface PackedWorldItem {
+  b: string;
 }
 
 export interface GamePlayerMeta {
@@ -157,4 +213,99 @@ export interface QuickdrawHostConfig {
   authToken?: string | null;
   /** World to join (slug). */
   worldSlug: string;
+  /**
+   * A party to join instead of the world, by its code: the page sets it
+   * once it hosts a party or joined one, and boots the engine again.
+   */
+  party?: { code: string } | null;
+}
+
+// ============================================================================
+// Party worlds (host mode). One player's browser hosts the party: its page
+// runs the sim (PartyWorld, game/party.ts) and serves the party's
+// host-served members over peer links. The server keeps the row, the code,
+// the room, the chat and who hosts, and never sees the party's traffic.
+//
+//   commands        qd:call gameService.hostParty | joinParty | playParty |
+//                   leaveParty | closeParty (hostParty, joinParty and
+//                   playParty put the CALLING socket in partyRoom(worldId))
+//   player → host   partyInput: GameInputs (host-served channel, the
+//                   link's fast)
+//   host → player   partyWorld: WorldSnapshot, raw (host-served stream,
+//                   volatile; its seed is a keyframe)
+//                   partyEvents: PartyEvent (host-served stream, reliable,
+//                   the link's rel; its seed names every player)
+//   server → room   qd:event partyPlayer | partyPlayerLeft | hostLeft |
+//                   partyClosed (reliable)
+// ============================================================================
+
+/** The prefix of every party's app room: the party input channel requires one. */
+export const PARTY_ROOM_PREFIX = "party:";
+
+/** A party's app room: the sockets of its players, and its host's. */
+export function partyRoom(worldId: string): string {
+  return `${PARTY_ROOM_PREFIX}${worldId}`;
+}
+
+/** The party a room is, or null for any other room. */
+export function partyOfRoom(room: string): string | null {
+  return room.startsWith(PARTY_ROOM_PREFIX) ? room.slice(PARTY_ROOM_PREFIX.length) : null;
+}
+
+/** How many characters of PARTY_CODE_ALPHABET a party code is (K7QD). */
+export const PARTY_CODE_LENGTH = 4;
+
+/** The characters of a party code: letters and digits, without 0, O, 1, I and L. */
+export const PARTY_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+/** The `kind` of a world a player's browser hosts (GameWorld.kind); a server's world is "server". */
+export const PARTY_WORLD_KIND = "party";
+
+/** The most users a party holds: each a page and a game, so two links to its host. */
+export const PARTY_MAX_USERS = 16;
+
+/** What hostParty answers: the party's world, its code and its chat. */
+export interface PartyHosted {
+  worldId: string;
+  code: string;
+  chatId: string | null;
+}
+
+/**
+ * What joinParty answers: a WorldBootstrap without the world (`tick` 0, no
+ * players, snakes or food: the host's streams carry them), plus the party's
+ * code and its host. `hostSocketId` is null while the party has no host.
+ */
+export interface PartyBootstrap extends WorldBootstrap {
+  code: string;
+  hostUserId: string | null;
+  hostSocketId: string | null;
+}
+
+/** A party's leaderboard, from its host: each player's round trip to it, and the fair link's lag. */
+export interface PartyLeaderboard {
+  kind: "leaderboard";
+  entries: LeaderboardEntry[];
+  /** Each linked player's round trip to the host (ms), by user id, as the host's links measure it. */
+  rttMs: Record<string, number>;
+  /** The lag the fair link gives the host's own user (ms), or null when it is off. */
+  fairLinkMs: number | null;
+}
+
+/**
+ * One item of a party's events stream: what the world's events are to the
+ * server's world. Reliable, in order; the seed has a `joined` for every
+ * player in the party and the latest leaderboard.
+ */
+export type PartyEvent =
+  | ({ kind: "joined" } & GamePlayerMeta)
+  | { kind: "left"; id: string }
+  | ({ kind: "death" } & GameDeathEvent)
+  | PartyLeaderboard;
+
+/** The server's word to a party's room that a user asked to play: the host spawns (or respawns) them. */
+export interface PartyPlayer {
+  worldId: string;
+  id: string;
+  name: string | null;
 }

@@ -266,4 +266,9 @@ jobs:
       - name: Test bench
         if: matrix.shard == 2
         run: cd packages/bench && bun run test
+      # The game's code in the shared package (the sim, its loop, the packed
+      # snapshot codec)
+      - name: Test shared
+        if: matrix.shard == 2
+        run: cd packages/shared && bun run test
       # ── quickdraw-game:end ──

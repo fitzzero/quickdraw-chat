@@ -20,7 +20,10 @@ CORS from the auth's allowed origins, cookie-parser, a 100 kB JSON body,
 
 Before it, the game's world row and chat are made (`ensureGlobalWorld`);
 after it, the game's runtime and loop start (`game-patterns.md`). The game
-service brings its own room-leave hook, so no root passes one.
+service brings its own room-leave and host-leave hooks, so no root passes
+one, and the server serves peer links (`peers: true`, which host mode needs:
+a party's host serves its world over them; every server the game runs in
+sets it, the test apps and the bench's included).
 
 <!-- ── quickdraw-game:end ── -->
 

@@ -16,6 +16,366 @@ Template:
 
 ---
 
+## 2026-10-23 — Party worlds over peer links (the pack's G6) [KEPT]
+
+- Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at
+  3677ccf (104e037 the server half, bfa72e9 the clients, 579ebed the
+  party scenarios, 940d77e, 62b437c and 3677ccf the fixes from the
+  review).
+- Change: a second topology on the same contract (quickdraw-core 5.1.3's
+  host mode). A player's page hosts a party world (`PartyWorld`: the
+  shared `GameWorldSim` and `GameLoop`, ticked by a worker) and serves it
+  over peer links: WebRTC where it connects, the server's relay
+  otherwise. Players send `partyInput` and read `partyWorld` (raw
+  snapshots, volatile) and `partyEvents` (reliable). The fair link lags
+  the host's own user's links by the other players' median one-way trip,
+  at most 100 ms (`settleFairLink`, which the page and the harness share).
+- Scenarios (new, `--runs 3`, at 3677ccf): `party-3p-lossy` and
+  `party-3p-unfair`. Three players on loopback links to a host in
+  process, 50 ms each way plus up to 15 ms, 5% of `fast` messages lost;
+  the host's own user on a local link, which the harness lags as the
+  page does (or not, in `party-3p-unfair`). Their cards are the first
+  party baselines (label `g6-final`).
+- Headline, `party-3p-lossy`: teleportsPerMin, hardSnapsPerMin and
+  food.mismatchAtEnd 0 for every client; `packet.gapRate` 4.6–5.3% for
+  the players (the link's 5%, measured at last; 0 for the host's own
+  user, whose link loses nothing); starvedRate 3.4%. Fairness holds: the
+  host's own user's `inputAckRttMs` p50 147 ms against the players'
+  median 144 ms (the plan's bound: within 10 ms), `predictionErrorPx` p95
+  16.4 px against 14.8 px (+11%; the bound: within 25%).
+- Headline, `party-3p-unfair` (no fair link): the host's own user's ack
+  p50 33 ms against 142 ms, prediction error p95 3.2 px against 16.2 px.
+  That is the advantage the fair link removes. The 33 ms is the wait for
+  the host's next tick, not a link.
+- The fair link evens the trip, not the jitter: the host's own user's
+  link has none, so it plays the others back 135 ms behind, where the
+  players play everyone 155–160 ms behind. `remoteVsRemotePx` p95 is 8.4
+  px (3.0 when the host's own user had a player's link). Follow-up
+  hypothesis: lag the host's links with the players' jitter too.
+- Prediction error p95 is 9.6–17.3 px over the four: under the plan's
+  15 px for 2 of 4. An A/B without loss (all four on the same link with
+  `loss: 0`, 3 runs) measured 9.7–17.9 px against 10.9–16.9 px with 5%
+  loss: the loss adds coasted ticks (starved 0.9% → 4.9%), not
+  prediction error. The error is the client's lead over the host, which
+  grows with the round trip (server scenarios at 130–160 ms measure
+  9–20 px with no loss: baseline-3p-100ms bot-c 13.6, mixed-3p bot-b
+  19.7). So the 15 px bound is a bound on the round trip.
+- Harness: every party bot starts its input clock 10 ms after a host
+  tick. Before that, joins in a fixed order over seeded links gave each
+  bot the same phase run after run: in four run sets the host's own
+  user's ack p50 was 127–154 ms against the players' 151–153 ms, and
+  bot-a's always 155–157 ms. Aligned, the four span 141–148 ms. The bot
+  client speaks to a `BotTransport` (the server's socket, or a party's
+  loopback end): `control-0ms --runs 3` after the refactor passes its
+  baseline with default thresholds.
+- Host mode's own framing is checked outside the bench: `check:godot`'s
+  party session (a Node host on `defineHost`, two headless Godot players
+  over the relay: moves, a death on `partyEvents`, a respawn,
+  `partyClosed`), and two Chromium pages on `/game` (connected
+  `RTCPeerConnection`s, the party's leaderboard with each player's round
+  trip, a fair link of about half the guest's round trip, "Fair link off"
+  with `?fairLink=off`, a party that ends when its host leaves the page
+  or goes offline).
+- quickdraw 5.1.3 findings: `qd.rooms` has no `clearHost` or `hostOf` at
+  run time (the host-leave hook needs neither), and a host's own feed of
+  a room it hosts gets no seed or items when it subscribed before
+  `serve` (the page subscribes once it serves). `peers: true` is one
+  switch for the whole server.
+- Gate: the party baselines are this run's cards (label `g6-final`).
+
+## 2026-10-23 — H7: Packed snapshots (the pack's G4) [KEPT]
+
+- Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at
+  aed1669 (e78ea26 the codec; aed1669 the fixes from the review).
+- Change: each world stream item packs one snapshot into bytes, base64 in
+  `{ b }` (`packages/shared/src/game/snapshotCodec.ts` has the layout): a
+  player is 21 B (28 in base64), against about 110 B of JSON. A player is
+  an index into the stream's id table, which one `SnapshotEncoder` per
+  runtime keeps. The keyframe (the seed) introduces every player, and each
+  snapshot repeats the introductions of its last six ticks, as the food
+  window repeats food. Positions are u32 tenths, directions i16
+  thousandths: the sim's own rounding, so a decoded snapshot equals the
+  JSON one. The bots and Godot (`snapshot_decoder.gd`) decode with one
+  decoder per client, and ask for a keyframe when a snapshot names a
+  player by an introduction they missed.
+- Scenarios (the sweep, `--all --runs 3`, at aed1669 against the
+  `g3-final` baselines, default thresholds): every scenario passes, no
+  `warn`.
+- Headline: `server.snapshotBytes` p95 501 → 168 B (−66%) in every
+  3-player scenario, asym-2p 368 → 124, spectator-plus-2p 386 → 128; the
+  mean 433 → 144 B. The plan's gate was −50%. Every other headline
+  metric holds: teleportsPerMin, hardSnapsPerMin and food.mismatchAtEnd 0
+  everywhere, renderLatencyMs unchanged, and each change inside its noise
+  band (the largest: mixed-3p shapeErrorPx p95 4.89 → 6.00 px and jerkRms
+  +12%, control-0ms inputAckRttMs p95 +15%).
+- The first sweep (at e78ea26) failed two metrics: encounter-3p-100ms
+  `server.tickDurMs.p95` 0.23 → 0.29 ms and jitter-heavy-3p jerkRms
+  529 → 648. Review agents ran probes on the pod during it. The quiet
+  sweep at aed1669 measures 0.25 ms and 557, both passing. The codec
+  cannot move tickDurMs: the loop times `sim.step()` alone, before it
+  packs the snapshot.
+- Fixed from the review: a player the seed named was introduced in no
+  snapshot after it, so a client that lost the seed's newer snapshots
+  never learned the name (the introductions now repeat from the tick the
+  index was first given). A keyframe more than six ticks older than the
+  newest snapshot no longer names players, whose indexes may be another
+  player's since. The count tunables (maxFood, initialFood, npcCount) stay
+  at or under 65535, the layout's u16 counts.
+- Godot: check:godot runs the GDScript decoder over the TS encoder's
+  fixtures first (`apps/api/src/bench/codec-fixtures.ts`,
+  `apps/game/godot/test/codec.gd`) and compares its players, food and
+  keyframe asks with the TS decoder's, step by step; then the two-client
+  session, through an API restart.
+- Follow-up: Socket.IO's binary attachments would save the base64's third,
+  once the GDScript client reads that format.
+- Gate: the new baselines are this sweep's cards (label `g4-final`).
+
+## 2026-10-23 — H3: Adaptive interpolation delay per client (the pack's G3) [KEPT]
+
+- Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at
+  aebcd16 (76e89c9 the delay; 6798884 a 10 s memory, a 2-tick allowance
+  and the fixes from the review; aebcd16 a reconnect that anchors the
+  render timeline again, and the last review's fixes).
+- Change: `PlaybackDelay` keeps exponentially weighted means (k = 2/201,
+  about the last 10 s at 20 Hz) of the time between snapshot arrivals, of
+  its variance, and of the frame time. The target delay is mean + 3σ + a
+  frame, in ticks, clamped to 1.5–6. `WorldClock` keeps its H2 estimate
+  and adds a render timeline behind it, which runs 5% fast or slow toward
+  the target outside a 5 ms dead band, at most 2 ticks past the newest
+  tick (the interpolators' extrapolation budget) and at most 12 ticks
+  behind the estimate. A gap counts as 300 ms at most and a frame as
+  250 ms. The GDScript port is `game.gd`'s playback section;
+  `remote_snake.gd` renders at the render tick, as before.
+- Scenarios (the sweep, `--all --runs 3`, at 6798884 against the
+  `g2-final` baselines, with `bench-baselines/thresholds/g3-adaptive-delay.json`):
+  every scenario passes, no `warn`. With the default thresholds six fail,
+  each only on the metrics the user accepted (see the costs below).
+- Headline: remotes render 40–50 ms sooner wherever the link is clean or
+  mildly jittery, per client: control-0ms 125 → 80 ms; baseline-3p-100ms,
+  encounter-3p-100ms, fps-varying-3p, spectator-plus-2p and both drift
+  scenarios 175 → 125–130 ms; asym-2p 160/200 → 115/160 ms; mixed-3p's
+  clean client 145 → 95 ms (its wobble 175 → 150, its spiky one
+  unchanged). jitter-heavy-3p holds 175 ms. bursty-3p's two stalled
+  clients render further behind (165 → 210/230 ms), so their buffers stop
+  running dry; its clean client 165 → 115 ms. jerkRms −10…−60% everywhere
+  (asym-2p −60%, encounter-3p-100ms −46%, bursty-3p −33%,
+  spectator-plus-2p −33%, jitter-heavy-3p −28%). teleportsPerMin,
+  hardSnapsPerMin and food.mismatchAtEnd 0 everywhere.
+- Costs, the trade the user accepted on 2026-10-22: clients on unequal
+  links render one snake at different moments. remoteVsRemotePx p50/p95:
+  bursty-3p 0.02/0.78 → 17.4/22.2 px, mixed-3p 5.4/9.6 → 9.6/18.6 px,
+  jitter-heavy-3p 0.02/0.19 → 0.59/2.27 px, at most 0.25/0.75 px
+  elsewhere. A delay that follows the link leaves more residual after the
+  best constant lag: shapeErrorPx p95 jitter-heavy-3p 4.60 → 6.86,
+  bursty-3p 2.35 → 3.52, mixed-3p 3.47 → 4.89 px. bursty-3p
+  ownVsRemotePx p95 58.8 → 74.5 px and its headline renderLatencyMs
+  +12%: the stalled clients' longer delay.
+- The plan's literal design (k = 2/31, the render clock never past the
+  newest tick; the sweep of 76e89c9) failed its own gate on
+  jitter-heavy-3p: jerkRms +36%, shapeErrorPx p95 +107%, though clean
+  links already rendered 26–33% sooner. Two causes, each measured alone
+  (one run each, jitter-heavy-3p):
+  - A 1.5 s memory forgets a spike before the next one, so the delay sank
+    to the floor between spikes and chased each one. k = 2/201 keeps a
+    spiky link's spikes in σ, and one delay: remoteVsRemotePx p95
+    10.9 → 4.0 px, but jerk still +37%.
+  - Holding the render clock at the newest tick froze every remote on
+    each late snapshot, a stop and a start. Two ticks of allowance make a
+    late snapshot cost a short extrapolation, as with the fixed delay:
+    jerk −30% (bursty-3p −37%), shapeErrorPx +14%, remoteVsRemotePx p95
+    1.9 px. (k = 2/31 with the allowance: jerk −11%, shapeErrorPx +103%.)
+- Fixed since the first sweep, from the review and after it: the delay
+  had no ceiling after a stall of seconds (the 12-tick lag cap now), one
+  outage or hitch held the target up (the gap and frame caps), and a
+  reconnect to the same server counted the outage as a gap and restarted
+  the render timeline from an estimate that drifted while nothing arrived
+  (it now forgets the timeline, keeps what it learned of the link, and
+  anchors on the next snapshot). Bots never reconnect within a run
+  (`reconnection: false`), so the reconnect change moves no bench number.
+- The 2026-08-01 dead end (per-client adaptive delay, bursty
+  remoteVsRemotePx p50 38 px) is re-adopted on purpose: with the floor,
+  the ceiling, the warp and the 10 s memory, bursty-3p's p50 is 17 px.
+  HYPOTHESES.md #4b (one delay for the room) is closed untested.
+- Godot: the port settles at about 1.57 ticks on a clean link in
+  check:godot, as the bots do. An arrival there is the frame that polled
+  it, so a link's gaps carry up to a frame more spread than the bots'.
+- Tier-2 (`apps/bench-web`, baseline-3p-100ms, headless, one run each,
+  back to back: the pre-G3 pck, then the G3 pck): headless Chromium in the
+  pod renders the game at 8 fps, so this checks that the port runs, not
+  how smooth it is. At 125 ms a frame, snapshots arrive in bursts of two
+  or three and the frame term is 2.5 ticks, so the delay goes to its
+  6-tick ceiling: remotes render 465–530 ms behind, from 310–350 ms.
+  remoteVsRemotePx p50/p95 2.6/16.0 → 1.6/13.2 px, jerkRms
+  306/430/884 → 311/265/689, teleports 0. G3 leaves the local snake as it
+  was; its numbers vary from run to run at 8 fps.
+- Gate: `bench-baselines/thresholds/g3-adaptive-delay.json` raises the
+  floors of the accepted metrics only, for G3's sweep against the pre-G3
+  baselines. The new baselines are this sweep's cards (label `g3-final`),
+  so later changes take the default thresholds again; mixed-3p is new,
+  its pre-G3 baseline at 44d9c31.
+
+## 2026-10-23 — Food window: food changes repeated for six ticks (the pack's G2) [KEPT]
+
+- Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at
+  210e697 (11f0180 the window; 08d654e and 210e697 the fixes from the two
+  review passes).
+- Change: each world snapshot carries `food`, the food changes of the last
+  six ticks that changed food (`GAME_FOOD_WINDOW`), oldest first, where it
+  carried only its own tick's `foodSpawned`/`foodEaten`. A client applies
+  each tick's change once, in tick order. A snapshot more than six ticks
+  past the last one it applied means changes were lost: the client
+  subscribes to the stream again, and the seed, a keyframe with all the
+  food in one entry, replaces its food. A client takes only a keyframe's
+  food: the Godot client hands a reply over a frame after the stream items
+  that came with it, so a keyframe can be handled after newer snapshots.
+  Deaths, joins and the leaderboard stay reliable events.
+- The plan's gap rule (the oldest entry's tick past the last tick applied,
+  plus one) counts from the snapshot's tick instead: entries exist only
+  for ticks that changed food, so an oldest entry past the last tick
+  applied, plus one, is normal.
+- Scenarios (the sweep, `--all --runs 3`, at 210e697 against the
+  `g1-queue-final` baselines): every scenario passes, no `warn`, nothing
+  past the noise. A first sweep at 11f0180, before the review's fixes,
+  passed too.
+- Headline: `foodMismatchAtEnd` 0 in the worst run of every scenario
+  (`runWorst`), `foodResyncs` 0. jitter-heavy-3p dropped 1.1–2.0% of its
+  snapshots (gapRate) and mixed-3p's spiky client 1.2%, all within the
+  window. bursty-3p's stalls (250 ms every 2 s) dropped none on this
+  machine (gapRate 0, as in the baseline), so the keyframe path runs in the
+  game's integration test (10 snapshots missed) and in check:godot (a
+  second of them missed). snapshotBytes p95 +23…+51 B (+7…+11%), mean
+  +36…+56 B (+10…+18%): about 1 KB/s more per client.
+- Gate: the worst client's mismatch is a headline metric,
+  `food.mismatchAtEnd`, that must be 0 in every run (`MUST_BE_ZERO`, judged
+  on an aggregated card's worst run), so a later netcode change cannot lose
+  food changes unseen. The new baselines are this sweep's cards (scorecard
+  schemaVersion 2, with `runWorst`).
+
+## 2026-10-23 — H5: Input queue and redundant frames (the pack's G1) [KEPT]
+
+- Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at
+  51d3a76 (a429eea the queue, 38f917b and 51d3a76 the fixes from the
+  review). The variants tried are kept on `wip/g1-input-queue` (F 0749d3b,
+  D ed033e4, A 822c3c5, H2 f389b59).
+- Change: the input channel carries `{ frames }`, the newest last with up
+  to three unacknowledged ones before it. Each human snake queues its
+  frames once by seq (`InputQueue`) and steps one a tick unless a backlog
+  builds, so `PlayerSnap.ack` names the last frame the server's state
+  holds. A tick without a frame coasts on the last intent: while nothing
+  arrives, the coast stands in for the late frame, which is ignored when
+  it arrives; while frames arrive but none can step (a slow clock, a
+  client back from a pause), the coast is owed (a frame that arrives with
+  another after it pays it, the debt expires after four ticks). A second
+  frame steps in a tick only from a backlog, or after a frame waited 10
+  ticks. Every step, coasts included, spends the 1.15-a-tick credit. A tick
+  of several steps checks collisions at every head it passed. The loop
+  ticks on an exact 20 Hz grid (`setInterval` ran at 19.94 Hz).
+- Scenarios (the sweep, `--all --runs 3`, at 51d3a76 against the
+  `core-5.1.3` baselines): no `fail`. One `warn`: fps-varying-3p
+  ownVsRemotePx p95 65.0 → 72.2 (+11%). jerkRms asym-2p −43%,
+  jitter-heavy-3p −36%, encounter-3p-100ms −29%, fps-varying-3p −17%,
+  spectator-plus-2p −17%, the rest within noise. inputAckRttMs p95 −6…−16%
+  or ok.
+- Headline: correctionPx p95 at most 0.8 px on every client of every
+  scenario, from 9 px (one movement step) and 16 px on jitter-heavy-3p.
+  teleportsPerMin 0 everywhere.
+- The plan's queue (A: full credit, up to three frames a tick, a starved
+  tick skipped) fails its own gate: corrections 9 → 0.1 px, but jerkRms
+  +202…+225% on the three-player scenarios. A client steps its 20 Hz sim
+  from a 60 fps loop, so its frames leave with up to ~17 ms of jitter. A
+  client whose frames reach the server within that of the tick (about one
+  in three, by the chance of its connect time) flips them between ticks:
+  stepping what arrived gives "2, 0", which every viewer's interpolation
+  shows as a pause and a double step. Every server-only rule makes such a
+  client pay one of input latency (a held frame), stutter (the skip) or a
+  correction (a coast); a coast that stands in for the late frame makes
+  the correction only that frame's change of intent.
+- Dead ends, one run each against the same baselines:
+  - A plus the exact loop: jerk +65% / +188% / +151% (baseline-3p-100ms /
+    jitter-heavy-3p / control-0ms).
+  - B (a second frame in a tick only from a backlog): input ack +44 ms.
+  - C (B plus coasting, the late frame skipped): ack +44 ms; the 19.94 Hz
+    loop kept a frame queued for good.
+  - D (C plus the exact loop and a 2 s drain): control-0ms ack +15%,
+    ownVsRemotePx +24%; a slow clock chained coasts into skipped frames.
+  - F (coasting; a frame that waited a tick steps with the next): jerk
+    +49% / +90% (baseline-3p-100ms / control-0ms).
+  - G40 (D's rules, a coasted step paid only by a frame that arrives with
+    another): corrections 0.1 px, but control-0ms ack +19%, ownVsRemotePx
+    +27%: the client at the tick keeps a frame held.
+  - H (a coast stands in for the late frame, at most four in a row): it
+    switched between coasting and holding a frame and double-stepped:
+    baseline-3p-100ms jerk +38%.
+  - H2 (H, a stood-in frame that arrives alone makes the next coast owed):
+    no fail in its sweep (a429eea, the verdict of 317a820), but the review
+    found four faults: coasts were free steps (a client that held frames
+    back for bursts moved about 1.5× as fast); a three-step boosted tick
+    (48 px) could step over a body (19 px kill distance); after an uplink
+    stall of more than four coasts the capped debt let stale frames step
+    again (a lurch of about 100 px); and a client back from a pause had no
+    prediction for as long as it paused (its seqs stayed under the ack).
+  - Clients numbering past any ack ahead of them (the first fix for the
+    last fault): at 0 ms a stand-in often runs the ack one ahead of a frame
+    the client has not stepped yet, and renumbering there made the queue
+    hold and drain frames in a cycle (control-0ms double steps 1.4%, jerk
+    +30%). They number past the ack only when it ran more than four ahead.
+- tickDurMs: every single run before the first sweep measured 0.21 → 0.30
+  ms p95, G1 or not. The unchanged pre-G1 code measured the same in the
+  same hour (control-0ms 0.26, baseline-3p-100ms 0.35 ms p95), and the
+  sim's step alone costs 0.026 ms p50 with or without G1. The machine
+  moved it; in the sweeps it was 0.17–0.26 ms.
+- The exact loop keeps each client's phase for a whole run, so the metrics
+  that depend on a client's phase now spread across runs: control-0ms
+  ownVsRemotePx p95 by 5–11 px (the drifting loop averaged every phase),
+  which is why its +18% is within noise. predictionErrorPx p95, mostly the
+  client's one-tick lead, spreads per client: baseline-3p-100ms
+  10.0/13.0/12.2 → 3.6/11.0/15.6, jitter-heavy-3p 12.3/17.7/17.8 →
+  11.2/8.4/18.5.
+- Bounds the plan set for the skip design: control-0ms `starvedRate` 0.73%
+  (bound < 0.5%); drift-slow-client 2.00%, 5.9% for the slow client (bound
+  0.5–2%). A coasted tick is cheap: the snake moves and nothing stutters.
+  `multiStepRate` stays at or under 0.35% everywhere (bound < 5%), 1.03%
+  for the fast client. drift-fast-client: depth p95 1, trend 0.17, starved
+  0.10% (bounds met).
+- inputAckRttMs is partly shorter by definition: a stand-in coast
+  acknowledges its frame before the frame arrives.
+- The gate: `server.inputQueue.depthP95` joins the headline metrics with a
+  floor of one frame, not the planned 0.05 (a client's queue holds 0 or 1
+  by its phase; a ratchet grows by more), and any growth past a floor from
+  a zero baseline now fails (it was called ok, a first teleport included).
+- Baselines: all ten scenarios are this sweep's (label `g1-queue-final`),
+  drift-fast-client and drift-slow-client new.
+
+## 2026-10-23 — Re-baseline: quickdraw-core 5.1.3 on the pod machine [BASELINE]
+
+- Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at 7845843
+  (the netcode pack's first child: core, lint and skills 5.1.2 → 5.1.3). No
+  netcode change; this entry resets the baselines so the pack's first
+  verdict (G1, the input queue) is judged against the new core on the
+  machine that will judge it.
+- Scenarios (the sweep, `--all --runs 3`, against the committed baselines):
+  every scenario but `control-0ms` fails on one metric only,
+  `server.tickDurMs.p95`: 0.05–0.08 ms → 0.15–0.24 ms (baseline-3p-100ms
+  0.05 → 0.21). Nothing else fails or warns. `control-0ms`, `asym-2p` and
+  `spectator-plus-2p` improve a lot (jerkRms −29…−40%, renderLatency
+  −12…−17%, remoteVsRemote p95 −83…−88%): their baseline files were last
+  written before H1/H2/H3b, which the two regenerations of 2026-08-01 did
+  not rewrite.
+- Attribution (same machine, same code, baseline-3p-100ms, 3 runs):
+  5.1.2 and 5.1.3 measure the same (`tickDurMs` p95 0.208 against
+  0.206 ms, every headline metric ok or within noise). The tick's rise is
+  this machine's: the pure sim step costs about 0.2 ms p95 here, against
+  0.05 on the machine of 2026-08-01. Not the core's.
+- Reference numbers on the new baselines (pre-G1): `correctionPx` p95 is
+  9.0 px on most clients, one movement step (180 px/s × 50 ms), 16 px on
+  jitter-heavy; `predictionErrorPx` p95 6–18 px; the server ticks at
+  19.95 Hz, so a client stepping 20 times a second by its own clock runs
+  ahead of it now and then; a 3-player snapshot is 457 B p95, each player
+  about 112 B of it.
+- Baselines: all eight regenerated from this sweep, label `core-5.1.3`.
+
+---
+
 ## 2026-08-01 — Iteration 3: GDScript port of H1+H2+H3b + Tier-2 validation [KEPT]
 
 - Branch: netcode/godot-port (merged into netcode/rd). TS bot netcode

@@ -44,10 +44,10 @@ points at.
 | `game`          | The game foundation: GameService, channels, the Godot client. | `.claude/rules/game-patterns.md` | —      |
 | `netcode-bench` | The benchmark harness and the R&D hypothesis loop.            | `docs/netcode-bench.md`          | `game` |
 
-| Tag             | Context paths                                                                                                       |
-| --------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `game`          | `apps/api/src/services/game` (folder), `apps/game` (folder), `.claude/rules/game-patterns.md` (rule)                |
-| `netcode-bench` | `packages/bench` (folder), `apps/api/src/bench` (folder), `bench-baselines` (folder), `docs/netcode-bench.md` (doc) |
+| Tag             | Context paths                                                                                                                             |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `game`          | `apps/api/src/services/game` (folder), `packages/shared/src/game` (folder), `apps/game` (folder), `.claude/rules/game-patterns.md` (rule) |
+| `netcode-bench` | `packages/bench` (folder), `apps/api/src/bench` (folder), `bench-baselines` (folder), `docs/netcode-bench.md` (doc)                       |
 
 <!-- ── quickdraw-game:end ── -->
 
