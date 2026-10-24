@@ -111,7 +111,7 @@ async function seed(): Promise<Fixture> {
     // owner hosts (no socket hosts it: the party methods that need one refuse
     // after their access check), so the policy's host rule has its cells
     testPrisma.gameWorld.create({
-      data: { slug: "world", name: "World", kind: "party", code: "BAP-SNAP", hostUserId: owner.id },
+      data: { slug: "world", name: "World", kind: "party", code: "SNAP", hostUserId: owner.id },
       select: { id: true },
     }),
     testPrisma.definition.create({

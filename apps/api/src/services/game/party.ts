@@ -21,7 +21,7 @@ import type {
 import {
   DEFAULT_TUNABLES,
   PARTY_CODE_ALPHABET,
-  PARTY_CODE_PREFIX,
+  PARTY_CODE_LENGTH,
   PARTY_MAX_USERS,
   PARTY_TUNABLES,
   PARTY_WORLD_KIND,
@@ -39,25 +39,22 @@ type Db = typeof appDb;
 /** How many codes hostParty draws at once, to find one no party holds. */
 const CODE_CANDIDATES = 5;
 
-/** The characters after the code's prefix. */
-const CODE_LENGTH = 4;
-
 /** A party's world bounds: the sim's defaults under the party's tunables, which its host runs. */
 export const PARTY_BOUNDS = {
   w: PARTY_TUNABLES.worldWidth ?? DEFAULT_TUNABLES.worldWidth,
   h: PARTY_TUNABLES.worldHeight ?? DEFAULT_TUNABLES.worldHeight,
 };
 
-/** A fresh code: the prefix and four random characters of the alphabet. */
+/** A fresh code: PARTY_CODE_LENGTH random characters of the alphabet. */
 function newPartyCode(): string {
-  let code = PARTY_CODE_PREFIX;
-  for (let i = 0; i < CODE_LENGTH; i++) {
+  let code = "";
+  for (let i = 0; i < PARTY_CODE_LENGTH; i++) {
     code += PARTY_CODE_ALPHABET.charAt(randomInt(PARTY_CODE_ALPHABET.length));
   }
   return code;
 }
 
-/** A code as a player typed it, as stored: trimmed, in capitals ("bap-k7qd" finds BAP-K7QD). */
+/** A code as a player typed it, as stored: trimmed, in capitals ("k7qd" finds K7QD). */
 export function normalizePartyCode(code: string): string {
   return code.trim().toUpperCase();
 }

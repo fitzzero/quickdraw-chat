@@ -243,7 +243,7 @@ model GameWorld {
   name       String
   // "server" (the server runs its sim) or "party" (a player's browser hosts it)
   kind       String    @default("server")
-  // A party's join code (BAP-XXXX); null for a server world
+  // A party's join code (four characters, like K7QD); null for a server world
   code       String?   @unique
   // The user whose browser hosts a party; null for a server world
   hostUserId String?   @map("host_user_id")

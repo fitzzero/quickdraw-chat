@@ -117,7 +117,7 @@ included) — spectators behind the pre-game dialog keep the NPC world running.
 
 A party is a world one player's browser hosts (quickdraw's host mode). The
 server keeps the party's row (`GameWorld` with `kind: "party"`, a `code`
-shaped `BAP-XXXX`, `hostUserId`, `closedAt`), its room
+of four characters like `K7QD`, `hostUserId`, `closedAt`), its room
 (`partyRoom(worldId)`), its chat, and who hosts it. The world itself runs
 in the host's page. Its contract members sit beside the world's, never in
 place of them: one member is served by the server or by a host, never both.

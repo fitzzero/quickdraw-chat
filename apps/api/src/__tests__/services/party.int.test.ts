@@ -18,7 +18,7 @@ import { describeAccessMatrix, eventFrames } from "@fitzzero/quickdraw-core/test
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import {
   PARTY_CODE_ALPHABET,
-  PARTY_CODE_PREFIX,
+  PARTY_CODE_LENGTH,
   gameContract,
   partyRoom,
   type PartyHosted,
@@ -39,7 +39,10 @@ let clients: QuickdrawConnection[] = [];
 /** The party rooms a test used: empty again after it. */
 let rooms: string[] = [];
 
-const CODE = new RegExp(`^${PARTY_CODE_PREFIX}[${PARTY_CODE_ALPHABET}]{4}$`);
+const CODE = new RegExp(`^[${PARTY_CODE_ALPHABET}]{${PARTY_CODE_LENGTH}}$`);
+
+/** A code no party can have: 0 is not in the alphabet. */
+const NO_PARTY = "0000";
 
 beforeAll(async () => {
   app = await startTestApp();
@@ -209,7 +212,7 @@ describe("hosting and joining a party", () => {
 
   it("joinParty refuses a code no open party has", async () => {
     const guest = await connect(users.moderator.id);
-    await expectCode(guest.call.gameService.joinParty({ code: "BAP-ZZZZ" }), "NOT_FOUND");
+    await expectCode(guest.call.gameService.joinParty({ code: NO_PARTY }), "NOT_FOUND");
   });
 
   it("joinParty refuses a party without a host, and leaves the socket out of its room", async () => {
@@ -226,7 +229,7 @@ describe("hosting and joining a party", () => {
     const { party } = await hosting(users.regular.id);
     const guesser = await connect((await createTestUser()).id);
     for (let i = 0; i < 10; i++) {
-      await expectCode(guesser.call.gameService.joinParty({ code: "BAP-ZZZZ" }), "NOT_FOUND");
+      await expectCode(guesser.call.gameService.joinParty({ code: NO_PARTY }), "NOT_FOUND");
     }
     await expectCode(guesser.call.gameService.joinParty({ code: party.code }), "RATE_LIMITED");
   });
@@ -235,7 +238,7 @@ describe("hosting and joining a party", () => {
     const { party } = await hosting(users.regular.id);
     const guesser = await connect((await createTestUser()).id);
     const guesses = Array.from({ length: 12 }, () =>
-      guesser.call.gameService.joinParty({ code: "BAP-ZZZZ" }).then(
+      guesser.call.gameService.joinParty({ code: NO_PARTY }).then(
         () => "ok",
         (failure: unknown) => (failure as QuickdrawError).code,
       ),

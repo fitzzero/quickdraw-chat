@@ -252,8 +252,8 @@ export function partyOfRoom(room: string): string | null {
   return room.startsWith(PARTY_ROOM_PREFIX) ? room.slice(PARTY_ROOM_PREFIX.length) : null;
 }
 
-/** A party code is this prefix and four characters of PARTY_CODE_ALPHABET. */
-export const PARTY_CODE_PREFIX = "BAP-";
+/** How many characters of PARTY_CODE_ALPHABET a party code is (K7QD). */
+export const PARTY_CODE_LENGTH = 4;
 
 /** The characters of a party code: letters and digits, without 0, O, 1, I and L. */
 export const PARTY_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";

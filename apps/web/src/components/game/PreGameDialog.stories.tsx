@@ -66,7 +66,7 @@ export const PartyChoices: Story = {
 /** The page hosts a party: its code to share, and the way to end it. */
 export const PartyHost: Story = {
   args: {
-    party: { code: "BAP-K7QD", role: "host" },
+    party: { code: "K7QD", role: "host" },
     onHostParty: fn(),
     onJoinParty: fn(),
     onLeaveParty: fn(),
@@ -76,7 +76,7 @@ export const PartyHost: Story = {
 /** The page joined a party by its code. */
 export const PartyGuest: Story = {
   args: {
-    party: { code: "BAP-K7QD", role: "guest" },
+    party: { code: "K7QD", role: "guest" },
     onHostParty: fn(),
     onJoinParty: fn(),
     onLeaveParty: fn(),

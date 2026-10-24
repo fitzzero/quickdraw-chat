@@ -42,7 +42,7 @@ Start the API first (`bun run dev` at the repo root), then run the game
 (F5 in the editor). Open http://localhost:3000/game in a browser at the same
 time — you'll see both snakes in the shared world. A user id the database
 does not know is refused at the handshake (the client says so and does not
-reconnect). `QUICKDRAW_PARTY_CODE=BAP-XXXX` joins a party instead (host a
+reconnect). `QUICKDRAW_PARTY_CODE=K7QD` (a party's code) joins a party instead (host a
 party from the page's dialog first): the editor build plays over the relay
 to the party's host.
 
