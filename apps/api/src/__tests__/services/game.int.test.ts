@@ -12,13 +12,17 @@ import {
   streamFrames,
 } from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
-import type { GameBootstrap, WorldSnapshot } from "@project/shared";
+import type { GameBootstrap, GameInput, PackedWorldItem, WorldSnapshot } from "@project/shared";
 import {
+  GAME_FOOD_WINDOW,
   GLOBAL_WORLD_ID,
   GLOBAL_WORLD_ROOM,
   GLOBAL_WORLD_SLUG,
+  SnapshotDecoder,
   gameContract,
+  worldSnapshotSchema,
 } from "@project/shared";
+import { FoodTracker } from "../../bench/bot/food.js";
 import { ensureGlobalWorld } from "../../services/game/bootstrap.js";
 import { gameService } from "../../services/game/index.js";
 import { gameRuntime, persistScore } from "../../services/game/runtime.js";
@@ -100,30 +104,54 @@ function sendInput(connection: ApiConnection, payload: unknown): void {
   connection.socket.emit("qd:ch", ["gameService", "input", payload]);
 }
 
+/** One input frame, heading along +x unless told otherwise. */
+function frame(seq: number, dx = 1, dy = 0): GameInput {
+  return { seq, dx, dy, boost: false };
+}
+
 /** Resolves once the server read everything the socket sent before (a socket's events keep their order). */
 async function settled(connection: ApiConnection): Promise<void> {
   await connection.call.gameService.getWorld({ slug: GLOBAL_WORLD_SLUG });
 }
 
-/** Subscribes the socket to the world stream; answers the seed. */
+/** Each socket's world stream decoder: snapshots name players by the stream's id table. */
+const decoders = new WeakMap<ApiConnection, SnapshotDecoder>();
+
+function decoderOf(connection: ApiConnection): SnapshotDecoder {
+  let decoder = decoders.get(connection);
+  if (decoder === undefined) decoders.set(connection, (decoder = new SnapshotDecoder()));
+  return decoder;
+}
+
+/** A packed snapshot's tick, read without a table (a decoder of its own). */
+function tickOf(item: PackedWorldItem): number {
+  return new SnapshotDecoder().decode(item.b).tick;
+}
+
+/** Subscribes the socket to the world stream; answers the seed, decoded. */
 async function subscribeWorld(connection: ApiConnection): Promise<WorldSnapshot[]> {
-  const reply = await emitWithAck<{ ok: boolean; seed?: WorldSnapshot[] }>(
+  const reply = await emitWithAck<{ ok: boolean; seed?: PackedWorldItem[] }>(
     connection.socket,
     "qd:stream:sub",
     { s: "gameService", stream: "world", scope: GLOBAL_WORLD_ID },
   );
   expect(reply.ok).toBe(true);
-  return reply.seed ?? [];
+  return (reply.seed ?? []).map((item) => decoderOf(connection).decode(item.b));
 }
 
-/** Runs one tick of the world; answers the snapshot `connection` received on the world stream. */
-async function tickTo(connection: ApiConnection): Promise<WorldSnapshot> {
+/** Runs one tick of the world; answers the packed item `connection` received on the world stream. */
+async function tickToItem(connection: ApiConnection): Promise<PackedWorldItem> {
   const tick = must(gameRuntime(testDb).loop.tickOnce()).snapshot.tick;
   const { data } = await app.frames.waitFor({
-    ...streamFrames(gameContract, "world", (snapshot) => snapshot.tick === tick, GLOBAL_WORLD_ID),
+    ...streamFrames(gameContract, "world", (item) => tickOf(item) === tick, GLOBAL_WORLD_ID),
     socketId: connection.socket.id,
   });
   return data[3];
+}
+
+/** Runs one tick of the world; answers the snapshot `connection` received, decoded. */
+async function tickTo(connection: ApiConnection): Promise<WorldSnapshot> {
+  return decoderOf(connection).decode((await tickToItem(connection)).b);
 }
 
 /** The next `event` of the world `connection` receives (one received already counts). */
@@ -447,7 +475,7 @@ describe("GameService on the realtime kit", () => {
     // the seed is the current world: every snake, at once
     await subscribeWorld(socket);
 
-    sendInput(socket, { seq: 7, dx: 1, dy: 0, boost: false });
+    sendInput(socket, { frames: [frame(7)] });
     await settled(socket);
     const snapshot = await tickTo(socket);
 
@@ -460,6 +488,50 @@ describe("GameService on the realtime kit", () => {
     expect((await subscribeWorld(late)).map((seeded) => seeded.tick)).toEqual([snapshot.tick]);
   });
 
+  it("steps each frame of a message once, in order: four frames advance the ack by 4 over two ticks", async () => {
+    const { socket } = await joined(users.regular.id);
+    await subscribeWorld(socket);
+    const frames = [1, 2, 3, 4].map((seq) => frame(seq));
+
+    sendInput(socket, { frames });
+    // the next message repeats the frames not yet acknowledged
+    sendInput(socket, { frames: frames.slice(1) });
+    await settled(socket);
+
+    const mine = async () =>
+      must((await tickTo(socket)).players.find((p) => p.id === users.regular.id));
+    // a backlog: three in the first tick, the last in its own
+    expect((await mine()).ack).toBe(3);
+    const second = await mine();
+    expect(second.ack).toBe(4);
+    // nothing queued: the snake coasts on its last intent, standing in for frame 5
+    const third = await mine();
+    expect(third.ack).toBe(5);
+    expect([third.x, third.y]).not.toEqual([second.x, second.y]);
+  });
+
+  it("packs each snapshot: the stream's table names a player who joins after the seed", async () => {
+    const { socket } = await joined(users.regular.id);
+    await subscribeWorld(socket);
+    await tickTo(socket);
+
+    // the next snapshot introduces the moderator, whom the seed did not name
+    await as(users.moderator.id).gameService.joinGame(WORLD);
+    const snapshot = await tickTo(socket);
+    expect(snapshot.players.map((p) => p.id).sort()).toEqual(
+      [users.regular.id, users.moderator.id].sort(),
+    );
+    expect(decoderOf(socket).unnamed).toBe(0);
+    // what it decodes to is a world snapshot
+    expect(worldSnapshotSchema.safeParse(snapshot).success).toBe(true);
+    // once the window's snapshots introduced both, one is a fraction of its JSON
+    for (let i = 0; i < GAME_FOOD_WINDOW; i++) await tickTo(socket);
+    const steady = await tickToItem(socket);
+    const decoded = decoderOf(socket).decode(steady.b);
+    expect(decoded.players).toHaveLength(2);
+    expect(JSON.stringify(steady).length).toBeLessThan(JSON.stringify(decoded).length / 2);
+  });
+
   it("seeds a subscriber with the current world, food included, computed from the running sim", async () => {
     await as(users.regular.id).gameService.joinGame(WORLD);
     const runtime = gameRuntime(testDb);
@@ -470,12 +542,80 @@ describe("GameService on the realtime kit", () => {
     const world = runtime.sim.getBootstrapState();
     expect(must(seed).tick).toBe(runtime.sim.tick);
     expect(must(seed).players.map((p) => p.id)).toEqual(world.snaps.map((s) => s.id));
-    // every piece of food, as spawned: the ticks that follow are deltas of it
+    // every piece of food in one entry at its own tick, which replaces a
+    // client's food; the ticks that follow change it
+    expect(must(seed).food?.map((entry) => entry.tick)).toEqual([runtime.sim.tick]);
     expect(
       must(seed)
-        .foodSpawned?.map((f) => f.id)
+        .food?.[0]?.spawned?.map((f) => f.id)
         .sort(),
     ).toEqual(world.food.map((f) => f.id).sort());
+  });
+
+  describe("food on the volatile world stream", () => {
+    let restore: () => void = () => undefined;
+
+    beforeEach(async () => {
+      // Food spawns every third tick for these tests, so changes land on
+      // dropped and kept snapshots both
+      const { sim } = gameRuntime(testDb);
+      const { foodSpawnIntervalTicks, maxFood } = sim.tunables;
+      sim.applyTunables({ foodSpawnIntervalTicks: 3, maxFood: 10_000 });
+      restore = () => sim.applyTunables({ foodSpawnIntervalTicks, maxFood });
+      // a player keeps the world ticking
+      await as(users.regular.id).gameService.joinGame(WORLD);
+    });
+
+    afterEach(() => {
+      restore();
+    });
+
+    function serverFood(): string[] {
+      return gameRuntime(testDb)
+        .sim.getBootstrapState()
+        .food.map((f) => f.id)
+        .sort();
+    }
+
+    it("repeats each tick's food change: a client that drops every other snapshot ends with the server's food", async () => {
+      const socket = await connect(null);
+      const food = new FoodTracker();
+      for (const seed of await subscribeWorld(socket)) food.keyframe(seed);
+
+      let missed = 0;
+      for (let i = 0; i < 40; i++) {
+        const snapshot = await tickTo(socket);
+        if (i % 2 === 0) {
+          // dropped: a change of its own tick reaches the client with the next
+          if (snapshot.food?.some((entry) => entry.tick === snapshot.tick)) missed++;
+          continue;
+        }
+        expect(food.apply(snapshot)).toBe(false);
+      }
+
+      expect(missed).toBeGreaterThan(0);
+      expect(food.tick).toBe(gameRuntime(testDb).sim.tick);
+      expect(food.ids()).toEqual(serverFood());
+      expect(food.resyncs).toBe(0);
+    });
+
+    it("a client that misses more snapshots than the window subscribes again, and converges on the keyframe", async () => {
+      const socket = await connect(null);
+      const food = new FoodTracker();
+      for (const seed of await subscribeWorld(socket)) food.keyframe(seed);
+
+      // ten snapshots lost: food spawned meanwhile that no window holds now
+      for (let i = 0; i < 10; i++) await tickTo(socket);
+      expect(food.apply(await tickTo(socket))).toBe(true);
+      expect(food.awaitingKeyframe).toBe(true);
+      // the stream again: its seed is the world now
+      for (const seed of await subscribeWorld(socket)) food.keyframe(seed);
+      expect(food.awaitingKeyframe).toBe(false);
+      expect(food.apply(await tickTo(socket))).toBe(false);
+
+      expect(food.ids()).toEqual(serverFood());
+      expect(food.resyncs).toBe(1);
+    });
   });
 
   it("a second joiner arrives at the first player as a playerJoined event", async () => {
@@ -499,12 +639,12 @@ describe("GameService on the realtime kit", () => {
     // The same user's second socket never called watchWorld or joinGame: the
     // requirement is the sending socket's own, so its input is dropped
     const outside = await connect(users.regular.id);
-    sendInput(outside, { seq: 5, dx: 1, dy: 0, boost: false });
+    sendInput(outside, { frames: [frame(5)] });
     await settled(outside);
     let mine = must((await tickTo(inside)).players.find((p) => p.id === users.regular.id));
     expect(mine.ack).toBe(0);
 
-    sendInput(inside, { seq: 6, dx: 1, dy: 0, boost: false });
+    sendInput(inside, { frames: [frame(6)] });
     await settled(inside);
     mine = must((await tickTo(inside)).players.find((p) => p.id === users.regular.id));
     expect(mine.ack).toBe(6);
@@ -514,10 +654,14 @@ describe("GameService on the realtime kit", () => {
     const { socket } = await joined(users.regular.id);
     await subscribeWorld(socket);
 
-    sendInput(socket, { seq: "nope", dx: "x" });
+    sendInput(socket, { frames: [{ seq: "nope", dx: "x" }] });
     sendInput(socket, null);
     sendInput(socket, "garbage");
-    sendInput(socket, { seq: -1, dx: 1, dy: 0, boost: false });
+    sendInput(socket, { frames: [{ seq: -1, dx: 1, dy: 0, boost: false }] });
+    // a bare frame (no `frames`), none, and more than four
+    sendInput(socket, frame(1));
+    sendInput(socket, { frames: [] });
+    sendInput(socket, { frames: [1, 2, 3, 4, 5].map((seq) => frame(seq)) });
     await settled(socket);
 
     const mine = must((await tickTo(socket)).players.find((p) => p.id === users.regular.id));
@@ -530,12 +674,13 @@ describe("GameService on the realtime kit", () => {
     await subscribeWorld(socket);
 
     for (let seq = 1; seq <= 500; seq++) {
-      sendInput(socket, { seq, dx: 1, dy: 0, boost: false });
+      sendInput(socket, { frames: [frame(seq)] });
     }
     await settled(socket);
 
     const mine = must((await tickTo(socket)).players.find((p) => p.id === users.regular.id));
-    // the burst (3 ticks' worth, 60 frames) went through, the rest was dropped
+    // the burst (3 ticks' worth, 60 messages) went through, the rest was
+    // dropped; the snake's queue keeps its newest 15 frames and steps them
     expect(mine.ack).toBeGreaterThan(0);
     expect(mine.ack).toBeLessThan(500);
     expect(socket.socket.connected).toBe(true);

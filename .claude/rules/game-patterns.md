@@ -24,24 +24,52 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   counts the member) the first time only. A death stores a new best only.
 - **The `input` channel** — fire-and-forget (`qd:ch`, never answered),
   per-socket token bucket, payload checked against the contract. Use ONLY for
-  tick-rate traffic where the next message supersedes the last (player
-  input). `requires: { room: GLOBAL_WORLD_ROOM }`: dropped unless the sending
-  socket is in the world's room; anonymous sockets are always dropped. One
-  world, so one room by name; a game of many worlds requires
+  tick-rate traffic (player input): one message per client tick, its newest
+  frame last with up to three unacknowledged ones before it, so a lost
+  message's frames ride the next. The sim queues each frame once by seq
+  (`InputQueue`) and steps one a tick unless a backlog builds; a tick
+  without one coasts on the last intent, and the ack covers the coast (a
+  late frame it stood in for is ignored when it arrives). So a snake moves
+  every tick, and `PlayerSnap.ack` names the last frame the server's state
+  holds.
+  `requires: { room: GLOBAL_WORLD_ROOM }`: dropped unless the sending socket
+  is in the world's room; anonymous sockets are always dropped. One world,
+  so one room by name; a game of many worlds requires
   `{ room: { prefix: "world:" } }` and reads the world from `ctx.room`.
-- **The `world` stream** — every tick's snapshot, pushed by the loop with
-  `qd.stream(gameContract, "world").push(worldId, snapshot)`: volatile
-  (backpressured clients drop frames), public (signed-out visitors spectate,
-  and clients subscribe before they join the world's room). Each subscriber
-  starts from the current world, which the service computes
-  (`streams.world.seed`: the sim's `keyframe()`, every snake and all the
-  food, read from memory, never the database), and the snapshots that follow
-  are deltas of it. Snapshots are checked against the schema in development
+- **The `world` stream** — every tick's snapshot, packed into bytes and
+  pushed by the loop with
+  `qd.stream(gameContract, "world").push(worldId, { b })` (base64, about a
+  third of its JSON; `game/snapshotCodec.ts` in the shared package has the
+  layout): volatile (backpressured clients drop frames), public (signed-out
+  visitors spectate, and clients subscribe before they join the world's
+  room). Each subscriber starts from the current world, which the service
+  computes (`streams.world.seed`: the runtime's `keyframe()`, every snake
+  and all the food, read from memory, never the database), and the
+  snapshots that follow are deltas of it. Every snapshot carries every
+  snake's head, so a dropped one costs a frame of motion only; a food change
+  happens on one tick, so each snapshot repeats the food changes of the
+  last six ticks (`GAME_FOOD_WINDOW`: `food`, one entry per tick that
+  changed, kept by the loop). A client applies each tick's entry once, in
+  tick order. A snapshot more than six ticks past the last one it applied
+  means changes were lost: the client subscribes again (a held feed
+  answers a fresh seed), and the keyframe (the seed, all the food in one
+  entry) replaces its food. A snapshot names its players by the stream's
+  id table, which one SnapshotEncoder per runtime keeps: the keyframe
+  introduces every player, and each snapshot the players first introduced
+  in its last six ticks (a seed's new player from the next tick on). A
+  client decodes with one SnapshotDecoder (`snapshot_decoder.gd` in Godot),
+  kept across its subscriptions and reset for another server's world, and
+  asks for a keyframe when a snapshot names a player by an introduction it
+  missed (`needsKeyframe`). A client takes a keyframe's food and its names,
+  never its snakes: it may be handled after newer snapshots, which place
+  the snakes (and names from one older than the newest snapshot's window
+  are ignored). Stream items are checked against the schema in development
   and tests only (`validate: "development"`).
 - **Events** (`playerJoined`, `playerLeft`, `death`, `leaderboard`) —
   reliable, sent to the world's room with `qd.rooms.emit` (from the loop) or
   `ctx.rooms.emit` (from a handler). Anything a client must not miss is an
-  event, never a stream item.
+  event, or a stream field repeated as the food changes are (a window of
+  ticks, a keyframe past it); never a stream item sent once.
 
 ## Rooms and the ordering contract (clients)
 
@@ -55,7 +83,10 @@ connection:
    holds the feed, `is_subscribed`, and subscribes again by itself after a
    reconnect);
 2. call `watchWorld` or `joinGame` over the same socket (bootstrap);
-3. send input frames; reconcile against `PlayerSnap.ack`.
+3. send input frames (each message with the unacknowledged ones before its
+   newest); reconcile against `PlayerSnap.ack`, and when the ack ran more
+   than four frames past the newest (the server coasted through a stall),
+   number the next frame after it.
 
 The web boots Godot into SPECTATE (`watchWorld`: full bootstrap, no spawn);
 the React pre-game dialog then joins the game on the page's own socket and
@@ -70,8 +101,10 @@ the player (and sends `playerLeft`) when the last one leaves or disconnects,
 in every server the service runs in (the API, the test app, the bench).
 
 A server restart is a new world whose ticks start over: the Godot client
-tells it from a network blip by the hello's `server_id` (the world clock
-starts over on another server), as the bench bots do with `serverId`.
+tells it from a network blip by the hello's `server_id`, as the bench bots
+do with `serverId`. Every hello anchors the world clock again on the next
+snapshot; another server's also forgets what the playback delay learned of
+the link (a blip keeps it).
 
 NPCs (`npc-` ids) live inside `GameWorldSim` (seeded, deterministic,
 `npcCount` tunable) and reach clients as ordinary remote players; they never
@@ -80,16 +113,94 @@ when `humanCount() === 0` AND nobody is in the world's room
 (`qd.rooms.size(GLOBAL_WORLD_ROOM) > 0`, spectators and anonymous sockets
 included) — spectators behind the pre-game dialog keep the NPC world running.
 
+## Host mode: party worlds
+
+A party is a world one player's browser hosts (quickdraw's host mode). The
+server keeps the party's row (`GameWorld` with `kind: "party"`, a `code`
+of four characters like `K7QD`, `hostUserId`, `closedAt`), its room
+(`partyRoom(worldId)`), its chat, and who hosts it. The world itself runs
+in the host's page. Its contract members sit beside the world's, never in
+place of them: one member is served by the server or by a host, never both.
+
+- **Who is authoritative**: the host's page. It runs `PartyWorld`
+  (`packages/shared/src/game/party.ts`: the same `GameWorldSim` and
+  `GameLoop` as the server's world) and serves the party with `defineHost`
+  (`apps/web/src/components/game/partyHost.ts`) while the server names its
+  socket the room's host (`qd:host`). Players reach the host over peer
+  links: WebRTC where it connects, the server's relay otherwise (always,
+  from headless or native Godot). The server never sees that traffic.
+- **The methods**: `hostParty` (the calling socket joins the room and
+  becomes its host; the caller's other open parties end, and one call runs
+  at a time per user), `joinParty` by code (the room, the chat and who
+  hosts: the world itself comes from the host), `playParty` (for a user the
+  room holds: the server tells the room `partyPlayer`, with the name it
+  knows, and the host spawns or respawns that snake), `leaveParty`, and
+  `closeParty` (the host's: the row policy,
+  `anyOf(everyone("Read"), owner("hostUserId"))`, gives a party's host
+  Admin on its row; or a service-wide Admin's). A socket is in one party at
+  a time (a player's client sends `partyInput` to the first party room
+  whose host it knows): hosting, joining or playing takes it out of any
+  other party's room. `hostParty` and `joinParty` need a socket.
+- **Who gets in**: the code is the invitation. `joinParty` answers
+  NOT_FOUND for a code no open party holds (an ended party frees its code)
+  and for a party without a host, RATE_LIMITED after ten wrong codes in a
+  minute, and CONFLICT when the room holds `PARTY_MAX_USERS` (16) users.
+  Only a user the room holds plays in a party or joins its chat
+  (`joinWorldChat` refuses the rest), and `getWorld` finds no party.
+- **The host-served members**: `partyInput` (a player's input, on the
+  link's `fast`, sent every tick as the world's), `partyWorld` (raw
+  `WorldSnapshot`s, volatile; its seed is a keyframe) and `partyEvents`
+  (joins, leaves, deaths and the leaderboard, reliable on `rel`; its seed
+  names every player). Events cannot be host-served, so `partyEvents`
+  replaces the world's events in a party. A host spawns a snake only on
+  the server's `partyPlayer`: a host-served channel rides the link's
+  `fast`, which may lose a one-off command.
+- **What the server trusts**: nothing the host reports. No party score is
+  stored; the party's leaderboard lives in the host's sim. The server says
+  who plays (`partyPlayer`; `partyPlayerLeft` from its `onRoomLeave`, when
+  a user's last socket left the room), when the host left (`onHostLeave`:
+  `hostLeft`, and the party is closed, since no other player takes over),
+  and when the host closed it (`partyClosed`). Both ends take everyone out
+  of the room.
+- **The Worker timer**: a hidden tab throttles the page's timers to about
+  once a second, a dedicated worker's not. The host ticks from a Blob
+  worker on `GameLoop`'s fixed grid, so the party keeps its 20 Hz while the
+  host looks at another tab.
+- **The fair link**: the host's own user plays over a link no network
+  slows, and would win every head-to-head. Every 5 s the host page lags
+  both of its own user's links (its game's, and its own in-process one) by
+  the median of the other players' one-way trips (half of each
+  `link.clock.rtt`), at most 100 ms (`settleFairLink` in the shared
+  `party.ts`, which the bench's party scenario runs too), with core's
+  `PeerLink.setLag`, never an app-level delay. The host's input then
+  reaches the sim no sooner than its players', and its snapshots arrive no
+  sooner. `?fairLink=off` on `/game` turns it off for A/B play; the HUD
+  shows each player's round trip and the lag.
+- **Godot**: the page puts the party's code in `QuickdrawHost.party` and
+  boots the engine again (the canvas is keyed by user and party).
+  `game.gd` calls `joinParty`, subscribes to `partyEvents` and `partyWorld`
+  with the party's room (the reference client links to `host_of(room)`
+  itself), sends `partyInput` the same way, and respawns with `playParty`.
+  Never call `peer_link` from app code.
+- **Limits**: a party runs the default tunables (`PARTY_TUNABLES`; admin
+  edits of the snake definition reach the server's world only). A server
+  restart ends every party (hosts are held in memory): `ensureGlobalWorld`
+  closes the rows a previous run left open. A party's chat outlives it.
+
 ## Simulation rules
 
-- `GameWorldSim` (services/game/world.ts) is **pure and deterministic**: no
-  I/O, no `Date.now()`, seeded RNG, fixed timestep (`GAME_TICK_RATE`). Unit
+- `GameWorldSim` (`packages/shared/src/game/world.ts`, beside its NPCs,
+  its input queue and `GameLoop`) is **pure and deterministic**: no I/O, no
+  `Date.now()`, seeded RNG, fixed timestep (`GAME_TICK_RATE`). It imports
+  nothing from Node, so the API, the bench and a browser run one sim. Unit
   tests drive it directly; integration tests drive `gameRuntime(db).loop.tickOnce()`
   (the loop is never auto-started in tests).
 - **No database access anywhere in the tick path.** Persistence
   (`persistScore`: a new best only) happens in detached `qd.run` units
   triggered by loop callbacks; the tracked write changes the service topic
   the score queries watch.
+- A tick that steps a snake several times (its client's backlog) checks
+  collisions at every head the snake passed, not only the last.
 - Only snake heads go on the wire — bodies are derived from head-path history
   on both sides. Keep snapshots small; add fields consciously (each stream
   frame also carries its `[service, stream, scope]` envelope).
@@ -105,19 +216,27 @@ included) — spectators behind the pre-game dialog keep the NPC world running.
 
 ## Checks
 
-- `bun run --filter @project/api test`: the sim, the loop, and the game over
-  real protocol 5 sockets (`game.int.test.ts`, its frames matched with
-  `streamFrames` and `eventFrames`).
+- `bun run --filter @project/shared test`: the sim, the loop and the
+  snapshot codec.
+- `bun run --filter @project/api test`: the game over real protocol 5
+  sockets (`game.int.test.ts`, its frames matched with `streamFrames` and
+  `eventFrames`).
 - `bun run check:godot`: two real headless Godot clients in one world, through
-  an API restart (see `apps/game/README.md`).
+  an API restart, then in a party a Node client hosts, over the relay (see
+  `apps/game/README.md`).
+- `bun run --filter @project/api test` covers the party's server half
+  (`party.int.test.ts`): the host frame, joins by code, who may link to the
+  host, and how a party ends.
 
 ## Netcode benchmarking
 
 Netcode changes are judged by scorecards, not eyeballs: `bun run
 bench:netcode` runs headless bot clients (TS ports of the Godot netcode in
 `apps/api/src/bench/bot/` — keep them in lockstep with `local_snake.gd` /
-`remote_snake.gd` / `game.gd`'s world clock) over protocol v5 through a
-latency proxy against a live-loop server. See `docs/netcode-bench.md`,
+`remote_snake.gd` / `game.gd`'s world clock / `main.gd`'s food) over
+protocol v5 through a
+latency proxy against a live-loop server; a party scenario runs them over
+loopback links to a host in process. See `docs/netcode-bench.md`,
 baselines in `bench-baselines/`, and the `/netcode-rd` skill for the
 hypothesis loop.
 

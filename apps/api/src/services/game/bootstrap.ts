@@ -7,15 +7,16 @@
  */
 
 import type { GameWorld, PrismaClient } from "@project/db";
+import type { GameTunables } from "@project/shared";
 import {
   DEFINITION_TYPES,
   GLOBAL_WORLD_ID,
   GLOBAL_WORLD_SLUG,
+  PARTY_WORLD_KIND,
   SNAKE_TUNABLES_KEY,
 } from "@project/shared";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
-import type { GameTunables } from "./world.js";
 
 type Db = typeof appDb;
 
@@ -25,10 +26,16 @@ export const GLOBAL_WORLD_CHAT_TITLE = "🌍 Game Server";
 /**
  * Makes the global world and its chat, once: through the tracked client in a
  * unit of work of its own (`qd.run`), before or after `createServer` (before
- * it, the writes reach no one: no socket can be subscribed yet).
+ * it, the writes reach no one: no socket can be subscribed yet). Ends the
+ * parties a previous run left open, first: a server that starts holds no
+ * party's host (hosts live in memory), so none of them can be served.
  */
 export async function ensureGlobalWorld(db: Db): Promise<GameWorld> {
   return await qd.run(async () => {
+    await db.gameWorld.updateMany({
+      where: { kind: PARTY_WORLD_KIND, closedAt: null },
+      data: { closedAt: new Date(), code: null },
+    });
     const world = await db.gameWorld.upsert({
       where: { id: GLOBAL_WORLD_ID },
       update: {},

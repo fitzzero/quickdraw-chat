@@ -1,35 +1,32 @@
 /**
- * Remote-entity interpolation (netcode variant: GLOBAL WORLD CLOCK).
+ * Remote-entity interpolation on the shared world clock — the 1:1 port of
+ * remote_snake.gd (keep the two in lockstep).
  *
- * Baseline (remote_snake.gd) keeps a per-entity tick estimator nudged 5%
- * per render frame toward that entity's freshest snapshot — so two remotes
- * on one screen can render at slightly different world times, and the
- * convergence rate depends on the client's frame rate.
- *
- * This variant (HYPOTHESES.md #1) replaces them with ONE WorldClock per
- * client, fed by every snapshot arrival, advanced with a frame-rate-
- * independent exponential nudge (time-constant form). All interpolators
- * render at the same `clock − INTERP_DELAY_TICKS` timeline. τ = 0.3s is
- * chosen to match the baseline's convergence speed at 60fps, isolating
- * "shared + frame-rate independent" as the only change.
- *
- * GDScript port (if kept): move the estimator into game.gd (or a small
- * WorldClock autoload) and pass render_tick into RemoteSnake._render_at.
+ * Every remote of a client renders at the one WorldClock's render tick
+ * (HYPOTHESES.md #1–#3: the estimate of the server's tick from send-time
+ * stamps, and behind it this client's playback delay, playback-delay.ts),
+ * interpolating between the snapshots that bracket it, so all remotes on a
+ * screen show the same moment of the world.
  */
 
 import type { PlayerSnap } from "@project/shared";
 
-// Pinned to remote_snake.gd:12-14
-const MAX_EXTRAPOLATION_TICKS = 2.0;
+// Pinned to remote_snake.gd's MAX_EXTRAPOLATION_TICKS, SOFT_STOP_TICKS and
+// BUFFER_LIMIT; the render clock runs at most MAX_EXTRAPOLATION_TICKS past the
+// newest tick (PLAYBACK_MAX_AHEAD_TICKS, lockstep.test.ts)
+export const MAX_EXTRAPOLATION_TICKS = 2.0;
 const BUFFER_LIMIT = 40;
 
-// H3b: graceful stall recovery. Past the linear extrapolation budget the
-// snake COASTS to a stop over SOFT_STOP_TICKS instead of freezing; when
-// data resumes (buffer refill after a stall), the raw render target jumps —
-// the discontinuity is folded into a fast-decaying render offset (the same
-// visual-offset trick local_snake.gd uses for reconciliation) so remotes
-// glide back onto the true path instead of teleporting. Delay stays the
-// uniform 2.5 ticks, preserving cross-client timeline alignment.
+// H3b: graceful underrun recovery. The render clock runs at most this
+// budget past the newest tick (world-clock.ts, PLAYBACK_MAX_AHEAD_TICKS):
+// a late snapshot costs a remote a linear extrapolation, a stall holds it
+// at the budget's end, and a remote the newest snapshots lack COASTS to a
+// stop over SOFT_STOP_TICKS instead of freezing. When data is back, the raw
+// render target jumps — the discontinuity is folded into a fast-decaying
+// render offset (the same visual-offset trick local_snake.gd uses for
+// reconciliation) so remotes glide back onto the true path instead of
+// teleporting. A render clock resuming past a long stall (more than
+// PLAYBACK_MAX_LAG_TICKS) jumps the same way.
 const SOFT_STOP_TICKS = 3.0;
 const GLIDE_HALF_LIFE_S = 0.1;
 /** Fold jumps below this into the glide; beyond it, snap (respawn-scale). */

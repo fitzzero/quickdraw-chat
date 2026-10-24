@@ -1,11 +1,10 @@
 /**
- * BotClient — a headless stand-in for one real game client. Speaks the
- * production wire, quickdraw protocol v5 as the Godot client does
- * (handshake → `qd:hello` → `qd:stream:sub` of the world stream →
- * joinGame/watchWorld, which puts the socket in the world's room → `qd:ch`
- * input → volatile `qd:stream` snapshots and `qd:event` world events),
- * through an optional latency proxy, runs the same netcode as the Godot
- * client (LocalPredictor + RemoteInterpolator), and records a ClientTrace
+ * BotClient — a headless stand-in for one real game client. Its transport
+ * carries the wire: the production one, quickdraw protocol v5 as the Godot
+ * client speaks it, through an optional latency proxy (socket-transport.ts),
+ * or a loopback link to a party's host in process (party-transport.ts). It
+ * runs the same netcode as the Godot client (LocalPredictor +
+ * RemoteInterpolator, the world clock, the food) and records a ClientTrace
  * for the metrics pipeline.
  *
  * The render loop targets 60Hz like a browser; ACTUAL frame times are
@@ -14,47 +13,30 @@
  * effectiveFps in the scorecard guards against a bot loop that fell behind.
  */
 
-import { io as ioClient, type Socket } from "socket.io-client";
-import {
-  PROTOCOL_VERSION,
-  type CallReply,
-  type EventFrame,
-  type HelloFrame,
-  type StreamFrame,
-  type StreamSubscribeReply,
-} from "@fitzzero/quickdraw-core";
 import type { ClientTrace, Scenario } from "@project/bench";
 import { deriveSeed, mulberry32 } from "@project/bench";
-import type {
-  GameBootstrap,
-  GameDeathEvent,
-  GameInput,
-  PlayerSnap,
-  WorldBootstrap,
-  WorldSnapshot,
-} from "@project/shared";
-import { GLOBAL_WORLD_ID } from "@project/shared";
+import type { GameDeathEvent, GameInput, PlayerSnap, WorldSnapshot } from "@project/shared";
+import { FoodTracker } from "./food.js";
 import { LocalPredictor, type PredictionTunables } from "./prediction.js";
 import { RemoteInterpolator } from "./interpolation.js";
 import { WorldClock } from "./world-clock.js";
 import { makeBehavior, type BehaviorFn } from "./behaviors.js";
+import type { BotTransport, BotWire } from "./transport.js";
 
 const RENDER_FRAME_MS = 1000 / 60;
 /** remote_snake pruning: main.gd PRUNE_AFTER_TICKS */
 const PRUNE_AFTER_TICKS = 60;
-const JOIN_TIMEOUT_MS = 15_000;
-/** `auth.qd`: the protocol the bots speak, and who they are in the server's logs. */
-const HANDSHAKE = { protocol: PROTOCOL_VERSION, client: "quickdraw-chat-bench/0.0.1" };
-const WORLD = { worldId: GLOBAL_WORLD_ID };
 
 export interface BotOptions {
-  /** port to actually connect to (proxy port or the real server port) */
-  port: number;
+  /** The wire: the server's socket, or a loopback link to a party's host. */
+  transport: BotTransport;
   userId: string;
   name: string;
   behaviorKind: "wander" | "cross" | "orbit" | "spectator";
   /** optional oscillating render clock (BotSpec.render) */
   render?: { minFps: number; maxFps: number; periodS: number; phaseS?: number };
+  /** the predictor's clock against wall time (BotSpec.clockScale); default 1 */
+  clockScale?: number;
   scenario: Scenario;
   tunables: PredictionTunables;
   tickRate: number;
@@ -64,38 +46,10 @@ function now(): number {
   return performance.timeOrigin + performance.now();
 }
 
-/** Sends an acknowledged event and resolves with its acknowledgement. */
-function request<T>(socket: Socket, event: string, payload: unknown): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(
-      () => reject(new Error(`bot ack timeout: ${event}`)),
-      JOIN_TIMEOUT_MS,
-    );
-    socket.emit(event, payload, (reply: T) => {
-      clearTimeout(timeout);
-      resolve(reply);
-    });
-  });
-}
-
-/** `qd:call` of a gameService method: its data, or the call's error. */
-async function callGame<T>(socket: Socket, id: number, method: string, input: unknown): Promise<T> {
-  const reply = await request<CallReply<T>>(socket, "qd:call", {
-    id,
-    s: "gameService",
-    m: method,
-    i: input,
-  });
-  if (reply.ok && "d" in reply) return reply.d;
-  throw new Error(
-    reply.ok
-      ? `bot call ${method}: not modified`
-      : `bot call ${method}: ${reply.e.code} ${reply.e.message}`,
-  );
-}
-
 export class BotClient {
-  private socket: Socket | null = null;
+  private readonly transport: BotTransport;
+  /** The food this client holds (food.ts, the port of main.gd's). */
+  private readonly food = new FoodTracker();
   private readonly worldClock: WorldClock;
   private predictor: LocalPredictor | null = null;
   private readonly interpolators = new Map<string, RemoteInterpolator>();
@@ -107,13 +61,13 @@ export class BotClient {
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
   private lastFrameAt = 0;
   private stopped = false;
-  private nextCallId = 0;
 
   private readonly trace: ClientTrace;
   /** inputs awaiting ack, seq-ordered (for input→ack RTT) */
   private readonly unacked: { seq: number; tSent: number }[] = [];
 
   constructor(private readonly opts: BotOptions) {
+    this.transport = opts.transport;
     this.worldClock = new WorldClock(opts.tickRate);
     this.behavior = makeBehavior(
       opts.behaviorKind,
@@ -131,67 +85,20 @@ export class BotClient {
   }
 
   public async start(): Promise<void> {
-    // Development credentials (`auth.userId`), as the Godot editor signs in
-    const socket = ioClient(`http://127.0.0.1:${this.opts.port}`, {
-      auth: { userId: this.opts.userId, qd: HANDSHAKE },
-      transports: ["websocket"],
-      reconnection: false,
-      autoConnect: true,
-    });
-    this.socket = socket;
-
-    // The hello names the server, whose world the clock follows (a restarted
-    // one starts its ticks over)
-    socket.on("qd:hello", (hello: HelloFrame) => {
-      this.worldClock.followServer(hello.serverId);
-    });
-    // The server is ready for calls once it said hello
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(
-        () => reject(new Error(`bot ${this.opts.name}: connect timeout`)),
-        JOIN_TIMEOUT_MS,
-      );
-      socket.once("qd:hello", () => {
-        clearTimeout(timeout);
-        resolve();
-      });
-      socket.once("connect_error", (err) => {
-        clearTimeout(timeout);
-        reject(err);
-      });
-    });
-
-    socket.on("qd:stream", ([service, stream, , item]: StreamFrame) => {
-      if (service === "gameService" && stream === "world") {
-        this.onSnapshot(item as WorldSnapshot);
-      }
-    });
-    socket.on("qd:event", ([service, event, payload]: EventFrame) => {
-      if (service !== "gameService") return;
-      if (event === "death") this.onDeath(payload as GameDeathEvent);
+    const wire: BotWire = {
+      follow: (serverId) => this.worldClock.followServer(serverId),
+      snapshot: (snapshot) => this.onSnapshot(snapshot),
+      keyframe: (keyframe) => this.food.keyframe(keyframe),
+      death: (death) => this.onDeath(death),
       // Parity with main.gd _on_player_left
-      if (event === "playerLeft") this.interpolators.delete((payload as { id: string }).id);
-    });
-
-    // Ordering contract: the world stream FIRST (its snapshots supersede the
-    // bootstrap's after it), then join/watch, which puts this socket in the
-    // world's room: its events, and the input channel's requirement.
-    const subscribed = await request<StreamSubscribeReply>(socket, "qd:stream:sub", {
-      s: "gameService",
-      stream: "world",
-      scope: GLOBAL_WORLD_ID,
-    });
-    if (!subscribed.ok) throw new Error(`bot ${this.opts.name}: ${subscribed.e.message}`);
-
-    if (this.opts.behaviorKind === "spectator") {
-      const bootstrap = await callGame<WorldBootstrap>(socket, this.callId(), "watchWorld", WORLD);
-      this.bounds = bootstrap.bounds;
-    } else {
-      const bootstrap = await callGame<GameBootstrap>(socket, this.callId(), "joinGame", WORLD);
-      this.bounds = bootstrap.bounds;
-      const own = bootstrap.snaps.find((s) => s.id === this.opts.userId);
+      left: (id) => this.interpolators.delete(id),
+    };
+    const spectator = this.opts.behaviorKind === "spectator";
+    const joined = await this.transport.start(wire, spectator);
+    this.bounds = joined.bounds;
+    if (!spectator) {
       this.predictor = new LocalPredictor(this.opts.tunables, 1 / this.opts.tickRate);
-      if (own) this.predictor.initFromSnap(own);
+      if (joined.own) this.predictor.initFromSnap(joined.own);
       this.alive = true;
       this.spawnedAt = now();
     }
@@ -200,16 +107,42 @@ export class BotClient {
     this.scheduleRenderFrame();
   }
 
-  /** A call id no call in flight on this socket has. */
-  private callId(): number {
-    this.nextCallId += 1;
-    return this.nextCallId;
+  /**
+   * Missed more snapshots than the food window repeats, or a player the
+   * snapshots no longer introduce: a keyframe puts the food and the names right.
+   */
+  private requestKeyframe(): void {
+    const ended = (): void => this.food.resyncEnded();
+    this.transport.requestKeyframe().then(ended, ended);
+  }
+
+  /**
+   * Resolves once the food this client holds is as of its latest snapshot
+   * (no keyframe request in flight, none applied past it), or after
+   * `timeoutMs`: the trace then compares it with the server's at that tick.
+   */
+  public async foodSettled(timeoutMs: number): Promise<void> {
+    const until = performance.now() + timeoutMs;
+    while (
+      (this.food.awaitingKeyframe || this.food.tick !== this.latestTick) &&
+      performance.now() < until
+    ) {
+      await new Promise((resolveWait) => {
+        setTimeout(resolveWait, 20);
+      });
+    }
   }
 
   public stop(): ClientTrace {
     this.stopped = true;
     if (this.renderTimer) clearTimeout(this.renderTimer);
-    this.socket?.close();
+    this.transport.close();
+    this.trace.food = {
+      tick: this.food.tick,
+      latestTick: this.latestTick,
+      ids: this.food.ids(),
+      resyncs: this.food.resyncs,
+    };
     return this.trace;
   }
 
@@ -244,7 +177,9 @@ export class BotClient {
 
     if (this.predictor && this.alive) {
       const tSec = (tWall - this.spawnedAt) / 1000;
-      const frames = this.predictor.renderFrame(deltaS, () =>
+      // Only the predictor's clock drifts (BotSpec.clockScale): its fixed
+      // steps, so the frames it sends; the world and render clocks do not
+      const messages = this.predictor.renderFrame(deltaS * (this.opts.clockScale ?? 1), () =>
         this.behavior({
           tSec,
           selfX: this.predictor?.simPos.x ?? 0,
@@ -254,7 +189,7 @@ export class BotClient {
           bounds: this.bounds,
         }),
       );
-      for (const frame of frames) this.sendInput(frame);
+      for (const frames of messages) this.sendInput(frames);
       entities[this.opts.userId] = this.predictor.getRenderedPos();
     }
 
@@ -273,9 +208,11 @@ export class BotClient {
     this.scheduleRenderFrame();
   }
 
-  private sendInput(frame: GameInput): void {
-    // `qd:ch`: fire and forget, dropped rather than queued when backed up
-    this.socket?.volatile.emit("qd:ch", ["gameService", "input", frame]);
+  /** One message: the step's frame last, with up to three unacknowledged ones before it. */
+  private sendInput(frames: GameInput[]): void {
+    const frame = frames.at(-1);
+    if (!frame) return;
+    this.transport.sendInput(frames);
     const tSent = now();
     this.trace.inputs.push({ seq: frame.seq, tSent });
     this.unacked.push({ seq: frame.seq, tSent });
@@ -288,6 +225,9 @@ export class BotClient {
     this.trace.snapshots.push({ tWall, tick: snapshot.tick });
     this.latestTick = snapshot.tick;
     this.worldClock.observe(snapshot.tick, snapshot.t, tWall);
+    if (this.food.apply(snapshot) || (this.transport.needsKeyframe && this.food.askKeyframe())) {
+      this.requestKeyframe();
+    }
 
     for (const snap of snapshot.players) {
       if (snap.id === this.opts.userId && this.predictor) {
@@ -339,10 +279,7 @@ export class BotClient {
     }
     this.alive = false;
     setTimeout(() => {
-      if (this.stopped || !this.socket) return;
-      callGame(this.socket, this.callId(), "respawn", WORLD).catch(() => {
-        // Respawn can race shutdown; the bot just stays dead
-      });
+      if (!this.stopped) this.transport.respawn();
     }, this.opts.scenario.respawnDelayMs).unref?.();
   }
 }

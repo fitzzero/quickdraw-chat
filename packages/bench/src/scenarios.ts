@@ -24,6 +24,46 @@ const BASE = {
   tunables: { npcCount: 0 },
 };
 
+/** A party's links: 50 ms each way plus up to 15 ms, 5% of `fast` messages lost (input, snapshots). */
+const PARTY_LINK = { ms: 50, jitter: 15, loss: 0.05 };
+
+/** The host's own user and three players. */
+const PARTY_CLIENTS: Scenario["clients"] = [
+  { name: "host", behavior: { kind: "wander" } },
+  { name: "bot-a", behavior: { kind: "wander" } },
+  { name: "bot-b", behavior: { kind: "wander" } },
+  { name: "bot-c", behavior: { kind: "wander" } },
+];
+
+/**
+ * Party scenarios (host mode): no server. A host in process runs the
+ * party's sim and loop (PartyWorld), and every bot plays over a loopback
+ * link to it, carrying the app's payloads. `packet.gapRate` measures the
+ * link's real loss.
+ */
+const PARTY_SCENARIOS: Record<string, Scenario> = {
+  "party-3p-lossy": {
+    ...BASE,
+    name: "party-3p-lossy",
+    description:
+      "A party: three players on links to the host of 50 ms each way plus up to 15 ms, 5% of " +
+      "fast messages lost, and the host's own user on a local link the host lags as its page " +
+      "does (the fair link). Input redundancy and the queue keep prediction tight; the host " +
+      "plays as its players.",
+    clients: PARTY_CLIENTS,
+    party: { host: "host", link: PARTY_LINK, fairLink: true },
+  },
+  "party-3p-unfair": {
+    ...BASE,
+    name: "party-3p-unfair",
+    description:
+      "party-3p-lossy without the fair link: the host's own user plays over its local link, " +
+      "the advantage the fair link removes (reported, not gated).",
+    clients: PARTY_CLIENTS,
+    party: { host: "host", link: PARTY_LINK, fairLink: false },
+  },
+};
+
 export const SCENARIOS: Record<string, Scenario> = {
   "control-0ms": {
     ...BASE,
@@ -111,6 +151,25 @@ export const SCENARIOS: Record<string, Scenario> = {
       { name: "bot-b", behavior: { kind: "cross" }, net: symmetric(wobble(75, 8)) },
     ],
   },
+  "mixed-3p": {
+    ...BASE,
+    name: "mixed-3p",
+    description:
+      "Unequal links: one clean ~40ms-RTT player, one ~100ms with wide jitter (σ 15ms), one " +
+      "~100ms with spikes — what each client's own interpolation delay costs the others.",
+    clients: [
+      { name: "bot-a", behavior: { kind: "wander" }, net: symmetric(flat(20)) },
+      { name: "bot-b", behavior: { kind: "wander" }, net: symmetric(wobble(50, 15)) },
+      {
+        name: "bot-c",
+        behavior: { kind: "wander" },
+        net: symmetric({
+          baseMs: 50,
+          jitter: { kind: "spike", probPerChunk: 0.05, minMs: 30, maxMs: 120 },
+        }),
+      },
+    ],
+  },
   "encounter-3p-100ms": {
     ...BASE,
     name: "encounter-3p-100ms",
@@ -159,6 +218,43 @@ export const SCENARIOS: Record<string, Scenario> = {
       { name: "spectator", behavior: { kind: "spectator" }, net: symmetric(wobble(50, 5)) },
     ],
   },
+  "drift-fast-client": {
+    ...BASE,
+    name: "drift-fast-client",
+    durationMs: 120_000,
+    description:
+      "Baseline latency, but bot-a's tick clock runs 1% fast: the input queue must hold its " +
+      "depth near 0 (no ratchet toward the cap) with no client-side stall.",
+    clients: [
+      {
+        name: "bot-a",
+        behavior: { kind: "wander" },
+        net: symmetric(wobble(50, 5)),
+        clockScale: 1.01,
+      },
+      { name: "bot-b", behavior: { kind: "wander" }, net: symmetric(wobble(50, 5)) },
+      { name: "bot-c", behavior: { kind: "wander" }, net: symmetric(wobble(50, 5)) },
+    ],
+  },
+  "drift-slow-client": {
+    ...BASE,
+    name: "drift-slow-client",
+    durationMs: 120_000,
+    description:
+      "Baseline latency, but bot-a's tick clock runs 1% slow: its snake coasts about two " +
+      "ticks in a hundred, with no teleport and no worse prediction.",
+    clients: [
+      {
+        name: "bot-a",
+        behavior: { kind: "wander" },
+        net: symmetric(wobble(50, 5)),
+        clockScale: 0.99,
+      },
+      { name: "bot-b", behavior: { kind: "wander" }, net: symmetric(wobble(50, 5)) },
+      { name: "bot-c", behavior: { kind: "wander" }, net: symmetric(wobble(50, 5)) },
+    ],
+  },
+  ...PARTY_SCENARIOS,
 };
 
 export function getScenario(name: string): Scenario {

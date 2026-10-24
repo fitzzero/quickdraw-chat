@@ -165,7 +165,7 @@ async function seedGameWorld(ids: { adminId: string }): Promise<void> {
 
 /**
  * Snake movement tunables as a Definition row. Must mirror DEFAULT_TUNABLES
- * in apps/api/src/services/game/world.ts — the server sim loads these at
+ * in packages/shared/src/game/world.ts — the server sim loads these at
  * boot (and hot-reloads on admin edit); the Godot client fetches them at
  * load. Edit via /admin/definitionService — no re-export needed.
  */

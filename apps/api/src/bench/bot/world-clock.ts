@@ -1,5 +1,6 @@
 /**
- * WorldClock (netcode variant: HYPOTHESES.md #2 — send-timestamp sync).
+ * WorldClock (netcode variants: HYPOTHESES.md #2 — send-timestamp sync, and
+ * #3 — adaptive interpolation delay).
  *
  * With `WorldSnapshot.t` (server send time) on the wire, the client no
  * longer infers the server timeline from ARRIVAL cadence (which wobbles
@@ -14,12 +15,24 @@
  * limiter bounds timeline corrections (window-min shifts, route changes) so
  * they can never pop the rendered world.
  *
+ * Remote snakes render on a timeline of their own behind the estimate: as
+ * far behind as this client's arrivals need (PlaybackDelay), reached by
+ * running the render clock 5% fast or slow, never by a jump, and at most
+ * PLAYBACK_MAX_AHEAD_TICKS past the newest tick seen (the interpolators'
+ * extrapolation budget). A stall holds it there; the delay it grew shrinks
+ * back at the warp's pace once snapshots arrive again, from at most
+ * PLAYBACK_MAX_LAG_TICKS behind (a longer stall resumes there, a jump).
+ *
  * Falls back to the H1 exponential estimator when snapshots carry no `t`
  * (tolerant parsing — older servers).
  */
 
-/** Pinned to remote_snake.gd:12 */
-export const INTERP_DELAY_TICKS = 2.5;
+import {
+  PLAYBACK_MAX_AHEAD_TICKS,
+  PLAYBACK_MAX_LAG_TICKS,
+  PLAYBACK_START_TICKS,
+  PlaybackDelay,
+} from "./playback-delay.js";
 
 /** H1 fallback: baseline 5%/frame at 60fps ≈ exp decay with τ ≈ 0.325s. */
 const CLOCK_TAU_S = 0.3;
@@ -47,17 +60,37 @@ export class WorldClock {
   private lastSendT = 0;
   private hasTimestamps = false;
 
-  constructor(private readonly tickRate: number) {}
+  // The render timeline (H3: adaptive delay)
+  private readonly playback: PlaybackDelay;
+  private render = 0;
+  private hasRender = false;
+
+  constructor(private readonly tickRate: number) {
+    this.playback = new PlaybackDelay(1000 / tickRate);
+  }
 
   /**
    * Follows the world of the server a hello names: another server (a
-   * restart: a new world, ticks from 0) starts the timeline over, a network
-   * blip keeps it. Pinned to game.gd clock_follow_server.
+   * restart: a new world, ticks from 0) starts everything over. The same
+   * server's (a reconnect) keeps what the playback delay learned of the
+   * link, but not the outage as a gap between arrivals, and the timeline
+   * anchors again on the next snapshot, as at the start: the estimate
+   * drifted while nothing arrived (the H1 nudge toward a stale tick, a
+   * world that paused while its room was empty). Until the bootstrap
+   * rebuilds the world, a snake held through the outage moves from its last
+   * snapshot before it to the first after it, as with a fixed delay
+   * (remote_snake.gd snaps one that moved MAX_GLIDE_PX or more). Pinned to
+   * game.gd clock_follow_server.
    */
   public followServer(serverId: string): void {
-    if (serverId === this.serverId) return;
+    if (serverId === this.serverId) {
+      this.playback.forgetArrival();
+      this.forgetTimeline();
+      return;
+    }
     this.serverId = serverId;
-    this.reset();
+    this.forgetTimeline();
+    this.playback.reset();
   }
 
   public observe(tick: number, sendT?: number, arrivalMs?: number): void {
@@ -66,6 +99,7 @@ export class WorldClock {
       this.est = tick;
       this.hasEst = true;
     }
+    if (arrivalMs !== undefined) this.playback.observe(arrivalMs);
     if (sendT === undefined || arrivalMs === undefined) return;
 
     this.hasTimestamps = true;
@@ -80,10 +114,30 @@ export class WorldClock {
     }
   }
 
-  /** Advance by wall time; `nowMs` must be the same clock `arrivalMs` used. */
+  /**
+   * Advance by wall time; `nowMs` must be the same clock `arrivalMs` used.
+   * The render timeline first: its rate follows the delay as it stood
+   * between frames, the one remotes were drawn with.
+   */
   public advance(deltaS: number, nowMs: number): void {
     if (!this.hasEst) return;
+    this.advanceRender(deltaS);
+    this.advanceEstimate(deltaS, nowMs);
+  }
 
+  /** The tick remotes render at: the render timeline (null before a snapshot). */
+  public renderTick(): number | null {
+    if (!this.hasEst) return null;
+    return this.hasRender ? this.render : this.est - PLAYBACK_START_TICKS;
+  }
+
+  /** How far the render timeline is behind the estimate, in ticks (null before a snapshot). */
+  public delayTicks(): number | null {
+    const render = this.renderTick();
+    return render === null ? null : this.est - render;
+  }
+
+  private advanceEstimate(deltaS: number, nowMs: number): void {
     if (!this.hasTimestamps) {
       // H1 fallback: frame-rate-independent nudge toward the freshest tick
       this.est += deltaS * this.tickRate;
@@ -104,8 +158,29 @@ export class WorldClock {
     this.est += Math.max(-maxStep, Math.min(maxStep, error));
   }
 
+  /**
+   * Runs the render clock toward the playback delay's target, at most
+   * PLAYBACK_MAX_LAG_TICKS behind the estimate and PLAYBACK_MAX_AHEAD_TICKS
+   * past the newest tick. The second bound wins: through a long stall the
+   * render clock holds, and the lag cap moves it on (a jump) once snapshots
+   * arrive again.
+   */
+  private advanceRender(deltaS: number): void {
+    if (this.hasRender) {
+      this.playback.frame(deltaS * 1000);
+      this.render += deltaS * this.tickRate * this.playback.rate(this.est - this.render);
+    } else {
+      this.render = this.est - PLAYBACK_START_TICKS;
+      this.hasRender = true;
+    }
+    this.render = Math.min(
+      Math.max(this.render, this.est - PLAYBACK_MAX_LAG_TICKS),
+      this.latest + PLAYBACK_MAX_AHEAD_TICKS,
+    );
+  }
+
   /** Forgets the timeline: the next snapshot anchors it again. */
-  private reset(): void {
+  private forgetTimeline(): void {
     this.est = 0;
     this.latest = 0;
     this.hasEst = false;
@@ -113,9 +188,7 @@ export class WorldClock {
     this.lastTick = 0;
     this.lastSendT = 0;
     this.hasTimestamps = false;
-  }
-
-  public renderTick(): number | null {
-    return this.hasEst ? this.est - INTERP_DELAY_TICKS : null;
+    this.render = 0;
+    this.hasRender = false;
   }
 }

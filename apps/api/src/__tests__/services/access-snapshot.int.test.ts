@@ -107,8 +107,13 @@ async function seed(): Promise<Fixture> {
   const [world, definition] = await Promise.all([
     // not the one world the sim runs (GLOBAL_WORLD_ID): the play methods
     // answer NOT_FOUND to whoever passes their access check, before the
-    // in-memory sim, which a reset of the database cannot undo
-    testPrisma.gameWorld.create({ data: { slug: "world", name: "World" }, select: { id: true } }),
+    // in-memory sim, which a reset of the database cannot undo. A party the
+    // owner hosts (no socket hosts it: the party methods that need one refuse
+    // after their access check), so the policy's host rule has its cells
+    testPrisma.gameWorld.create({
+      data: { slug: "world", name: "World", kind: "party", code: "SNAP", hostUserId: owner.id },
+      select: { id: true },
+    }),
     testPrisma.definition.create({
       data: { type: "items", key: "apple", data: { points: 1 } },
       select: { id: true },

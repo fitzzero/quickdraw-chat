@@ -62,6 +62,10 @@ export async function startTestApp(options: StartOptions = {}): Promise<ApiTestA
     // N+1 reads, unbounded reads and nested writes in a call fail the test
     strictWarnings: true,
     auth: { loadServiceAccess, serviceAccessSource: { model: "user", column: "serviceAccess" } },
+    // ── quickdraw-game:start ──
+    // a party is host mode, which runs over peer links (as in production)
+    peers: true,
+    // ── quickdraw-game:end ──
   });
   // ── quickdraw-game:start ──
   // Fixed seed for deterministic spawns; NPCs off (tests assert exact player

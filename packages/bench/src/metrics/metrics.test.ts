@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { ClientTrace, ServerTrace } from "../types.js";
+import { getScenario } from "../scenarios.js";
+import type { ClientReport, ClientTrace, ServerTick, ServerTrace, Stats } from "../types.js";
 import { computeStats, sampleTrack, buildDiscontinuityMask } from "./tracks.js";
 import { computeDivergence } from "./divergence.js";
+import { computeFood } from "./food.js";
+import { compareScorecards } from "../compare.js";
+import {
+  aggregateScorecards,
+  computeScorecard,
+  headlineMetrics,
+  middleOf,
+  partyFairness,
+} from "./index.js";
+import { computeInputQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
 
 function makeServerTrace(): ServerTrace {
@@ -12,6 +23,7 @@ function makeServerTrace(): ServerTrace {
     tickDurMs: 0.1,
     snapshotBytes: 100,
     players: [{ id: "e1", x: (i + 1) * 10, y: 0 }],
+    inputs: [],
   }));
   return { ticks, deaths: [] };
 }
@@ -112,5 +124,184 @@ describe("computePacketHealth", () => {
     expect(health.gapRate).toBeCloseTo(1 / 3);
     expect(health.maxConsecutiveMissedTicks).toBe(1);
     expect(health.inputAckRttMs.p50).toBe(80);
+  });
+});
+
+describe("computeInputQueue", () => {
+  /** 60 s of ticks at 20 Hz; `entry(i)` is each tick's accounting of one snake. */
+  function ticksOf(entry: (i: number) => { stepped: number; depth: number }): ServerTick[] {
+    return Array.from({ length: 1200 }, (_, i) => ({
+      tick: i + 1,
+      tWall: 1000 + i * 50,
+      tickDurMs: 0.1,
+      snapshotBytes: 100,
+      players: [],
+      inputs: [
+        { id: "p1", ...entry(i) },
+        { id: "p2", stepped: 1, depth: 0 },
+      ],
+    }));
+  }
+
+  it("counts starved and catch-up ticks per snake, and across them", () => {
+    // p1 starves one tick in a hundred and steps two on the next
+    const ticks = ticksOf((i) => ({
+      stepped: i % 100 === 0 ? 0 : i % 100 === 1 ? 2 : 1,
+      depth: 0,
+    }));
+    const own = computeInputQueue(ticks, "p1");
+    expect(own?.starvedRate).toBeCloseTo(0.01, 5);
+    expect(own?.multiStepRate).toBeCloseTo(0.01, 5);
+    expect(own?.depthP95).toBe(0);
+    expect(computeInputQueue(ticks)?.starvedRate).toBeCloseTo(0.005, 5);
+    expect(computeInputQueue(ticks, "nobody")).toBeUndefined();
+  });
+
+  it("reports a queue that grows over the run as a depth trend", () => {
+    // p1's depth climbs one frame every 10 s
+    const ticks = ticksOf((i) => ({ stepped: 1, depth: Math.floor(i / 200) }));
+    const own = computeInputQueue(ticks, "p1");
+    expect(own?.depthTrend).toBeGreaterThan(4);
+    expect(own?.depthP95).toBe(5);
+    expect(computeInputQueue(ticks, "p2")?.depthTrend).toBe(0);
+  });
+});
+
+describe("computeFood", () => {
+  const server: ServerTrace = {
+    ...makeServerTrace(),
+    food: [
+      { tick: 99, ids: ["a", "b"] },
+      { tick: 100, ids: ["a", "c"] },
+    ],
+  };
+  const client = makeClientTrace("c1", 0);
+  const held = (tick: number, ids: string[], resyncs = 0): ClientTrace => ({
+    ...client,
+    food: { tick, latestTick: 100, ids, resyncs },
+  });
+
+  it("counts the food ids a client and the server disagree on at its latest snapshot", () => {
+    expect(computeFood(held(100, ["a", "c"]), server)).toEqual({
+      foodMismatchAtEnd: 0,
+      foodResyncs: 0,
+    });
+    // a ghost (b, eaten on the server) and a miss (c)
+    expect(computeFood(held(100, ["a", "b"], 1), server)).toEqual({
+      foodMismatchAtEnd: 2,
+      foodResyncs: 1,
+    });
+  });
+
+  it("counts what a client stuck at an older tick lacks", () => {
+    // right as of tick 99, but its latest snapshot is tick 100's
+    expect(computeFood(held(99, ["a", "b"], 1), server).foodMismatchAtEnd).toBe(2);
+  });
+
+  it("reports no mismatch without the server's food at that tick, and nothing without food", () => {
+    const stale: ClientTrace = { ...client, food: { tick: 7, latestTick: 7, ids: [], resyncs: 0 } };
+    expect(computeFood(stale, server)).toEqual({ foodResyncs: 0 });
+    expect(computeFood(client, server)).toEqual({});
+  });
+});
+
+describe("headlineMetrics", () => {
+  const scenario = { ...getScenario("control-0ms"), warmupMs: 0 };
+  const meta = { tier: 1 as const, gitCommit: "test", branch: "test" };
+
+  it("gates on the worst client's food, once the card carries it", () => {
+    const server: ServerTrace = { ...makeServerTrace(), food: [{ tick: 100, ids: ["a"] }] };
+    const fed = (clientId: string, ids: string[]): ClientTrace => ({
+      ...makeClientTrace(clientId, 0),
+      food: { tick: 100, latestTick: 100, ids, resyncs: 0 },
+    });
+    const card = computeScorecard(
+      { server, clients: [fed("c1", ["a"]), fed("c2", ["b", "c"])] },
+      scenario,
+      meta,
+    );
+    expect(headlineMetrics(card)["food.mismatchAtEnd"]).toBe(3);
+    const bare = computeScorecard(
+      { server: makeServerTrace(), clients: [makeClientTrace("c1", 0)] },
+      scenario,
+      meta,
+    );
+    expect(headlineMetrics(bare)).not.toHaveProperty(["food.mismatchAtEnd"]);
+  });
+
+  it("keeps each metric's worst run in an aggregated card, which the food gate judges", () => {
+    const server: ServerTrace = { ...makeServerTrace(), food: [{ tick: 100, ids: ["a"] }] };
+    const ids = ["c1", "c2", "c3"];
+    const run = (wrong: string | null) =>
+      computeScorecard(
+        {
+          server,
+          clients: ids.map((id) => ({
+            ...makeClientTrace(id, 0),
+            food: { tick: 100, latestTick: 100, ids: id === wrong ? [] : ["a"], resyncs: 0 },
+          })),
+        },
+        scenario,
+        meta,
+      );
+    // each run, another client lost a change: every client's median is 0
+    const lossy = aggregateScorecards(ids.map(run));
+    expect(headlineMetrics(lossy)["food.mismatchAtEnd"]).toBe(0);
+    expect(lossy.runWorst?.["food.mismatchAtEnd"]).toBe(1);
+    const clean = aggregateScorecards([run(null), run(null), run(null)]);
+    expect(compareScorecards(clean, lossy).failed).toBe(true);
+    expect(compareScorecards(clean, clean).failed).toBe(false);
+  });
+});
+
+/** Stats of `n` samples, all at `value`. */
+function flat(value: number, n = 10): Stats {
+  return { n, mean: value, p50: value, p95: value, max: value };
+}
+
+/** A client report holding what a party's fairness reads: its ack times and its prediction error. */
+function partyClient(ackMs: number, predictionPx: number | null, acks = 10): ClientReport {
+  const stats = flat(0);
+  return {
+    kind: "bot",
+    packet: {
+      interArrivalMs: stats,
+      effectiveRate: 20,
+      gapRate: 0,
+      maxConsecutiveMissedTicks: 0,
+      inputAckRttMs: flat(ackMs, acks),
+    },
+    smoothness: { teleportsPerMin: 0, jerkRms: 0, hardSnapsPerMin: 0, correctionPx: stats },
+    perEntity: {},
+    ...(predictionPx === null ? {} : { predictionErrorPx: flat(predictionPx) }),
+    effectiveFps: 60,
+  };
+}
+
+describe("partyFairness", () => {
+  it("sets the host's own user against the other players' median, the middle two's mean when even", () => {
+    const fairness = partyFairness("host", {
+      host: partyClient(140, 15),
+      a: partyClient(150, 16),
+      b: partyClient(160, 18),
+      c: partyClient(130, 14),
+      d: partyClient(170, 20),
+    });
+    expect(fairness).toEqual({
+      host: "host",
+      inputAckRttP50: { host: 140, peers: 155 },
+      predictionErrorP95: { host: 15, peers: 17 },
+    });
+  });
+
+  it("leaves out what a client did not measure, and says NaN when no client did", () => {
+    const fairness = partyFairness("host", {
+      host: partyClient(0, null, 0),
+      a: partyClient(150, null),
+      spectator: partyClient(0, null, 0),
+    });
+    expect(fairness.inputAckRttP50).toEqual({ host: Number.NaN, peers: 150 });
+    expect(fairness.predictionErrorP95).toEqual({ host: Number.NaN, peers: Number.NaN });
+    expect(middleOf([Number.NaN, 3, 1, 2])).toBe(2);
   });
 });

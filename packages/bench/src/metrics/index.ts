@@ -3,8 +3,10 @@
  * aggregation across repeated runs of the same scenario.
  */
 
-import type { ClientReport, RunTraces, Scenario, Scorecard } from "../types.js";
+import type { ClientReport, PartyFairness, RunTraces, Scenario, Scorecard } from "../types.js";
 import { computeDivergence, computeFidelity } from "./divergence.js";
+import { computeFood } from "./food.js";
+import { computeInputQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
 import { computeSmoothness } from "./smoothness.js";
 import { computeStats } from "./tracks.js";
@@ -43,6 +45,7 @@ export function computeScorecard(
       Object.entries(fidelity.perEntity).map(([id, v]) => [friendly(id), v]),
     );
     const frames = client.frames.filter((f) => f.tWall >= windowStart && f.tWall <= windowEnd);
+    const ownQueue = client.playerId ? computeInputQueue(windowed, client.playerId) : undefined;
     clients[client.clientId] = {
       kind: client.kind,
       packet: computePacketHealth(client, windowStart, windowEnd),
@@ -51,8 +54,11 @@ export function computeScorecard(
       ...(fidelity.predictionErrorPx ? { predictionErrorPx: fidelity.predictionErrorPx } : {}),
       effectiveFps:
         windowEnd > windowStart ? frames.length / ((windowEnd - windowStart) / 1000) : 0,
+      ...(ownQueue ? { inputQueue: ownQueue } : {}),
+      ...computeFood(client, traces.server),
     };
   }
+  const inputQueue = computeInputQueue(windowed);
 
   // Tier 2: FPS samples + frame-time distribution from the real render loop
   const fpsValues = traces.clients.flatMap((c) =>
@@ -73,7 +79,7 @@ export function computeScorecard(
   });
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     scenario: scenario.name,
     seed: scenario.seed,
     tier: meta.tier,
@@ -88,12 +94,64 @@ export function computeScorecard(
       snapshotBytes: computeStats(windowed.map((t) => t.snapshotBytes)),
       effectiveTickRate:
         windowEnd > windowStart ? windowed.length / ((windowEnd - windowStart) / 1000) : 0,
+      ...(inputQueue ? { inputQueue } : {}),
     },
     clients,
     divergence: computeDivergence(traces.clients, traces.server, windowStart, windowEnd),
     ...(fpsValues.length > 0
       ? { tier2: { fps: computeStats(fpsValues), frameTimeMs: computeStats(frameTimes) } }
       : {}),
+    ...partyOf(scenario, clients),
+  };
+}
+
+/** A party scenario's fairness, as the scorecard holds it; nothing for the server's world. */
+function partyOf(
+  scenario: Scenario,
+  clients: Record<string, ClientReport>,
+): { party?: PartyFairness } {
+  return scenario.party ? { party: partyFairness(scenario.party.host, clients) } : {};
+}
+
+/** A client's ack p50, or NaN when it has none (no input acknowledged). */
+function ackP50(report: ClientReport | undefined): number {
+  const stats = report?.packet.inputAckRttMs;
+  return stats === undefined || stats.n === 0 ? Number.NaN : stats.p50;
+}
+
+/** A client's prediction error p95, or NaN when it has none (a spectator, too few samples). */
+function predictionP95(report: ClientReport | undefined): number {
+  const stats = report?.predictionErrorPx;
+  return stats === undefined || stats.n === 0 ? Number.NaN : stats.p95;
+}
+
+/** The median of the finite values (the mean of the middle two for an even count); NaN for none. */
+export function middleOf(values: readonly number[]): number {
+  const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (sorted.length === 0) return Number.NaN;
+  const half = Math.floor(sorted.length / 2);
+  const upper = sorted[half] ?? Number.NaN;
+  return sorted.length % 2 === 1 ? upper : ((sorted[half - 1] ?? upper) + upper) / 2;
+}
+
+/**
+ * A party's fairness: the host's own user's input round trip p50 and
+ * prediction error p95 against the other players' (the median of theirs).
+ * With the fair link the host plays as they do; without it, its input
+ * reaches the sim at once. A value no client measured is NaN.
+ */
+export function partyFairness(host: string, clients: Record<string, ClientReport>): PartyFairness {
+  const own = clients[host];
+  const peers = Object.entries(clients)
+    .filter(([id]) => id !== host)
+    .map(([, report]) => report);
+  return {
+    host,
+    inputAckRttP50: { host: ackP50(own), peers: middleOf(peers.map(ackP50)) },
+    predictionErrorP95: {
+      host: predictionP95(own),
+      peers: middleOf(peers.map(predictionP95)),
+    },
   };
 }
 
@@ -119,11 +177,30 @@ export function headlineMetrics(card: Scorecard): Record<string, number> {
       clientReports.flatMap((c) => Object.values(c.perEntity).map((e) => e.renderLatencyMs)),
     ),
     "server.tickDurMs.p95": card.server.tickDurMs.p95,
+    // Compared once both cards carry it (scorecards made before the input queue do not)
+    ...(card.server.inputQueue
+      ? { "server.inputQueue.depthP95": card.server.inputQueue.depthP95 }
+      : {}),
+    ...foodMetric(clientReports),
   };
 }
 
+/**
+ * The most food ids any client ended up differing from the server on: 0, or
+ * a food change lost. Compared once both cards carry it (scorecards made
+ * before the food window do not).
+ */
+function foodMetric(clients: ClientReport[]): Record<string, number> {
+  const mismatches = clients.flatMap((c) =>
+    c.foodMismatchAtEnd === undefined ? [] : [c.foodMismatchAtEnd],
+  );
+  return mismatches.length > 0 ? { "food.mismatchAtEnd": Math.max(...mismatches) } : {};
+}
+
 function medianOf(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
+  // a value no run measured (a party's NaN) is left out; none measured stays NaN
+  const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (sorted.length === 0) return values.length > 0 ? Number.NaN : 0;
   return sorted[Math.floor(sorted.length / 2)] ?? 0;
 }
 
@@ -170,5 +247,19 @@ export function aggregateScorecards(cards: Scorecard[]): Scorecard {
     }
   }
   aggregated.runVariance = variance;
+  aggregated.runWorst = worstRuns(perRun);
   return aggregated;
+}
+
+/**
+ * Each headline metric's worst (highest) run, over the metrics any run
+ * reports: a run without one makes it NaN (null once saved). The medians
+ * cannot say it: a client's median hides the one run it went wrong in.
+ */
+function worstRuns(perRun: Record<string, number>[]): Record<string, number> {
+  const worst: Record<string, number> = {};
+  for (const key of new Set(perRun.flatMap((r) => Object.keys(r)))) {
+    worst[key] = Math.max(...perRun.map((r) => r[key] ?? Number.NaN));
+  }
+  return worst;
 }

@@ -18,7 +18,8 @@ error codes) and the testing helpers (`createTestApp`, `describeAccessMatrix`,
 - **Unit** (`*.test.ts`, not `.int.`): pure logic, no database
   (`bun run test:unit`): the API's utilities, the PWA helpers.
   <!-- ── quickdraw-game:start ── -->
-  Also the game sim and loop, and the bench's metrics.
+  Also the bench's metrics, and the shared package's game tests: the sim,
+  its loop and the snapshot codec.
   <!-- ── quickdraw-game:end ── -->
 - **Integration** (`*.int.test.ts(x)`): the real server against a real
   database (`bun run test:int`). The API's suites are
@@ -58,7 +59,9 @@ through the untracked `testPrisma`.
   <!-- ── quickdraw-game:start ── -->
   With the game: a game runtime with a fixed seed and no NPCs (tests drive
   `loop.tickOnce()`; the loop never starts); the game service's own
-  `onRoomLeave` runs in it as in production.
+  `onRoomLeave` and `onHostLeave` run in it as in production, and it serves
+  peer links (`peers: true`): `party.int.test.ts` hosts a party with a
+  Node client (`defineHost` from the typed client's core) to check them.
   <!-- ── quickdraw-game:end ── -->
 
 Close it in `afterAll`. Then:
@@ -122,7 +125,9 @@ Close it in `afterAll`. Then:
 - `apps/web/src/__tests__/chat.int.test.tsx` renders the real pages and
   components with `renderWithQuickdraw` against the API's test app (the
   web's integration config reuses the API's database set-up, plus
-  `dom-setup.ts`, which calls `installJsdomShims()` for what jsdom lacks).
+  `dom-setup.ts`, which calls `installJsdomShims()` for what jsdom lacks
+  and puts jsdom's storage where Node 25+ hides it; the unit config loads
+  it too).
 - Component tests without a server use `createMockClient(contracts)`; a
   component that reads `useQuickdraw()` renders inside `mock.$Provider`,
   with the session set by `mock.$session({ userId, serviceAccess, ... })`,

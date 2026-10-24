@@ -2,7 +2,7 @@
   "version": 1,
   "budgets": {
     "join the world": {
-      "statements": 5,
+      "statements": 7,
       "bytes": 4857,
       "calls": [
         {
@@ -12,7 +12,7 @@
         },
         {
           "call": "gameService.joinGame",
-          "statements": 5,
+          "statements": 6,
           "bytes": 4432
         }
       ]

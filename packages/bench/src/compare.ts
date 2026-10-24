@@ -35,10 +35,20 @@ export const DEFAULT_THRESHOLDS: CompareThresholds = {
     "fidelity.shapeErrorPx.p95": 0.5,
     "fidelity.renderLatencyMs": 5,
     "server.tickDurMs.p95": 0.05,
+    // A client's queue holds 0 or 1 frames by the phase it connected at; a
+    // ratchet toward the cap grows by more
+    "server.inputQueue.depthP95": 1,
   },
 };
 
 export type Verdict = "ok" | "improved" | "within-noise" | "warn" | "fail";
+
+/**
+ * Headline metrics that must be 0 in every run (judged on the worst one):
+ * any other value fails, whatever the baseline and the run spread. A food
+ * mismatch is a change a client lost.
+ */
+export const MUST_BE_ZERO: readonly string[] = ["food.mismatchAtEnd"];
 
 export interface MetricComparison {
   metric: string;
@@ -55,7 +65,8 @@ export interface CompareResult {
   failed: boolean;
 }
 
-function judge(
+/** The verdict on one metric's delta (`deltaPct` null: a zero baseline). */
+export function judge(
   deltaAbs: number,
   deltaPct: number | null,
   floor: number,
@@ -65,9 +76,44 @@ function judge(
   if (Math.abs(deltaAbs) <= floor) return "ok";
   if (Math.abs(deltaAbs) <= noise) return "within-noise";
   if (deltaAbs < 0) return "improved";
-  if (deltaPct !== null && deltaPct > thresholds.failPct) return "fail";
-  if (deltaPct !== null && deltaPct > thresholds.warnPct) return "warn";
+  // From zero, any growth past the floor is a regression (a first teleport, a queue that grows)
+  if (deltaPct === null) return "fail";
+  if (deltaPct > thresholds.failPct) return "fail";
+  if (deltaPct > thresholds.warnPct) return "warn";
   return "ok";
+}
+
+/**
+ * The verdict on a must-be-zero metric, from the candidate's worst run (an
+ * aggregated card's `runWorst`, or a single run's value). A missing value
+ * (or NaN, a run without the metric) fails too: the harness lost it.
+ */
+export function judgeZero(worst: number | null | undefined): Verdict {
+  return worst === 0 ? "ok" : "fail";
+}
+
+/**
+ * The must-be-zero metrics, judged on the candidate alone, once either card
+ * carries them (a baseline made before one does not).
+ */
+function zeroComparisons(
+  base: Record<string, number>,
+  cand: Record<string, number>,
+  candidate: Scorecard,
+): MetricComparison[] {
+  return MUST_BE_ZERO.filter((metric) => metric in base || metric in cand).map((metric) => {
+    const worst = candidate.runWorst ? candidate.runWorst[metric] : cand[metric];
+    const baseValue = base[metric] ?? 0;
+    const candValue = worst ?? Number.NaN;
+    return {
+      metric,
+      baseline: baseValue,
+      candidate: candValue,
+      deltaAbs: candValue - baseValue,
+      deltaPct: null,
+      verdict: judgeZero(worst),
+    };
+  });
 }
 
 export function compareScorecards(
@@ -86,6 +132,7 @@ export function compareScorecards(
   const comparisons: MetricComparison[] = [];
 
   for (const [metric, baseValue] of Object.entries(base)) {
+    if (MUST_BE_ZERO.includes(metric)) continue;
     const candValue = cand[metric] ?? 0;
     const deltaAbs = candValue - baseValue;
     const deltaPct = baseValue === 0 ? null : deltaAbs / baseValue;
@@ -109,6 +156,8 @@ export function compareScorecards(
       verdict,
     });
   }
+
+  comparisons.push(...zeroComparisons(base, cand, candidate));
 
   return {
     scenario: baseline.scenario,

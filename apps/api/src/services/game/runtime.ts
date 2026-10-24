@@ -6,20 +6,35 @@
  *
  * The loop's output reaches clients through quickdraw's realtime kit, from
  * code that is not a handler: each tick's snapshot goes to the world stream
- * (`qd.stream`, volatile; a subscriber starts from the current world, which
- * the service computes), deaths, the leaderboard and departures to the
- * world's room (`qd.rooms.emit`). Anyone in the world's room keeps the world
- * running (`qd.rooms.size`).
+ * packed (`qd.stream`, volatile; a subscriber starts from the current world,
+ * which the service computes with `keyframe()`), deaths, the leaderboard and
+ * departures to the world's room (`qd.rooms.emit`). One SnapshotEncoder per
+ * runtime packs both, so the snapshots and every seed share the stream's id
+ * table. Anyone in the world's room keeps the world running
+ * (`qd.rooms.size`).
  */
 
-import type { GameDeathEvent } from "@project/shared";
-import { GLOBAL_WORLD_ID, GLOBAL_WORLD_ROOM, gameContract } from "@project/shared";
+import type {
+  GameDeathEvent,
+  GameLoopDeps,
+  GameLoopEmits,
+  GameTunables,
+  PackedWorldItem,
+} from "@project/shared";
+import {
+  GLOBAL_WORLD_ID,
+  GLOBAL_WORLD_ROOM,
+  GameLoop,
+  GameWorldSim,
+  SnapshotEncoder,
+  bytesToBase64,
+  gameContract,
+  isNpcId,
+} from "@project/shared";
 import type { RoomLeaveHandler } from "@fitzzero/quickdraw-core/server";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
 import { logger } from "../../utils/logger.js";
-import { GameLoop, type GameLoopDeps, type GameLoopEmits } from "./loop.js";
-import { GameWorldSim, isNpcId, type GameTunables } from "./world.js";
 
 type Db = typeof appDb;
 
@@ -39,25 +54,40 @@ export interface GameRuntimeOptions {
 export interface GameRuntime {
   readonly sim: GameWorldSim;
   readonly loop: GameLoop;
+  /**
+   * The database its root built it with (the app's, the test app's, the
+   * bench's): what the game's hooks write through, which have no handler's
+   * `db` (a party's end, when its host leaves).
+   */
+  readonly db: Db;
   /** Users who joined the game (spawned). */
   readonly playingUsers: Set<string>;
+  /**
+   * A world stream subscriber's seed: the world now (every snake, all the
+   * food), packed with the id table the loop's snapshots use.
+   */
+  keyframe(): PackedWorldItem;
 }
 
 /** The world stream, through whichever server was created last. */
 const worldStream = qd.stream(gameContract, "world");
 
-/** The loop's output, on the wire: the world stream and the world's room. */
-const wire: GameLoopEmits = {
-  snapshot: (snapshot) => {
-    worldStream.push(GLOBAL_WORLD_ID, snapshot);
-  },
-  death: (death) => {
-    qd.rooms.emit(GLOBAL_WORLD_ROOM, gameContract, "death", death);
-  },
-  leaderboard: (entries) => {
-    qd.rooms.emit(GLOBAL_WORLD_ROOM, gameContract, "leaderboard", entries);
-  },
-};
+/** The loop's output, on the wire: the world stream, packed by `encoder`, and the world's room. */
+function wireOf(encoder: SnapshotEncoder): GameLoopEmits {
+  return {
+    snapshot: (snapshot) => {
+      const item = { b: bytesToBase64(encoder.encode(snapshot)) };
+      worldStream.push(GLOBAL_WORLD_ID, item);
+      return item;
+    },
+    death: (death) => {
+      qd.rooms.emit(GLOBAL_WORLD_ROOM, gameContract, "death", death);
+    },
+    leaderboard: (entries) => {
+      qd.rooms.emit(GLOBAL_WORLD_ROOM, gameContract, "leaderboard", entries);
+    },
+  };
+}
 
 /**
  * Whether any socket on this process is in the world's room. The loop asks
@@ -131,16 +161,23 @@ let current: GameRuntime | undefined;
 export function createGameRuntime(db: Db, options: GameRuntimeOptions = {}): GameRuntime {
   const sim = new GameWorldSim({ seed: options.simSeed, tunables: options.tunables });
   const playingUsers = new Set<string>();
+  const encoder = new SnapshotEncoder();
   const loop = new GameLoop({
     sim,
-    emit: wire,
+    emit: wireOf(encoder),
     onDeath: (death) => {
       void persistScore(db, death);
     },
     hasAudience: options.hasAudience ?? worldHasAudience,
     ...(options.onTick ? { onTick: options.onTick } : {}),
   });
-  current = { sim, loop, playingUsers };
+  current = {
+    sim,
+    loop,
+    db,
+    playingUsers,
+    keyframe: () => ({ b: bytesToBase64(encoder.encodeKeyframe(sim.keyframe())) }),
+  };
   return current;
 }
 

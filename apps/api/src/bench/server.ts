@@ -100,6 +100,8 @@ export async function startBenchServer(
     cors: { origin: [process.env.CLIENT_URL ?? "http://localhost:3000"], credentials: true },
     // bots sign in with development credentials (auth.userId)
     auth: createAppAuth({ prisma: testPrisma, serviceNames }).server,
+    // a party is host mode, which runs over peer links (check:godot's party)
+    peers: true,
   });
   await ensureGlobalWorld(testDb);
   // anyone in the world's room keeps it running; a bot whose socket left the
@@ -109,6 +111,7 @@ export async function startBenchServer(
     tunables: scenario.tunables ?? {},
     onTick: recorder.onTick,
   });
+  recorder.seedFood(game.sim.keyframe());
   await new Promise<void>((resolvePort) => {
     server.httpServer.listen(options.port ?? 0, () => resolvePort());
   });

@@ -1,5 +1,58 @@
 # Changelog
 
+## quickdraw 5.1.3 (2026-10-23)
+
+The template on quickdraw 5.1.3 (`@fitzzero/quickdraw-core`, `-lint` and
+`-skills` at `^5.1.3`, quickdraw release 2026.10.10): peer links and host
+mode for the realtime kit, `PeerLink.setLag`, and `./client/core`, which the
+netcode pack's party worlds build on. Nothing to do for the deploy.
+
+### Changed
+
+- **The Godot client speaks 5.1.3's protocol client.**
+  `godot/addons/quickdraw/quickdraw_client.gd` is quickdraw's
+  `examples/godot` client at the release, copied unchanged as
+  `apps/game/README.md` asks on every upgrade: peer links (`peer_link`),
+  host mode (`host_of`; `send_channel` and `subscribe_stream` take a
+  `room` for a host-served member), and a handshake refused `INTERNAL`
+  (the server's session store down) keeps the user and connects again.
+  The copy here was 5.0.0-rc.6's, and the web's `index.pck` still carried
+  an older one, exported before rc.6 moved the source: it is exported again
+  (Godot 4.7.2, as before), 47 to 73 kB.
+- **The web's tests run on Node 25 and later.** Those versions have a
+  `localStorage` of their own, undefined without `--localstorage-file`,
+  which hid jsdom's: on Node 26 every unit test that rendered
+  `IntlProvider` failed. `dom-setup.ts` puts jsdom's storage back, and the
+  unit config loads it too. Node 24, which CI runs, was unaffected.
+- **The netcode baselines are measured again** (`bench-baselines/`, label
+  `core-5.1.3`), on the machine that judges the pack's netcode changes.
+  Against the old ones only the sim's tick duration failed, about 0.2 ms
+  p95 where they had 0.05; 5.1.2 measures the same on this machine, so the
+  machine moved it, not the core (`docs/netcode-rd/LEDGER.md`).
+
+Nothing else moved: `check`, the API reference (`docs:check` renders the
+same pages), every budget and the access snapshot hold as they were on
+5.1.2.
+
+### What 5.1.3's rules say that the template does not do yet
+
+The rules linked from `@fitzzero/quickdraw-skills` grew with 5.1.3. No
+check or test fails on these, so they are left for their own change:
+
+- A helper that writes takes the tracked client by its type
+  (`Tracked<PrismaClient>`). The sign-in helpers (`auth/users.ts`,
+  `guest.ts`, `grants.ts`) take `PrismaClient` and are given the untracked
+  `prisma`, so a sign-in's writes to a `User` row reach no subscriber;
+  `@project/db`'s `db` is declared `PrismaClient`, which carries no mark.
+- Before deleting a row whose dependents the database deletes, delete them
+  through `db` first so their lists are told (for the admin kit, in its
+  `prepare`): `deleteChat` and the chat admin screen's delete leave a chat's
+  messages and memberships to the cascade.
+- After an admin screen's own write, put the row the write returned in the
+  cache (`adminGet.setData`); `AdminEntitySidebar` invalidates it instead.
+  The kit's row reads default to `staleTime: 0` now, so a screen reads its
+  row again on every mount.
+
 ## quickdraw 5.1.2 (2026-10-12)
 
 The template on quickdraw 5.1.2 (`@fitzzero/quickdraw-core`, `-lint` and

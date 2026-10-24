@@ -27,7 +27,9 @@ single PR to main.
    - Client-side ideas → `apps/api/src/bench/bot/prediction.ts` /
      `interpolation.ts` / `client.ts`.
    - Server/wire ideas → `packages/shared/src/types/game.ts` +
-     `apps/api/src/services/game/` (+ keep the bots consuming the new wire).
+     `packages/shared/src/game/` (the sim, its loop, the codec) +
+     `apps/api/src/services/game/` (the runtime and the service) (+ keep
+     the bots consuming the new wire).
    - Keep diffs surgical. `bun run check` must stay green; run
      `bun run test:unit` if you touched `services/game` or `packages/shared`
      (and `bun run test:int` when the wire format changed).

@@ -14,9 +14,24 @@
  *   3. a death reaches both (the snakes meet in the centre), and the dead
  *      player respawns;
  *   4. the leaderboard reaches both, naming both players;
- *   5. the API restarts on the same port: both clients reconnect by
+ *   5. each holds the server's food: each tick's change applied once, from
+ *      the window every snapshot repeats;
+ *   6. ada's main scene misses a second of snapshots (QD_FOOD_BLACKOUT, more
+ *      than the window): it asks for a keyframe and holds the server's food
+ *      again;
+ *   7. the API restarts on the same port: both clients reconnect by
  *      themselves, rejoin the new world, and see each other move again,
- *      their world clocks on the new world's ticks (which start over).
+ *      their world clocks on the new world's ticks (which start over);
+ *   8. each holds the new world's food, none of the old world's left.
+ *
+ * Then a party (godot-party.ts): a Node client hosts one, both games join it
+ * by its code over the relay to the host, see each other move, hear a death
+ * on partyEvents, and hear the host end it.
+ *
+ * Before the session, test/codec.gd decodes packed snapshots the TS
+ * encoder made (codec-fixtures.ts: lost ones, seeds handled late, an index
+ * a seed gives, a forgotten table) with snapshot_decoder.gd, and must get
+ * what SnapshotDecoder gets for every one.
  *
  * Exit code 0 when every check held. QD_TRACE=1 also prints each client's
  * frames (the GDScript client's `trace`).
@@ -29,17 +44,21 @@ process.env.LOG_LEVEL = process.env.LOG_LEVEL ?? "error";
 process.env.ENABLE_DEV_CREDENTIALS = "true";
 process.env.SERVICE_DEFAULT_ACCESS = "userService:Read";
 
-import { spawn, type ChildProcess } from "node:child_process";
-import { resolve } from "node:path";
+import { spawn } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createInterface } from "node:readline";
 
 type Scenario = import("@project/bench").Scenario;
 
 const { startBenchServer, shutdownBenchDatabase } = await import("./server.js");
+const { codecFixtures } = await import("./codec-fixtures.js");
+const { GodotClient, PROJECT, sawMove, step } = await import("./godot-client.js");
+const { checkParty } = await import("./godot-party.js");
 type BenchServer = Awaited<ReturnType<typeof startBenchServer>>;
-
-const PROJECT = resolve(process.cwd(), "../game/godot");
-const STEP_TIMEOUT_MS = 45_000;
+type GodotClient = InstanceType<typeof GodotClient>;
+type Probe = import("./godot-client.js").Probe;
 
 /** Two players and no NPCs in a small world: the snakes meet within seconds. */
 const SESSION: Scenario = {
@@ -53,107 +72,10 @@ const SESSION: Scenario = {
   clients: [
     { name: "ada", behavior: { kind: "wander" } },
     { name: "bo", behavior: { kind: "wander" } },
+    // the party's host, a Node client (godot-party.ts)
+    { name: "cy", behavior: { kind: "spectator" } },
   ],
 };
-
-interface Probe {
-  readonly kind: string;
-  readonly t: number;
-  readonly [key: string]: unknown;
-}
-
-/** One headless game: its process and every PROBE line it printed. */
-class GodotClient {
-  public readonly probes: Probe[] = [];
-  private readonly child: ChildProcess;
-  private readonly waiters = new Set<() => void>();
-
-  constructor(
-    public readonly name: string,
-    public readonly userId: string,
-    url: string,
-  ) {
-    this.child = spawn(
-      process.env.GODOT ?? "godot",
-      ["--headless", "--path", PROJECT, "--script", "res://test/session.gd"],
-      {
-        env: {
-          ...process.env,
-          QUICKDRAW_DEV_USER_ID: userId,
-          QUICKDRAW_API_URL: url,
-          QUICKDRAW_TRACE: process.env.QD_TRACE ?? "",
-          QD_SESSION_SECONDS: "180",
-        },
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-    const onLine = (line: string): void => {
-      if (line.startsWith("PROBE ")) {
-        this.probes.push(JSON.parse(line.slice("PROBE ".length)) as Probe);
-        for (const wake of this.waiters) wake();
-      } else if (process.env.QD_TRACE === "1" || /error|warning/i.test(line)) {
-        console.log(`  [${this.name}] ${line}`);
-      }
-    };
-    if (this.child.stdout) createInterface({ input: this.child.stdout }).on("line", onLine);
-    if (this.child.stderr) createInterface({ input: this.child.stderr }).on("line", onLine);
-  }
-
-  /** The probes of `kind` printed since probe number `from`. */
-  public since(from: number, kind: string): Probe[] {
-    return this.probes.slice(from).filter((probe) => probe.kind === kind);
-  }
-
-  /** Resolves with the first probe from number `from` on that matches, or rejects after `timeoutMs`. */
-  public async waitFor(
-    what: string,
-    from: number,
-    match: (probe: Probe) => boolean,
-    timeoutMs = STEP_TIMEOUT_MS,
-  ): Promise<Probe> {
-    return await new Promise<Probe>((resolveProbe, reject) => {
-      const check = (): boolean => {
-        const found = this.probes.slice(from).find(match);
-        if (found === undefined) return false;
-        cleanup();
-        resolveProbe(found);
-        return true;
-      };
-      const timer = setTimeout(() => {
-        cleanup();
-        reject(new Error(`${this.name}: no ${what} within ${String(timeoutMs / 1000)} s`));
-      }, timeoutMs);
-      const cleanup = (): void => {
-        clearTimeout(timer);
-        this.waiters.delete(wake);
-      };
-      const wake = (): void => {
-        check();
-      };
-      if (!check()) this.waiters.add(wake);
-    });
-  }
-
-  public stop(): void {
-    this.child.kill("SIGTERM");
-  }
-}
-
-/**
- * True when `client` drew `other`'s snake at two different places since probe
- * `from`, two snapshots apart: what the player sees (the RemoteSnake,
- * interpolated on the world clock), not only what arrived.
- */
-function sawMove(client: GodotClient, other: GodotClient, from: number): boolean {
-  const places = new Set(
-    client
-      .since(from, "seen")
-      .map((probe) => (probe.drawn as Record<string, number[]>)[other.userId])
-      .filter((at): at is number[] => Array.isArray(at))
-      .map((at) => at.join(",")),
-  );
-  return places.size >= 3;
-}
 
 /**
  * True when `client`'s world clock renders just behind the newest snapshot
@@ -167,10 +89,28 @@ function clockOnTime(client: GodotClient, from: number): boolean {
   return behind > 0 && behind < 10;
 }
 
-async function step(label: string, check: () => Promise<unknown>): Promise<void> {
-  const started = Date.now();
-  await check();
-  console.log(`  ✓ ${label} (${String(Date.now() - started)} ms)`);
+/** A food probe's ids, sorted, as one string. */
+function idsOf(probe: Probe): string {
+  return [...(probe.ids as string[])].sort().join(",");
+}
+
+/** True when a food probe holds the food the server held at the probe's tick. */
+function foodMatches(probe: Probe, server: BenchServer): boolean {
+  const truth = server.recorder.trace().food?.find((entry) => entry.tick === probe.tick);
+  return truth !== undefined && idsOf(probe) === truth.ids.join(",");
+}
+
+/**
+ * True when `client`'s latest food since probe `from` is the food the server
+ * held at the same tick, and not its first since then: the client applied
+ * the world's food changes, each tick's once, and kept no stale food.
+ */
+function heldServerFood(client: GodotClient, server: BenchServer, from: number): boolean {
+  const probes = client.since(from, "food");
+  const first = probes[0];
+  const last = probes.at(-1);
+  if (first === undefined || last === undefined) return false;
+  return foodMatches(last, server) && idsOf(last) !== idsOf(first);
 }
 
 /** The two clients, and each with the other. */
@@ -202,7 +142,9 @@ async function checkDeathAndLeaderboard({ ada, bo, both }: Players): Promise<voi
     await bo.waitFor("the same death", 0, (p) => p.kind === "death" && p.id === death.id);
     const dead = both.find((client) => client.userId === death.id);
     if (dead === undefined) throw new Error(`a death of ${String(death.id)}, neither player`);
-    const after = dead.probes.indexOf(death);
+    // the dead client's own probe of that death (both hear every death, in
+    // order): its respawned snake comes after it
+    const after = dead.probes.findIndex((p) => p.kind === "death" && p.id === death.id);
     await dead.waitFor("its respawned snake", after, (p) => p.kind === "seen" && p.me !== null);
   });
   await step("the leaderboard reaches both, naming both players", async () => {
@@ -220,6 +162,67 @@ async function checkDeathAndLeaderboard({ ada, bo, both }: Players): Promise<voi
 /** The server the clients talk to: the restart check replaces it. */
 interface Running {
   server: BenchServer;
+}
+
+/** Each client's food against the server's, from probe `fromOf(client)` on. */
+async function checkFood(
+  label: string,
+  { both }: Players,
+  running: Running,
+  fromOf: (client: GodotClient) => number,
+): Promise<void> {
+  await step(label, async () => {
+    for (const client of both) {
+      const from = fromOf(client);
+      await client.waitFor("a match with the server's food", from, () =>
+        heldServerFood(client, running.server, from),
+      );
+    }
+  });
+}
+
+/**
+ * ada's main scene heard no snapshot for a second (more than the food
+ * window): past its blackout, it asked for a keyframe, and its food is the
+ * server's at a tick after the blackout.
+ */
+async function checkFoodResync({ ada }: Players, running: Running): Promise<void> {
+  await step(
+    "a client that missed a second of snapshots asks for a keyframe, then holds the server's food",
+    async () => {
+      const end = await ada.waitFor(
+        "the end of its blackout",
+        0,
+        (p) => p.kind === "blackout" && p.phase === "end",
+      );
+      const from = ada.probes.indexOf(end);
+      const after = Number(end.tick);
+      await ada.waitFor("a match with the server's food after a keyframe", from, () => {
+        const last = ada.since(from, "food").at(-1);
+        return (
+          last !== undefined &&
+          Number(last.resyncs) >= 1 &&
+          Number(last.tick) > after &&
+          foodMatches(last, running.server)
+        );
+      });
+    },
+  );
+}
+
+/**
+ * bo's main scene heard every snapshot: it asked for no keyframe, neither
+ * for food nor for a player its decoder could not name (ada's blackout was
+ * main.gd's alone, so ada's decoder saw every snapshot too).
+ */
+async function checkNoResync({ bo }: Players): Promise<void> {
+  await step("a client that missed no snapshot asks for no keyframe", () => {
+    const last = bo.since(0, "food").at(-1);
+    if (last === undefined) throw new Error("bo sent no food probe");
+    if (Number(last.resyncs) !== 0) {
+      throw new Error(`bo asked for ${String(last.resyncs)} keyframes, and missed nothing`);
+    }
+  });
 }
 
 /** Stops the server and starts a new one on its port. */
@@ -255,7 +258,38 @@ async function checkRestart({ both, pairs }: Players, running: Running): Promise
   });
 }
 
+/**
+ * snapshot_decoder.gd decodes the TS encoder's snapshots as SnapshotDecoder
+ * does (test/codec.gd compares them): the bench's bots decode in wire order,
+ * so only this runs the GDScript decoder's late seeds and forgotten tables.
+ */
+async function checkCodec(): Promise<void> {
+  await step(
+    "the GDScript decoder reads the TS encoder's snapshots as the TS decoder does",
+    async () => {
+      const fixtures = join(mkdtempSync(join(tmpdir(), "qd-codec-")), "codec.json");
+      writeFileSync(fixtures, JSON.stringify(codecFixtures()));
+      const child = spawn(
+        process.env.GODOT ?? "godot",
+        ["--headless", "--path", PROJECT, "--script", "res://test/codec.gd"],
+        { env: { ...process.env, QD_CODEC_FIXTURES: fixtures }, stdio: ["ignore", "pipe", "pipe"] },
+      );
+      const lines: string[] = [];
+      if (child.stdout)
+        createInterface({ input: child.stdout }).on("line", (line) => lines.push(line));
+      const code = await new Promise<number | null>((done) => {
+        child.once("exit", done);
+      });
+      const codec = lines.filter((line) => line.startsWith("CODEC"));
+      if (code !== 0 || !/^CODEC \d+ 0$/.test(codec.at(-1) ?? "")) {
+        throw new Error(`test/codec.gd: ${codec.join("; ") || `exit ${String(code)}`}`);
+      }
+    },
+  );
+}
+
 async function session(): Promise<void> {
+  await checkCodec();
   const running: Running = { server: await startBenchServer(SESSION) };
   const url = `http://127.0.0.1:${String(running.server.port)}`;
   const userOf = (name: string): string => {
@@ -264,7 +298,7 @@ async function session(): Promise<void> {
     return id;
   };
   console.log(`check:godot: server on ${url}; two headless games from ${PROJECT}`);
-  const ada = new GodotClient("ada", userOf("ada"), url);
+  const ada = new GodotClient("ada", userOf("ada"), url, { QD_FOOD_BLACKOUT: "1" });
   const bo = new GodotClient("bo", userOf("bo"), url);
   const players: Players = {
     ada,
@@ -278,14 +312,35 @@ async function session(): Promise<void> {
   try {
     await checkJoinAndMove(players);
     await checkDeathAndLeaderboard(players);
+    await checkFood(
+      "each holds the server's food, each tick's change applied once",
+      players,
+      running,
+      () => 0,
+    );
+    await checkFoodResync(players, running);
+    await checkNoResync(players);
     await checkRestart(players, running);
+    // the new world's ids repeat the old one's: its keyframe and its
+    // bootstrap must replace them
+    await checkFood(
+      "each holds the new world's food, none of the old world's",
+      players,
+      running,
+      (client) => client.probes.map((probe) => probe.kind).lastIndexOf("world"),
+    );
   } finally {
     for (const client of players.both) client.stop();
+  }
+  try {
+    const partyUrl = `http://127.0.0.1:${String(running.server.port)}`;
+    await checkParty(partyUrl, { host: userOf("cy"), ada: userOf("ada"), bo: userOf("bo") });
+  } finally {
     await running.server.stop();
   }
   const counts = players.both.map(
     (client) =>
-      `${client.name}: ${String(client.since(0, "seen").length)} sightings, ${String(client.since(0, "death").length)} deaths, ${String(client.since(0, "leaderboard").length)} leaderboards, ${String(client.since(0, "connected").length)} hellos`,
+      `${client.name}: ${String(client.since(0, "seen").length)} sightings, ${String(client.since(0, "death").length)} deaths, ${String(client.since(0, "leaderboard").length)} leaderboards, ${String(client.since(0, "connected").length)} hellos, ${String(client.since(0, "food").length)} food checks`,
   );
   console.log(`check:godot: every check held (${counts.join("; ")})`);
 }

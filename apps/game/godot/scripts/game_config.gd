@@ -1,7 +1,7 @@
 class_name GameConfig
 extends RefCounted
 ## Movement tunables. Defaults mirror DEFAULT_TUNABLES in
-## apps/api/src/services/game/world.ts; the live values are fetched from
+## packages/shared/src/game/world.ts; the live values are fetched from
 ## DefinitionService at load (see game.gd → load_tunables), so the server
 ## sim and every client share one source of truth and balance edits in
 ## /admin/definitionService apply without re-exporting the game.
@@ -11,6 +11,12 @@ extends RefCounted
 
 const TICK_RATE := 20.0
 const FIXED_DT := 1.0 / TICK_RATE
+## Frames one input message carries at most: its newest and the three before
+## it (GAME_INPUT_FRAMES in packages/shared/src/types/game.ts).
+const INPUT_FRAMES := 4
+## Ticks of food changes every snapshot repeats (GAME_FOOD_WINDOW in
+## packages/shared/src/types/game.ts).
+const FOOD_WINDOW := 6
 
 static var base_speed := 180.0
 static var boost_speed := 320.0

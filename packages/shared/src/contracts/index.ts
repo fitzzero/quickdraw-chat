@@ -9,12 +9,13 @@ import { pushContract } from "./push.js";
 import { userContract } from "./user.js";
 // ── quickdraw-game:start ──
 import { definitionContract } from "./definition.js";
-import { gameContract } from "./game.js";
+import { gameContract, worldSnapshotSchema } from "./game.js";
 // ── quickdraw-game:end ──
 
 export { chatContract, documentContract, messageContract, pushContract, userContract };
 // ── quickdraw-game:start ──
-export { definitionContract, gameContract };
+// The schema of what a world stream item decodes to (SnapshotDecoder)
+export { definitionContract, gameContract, worldSnapshotSchema };
 // ── quickdraw-game:end ──
 
 export const contracts = {

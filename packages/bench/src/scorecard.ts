@@ -4,7 +4,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { Scorecard } from "./types.js";
+import type { PartyFairness, Scorecard } from "./types.js";
 
 export function saveScorecard(card: Scorecard, resultsDir: string): string {
   const stamp = card.createdAt.replace(/[:.]/g, "-");
@@ -21,13 +21,30 @@ export function saveScorecard(card: Scorecard, resultsDir: string): string {
 
 export function loadScorecard(path: string): Scorecard {
   const card = JSON.parse(readFileSync(path, "utf8")) as Scorecard;
-  if (card.schemaVersion !== 1) {
+  if (card.schemaVersion !== 1 && card.schemaVersion !== 2) {
     throw new Error(`unsupported scorecard schemaVersion ${String(card.schemaVersion)}: ${path}`);
   }
   return card;
 }
 
 const num = (v: number, digits = 1): string => v.toFixed(digits);
+
+/** A value no client measured (NaN, or null once saved) is n/a. */
+const measured = (v: number | null, digits = 1): string =>
+  v === null || !Number.isFinite(v) ? "n/a" : num(v, digits);
+
+/** A party scenario's fairness line. */
+function partyLine({
+  host,
+  inputAckRttP50: rtt,
+  predictionErrorP95: error,
+}: PartyFairness): string {
+  return (
+    `  Party fairness (${host}, the host's own user, against the other players' median): ` +
+    `ackRTT p50 ${measured(rtt.host, 0)} vs ${measured(rtt.peers, 0)} ms, ` +
+    `prediction error p95 ${measured(error.host)} vs ${measured(error.peers)} px`
+  );
+}
 
 export function printSummary(card: Scorecard): string {
   const lines: string[] = [];
@@ -70,6 +87,12 @@ export function printSummary(card: Scorecard): string {
     if (c.predictionErrorPx) {
       push(`    ${id} local prediction error p95: ${num(c.predictionErrorPx.p95)} px`);
     }
+    if (c.foodMismatchAtEnd !== undefined) {
+      push(
+        `    ${id} food at the end: ${num(c.foodMismatchAtEnd, 0)} differing from the server's, ` +
+          `${num(c.foodResyncs ?? 0, 0)} keyframes asked for`,
+      );
+    }
   }
   push("");
   push(
@@ -77,6 +100,14 @@ export function printSummary(card: Scorecard): string {
       `snapshot p95 ${num(card.server.snapshotBytes.p95, 0)}B, ` +
       `rate ${num(card.server.effectiveTickRate, 2)}Hz`,
   );
+  const queue = card.server.inputQueue;
+  if (queue) {
+    push(
+      `  Input queue: depth p95 ${num(queue.depthP95, 0)}, starved ${num(queue.starvedRate * 100, 2)}%, ` +
+        `multi-step ${num(queue.multiStepRate * 100, 2)}%, depth trend ${num(queue.depthTrend, 2)}`,
+    );
+  }
+  if (card.party) push(partyLine(card.party));
   if (card.runVariance) {
     const worst = Object.entries(card.runVariance)
       .sort((a, b) => b[1] - a[1])

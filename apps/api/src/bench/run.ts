@@ -6,8 +6,10 @@
  *
  * Per run: fresh bench server (loop running) → one latency proxy per bot
  * (per its scenario net profile) → bots connect and play for the scenario
- * duration → traces → scorecard. Runs aggregate as element-wise medians
- * with a run-variance report. Results land in bench-results/ at repo root.
+ * duration → traces → scorecard. A party scenario has no server: a host in
+ * process and a loopback link per bot (party.ts). Runs aggregate as
+ * element-wise medians with a run-variance report. Results land in
+ * bench-results/ at repo root.
  */
 
 import { execSync } from "node:child_process";
@@ -54,8 +56,9 @@ const {
 } = await import("@project/bench");
 const { startBenchServer, shutdownBenchDatabase } = await import("./server.js");
 const { BotClient } = await import("./bot/client.js");
-const { DEFAULT_TUNABLES } = await import("../services/game/world.js");
-const { GAME_TICK_RATE } = await import("@project/shared");
+const { SocketTransport } = await import("./bot/socket-transport.js");
+const { executePartyRun } = await import("./party.js");
+const { DEFAULT_TUNABLES, GAME_TICK_RATE } = await import("@project/shared");
 
 type Scenario = import("@project/bench").Scenario;
 type Scorecard = import("@project/bench").Scorecard;
@@ -114,7 +117,12 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+/** One run: a party's (no server: party.ts), or the server's world. */
 async function executeRun(scenario: Scenario): Promise<RunTraces> {
+  return scenario.party ? await executePartyRun(scenario) : await executeServerRun(scenario);
+}
+
+async function executeServerRun(scenario: Scenario): Promise<RunTraces> {
   const server = await startBenchServer(scenario);
   const proxies: LatencyProxy[] = [];
   const bots: InstanceType<typeof BotClient>[] = [];
@@ -137,11 +145,12 @@ async function executeRun(scenario: Scenario): Promise<RunTraces> {
       if (!userId) throw new Error(`no user for bot ${spec.name}`);
       bots.push(
         new BotClient({
-          port,
+          transport: new SocketTransport(port, userId, spec.name),
           userId,
           name: spec.name,
           behaviorKind: spec.behavior.kind,
           ...(spec.render ? { render: spec.render } : {}),
+          ...(spec.clockScale === undefined ? {} : { clockScale: spec.clockScale }),
           scenario,
           tunables: { ...DEFAULT_TUNABLES, ...scenario.tunables },
           tickRate: GAME_TICK_RATE,
@@ -158,6 +167,8 @@ async function executeRun(scenario: Scenario): Promise<RunTraces> {
     }
 
     await sleep(scenario.durationMs);
+    // A resync the end of the run would cut in half is no lost food
+    await Promise.all(bots.map((b) => b.foodSettled(1_000)));
 
     const clients = bots.map((b) => b.stop());
     return { server: server.recorder.trace(), clients };

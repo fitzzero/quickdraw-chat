@@ -18,6 +18,12 @@ var _camera: Camera2D
 var _world_layer: Node2D
 var _status: Label
 var _latest_tick := 0
+## The tick whose food changes _food holds, every one before it too (-1
+## before a keyframe), whether a keyframe was asked for and not come, and
+## the keyframes asked for after a gap.
+var _food_tick := -1
+var _food_resyncing := false
+var _food_resyncs := 0
 var _player_meta: Dictionary = {}
 var _spectate_focus_id := ""
 var _spectate_target := Vector2.ZERO
@@ -28,10 +34,12 @@ func _ready() -> void:
 	Game.world_ready.connect(_on_world_ready)
 	Game.join_failed.connect(_on_join_failed)
 	Game.snapshot_received.connect(_on_snapshot)
+	Game.world_keyframe.connect(_on_keyframe)
 	Game.player_joined.connect(func(meta: Dictionary) -> void:
 		_player_meta[str(meta["id"])] = meta)
 	Game.player_left.connect(_on_player_left)
 	Game.player_died.connect(_on_player_died)
+	Game.party_ended.connect(_on_party_ended)
 	_set_status("Connecting…")
 
 
@@ -83,6 +91,7 @@ func _on_world_ready(bootstrap: Dictionary) -> void:
 
 	_food.set_all(bootstrap.get("food", []))
 	_latest_tick = int(bootstrap.get("tick", 0))
+	_food_tick = _latest_tick
 
 	for snap in bootstrap.get("snaps", []):
 		_spawn_snake_from_snap(snap as Dictionary, _latest_tick)
@@ -92,6 +101,12 @@ func _on_world_ready(bootstrap: Dictionary) -> void:
 		_update_spectate_target(bootstrap.get("snaps", []))
 		_camera.position = _spectate_target
 		_camera.reset_smoothing()
+
+
+## The party ended: the page's dialog takes over (it boots the engine
+## again into the world); headless, the session ends.
+func _on_party_ended(_reason: String) -> void:
+	_set_status("The party has ended")
 
 
 func _on_join_failed(error: String) -> void:
@@ -143,7 +158,11 @@ func _spawn_snake_from_snap(snap: Dictionary, tick: int) -> void:
 func _on_snapshot(snapshot: Dictionary) -> void:
 	var tick := int(snapshot["tick"])
 	_latest_tick = tick
-	_food.apply_snapshot_deltas(snapshot)
+	_apply_food(snapshot, tick)
+	# A player the snapshot names by an introduction this client missed (the
+	# decoder leaves them out): the keyframe a gap asks for names them again
+	if Game.world_needs_keyframe() and not _food_resyncing:
+		_request_keyframe()
 
 	for raw in snapshot.get("players", []):
 		var snap := raw as Dictionary
@@ -164,6 +183,41 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 		_update_spectate_target(snapshot.get("players", []))
 
 	_prune_stale_remotes(tick)
+
+
+## Each snapshot repeats the food changes of the last GameConfig.FOOD_WINDOW
+## ticks: apply each tick's once, in order, so a dropped snapshot costs
+## nothing. A snapshot past the window means changes were lost: ask for a
+## keyframe. The bots' port is apps/api/src/bench/bot/food.ts: keep them in
+## lockstep.
+func _apply_food(snapshot: Dictionary, tick: int) -> void:
+	if _food_tick >= 0 and tick - _food_tick > GameConfig.FOOD_WINDOW:
+		if not _food_resyncing:
+			_request_keyframe()
+		return
+	_food.apply_deltas(snapshot.get("food", []), _food_tick)
+	_food_tick = maxi(_food_tick, tick)
+
+
+## A keyframe (the stream's seed) replaces the food, all of it in one entry
+## at the keyframe's tick. It may be older than snapshots applied already:
+## the next snapshot's window applies the changes after it again.
+func _on_keyframe(keyframe: Dictionary) -> void:
+	var entries: Array = keyframe.get("food", [])
+	var first: Dictionary = entries[0] if not entries.is_empty() else {}
+	_food.set_all(first.get("spawned", []))
+	_food_tick = int(keyframe["tick"])
+	_food_resyncing = false
+
+
+## Subscribes to the world stream again; its seed arrives as a keyframe
+## before the call returns. However it ended, the next snapshot past the
+## window asks again.
+func _request_keyframe() -> void:
+	_food_resyncing = true
+	_food_resyncs += 1
+	await Game.resync_world()
+	_food_resyncing = false
 
 
 ## Reliable playerLeft/death events normally clean up remotes; the prune is a
