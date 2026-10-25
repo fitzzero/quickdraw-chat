@@ -21,11 +21,13 @@ import type {
   GameBootstrap,
   GameDeathEvent,
   GameInput,
+  GameJoin,
+  GameTransport,
+  GameWire,
   PackedWorldItem,
   WorldBootstrap,
 } from "@project/shared";
 import { GLOBAL_WORLD_ID, SnapshotDecoder } from "@project/shared";
-import type { BotJoin, BotTransport, BotWire } from "./transport.js";
 
 const JOIN_TIMEOUT_MS = 15_000;
 /** `auth.qd`: the protocol the bots speak, and who they are in the server's logs. */
@@ -62,13 +64,13 @@ async function callGame<T>(socket: Socket, id: number, method: string, input: un
   );
 }
 
-export class SocketTransport implements BotTransport {
+export class SocketTransport implements GameTransport {
   private socket: Socket | null = null;
   /** Unpacks the world stream (game.gd's `_decoder`): kept across resubscribes, reset for another server's world. */
   private readonly decoder = new SnapshotDecoder();
   /** The server whose world the decoder holds the table of (its hello's `serverId`). */
   private serverId: string | null = null;
-  private wire: BotWire | null = null;
+  private wire: GameWire | null = null;
   private nextCallId = 0;
 
   constructor(
@@ -82,7 +84,7 @@ export class SocketTransport implements BotTransport {
     return this.decoder.needsKeyframe;
   }
 
-  public async start(wire: BotWire, spectator: boolean): Promise<BotJoin> {
+  public async start(wire: GameWire, spectator: boolean): Promise<GameJoin> {
     this.wire = wire;
     // Development credentials (`auth.userId`), as the Godot editor signs in
     const socket = ioClient(`http://127.0.0.1:${this.port}`, {

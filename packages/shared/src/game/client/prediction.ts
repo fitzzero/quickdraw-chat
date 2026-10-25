@@ -13,8 +13,10 @@
  * GDScript.
  */
 
-import type { GameInput, MovementTunables, PlayerSnap } from "@project/shared";
-import { GAME_INPUT_FRAMES, GAME_TICK_RATE, stepMovement } from "@project/shared";
+import type { GameInput, PlayerSnap } from "../../types/game.js";
+import { GAME_INPUT_FRAMES, GAME_TICK_RATE } from "../../types/game.js";
+import type { MovementTunables } from "../movement.js";
+import { stepMovement } from "../movement.js";
 
 // Constants pinned to local_snake.gd
 const HARD_SNAP_DIST = 64.0;
@@ -59,6 +61,8 @@ export class LocalPredictor {
   private nudgeLeft = 0;
   private visualOffset: Vec = { x: 0, y: 0 };
   private renderedPos: Vec = { x: 0, y: 0 };
+  /** whether the last step's input boosted: what the local snake is drawn doing */
+  public boosting = false;
 
   constructor(
     private readonly tunables: PredictionTunables,
@@ -82,6 +86,7 @@ export class LocalPredictor {
     this.visualOffset = { x: 0, y: 0 };
     this.accum = 0;
     this.pending.length = 0;
+    this.boosting = false;
   }
 
   /**
@@ -132,6 +137,7 @@ export class LocalPredictor {
     this.seq += 1;
     const frame: GameInput = { seq: this.seq, dx: aim.x, dy: aim.y, boost: input.boost };
     this.pending.push(frame);
+    this.boosting = input.boost;
 
     const next = stepMovement(
       {

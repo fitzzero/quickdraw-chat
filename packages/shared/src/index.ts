@@ -16,5 +16,9 @@ export * from "./game/snapshotEncoder.js";
 export * from "./game/world.js";
 export * from "./game/loop.js";
 export * from "./game/party.js";
+// The client-side netcode: the local predictor, the remote interpolators
+// on the world clock, the food, and GameClientCore around them, for the
+// web page and the bench bots alike
+export * from "./game/client/index.js";
 // ── quickdraw-game:end ──
 export * from "./contracts/index.js";

@@ -22,7 +22,7 @@ import {
   gameContract,
   worldSnapshotSchema,
 } from "@project/shared";
-import { FoodTracker } from "../../bench/bot/food.js";
+import { FoodTracker } from "@project/shared";
 import { ensureGlobalWorld } from "../../services/game/bootstrap.js";
 import { gameService } from "../../services/game/index.js";
 import { gameRuntime, persistScore } from "../../services/game/runtime.js";

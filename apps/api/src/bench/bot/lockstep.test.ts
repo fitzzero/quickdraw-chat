@@ -3,8 +3,9 @@
  * constants: game_config.gd must name the shared package's, or a port
  * drifts from the server (a Godot food window wider than the server's
  * leaves ghost food, a narrower one asks for keyframes it does not need).
- * game.gd's playback delay must name playback-delay.ts's, or the bench
- * measures a delay the game does not render. snapshot_decoder.gd must read
+ * game.gd's playback delay must name the shared package's
+ * (game/client/playback-delay.ts), or the bench measures a delay the game
+ * does not render. snapshot_decoder.gd must read
  * the layout snapshotCodec.ts packs, or Godot misreads every snapshot.
  */
 
@@ -14,6 +15,20 @@ import {
   GAME_FOOD_WINDOW,
   GAME_INPUT_FRAMES,
   GAME_TICK_RATE,
+  LATE_RATE_GAIN,
+  MAX_EXTRAPOLATION_TICKS,
+  NUDGE_LATE_RATE,
+  NUDGE_WARP,
+  PLAYBACK_DEAD_BAND_MS,
+  PLAYBACK_EWMA_K,
+  PLAYBACK_MAX_AHEAD_TICKS,
+  PLAYBACK_MAX_FRAME_MS,
+  PLAYBACK_MAX_LAG_TICKS,
+  PLAYBACK_MAX_TICKS,
+  PLAYBACK_MIN_TICKS,
+  PLAYBACK_SIGMAS,
+  PLAYBACK_START_TICKS,
+  PLAYBACK_WARP,
   SNAPSHOT_CODEC_VERSION,
   SNAPSHOT_FLAG_KEYFRAME,
   SNAPSHOT_FLAG_T,
@@ -23,20 +38,6 @@ import {
   SNAPSHOT_SPAWNED_BYTES,
 } from "@project/shared";
 import { describe, expect, it } from "vitest";
-import {
-  PLAYBACK_DEAD_BAND_MS,
-  PLAYBACK_MAX_AHEAD_TICKS,
-  PLAYBACK_EWMA_K,
-  PLAYBACK_MAX_FRAME_MS,
-  PLAYBACK_MAX_LAG_TICKS,
-  PLAYBACK_MAX_TICKS,
-  PLAYBACK_MIN_TICKS,
-  PLAYBACK_SIGMAS,
-  PLAYBACK_START_TICKS,
-  PLAYBACK_WARP,
-} from "./playback-delay.js";
-import { MAX_EXTRAPOLATION_TICKS } from "./interpolation.js";
-import { LATE_RATE_GAIN, NUDGE_LATE_RATE, NUDGE_WARP } from "./prediction.js";
 
 const SCRIPTS = "../../../../game/godot/scripts/";
 

@@ -1,5 +1,5 @@
-import type { FoodDelta, FoodDTO, WorldSnapshot } from "@project/shared";
-import { GAME_FOOD_WINDOW } from "@project/shared";
+import type { FoodDelta, FoodDTO, WorldSnapshot } from "../../types/game.js";
+import { GAME_FOOD_WINDOW } from "../../types/game.js";
 import { describe, expect, it } from "vitest";
 import { FoodTracker } from "./food.js";
 

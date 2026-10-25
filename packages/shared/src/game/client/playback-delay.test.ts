@@ -121,12 +121,20 @@ describe("PlaybackDelay", () => {
 });
 
 describe("WorldClock's render timeline", () => {
+  interface TestClient {
+    clock: WorldClock;
+    step: (frames: number, deliver?: boolean) => void;
+    advances: (frames: number, deliver?: boolean) => number[];
+    drop: () => void;
+    latest: () => number;
+  }
+
   /**
    * A client at 60 fps: snapshots sent every 50 ms from tick 1000 arrive
    * 40 ms later (plus `jitter()` ms), unless a stall holds them; `stamped`
    * false sends them without `t` (the H1 fallback).
    */
-  function client(jitter: () => number = () => 0, stamped = true) {
+  function client(jitter: () => number = (): number => 0, stamped = true): TestClient {
     const clock = new WorldClock(20);
     let now = 10_000;
     let tick = 1000;
@@ -167,7 +175,7 @@ describe("WorldClock's render timeline", () => {
     const drop = (): void => {
       held = [];
     };
-    return { clock, step, advances, drop, latest: () => latest };
+    return { clock, step, advances, drop, latest: (): number => latest };
   }
 
   /** Within the dead band (5 ms) of the floor, or `slack` ticks. */

@@ -9,7 +9,7 @@
  * screen show the same moment of the world.
  */
 
-import type { PlayerSnap } from "@project/shared";
+import type { PlayerSnap } from "../../types/game.js";
 
 // Pinned to remote_snake.gd's MAX_EXTRAPOLATION_TICKS, SOFT_STOP_TICKS and
 // BUFFER_LIMIT; the render clock runs at most MAX_EXTRAPOLATION_TICKS past the
@@ -73,6 +73,12 @@ export class RemoteInterpolator {
       boost: snap.boost,
     });
     while (this.buffer.length > BUFFER_LIMIT) this.buffer.shift();
+  }
+
+  /** The newest snapshot's heading, length and boost (null before one): what a renderer draws beside the head. */
+  public newest(): { dx: number; dy: number; len: number; boost: boolean } | null {
+    const snap = this.buffer.at(-1);
+    return snap ? { dx: snap.dx, dy: snap.dy, len: snap.len, boost: snap.boost } : null;
   }
 
   /** Render on the shared timeline. Null until a snapshot arrives. */

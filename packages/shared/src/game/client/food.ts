@@ -13,8 +13,8 @@
  * `_on_world_ready` applies as a keyframe.
  */
 
-import type { FoodDTO, WorldSnapshot } from "@project/shared";
-import { GAME_FOOD_WINDOW } from "@project/shared";
+import type { FoodDTO, WorldSnapshot } from "../../types/game.js";
+import { GAME_FOOD_WINDOW } from "../../types/game.js";
 
 export class FoodTracker {
   private readonly food = new Map<string, FoodDTO>();
@@ -67,6 +67,11 @@ export class FoodTracker {
   /** The keyframe request ended, its seed applied if one came: the next snapshot past the window asks again. */
   public resyncEnded(): void {
     this.awaitingKeyframe = false;
+  }
+
+  /** The food held. */
+  public all(): FoodDTO[] {
+    return [...this.food.values()];
   }
 
   /** The ids of the food held, sorted. */

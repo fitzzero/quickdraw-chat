@@ -24,8 +24,9 @@ single PR to main.
    EnterWorktree or `git worktree add`). All work happens there.
 
 3. **Implement** the hypothesis in the Tier-1 netcode first:
-   - Client-side ideas → `apps/api/src/bench/bot/prediction.ts` /
-     `interpolation.ts` / `client.ts`.
+   - Client-side ideas → `packages/shared/src/game/client/prediction.ts` /
+     `interpolation.ts` / `core.ts` (the bots' shell is
+     `apps/api/src/bench/bot/client.ts`).
    - Server/wire ideas → `packages/shared/src/types/game.ts` +
      `packages/shared/src/game/` (the sim, its loop, the codec) +
      `apps/api/src/services/game/` (the runtime and the service) (+ keep

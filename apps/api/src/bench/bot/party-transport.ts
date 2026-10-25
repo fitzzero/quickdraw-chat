@@ -10,8 +10,15 @@
  */
 
 import type { PeerLink } from "@fitzzero/quickdraw-core/client/core";
-import type { GameDeathEvent, GameInput, PlayerSnap, WorldSnapshot } from "@project/shared";
-import type { BotJoin, BotTransport, BotWire } from "./transport.js";
+import type {
+  GameDeathEvent,
+  GameInput,
+  GameJoin,
+  GameTransport,
+  GameWire,
+  PlayerSnap,
+  WorldSnapshot,
+} from "@project/shared";
 
 /** What a bot's end sends the host: one input message, or an ask for the world now. */
 export type ToHost = { frames: GameInput[] } | { want: "keyframe" };
@@ -48,7 +55,7 @@ function isObject(data: unknown): data is Record<string, unknown> {
   return typeof data === "object" && data !== null;
 }
 
-export class PartyTransport implements BotTransport {
+export class PartyTransport implements GameTransport {
   /** A party's snapshots name every player inline. */
   public readonly needsKeyframe = false;
   private readonly keyframes: (() => void)[] = [];
@@ -58,7 +65,7 @@ export class PartyTransport implements BotTransport {
     private readonly party: PartySide,
   ) {}
 
-  public async start(wire: BotWire, spectator: boolean): Promise<BotJoin> {
+  public async start(wire: GameWire, spectator: boolean): Promise<GameJoin> {
     // One host for the run: its ticks start once, as one server's
     wire.follow("party-host");
     this.end.on("message", (data) => this.onMessage(wire, data));
@@ -74,7 +81,7 @@ export class PartyTransport implements BotTransport {
   }
 
   /** The host's word: a snapshot (fast), one of its events, or the keyframe asked for (rel). */
-  private onMessage(wire: BotWire, data: unknown): void {
+  private onMessage(wire: GameWire, data: unknown): void {
     if (!isObject(data)) return;
     if ("keyframe" in data) {
       wire.keyframe((data as unknown as KeyframeReply).keyframe);
