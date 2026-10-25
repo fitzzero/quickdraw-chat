@@ -17,7 +17,9 @@ import {
   SNAPSHOT_CODEC_VERSION,
   SNAPSHOT_FLAG_KEYFRAME,
   SNAPSHOT_FLAG_T,
+  SNAPSHOT_PLAYER_BOOST,
   SNAPSHOT_PLAYER_BYTES,
+  SNAPSHOT_PLAYER_LATE,
   SNAPSHOT_SPAWNED_BYTES,
 } from "@project/shared";
 import { describe, expect, it } from "vitest";
@@ -34,6 +36,7 @@ import {
   PLAYBACK_WARP,
 } from "./playback-delay.js";
 import { MAX_EXTRAPOLATION_TICKS } from "./interpolation.js";
+import { LATE_RATE_GAIN, NUDGE_LATE_RATE, NUDGE_WARP } from "./prediction.js";
 
 const SCRIPTS = "../../../../game/godot/scripts/";
 
@@ -70,12 +73,21 @@ describe("the Godot client's constants", () => {
     expect(gd("PLAYBACK_MAX_FRAME_MS")).toBe(PLAYBACK_MAX_FRAME_MS);
   });
 
+  it("local_snake.gd nudges its frame clock on the late rate prediction.ts does", () => {
+    const gd = gdConsts("local_snake.gd");
+    expect(gd("LATE_RATE_GAIN")).toBe(LATE_RATE_GAIN);
+    expect(gd("NUDGE_LATE_RATE")).toBe(NUDGE_LATE_RATE);
+    expect(gd("NUDGE_WARP")).toBe(NUDGE_WARP);
+  });
+
   it("snapshot_decoder.gd reads the layout snapshotCodec.ts packs", () => {
     const gd = gdConsts("snapshot_decoder.gd");
     expect(gd("VERSION")).toBe(SNAPSHOT_CODEC_VERSION);
     expect(gd("FLAG_T")).toBe(SNAPSHOT_FLAG_T);
     expect(gd("FLAG_KEYFRAME")).toBe(SNAPSHOT_FLAG_KEYFRAME);
     expect(gd("PLAYER_BYTES")).toBe(SNAPSHOT_PLAYER_BYTES);
+    expect(gd("PLAYER_BOOST")).toBe(SNAPSHOT_PLAYER_BOOST);
+    expect(gd("PLAYER_LATE")).toBe(SNAPSHOT_PLAYER_LATE);
     expect(gd("SPAWNED_BYTES")).toBe(SNAPSHOT_SPAWNED_BYTES);
     expect(gd("FOOD_WINDOW")).toBe(GAME_FOOD_WINDOW);
   });

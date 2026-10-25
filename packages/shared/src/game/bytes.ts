@@ -12,6 +12,7 @@ export interface ByteWriter {
   u16(n: number): void;
   i16(n: number): void;
   u32(n: number): void;
+  f32(n: number): void;
   f64(n: number): void;
   raw(bytes: Uint8Array): void;
   /** The bytes written. */
@@ -24,6 +25,7 @@ export interface ByteReader {
   u16(): number;
   i16(): number;
   u32(): number;
+  f32(): number;
   f64(): number;
   utf8(length: number): string;
 }
@@ -61,6 +63,10 @@ export function byteWriter(): ByteWriter {
       const i = next(4);
       view.setUint32(i, n, true);
     },
+    f32: (n) => {
+      const i = next(4);
+      view.setFloat32(i, n, true);
+    },
     f64: (n) => {
       const i = next(8);
       view.setFloat64(i, n, true);
@@ -86,6 +92,7 @@ export function byteReader(bytes: Uint8Array): ByteReader {
     u16: () => view.getUint16(next(2), true),
     i16: () => view.getInt16(next(2), true),
     u32: () => view.getUint32(next(4), true),
+    f32: () => view.getFloat32(next(4), true),
     f64: () => view.getFloat64(next(8), true),
     utf8: (length) => {
       const start = next(length);

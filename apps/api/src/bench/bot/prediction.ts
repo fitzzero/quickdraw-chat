@@ -14,11 +14,17 @@
  */
 
 import type { GameInput, MovementTunables, PlayerSnap } from "@project/shared";
-import { GAME_INPUT_FRAMES, stepMovement } from "@project/shared";
+import { GAME_INPUT_FRAMES, GAME_TICK_RATE, stepMovement } from "@project/shared";
 
-// Constants pinned to local_snake.gd:12-13
+// Constants pinned to local_snake.gd
 const HARD_SNAP_DIST = 64.0;
 const CORRECTION_HALF_LIFE = 0.08;
+/** The late-rate average's gain per snapshot: about a second of them. */
+export const LATE_RATE_GAIN = 1 / 20;
+/** The late rate past which the frame clock moves half a tick earlier. */
+export const NUDGE_LATE_RATE = 0.2;
+/** How much faster the frame clock runs while it gains a nudge's half tick (250 ms at 10 %). */
+export const NUDGE_WARP = 0.1;
 
 export interface PredictionTunables extends MovementTunables {
   startLength: number;
@@ -27,6 +33,8 @@ export interface PredictionTunables extends MovementTunables {
 export interface Correction {
   magnitudePx: number;
   hard: boolean;
+  /** the snapshot said `late` and the frame clock moved half a tick earlier */
+  nudged: boolean;
 }
 
 interface Vec {
@@ -43,6 +51,12 @@ export class LocalPredictor {
   private prevSimPos: Vec = { x: 0, y: 0 };
   private readonly pending: GameInput[] = [];
   private accum = 0;
+  /** the seq of the last half-tick nudge of the frame clock (onServerSnap) */
+  private lastNudgeSeq = 0;
+  /** how often the snapshots say `late`, averaged over about a second */
+  private lateRate = 0;
+  /** what is left of a nudge's half tick for the frame clock to gain (s) */
+  private nudgeLeft = 0;
   private visualOffset: Vec = { x: 0, y: 0 };
   private renderedPos: Vec = { x: 0, y: 0 };
 
@@ -60,6 +74,9 @@ export class LocalPredictor {
     this.simDir = { x: snap.dx / mag, y: snap.dy / mag };
     this.simLen = snap.len;
     this.seq = snap.ack;
+    this.lastNudgeSeq = this.seq - GAME_TICK_RATE;
+    this.lateRate = 0;
+    this.nudgeLeft = 0;
     this.prevSimPos = { ...this.simPos };
     this.renderedPos = { ...this.simPos };
     this.visualOffset = { x: 0, y: 0 };
@@ -80,7 +97,11 @@ export class LocalPredictor {
     sampleInput: () => { dx: number; dy: number; boost: boolean },
   ): GameInput[][] {
     const messages: GameInput[][] = [];
-    this.accum += deltaS;
+    // a nudge's half tick, gained a little a frame: the snake runs 10 % fast
+    // for a quarter second instead of jumping half a step
+    const gain = Math.min(this.nudgeLeft, deltaS * NUDGE_WARP);
+    this.nudgeLeft -= gain;
+    this.accum += deltaS + gain;
     while (this.accum >= this.fixedDt) {
       this.accum -= this.fixedDt;
       this.prevSimPos = { ...this.simPos };
@@ -129,6 +150,30 @@ export class LocalPredictor {
     this.simLen = next.len;
   }
 
+  /**
+   * local_snake.gd _nudge_phase. The server says `late` when it adopted a
+   * frame of ours that landed after a coast stood in for it. When a fifth
+   * of the snapshots say so (averaged over about a second), our frames
+   * reach it just after its tick: move the frame clock half a tick earlier,
+   * off the boundary. A frame jitter or a spike made late now and then
+   * (a spike's clump is one snapshot's late) stays under it, so jitter
+   * cannot walk the phase around the tick; at most once per half second,
+   * never later (the server cannot tell early), and only on the server's
+   * word: an ack past our newest frame is also a round trip under a tick.
+   * The frame clock gains the half tick over the next quarter second
+   * (renderFrame), so what the player sees never jumps.
+   */
+  private nudgePhase(late: boolean): boolean {
+    this.lateRate += ((late ? 1 : 0) - this.lateRate) * LATE_RATE_GAIN;
+    if (this.lateRate < NUDGE_LATE_RATE || this.seq - this.lastNudgeSeq < GAME_TICK_RATE / 2) {
+      return false;
+    }
+    this.nudgeLeft += this.fixedDt * 0.5;
+    this.lastNudgeSeq = this.seq;
+    this.lateRate = 0;
+    return true;
+  }
+
   /** local_snake.gd on_server_snap. Returns the applied correction. */
   public onServerSnap(snap: PlayerSnap): Correction {
     while (this.pending.length > 0 && (this.pending[0]?.seq ?? Infinity) <= snap.ack) {
@@ -141,6 +186,7 @@ export class LocalPredictor {
     // would count its movement twice, a step forward now and back on the
     // next snapshot, and the server refuses its seq anyway.
     if (snap.ack > this.seq) this.seq = snap.ack;
+    const nudged = this.nudgePhase(snap.late === true);
 
     // Replay unacknowledged inputs from the authoritative state
     let rp: Vec = { x: snap.x, y: snap.y };
@@ -171,7 +217,7 @@ export class LocalPredictor {
       this.visualOffset = { x: 0, y: 0 };
       this.renderedPos = { ...rp };
       this.simLen = rl;
-      return { magnitudePx, hard: true };
+      return { magnitudePx, hard: true, nudged };
     }
 
     // Adopt the corrected state; keep what the player SEES continuous
@@ -183,6 +229,6 @@ export class LocalPredictor {
     this.simDir = { ...rd };
     // Length is server-authoritative (growth comes from server-side eating)
     this.simLen = rl;
-    return { magnitudePx, hard: false };
+    return { magnitudePx, hard: false, nudged };
   }
 }

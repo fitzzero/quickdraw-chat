@@ -6,7 +6,7 @@
 import type { ClientReport, PartyFairness, RunTraces, Scenario, Scorecard } from "../types.js";
 import { computeDivergence, computeFidelity } from "./divergence.js";
 import { computeFood } from "./food.js";
-import { computeInputQueue } from "./inputQueue.js";
+import { computeInputQueue, computeOwnQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
 import { computeSmoothness } from "./smoothness.js";
 import { computeStats } from "./tracks.js";
@@ -45,7 +45,7 @@ export function computeScorecard(
       Object.entries(fidelity.perEntity).map(([id, v]) => [friendly(id), v]),
     );
     const frames = client.frames.filter((f) => f.tWall >= windowStart && f.tWall <= windowEnd);
-    const ownQueue = client.playerId ? computeInputQueue(windowed, client.playerId) : undefined;
+    const ownQueue = computeOwnQueue(windowed, client);
     clients[client.clientId] = {
       kind: client.kind,
       packet: computePacketHealth(client, windowStart, windowEnd),

@@ -66,7 +66,7 @@ real render pipeline, including WASM frame pacing.
 | `packet.gapRate`                         | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted).   | ~0 except bursty scenarios.                                                |
 | `packet.inputAckRttMs`                   | Input send → first snapshot acking it.                                                                                   | RTT + up-to-one-tick alignment.                                            |
 | `server.tickDurMs` / `effectiveTickRate` | Sim cost and loop health.                                                                                                | ≪ 50ms / 20Hz.                                                             |
-| `server.snapshotBytes`                   | The stream item's JSON: the packed snapshot, base64 in `{ b }`. On the wire each `qd:stream` frame adds 59 bytes.        | 21 B a player (28 in base64); add fields consciously.                      |
+| `server.snapshotBytes`                   | The stream item's JSON: the packed snapshot, base64 in `{ b }`. On the wire each `qd:stream` frame adds 59 bytes.        | 23 B a player (31 in base64); add fields consciously.                      |
 | `server.inputQueue`                      | Server's view of client clocks: depth p95, coasted and multi-step tick rates, depth trend, step/ack mismatches a minute. | depth 0–1, multi-step < 5%, trend ~0, mismatches 0 (must be; see below).   |
 | `foodMismatchAtEnd` / `foodResyncs`      | Per client: food ids held at the end that differ from the server's at that tick (the worst gates); keyframes asked.      | 0 / 0. Tier 1 only (Godot reports none); check:godot checks Godot's.       |
 
@@ -103,10 +103,19 @@ frame, so the snake still moves once a tick, the ack counts the coast as
 that frame, and the frame, when it arrives, steers the next tick instead of
 stepping; the client corrects only that frame's change of intent. A client
 whose frames land within a render frame (about 17 ms) of the server's tick
-coasts often, by design (14–28 % of its ticks in a real browser), and is
-steered by those frames one tick later; which client that is in a run is
-the chance of its connect time, until the client re-phases its frames (the
-card `input-phase-a-client-whose-frames-land-just-after-the-tick-m`). What is never cheap is the ack parting from the steps
+coasted often before the clients re-phased (14–28 % of its ticks in a real
+browser): the tick's snapshot after a late frame steered, or after the
+client numbered past a frame a coast stood in for, says `late`, and a
+client that hears it on a fifth of its snapshots (averaged over about a
+second) moves its frame clock half a tick earlier, gained over a quarter
+second, at most once per half second (`inputQueue.nudgesPerMin` per
+client). Jitter alone stays under that rate while its spread is under
+about half a tick, so it does not walk the phase around the tick; on a
+link jittery past that, watch `nudgesPerMin` (nudges only move frames
+earlier, and only the queue's hold drains a frame a whole tick early).
+So `starvedRate` now means jitter, a stall or a slow clock, not a phase:
+a few percent on a clean link.
+What is never cheap is the ack parting from the steps
 (`stepAckMismatchPerMin`): the queue's first version let a coast be "owed"
 when the stood-in frame came alone, stepped that frame anyway and skipped a
 later one to pay for it, and a player on the tick boundary got a whole-step
@@ -164,7 +173,10 @@ noise, and so does a candidate without it once the baseline has it.
 `bench-baselines/thresholds/` holds the thresholds a change that moved
 metrics on purpose was judged with, each saying what it accepts and
 against which baselines: `g3-adaptive-delay.json`, the adaptive delay
-against the baselines before it.
+against the baselines before it; `g1b-stand-in.json`, the input-queue fix
+against `g4-final`; `len-tenths.json`, the float32 length against
+`g1b-stand-in`, on another machine; `g1c-phase.json`, the input phase
+against `len-tenths`.
 
 ## Honest limits
 

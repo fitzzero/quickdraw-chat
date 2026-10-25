@@ -1,0 +1,18 @@
+{
+  "description": "The input phase (card input-phase-a-client-whose-frames-land-just-after-the-tick-m) against the len-tenths baselines, on the same machine (reaper1), at a noisier hour. jitter-heavy-3p ownVsRemotePx p95 61.3 to 75.2 px and shapeErrorPx p95 5.9 to 8.5 px: the len-tenths code (c745e21) run three times on the machine the same hour measures 73.6 px and 9.0 px worst run, and the compare between the two passes, so the floors are 14 px and 3 px. party-3p-unfair stepCorrectionsPerMin 2.1 to 4.3 (worst runs 3.2 and 5.4): no party bot nudged (0 a minute), so its clients ran exactly as before, and the floor is 2.5 a minute. The tick floor is back to the default 0.05 ms (both sweeps ran on reaper1). The others restate len-tenths', since this file replaces the whole absoluteFloor map. Use it for this card's runs against the len-tenths baselines only.",
+  "absoluteFloor": {
+    "divergence.remoteVsRemotePx.p95": 0.5,
+    "divergence.remoteVsRemotePx.p50": 0.5,
+    "divergence.ownVsRemotePx.p95": 14,
+    "smoothness.teleportsPerMin": 0.2,
+    "smoothness.jerkRms": 25,
+    "smoothness.hardSnapsPerMin": 0.2,
+    "packet.gapRate": 0.005,
+    "packet.inputAckRttMs.p95": 3,
+    "fidelity.shapeErrorPx.p95": 3,
+    "fidelity.renderLatencyMs": 5,
+    "server.inputQueue.depthP95": 1,
+    "smoothness.stepCorrectionsPerMin": 2.5,
+    "server.tickDurMs.p95": 0.05
+  }
+}

@@ -84,15 +84,7 @@ export function printSummary(card: Scorecard): string {
         `    ${id} → ${entityId.slice(0, 12).padEnd(12)}${own}  ${pad(num(e.renderLatencyMs, 0))} / ${num(e.shapeErrorPx.p95)}`,
       );
     }
-    if (c.predictionErrorPx) {
-      push(`    ${id} local prediction error p95: ${num(c.predictionErrorPx.p95)} px`);
-    }
-    if (c.foodMismatchAtEnd !== undefined) {
-      push(
-        `    ${id} food at the end: ${num(c.foodMismatchAtEnd, 0)} differing from the server's, ` +
-          `${num(c.foodResyncs ?? 0, 0)} keyframes asked for`,
-      );
-    }
+    for (const line of ownLines(id, c)) push(line);
   }
   push("");
   push(
@@ -119,6 +111,27 @@ export function printSummary(card: Scorecard): string {
     );
   }
   return lines.join("\n");
+}
+
+/** A client's lines about its own snake: prediction, input phase, food. */
+function ownLines(id: string, c: Scorecard["clients"][string]): string[] {
+  const lines: string[] = [];
+  if (c.predictionErrorPx) {
+    lines.push(`    ${id} local prediction error p95: ${num(c.predictionErrorPx.p95)} px`);
+  }
+  if (c.inputQueue) {
+    lines.push(
+      `    ${id} input phase: starved ${num(c.inputQueue.starvedRate * 100, 2)}%, ` +
+        `${measured(c.inputQueue.nudgesPerMin ?? null)} nudges/min`,
+    );
+  }
+  if (c.foodMismatchAtEnd !== undefined) {
+    lines.push(
+      `    ${id} food at the end: ${num(c.foodMismatchAtEnd, 0)} differing from the server's, ` +
+        `${num(c.foodResyncs ?? 0, 0)} keyframes asked for`,
+    );
+  }
+  return lines;
 }
 
 function pad(s: string, width = 8): string {

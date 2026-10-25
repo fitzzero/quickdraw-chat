@@ -119,7 +119,7 @@ Resolved 2026-10-23 (the netcode pack's G4) and recorded KEPT in
 `LEDGER.md`. Kept here for the record; do not pick it up again.
 
 The full player array went every tick as JSON: about 110 B a player.
-Each snapshot is now packed (`game/snapshotCodec.ts`): 21 B a player, a
+Each snapshot is now packed (`game/snapshotCodec.ts`): 23 B a player, a
 player named by an index into the stream's id table, base64 in the stream
 item (`{ b }`), since the Godot client reads text frames only. A binary
 attachment would save the base64's third; it needs the Socket.IO binary

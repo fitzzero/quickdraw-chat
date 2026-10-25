@@ -1,0 +1,18 @@
+{
+  "description": "The length on the wire as a float32 (card boost-near-the-minimum-length-the-client-predicts-a-base-ste), against the g1b-stand-in baselines, measured on another machine (reaper1): the tick's p95 is about twice the baselines' everywhere, 0.17-0.24 ms against 0.08-0.11, and the shipped code (6495269) measures 0.19 ms on it too, so the tick floor is 0.2 ms. control-0ms ownVsRemotePx p95 (20.5 to 26.9 px) is within the run spread of the shipped code on the same machine (23.6 px, spread 4.1), so its floor is 7 px. The others restate g1b-stand-in's, since this file replaces the whole absoluteFloor map. Use it for this card's runs against the g1b-stand-in baselines only.",
+  "absoluteFloor": {
+    "divergence.remoteVsRemotePx.p95": 0.5,
+    "divergence.remoteVsRemotePx.p50": 0.5,
+    "divergence.ownVsRemotePx.p95": 7,
+    "smoothness.teleportsPerMin": 0.2,
+    "smoothness.jerkRms": 25,
+    "smoothness.hardSnapsPerMin": 0.2,
+    "packet.gapRate": 0.005,
+    "packet.inputAckRttMs.p95": 3,
+    "fidelity.shapeErrorPx.p95": 1,
+    "fidelity.renderLatencyMs": 5,
+    "server.tickDurMs.p95": 0.2,
+    "server.inputQueue.depthP95": 1,
+    "smoothness.stepCorrectionsPerMin": 1
+  }
+}

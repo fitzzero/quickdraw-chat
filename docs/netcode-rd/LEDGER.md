@@ -16,6 +16,129 @@ Template:
 
 ---
 
+## 2026-10-25 — Input phase: the server says late, the client moves its frames [KEPT]
+
+- Branch: conveyor/netcode-seams-after-the-input-queue-fix-tbvgb1 (0f13cdc
+  the late bit, f41de9f the rate and the warp, 2bcf633 the skipped
+  stand-in), the Conveyor card
+  `input-phase-a-client-whose-frames-land-just-after-the-tick-m`.
+- Why: the server consumes one seq a tick from a client's first frame on,
+  so a client whose frames land just after the tick stays there, refused a
+  quarter to a third of its frames and steered by them one tick late
+  (starvedRate 22–41 % on one bot of bursty-3p, encounter-3p-100ms,
+  fps-varying-3p and jitter-heavy-3p in `len-tenths`).
+- Change: the tick's snapshot after the sim adopted a late frame's intent,
+  or after the client numbered past a frame a coast stood in for, says
+  `PlayerSnap.late` (bit 1 of the packed player's flags, codec version 2;
+  optional in the contract). A client averages the bit over about a second
+  (gain 1/20) and, when a fifth of its snapshots say it, gains half a tick
+  on its frame clock over a quarter second (10 % fast), at most once per
+  half second, never later (`local_snake.gd` `_nudge_phase`, `prediction.ts`
+  `nudgePhase`). The bench reports `inputQueue.nudgesPerMin` per client.
+- Dead end 1, the card's rule (nudge on every late, once per half second):
+  the boundary clients left the boundary (starvedRate under 2 % on the
+  clean links), but a mid-tick client on a jittery or lossy link is late on
+  3–9 % of its snapshots anyway, nudged 27–40 times a minute, and walked its
+  phase around the tick into queues the server drained in double steps:
+  jerkRms 460 → 1889 on jitter-heavy-3p, about 3x on mixed-3p and both
+  parties. And the half tick added at once moved what the player sees half
+  a step in one frame (drift-slow-client's slow bot, jerkRms 688 against
+  395). The late rate keeps jitter under the bar (0–2 nudges a minute
+  there); the warp keeps the slow bot's 24 nudges a minute smooth (382).
+- Dead end 2: at a round trip under a tick (control-0ms) the snapshot
+  reaches the client before it steps the frame a coast stood in for, the
+  client numbers past it and the late frame never leaves, so the server
+  never said late: every one of a bot's 9 px corrections within 120 ms of
+  such a skip. The sim now says late for the skip too (`standIn`). It
+  halves control-0ms's step corrections (10.8 → 5.4 a minute, the worst
+  client); the 0 ms bots do not reach the nudge's rate (the skips come once
+  per regime entry), so the 0 ms surge stays in part.
+- Scenarios (the sweep at 2bcf633, `--all --runs 3`, label `g1c-phase`,
+  against `len-tenths`, judged with `bench-baselines/thresholds/g1c-phase.json`):
+  all thirteen pass. `stepAckMismatchPerMin` 0 in every run. starvedRate on
+  the boundary bots: bursty-3p 21.8 → 0.0 %, encounter-3p-100ms 31.9 → 0.0,
+  fps-varying-3p 40.7 → 0.5, spectator-plus-2p 35.8 → 0.0, jitter-heavy-3p
+  39.5 → 7.6, drift-slow-client's slow bot 92.3 → 15.0 (it nudges 24 a
+  minute, as a 1 % slow clock needs); every client of control-0ms,
+  baseline-3p-100ms, asym-2p and encounter-3p-100ms at 0.7 % or under.
+  drift-fast-client depthTrend 0.03–0.06 (flat). Improved:
+  drift-slow-client stepCorrectionsPerMin 8.3 → 0.5 and shapeErrorPx p95
+  −34 %, encounter-3p-100ms jerkRms −71 % and stepCorrectionsPerMin 10.6 →
+  0, fps-varying-3p jerkRms −13 % and stepCorrectionsPerMin 4.3 → 0.
+  `inputAckRttMs` p95 did not fall measurably on the clients that were late
+  (within the run spread, ±10–30 ms on the proxied links).
+- Machine: jitter-heavy-3p ownVsRemotePx (61.3 → 75.2 px) and shapeErrorPx
+  (5.9 → 8.5 px) fail against `len-tenths` but pass against the
+  `len-tenths` code (c745e21) run on the machine the same hour (73.6 px,
+  9.0 px worst run); party-3p-unfair stepCorrectionsPerMin 2.1 → 4.3 with
+  no party bot nudging (its clients ran as before). The thresholds file
+  raises those three floors for this verdict only.
+- Threshold: `STEP_CORRECTION_PX` stays 8 px. At 4.5 px (traced) the
+  proxied scenarios show 2–6 a minute, worst client, median of three runs:
+  7 px and its multiples, stood-in frames on jittery and lossy links that
+  toggled boost, which neither card removes.
+- Baselines: all thirteen scenarios are this sweep's (label `g1c-phase`,
+  at 2bcf633).
+
+## 2026-10-25 — Length on the wire: the client decides boost from the server's length [KEPT]
+
+- Branch: conveyor/netcode-seams-after-the-input-queue-fix-tbvgb1 (89d2f3b
+  tenths, 4321d07 float32), the Conveyor card
+  `boost-near-the-minimum-length-the-client-predicts-a-base-ste`.
+- Why: `stepMovement` decides `boosting` from `len > minLength` on the
+  server's fractional length, and the client replayed from `PlayerSnap.len`,
+  floored on the wire. A snake boosting within one segment of the minimum
+  moved 16 px a tick on the server and 9 px in its own prediction: a 7 px
+  correction every tick (`correctionPx` p95 7.0 px on fps-varying-3p and
+  both party scenarios in `g1b-stand-in`).
+- First cut, tenths of a segment (u16): the every-tick surge went, but not
+  all of it. A burn tick is 0.075 segments, so a snake boosting down to the
+  minimum can hold 5.025 while the wire says 5.0, and the client predicts a
+  base step where the server boosts once more: two 7 px corrections in
+  about two of three boosts down to the minimum (control-0ms bot-b, 0.84
+  min traced: 19 corrections of 7 px). Driving the sim and LocalPredictor
+  through 200 boosts down to the minimum with a two-tick round trip: 174 to
+  225 corrections of 4.5 px or more with tenths, 0 to 14 with float32 (the
+  rest from lengths a float error leaves 1e-15 above the minimum).
+- Change, as Logan chose on the card: `PlayerSnap.len` is the sim's length
+  as a float32 (`Math.fround` in `buildSnaps`), and the packed player
+  carries it as an f32 (23 bytes a player, from 21; codec version 2,
+  `snapshot_decoder.gd` refuses version 1 with a warning). Deaths and the
+  leaderboard stay floored.
+- Scenarios (the sweep, `--all --runs 3`, label `len-tenths`, against
+  `g1b-stand-in`, judged with `bench-baselines/thresholds/len-tenths.json`):
+  all thirteen pass. `server.inputQueue.stepAckMismatchPerMin` 0 in every
+  run. `correctionPx` p95, worst client: control-0ms 0.11 → 0.10,
+  baseline-3p-100ms 0.68 → 0.12, fps-varying-3p 6.94 → 0.57,
+  party-3p-lossy 7.00 → 0.67, party-3p-unfair 6.99 → 0.10.
+  `stepCorrectionsPerMin` (8 px or more, worst client) falls in 10 of 13
+  scenarios (control-0ms 10.8 → 2.2, party-3p-lossy 19.3 → 3.2); it rises
+  on encounter-3p-100ms (5.3 → 10.6, within noise: one bot on the tick
+  boundary, starved 31.9 %) and bursty-3p (0 → 1.1). `snapshotBytes` mean
+  +8 B on three players (+5 %); the party's JSON snapshots +6–9 %, a
+  float32 printing with many digits.
+- Machine: this sweep ran on reaper1, where the tick p95 is about twice
+  the baselines' (0.17–0.24 ms against 0.08–0.11); the shipped code
+  (6495269) measures 0.19 ms there too. Against the shipped code on the
+  same machine, control-0ms `ownVsRemotePx` p95 23.6 → 26.9 px is within
+  noise (its spread 4.1), and jitter-heavy-3p `shapeErrorPx` p95 8.3 →
+  7.3 px.
+- Threshold: `STEP_CORRECTION_PX` stays 8 px. At 4.5 px (traced on all
+  thirteen scenarios) the proxied ones show 2–15 a minute, nearly all 7 px
+  and its multiples on the clients in the late regime (baseline-3p-100ms
+  bot-b and bot-c, starved 15 and 28 % in the traces): a frame a coast
+  stood in for that toggled boost is a boosted step against a base one.
+  The input-phase card (`input-phase-a-client-whose-frames-land-just-after-the-tick-m`)
+  removes that regime and judges 4.5 px again.
+- Baselines: all thirteen scenarios are this sweep's (label `len-tenths`,
+  at 4321d07; the traces' scorecards computed again at 8 px).
+- Review fix after the sweep: `buildSnaps` sends the float32 on the sim's
+  side of the minimum (`wireLength`), since a plain rounding flips the
+  boost test for a minimum float32 cannot hold (5.3 rounds up: a snake at
+  the minimum looks boost-eligible) and for a length a float error leaves
+  just above it. With the default tunables (an integer minimum) it changes
+  only lengths within float32 precision of the minimum, so the sweep stands.
+
 ## 2026-10-24 — H5b: Every coast stands in; a late frame steers the next tick [KEPT]
 
 - Branch: fix/input-queue-coast-stands-in (9257796 the queue, dd2caeb the

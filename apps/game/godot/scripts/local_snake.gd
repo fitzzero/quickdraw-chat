@@ -13,6 +13,13 @@ extends SnakeBody
 
 const HARD_SNAP_DIST := 64.0
 const CORRECTION_HALF_LIFE := 0.08
+## The late-rate average's gain per snapshot: about a second of them
+const LATE_RATE_GAIN := 1.0 / 20.0
+## The late rate past which the frame clock moves half a tick earlier
+const NUDGE_LATE_RATE := 0.2
+## How much faster the frame clock runs while it gains a nudge's half tick
+## (250 ms at 10 %)
+const NUDGE_WARP := 0.1
 
 var seq := 0
 var sim_pos := Vector2.ZERO
@@ -27,6 +34,12 @@ var _prev_sim_pos := Vector2.ZERO
 var _pending: Array[Dictionary] = []
 var _accum := 0.0
 var _visual_offset := Vector2.ZERO
+## The seq of the last half-tick nudge of the frame clock (_nudge_phase)
+var _last_nudge_seq := 0
+## How often the snapshots say `late`, averaged over about a second
+var _late_rate := 0.0
+## What is left of a nudge's half tick for the frame clock to gain (s)
+var _nudge_left := 0.0
 
 
 func init_from_snap(snap: Dictionary) -> void:
@@ -35,6 +48,9 @@ func init_from_snap(snap: Dictionary) -> void:
 	sim_len = float(snap["len"])
 	length = sim_len
 	seq = int(snap.get("ack", 0))
+	_last_nudge_seq = seq - int(GameConfig.TICK_RATE)
+	_late_rate = 0.0
+	_nudge_left = 0.0
 	_prev_sim_pos = sim_pos
 	position = sim_pos
 	reset_path(sim_pos)
@@ -44,7 +60,11 @@ func _physics_process(delta: float) -> void:
 	if not Game.is_in_world:
 		return
 
-	_accum += delta
+	# a nudge's half tick, gained a little a frame: the snake runs 10 % fast
+	# for a quarter second instead of jumping half a step
+	var gain := minf(_nudge_left, delta * NUDGE_WARP)
+	_nudge_left -= gain
+	_accum += delta + gain
 	while _accum >= GameConfig.FIXED_DT:
 		_accum -= GameConfig.FIXED_DT
 		_prev_sim_pos = sim_pos
@@ -103,6 +123,7 @@ func on_server_snap(snap: Dictionary) -> void:
 	# same: prediction.ts onServerSnap).
 	if ack > seq:
 		seq = ack
+	_nudge_phase(bool(snap.get("late", false)))
 
 	# Replay unacknowledged inputs from the authoritative state
 	var rp := Vector2(float(snap["x"]), float(snap["y"]))
@@ -136,3 +157,23 @@ func on_server_snap(snap: Dictionary) -> void:
 		sim_dir = rd
 	# Length is server-authoritative (growth comes from server-side eating)
 	sim_len = rl
+
+
+## The server says `late` when it adopted a frame of ours that landed after
+## a coast stood in for it. When a fifth of the snapshots say so (averaged
+## over about a second), our frames reach it just after its tick: move the
+## frame clock half a tick earlier, off the boundary. A frame jitter or a
+## spike made late now and then (a spike's clump is one snapshot's late)
+## stays under it, so jitter cannot walk the phase around the tick; at most
+## once per half second, never later (the server cannot tell early), and
+## only on the server's word: an ack past our newest frame is also a round
+## trip under a tick. The frame clock gains the half tick over the next
+## quarter second (_physics_process), so what the player sees never jumps.
+## The bots do the same (prediction.ts nudgePhase).
+func _nudge_phase(late: bool) -> void:
+	_late_rate += ((1.0 if late else 0.0) - _late_rate) * LATE_RATE_GAIN
+	if _late_rate < NUDGE_LATE_RATE or seq - _last_nudge_seq < GameConfig.TICK_RATE / 2.0:
+		return
+	_nudge_left += GameConfig.FIXED_DT * 0.5
+	_last_nudge_seq = seq
+	_late_rate = 0.0

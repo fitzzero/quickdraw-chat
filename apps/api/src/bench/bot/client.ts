@@ -81,6 +81,7 @@ export class BotClient {
       snapshots: [],
       corrections: [],
       inputs: [],
+      nudges: [],
     };
   }
 
@@ -271,6 +272,7 @@ export class BotClient {
     }
 
     const correction = this.predictor.onServerSnap(snap);
+    if (correction.nudged) this.trace.nudges?.push({ tWall });
     this.trace.corrections.push({
       tWall,
       magnitudePx: correction.magnitudePx,

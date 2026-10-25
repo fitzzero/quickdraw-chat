@@ -12,7 +12,7 @@ import {
   middleOf,
   partyFairness,
 } from "./index.js";
-import { computeInputQueue } from "./inputQueue.js";
+import { computeInputQueue, computeOwnQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
 import { STEP_CORRECTION_PX, computeSmoothness } from "./smoothness.js";
 
@@ -211,6 +211,19 @@ describe("computeInputQueue", () => {
     // p2 has no ack in the trace: the metric is left out, not zero
     expect(computeInputQueue(unfed, "p2")?.stepAckMismatchPerMin).toBeUndefined();
     expect(computeInputQueue(unfed)?.stepAckMismatchPerMin).toBeUndefined();
+  });
+
+  it("counts a client's nudges of its frame clock a minute, within the window", () => {
+    const ticks = ticksOf(() => ({ stepped: 1, depth: 0 }));
+    const client = { ...makeClientTrace("c1", 0), playerId: "p1" };
+    // three nudges in the 60 s window, one before it
+    client.nudges = [500, 2000, 30_000, 59_000].map((tWall) => ({ tWall }));
+    expect(computeOwnQueue(ticks, client)?.nudgesPerMin).toBeCloseTo(3 / ((1200 * 50) / 60_000), 5);
+    // a trace without nudges (older, or a browser's) leaves the metric out
+    expect(computeOwnQueue(ticks, makeClientTrace("c2", 0))).toBeUndefined();
+    expect(
+      computeOwnQueue(ticks, { ...makeClientTrace("c3", 0), playerId: "p2" })?.nudgesPerMin,
+    ).toBeUndefined();
   });
 });
 

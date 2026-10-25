@@ -79,6 +79,7 @@ const playerSnapSchema = z.object({
   len: z.number(),
   boost: z.boolean(),
   ack: z.number().int(),
+  late: z.boolean().optional(),
 }) satisfies z.ZodType<PlayerSnap>;
 
 const foodSchema = z.object({

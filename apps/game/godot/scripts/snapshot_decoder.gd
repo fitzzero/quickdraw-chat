@@ -4,8 +4,8 @@ extends RefCounted
 ## learning the stream's id table: the port of SnapshotDecoder in
 ## packages/shared/src/game/snapshotDecoder.ts (keep the two in lockstep;
 ## the layout is in snapshotCodec.ts beside it). A snapshot comes out as its
-## JSON did: tick, t, players (id, x, y, dx, dy, len, boost, ack) and food
-## (tick, spawned, eaten).
+## JSON did: tick, t, players (id, x, y, dx, dy, len, boost, ack, and late
+## when set) and food (tick, spawned, eaten).
 ##
 ## Each snapshot introduces the players first introduced in its last
 ## ticks, and a keyframe all of them; the newest given wins (a keyframe may
@@ -17,12 +17,15 @@ extends RefCounted
 ## across its subscriptions and reset when the clock follows another
 ## server's world (its ticks start over).
 
-const VERSION := 1
+const VERSION := 2
 const FLAG_T := 1
 const FLAG_KEYFRAME := 2
 ## GameConfig.FOOD_WINDOW: the ticks a snapshot repeats introductions over
 const FOOD_WINDOW := 6
-const PLAYER_BYTES := 21
+const PLAYER_BYTES := 23
+## A player's flags: it boosts; the server adopted a late frame (PlayerSnap.late)
+const PLAYER_BOOST := 1
+const PLAYER_LATE := 2
 const SPAWNED_BYTES := 13
 
 ## index → [id, the tick it was given]
@@ -96,16 +99,21 @@ func decode(packed: String) -> Dictionary:
 		if name == null:
 			left_out += 1
 		else:
-			players.append({
+			var player_flags := bytes.decode_u8(at + 18)
+			var player := {
 				"id": (name as Array)[0],
 				"x": bytes.decode_u32(at + 2) / 10.0,
 				"y": bytes.decode_u32(at + 6) / 10.0,
 				"dx": bytes.decode_s16(at + 10) / 1000.0,
 				"dy": bytes.decode_s16(at + 12) / 1000.0,
-				"len": bytes.decode_u16(at + 14),
-				"boost": (bytes.decode_u8(at + 16) & 1) != 0,
-				"ack": bytes.decode_u32(at + 17),
-			})
+				"len": bytes.decode_float(at + 14),
+				"boost": (player_flags & PLAYER_BOOST) != 0,
+				"ack": bytes.decode_u32(at + 19),
+			}
+			# `late` only when set, as the TS decoder gives it
+			if (player_flags & PLAYER_LATE) != 0:
+				player["late"] = true
+			players.append(player)
 		at += PLAYER_BYTES
 	snapshot["players"] = players
 
