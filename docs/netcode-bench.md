@@ -50,8 +50,8 @@ running the real web app's game client (`apps/web/src/game`: the shared
 netcode core under a PixiJS renderer) with `?bench=1` (and `&gpu=webgl` or
 `&gpu=webgpu` to pick the backend: both are gated, WebGL the floor); the
 client streams rendered positions, FPS, corrections, the page's long tasks
-and the renderer's draw calls and geometry builds to the page
-(`window.QuickdrawBench`), the same
+and the renderer's draw calls, geometry builds and main-thread work per
+frame to the page (`window.QuickdrawBench`), the same
 latency proxy sits in front of each browser, and the same scorecard comes
 out (`apps/bench-web`). Use it to validate Tier-1 winners — it measures the
 real render pipeline, including WASM frame pacing.

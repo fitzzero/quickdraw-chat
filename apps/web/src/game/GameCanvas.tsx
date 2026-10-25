@@ -209,5 +209,6 @@ function tunablesFrom(data: unknown): GameTunables {
 
 function formatStats(stats: GameStats): string {
   const draws = stats.drawCalls === null ? "–" : String(stats.drawCalls);
-  return `${stats.backend ?? "…"} · ${stats.fps.toFixed(0)} fps · ${draws} draws · ${stats.geometryBuilds} builds · tick ${stats.tick}`;
+  const work = `${stats.frameWorkMs.mean.toFixed(1)}/${stats.frameWorkMs.p99.toFixed(1)} ms`;
+  return `${stats.backend ?? "…"} · ${stats.fps.toFixed(0)} fps · ${work} work · ${draws} draws · ${stats.geometryBuilds} builds · tick ${stats.tick}`;
 }

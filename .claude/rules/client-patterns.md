@@ -146,7 +146,9 @@ override scoped to that folder: the typed client has no React-free stream,
 channel or event API yet. The local snake is placed by the first own
 snapshot after the page's join, never from the bootstrap, which may be
 ticks old. `?gpu=webgl|webgpu` picks the backend (Pixi's default is WebGL;
-both are gated), `?debug=1` shows the renderer's stats, and `?bench=1` is
+both are gated), `?debug=1` shows the renderer's stats (the backend, fps, the main thread's
+work per frame as mean/p99 ms, draw calls, builds, the newest tick), and
+`?bench=1` is
 the bench's mode: a connection of the client's own to the bench server,
 telemetry to `window.QuickdrawBench`.
 

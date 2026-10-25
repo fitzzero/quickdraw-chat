@@ -47,14 +47,32 @@ export interface GameShellOptions {
   onStats?: (stats: GameStats) => void;
 }
 
-/** What the debug overlay shows: the renderer's stats, the frame rate, the newest snapshot's tick. */
+/**
+ * What the debug overlay and the bench read every half second: the
+ * renderer's stats, the frame rate, the newest snapshot's tick, and the
+ * main thread's work per frame (the core's step, the draw and the engine's
+ * render: everything the frame callback does), as the p99 and the mean of
+ * the last half second. The work, not the frame gap, says how much headroom
+ * the loop has: a display's refresh rate caps the gap wherever the loop
+ * runs, and 8 ms of work a frame is what 144 Hz allows.
+ */
 export interface GameStats extends RendererStats {
   fps: number;
   tick: number;
+  frameWorkMs: { p99: number; mean: number };
 }
 
 function now(): number {
   return performance.timeOrigin + performance.now();
+}
+
+/** The p99 and the mean of a window of frame times (zeros for an empty one). */
+function summarize(samples: readonly number[]): { p99: number; mean: number } {
+  if (samples.length === 0) return { p99: 0, mean: 0 };
+  const sorted = [...samples].sort((a, b) => a - b);
+  const p99 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.99))] ?? 0;
+  const mean = samples.reduce((sum, v) => sum + v, 0) / samples.length;
+  return { p99, mean };
 }
 
 export class GameShell {
@@ -67,6 +85,7 @@ export class GameShell {
   private startedAt = 0;
   private lastStatsAt = 0;
   private framesSinceStats = 0;
+  private readonly workMs: number[] = [];
   private stopped = false;
   private ready = false;
   private snapCamera = true;
@@ -146,6 +165,7 @@ export class GameShell {
 
     const rendered = this.core.renderFrame(deltaS, this.sampleInput, tWall);
     this.draw(rendered, deltaS, tWall);
+    this.workMs.push(performance.now() - tNow);
     this.record(rendered, tNow, tWall);
     this.raf = requestAnimationFrame(this.frame);
   };
@@ -201,8 +221,10 @@ export class GameShell {
       const fps = (this.framesSinceStats * 1000) / (tNow - this.lastStatsAt);
       this.lastStatsAt = tNow;
       this.framesSinceStats = 0;
-      telemetry?.rendererStats(tWall, stats);
-      onStats?.({ ...stats, fps, tick: this.core.latestTick });
+      const frameWorkMs = summarize(this.workMs);
+      this.workMs.length = 0;
+      telemetry?.rendererStats(tWall, { ...stats, frameWorkMs });
+      onStats?.({ ...stats, fps, tick: this.core.latestTick, frameWorkMs });
     }
     telemetry?.flushIfDue(tWall);
   }

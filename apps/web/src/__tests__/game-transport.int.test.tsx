@@ -121,13 +121,15 @@ describe("PageTransport in bench mode (it joins the world itself)", () => {
     await vi.waitFor(() => expect(wire.keyframes.length).toBeGreaterThanOrEqual(1));
     expect(wire.keyframes[0]?.food?.[0]?.spawned?.length).toBeGreaterThan(0);
 
-    const first = tick();
-    tick();
-    tick();
-    await vi.waitFor(() => expect(wire.snapshots.length).toBeGreaterThanOrEqual(3));
-    const ticks = wire.snapshots.map((s) => s.tick);
-    expect(ticks[0]).toBe(first);
-    expect(ticks).toEqual([...ticks].sort((a, b) => a - b));
+    // one tick at a time: the stream is volatile, and three pushes in one
+    // turn of the loop would drop the ones behind an unflushed write
+    const ticks: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      const sent = tick();
+      await vi.waitFor(() => expect(wire.snapshots.map((s) => s.tick)).toContain(sent));
+      ticks.push(sent);
+    }
+    expect(wire.snapshots.map((s) => s.tick)).toEqual(ticks);
     expect(wire.snapshots.at(-1)?.players.map((p) => p.id)).toContain(users.regular.id);
     expect(transport.needsKeyframe).toBe(false);
   });

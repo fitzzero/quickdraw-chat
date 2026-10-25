@@ -31,6 +31,7 @@ export class BenchTelemetry {
     backend: string | null;
     drawCalls: number | null;
     geometryBuilds: number;
+    frameWorkMs: { p99: number; mean: number };
   }[] = [];
   private framesSinceSample = 0;
   private lastFpsSample = 0;
@@ -81,7 +82,11 @@ export class BenchTelemetry {
     this.corrections.push({ t: tWall, m: magnitudePx, h: hard });
   }
 
-  public rendererStats(tWall: number, stats: RendererStats): void {
+  /** The renderer's stats and the main thread's work per frame, every half second. */
+  public rendererStats(
+    tWall: number,
+    stats: RendererStats & { frameWorkMs: { p99: number; mean: number } },
+  ): void {
     this.renderer.push({ t: tWall, ...stats });
   }
 

@@ -84,7 +84,8 @@ export class PageTransport implements GameTransport {
     // The hello names the server (another one has another id table and a
     // world whose ticks start over) and comes with every connection: a new
     // socket is in no room and holds no subscription, so the world stream
-    // is subscribed again on each
+    // is subscribed again on each. A connection already up hands a new
+    // listener its hello at once (in a microtask)
     const onHello = (hello: HelloFrame): void => {
       if (hello.serverId !== this.serverId) this.decoder.reset();
       this.serverId = hello.serverId;
@@ -111,9 +112,7 @@ export class PageTransport implements GameTransport {
       socket.off("qd:event", onEvent);
     });
 
-    const { hello } = connection.getState();
-    if (hello !== null) onHello(hello);
-    else if (join.kind === "self") {
+    if (join.kind === "self" && connection.getState().hello === null) {
       connection.open();
       await waitForHello(connection);
     }
