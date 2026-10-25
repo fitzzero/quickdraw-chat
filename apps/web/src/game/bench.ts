@@ -1,12 +1,14 @@
 /**
  * Telemetry for the browser tier of the netcode bench (`?bench=1`, driven
  * by apps/bench-web over Playwright): per render frame the rendered head of
- * every snake, plus snapshot arrivals, input sends, corrections, fps, the
- * page's long tasks and the renderer's stats, flushed as JSON batches to
- * `window.QuickdrawBench.push` every 500 ms for the runner to drain. The
- * shape is the one apps/bench-web/src/run.ts ingests, with `longTasks` and
- * `renderer` beside it. Times are epoch
- * ms, the clock the core and the server's ground truth share.
+ * every snake, plus snapshot arrivals, input sends, corrections (each with
+ * the ack of the snapshot it reconciled against, which the runner pairs
+ * with the sends for the input round trip), fps, the page's long tasks and
+ * the renderer's stats with the main thread's work per frame, flushed as
+ * JSON batches to `window.QuickdrawBench.push` every 500 ms for the runner
+ * to drain. The shape is the one apps/bench-web/src/run.ts ingests, with
+ * `longTasks` and `renderer` beside it. Times are epoch ms, the clock the
+ * core and the server's ground truth share.
  */
 
 import type { RenderedWorld } from "@project/shared";
@@ -35,7 +37,7 @@ export class BenchTelemetry {
   private frames: { t: number; e: Record<string, [number, number]> }[] = [];
   private snapshots: { t: number; tick: number }[] = [];
   private inputs: { seq: number; t: number }[] = [];
-  private corrections: { t: number; m: number; h: boolean }[] = [];
+  private corrections: { t: number; m: number; h: boolean; a: number }[] = [];
   private fps: { t: number; v: number }[] = [];
   private longTasks: { t: number; d: number }[] = [];
   private renderer: {
@@ -90,8 +92,9 @@ export class BenchTelemetry {
     this.inputs.push({ seq, t: tWall });
   }
 
-  public correction(tWall: number, magnitudePx: number, hard: boolean): void {
-    this.corrections.push({ t: tWall, m: magnitudePx, h: hard });
+  /** The local snake reconciled against an own snapshot that acknowledged `ack`. */
+  public correction(tWall: number, magnitudePx: number, hard: boolean, ack: number): void {
+    this.corrections.push({ t: tWall, m: magnitudePx, h: hard, a: ack });
   }
 
   /** The renderer's stats and the main thread's work per frame, every half second. */
