@@ -38,7 +38,8 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   (`server.inputQueue.stepAckMismatchPerMin`, must be 0). The server's
   consumption clock is fixed (one seq a tick from the first frame on), so
   the client's frame clock follows it: the tick's snapshot after a late
-  frame steered says `PlayerSnap.late`, and a client that hears it on a
+  frame steered, or after the client numbered past a frame a coast stood
+  in for (at a round trip under a tick), says `PlayerSnap.late`, and a client that hears it on a
   fifth of its snapshots moves its frame clock half a tick earlier (at
   most once per half second, never later), off the tick boundary; jitter
   alone stays under that rate while its spread is under about half a

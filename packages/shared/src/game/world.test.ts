@@ -279,6 +279,29 @@ describe("GameWorldSim", () => {
     expect(result.inputs).toEqual({ p1: { stepped: 1, depth: 0 } });
   });
 
+  it("says late when the client numbered past the frame a coast stood in for, and not for a stall it answers", () => {
+    const sim = makeSim();
+    sim.addPlayer("p1", null);
+    sim.queueInputs("p1", [input(1, 1, 0)]);
+    sim.step();
+    // tick 2 coasts for frame 2; the snapshot reached the client before it
+    // stepped frame 2 (a round trip under a tick), so it numbers the next 3
+    expect(must(sim.step().snapshot.players[0]).ack).toBe(2);
+    sim.queueInputs("p1", [input(1, 1, 0), input(3, 1, 0)]);
+    expect(must(sim.step().snapshot.players[0]).late).toBe(true);
+    // in time again: frame 4 before its tick
+    sim.queueInputs("p1", [input(3, 1, 0), input(4, 1, 0)]);
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+    // a coast whose frame comes in time for the next tick, in a message with
+    // the one after it: the late frame's own rule, not a skip
+    expect(must(sim.step().snapshot.players[0]).ack).toBe(5);
+    sim.queueInputs("p1", [input(5, 1, 0), input(6, 1, 0)]);
+    const snap = must(sim.step().snapshot.players[0]);
+    expect(snap.ack).toBe(6);
+    expect(snap.late).toBe(true);
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+  });
+
   it("says late on the tick's snapshot after a late frame steered, once, and never for a redundant frame", () => {
     const sim = makeSim();
     sim.addPlayer("p1", null);
@@ -295,13 +318,16 @@ describe("GameWorldSim", () => {
     expect(must(sim.step().snapshot.players[0]).late).toBe(true);
     expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
 
-    // the coasts stood in for frames 3 and 4: frames in time from 5 on, each
-    // message repeating the ones before it, are never late
+    // the coasts stood in for frames 3 and 4, and the client numbered past
+    // them (late once more); frames in time from then on, each message
+    // repeating the ones before it, are never late
     sim.queueInputs("p1", [input(5, 1, 0), input(6, 1, 0)]);
-    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+    expect(must(sim.step().snapshot.players[0]).late).toBe(true);
     sim.queueInputs("p1", [input(5, 1, 0), input(6, 1, 0), input(7, 1, 0)]);
     expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
-    expect(must(sim.step().snapshot.players[0]).ack).toBe(7);
+    sim.queueInputs("p1", [input(6, 1, 0), input(7, 1, 0), input(8, 1, 0)]);
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+    expect(must(sim.step().snapshot.players[0]).ack).toBe(8);
   });
 
   it("accounts for human snakes that stepped since they spawned, never NPCs", () => {

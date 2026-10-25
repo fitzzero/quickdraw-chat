@@ -125,8 +125,13 @@ export interface SnakeState {
   inputs: InputQueue;
   /** the seq of the newest frame whose intent steers the snake, stepped or adopted late */
   steeredSeq: number;
-  /** a late frame's intent was adopted since the last tick's snapshot: that snapshot says `late` */
+  /**
+   * since the last tick's snapshot, a late frame's intent was adopted, or the
+   * client numbered past the frame a coast stood in for: that snapshot says `late`
+   */
   lateAdopted: boolean;
+  /** the seq the last coast stood in for, until a frame at or past it arrives (0: none) */
+  standIn: number;
   /** stepped a frame since it spawned: until then no client has stepped it either */
   fed: boolean;
   /** heads it passed this tick before its last step (a tick of several): collisions check them too */
@@ -272,6 +277,7 @@ export class GameWorldSim {
       inputs: new InputQueue(),
       steeredSeq: 0,
       lateAdopted: false,
+      standIn: 0,
       fed: false,
       swept: [],
     };
@@ -331,6 +337,7 @@ export class GameWorldSim {
     snake.inputs.clear();
     snake.fed = false;
     snake.lateAdopted = false;
+    snake.standIn = 0;
   }
 
   // ==========================================================================
@@ -347,12 +354,18 @@ export class GameWorldSim {
    * step moves on it: a client whose frames keep landing just after the
    * tick is steered one tick behind its prediction, never a step behind it,
    * and the next tick's snapshot tells it so (`PlayerSnap.late`): its client
-   * moves its frames earlier.
+   * moves its frames earlier. So does a client that numbered past the frame
+   * a coast stood in for (the snapshot reached it before it stepped that
+   * frame: at a round trip under a tick, a late frame never leaves).
    */
   public queueInputs(id: string, frames: readonly GameInput[]): void {
     const snake = this.players.get(id);
     if (!snake || !snake.alive || isNpcId(id)) return;
     for (const frame of frames) {
+      if (snake.standIn > 0 && frame.seq >= snake.standIn) {
+        if (frame.seq > snake.standIn) snake.lateAdopted = true;
+        snake.standIn = 0;
+      }
       if (snake.inputs.push(frame)) continue;
       if (frame.seq > snake.steeredSeq && frame.seq <= snake.inputs.lastSeq) {
         this.steer(snake, frame);
@@ -410,6 +423,7 @@ export class GameWorldSim {
         this.moveSnake(snake);
         this.eatNearbyFood(snake, foodEaten);
         snake.inputs.coast();
+        snake.standIn = snake.inputs.lastSeq;
       }
       if (snake.fed) {
         inputs[snake.meta.id] = { stepped: frames.length, depth: snake.inputs.depth() };
