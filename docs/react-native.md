@@ -98,6 +98,8 @@ Options, best-first:
    (`@shopify/react-native-skia`, or PixiJS over `expo-gl` where it runs):
    the renderer folder is the only part that touches a drawing engine, so a
    native implementation replaces it without touching the netcode.
+   `docs/game-renderer.md` is the web side of the same swap: the contract,
+   the one rule and the checks.
 2. **WebView on the hosted `/game` route** — zero maintenance; the page's
    socket works in a WebView, with the Discord Activity's token flow for an
    app that has no cookie. Fallback, not plan.
