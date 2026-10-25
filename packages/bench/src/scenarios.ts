@@ -254,6 +254,17 @@ export const SCENARIOS: Record<string, Scenario> = {
       { name: "bot-c", behavior: { kind: "wander" }, net: symmetric(wobble(50, 5)) },
     ],
   },
+  "render-stress-8p": {
+    ...BASE,
+    name: "render-stress-8p",
+    tiers: [2],
+    durationMs: 120_000,
+    description:
+      "The renderer's load test (browser tier only): one player among seven NPCs of about " +
+      "300 segments each, and 400 food items: about 2,800 round things on screen at worst.",
+    tunables: { npcCount: 7, startLength: 300, maxFood: 400, initialFood: 400 },
+    clients: [{ name: "player", behavior: { kind: "wander" }, net: symmetric(wobble(20, 2)) }],
+  },
   ...PARTY_SCENARIOS,
 };
 

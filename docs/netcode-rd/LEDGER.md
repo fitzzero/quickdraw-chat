@@ -16,6 +16,87 @@ Template:
 
 ---
 
+## 2026-10-25 — Remotes at the present: dead reckoning to the world clock [KEPT BEHIND THE FLAG; playback stays the default]
+
+- Branch: feat/remotes-at-the-present (child 5 of the pack
+  `a-typescript-game-client-for-the-web-the-bots-netcode-in-the`), the
+  Conveyor card `remote-snakes-at-the-present-dead-reckoning-to-the-world-clo`;
+  HYPOTHESES.md #10.
+- Why: remotes render on the playback timeline, 1.5–6 ticks behind the
+  world clock's estimate, while the local snake is predicted ahead of the
+  server by the round trip: a remote head sits 20–45 px from where the
+  server has it relative to the player's own (ownVsRemotePx p95 27–75 px
+  in `g1c-phase`), and a cut-off the player sees by less never happens on
+  the server.
+- Change: `RemotesMode` (`packages/shared/src/game/client/interpolation.ts`).
+  `present` renders every remote at `WorldClock.estimateTick()`: the
+  interpolator's underrun branch run on purpose (the newest snapshot along
+  its heading at its speed for the 2-tick budget, the coast past it);
+  `playback` is the render timeline as before. The core's `remotes` option,
+  `?remotes=playback|present` on the page, `BotSpec.remotes` and
+  `bench:netcode --remotes <mode>`.
+- The glide, three cuts (single runs of baseline-3p-100ms against
+  `g1c-phase`; the cards are in `bench-results/baseline-3p-100ms/` under
+  the labels `remotes-*-smoke`, `-glide` and `-arrival`). (1) As it was, a fold only for a jump no motion explains:
+  at the present every snapshot re-bases the reckoning under that
+  threshold and pops, jerkRms 417 → 1423 (+242 %), for ownVsRemotePx p95
+  54 → 27 px and renderLatencyMs 87 → 33. (2) A continuity glide, folding
+  the difference from where the previous frame's velocity would have put
+  the head: present jerk +56 % and shapeErrorPx +66 %, but playback jerk
+  +18 %, since on the playback timeline every bracket boundary is such a
+  difference: it changed the default. (3) Kept: fold what a snapshot's
+  arrival changes at the last rendered tick (`pushSnap` renders that tick
+  before and after the push), however small; a jump of MAX_GLIDE_PX (200)
+  or more snaps as before, and between frames the stall-recovery fold
+  stays. Playback within noise (jerk −3 %); present jerk +64 %,
+  shapeErrorPx +57 %.
+- Scenarios, present (the sweep `--all --runs 3 --remotes present --label
+remotes-present` against `g1c-phase`, judged with
+  `bench-baselines/thresholds/remotes-present.json`): all thirteen pass
+  with it, none with the defaults. Where the hypothesis said: ownVsRemotePx
+  p95 −33 to −80 % (baseline-3p-100ms 54 → 33 px, bursty-3p 71 → 26,
+  jitter-heavy-3p 75 → 28, control-0ms 28 → 6, the parties 65 → 33–36),
+  renderLatencyMs −58 to −92 % (69–122 → 27–39 ms; control-0ms 52 → 4),
+  remoteVsRemotePx p50 down where it was apart (bursty-3p 16.9 → 0.3,
+  mixed-3p 9.8 → 5.4, jitter-heavy-3p 0.68 → 0.15; party-3p-unfair 4.0 →
+  7.8, within noise). The costs: jerkRms +42 to +744 %
+  (asym-2p 39 → 302, encounter-3p-100ms 42 → 356, bursty-3p 624 → 1309,
+  the rest 366–544 → 612–800; control-0ms +7 %, within noise) and
+  shapeErrorPx p95 +31 to +152 % (control-0ms 1.2 → 3.1 px, bursty-3p 3.9
+  → 8.1, drift-slow-client 3.3 → 7.2, the rest 3.6–5.5 → 6.2–7.8), except
+  jitter-heavy-3p, where it fell (8.5 → 6.2). No teleport and no hard snap
+  in any run of either mode; stepAckMismatchPerMin 0.
+- Scenarios, playback (`--label remotes-playback`): ten of thirteen pass
+  against `g1c-phase` with the defaults; drift-slow-client shapeErrorPx p95
+  3.26 → 3.87 px, fps-varying-3p 3.97 → 5.17 and spectator-plus-2p
+  ownVsRemotePx p95 48.9 → 57.7 fail.
+- Machine: `g1c-phase` was made on reaper1, this sweep on reaper0. The code
+  before this card (b81c0a3) run three times on reaper0 the same hour
+  measures 4.07, 4.65 and 56.2 px there; its compares against this card's
+  playback (the sweep's run, and a rerun interleaved with it) pass on all
+  three scenarios with every delta within the run spread; and the baseline
+  against it fails spectator-plus-2p the same way (56.2 px). The machine's
+  move, not the fold: `bench-baselines/thresholds/remotes-playback.json`
+  raises those two floors (ownVsRemotePx p95 10 px, shapeErrorPx p95
+  1.5 px) for that verdict.
+- Verdict: `playback` stays the default. Present draws a remote within the
+  prediction error of where the server has it, at the one-way trip instead
+  of the delay, as the hypothesis said, and pays a glide per snapshot and
+  the overshoot of every turn, over the thresholds on every scenario. The
+  bench cannot weigh a kill seen against that, so the deciding test is a
+  person's: two browsers, `?remotes=present` against `?remotes=playback`,
+  ten crossings at close range in each, kills seen against deaths the
+  server made (`present` must not lose a kill the player saw land). If it
+  wins there, the follow-ups are second-order dead reckoning (a turn rate
+  from the last two headings, against the overshoot) and the card's hybrid
+  (present on a clean link, playback past a jitter threshold the playback
+  delay already measures), not a mode kept for its own sake.
+- Baselines: all thirteen scenarios re-made from the default mode on
+  reaper0 (the sweep `--all --runs 3 --label remotes-playback` at d404f87;
+  the review's follow-up commit changed comments and tests, no
+  arithmetic), and they pass against `g1c-phase` with
+  `remotes-playback.json`.
+
 ## 2026-10-25 — Input phase: the server says late, the client moves its frames [KEPT]
 
 - Branch: conveyor/netcode-seams-after-the-input-queue-fix-tbvgb1 (0f13cdc

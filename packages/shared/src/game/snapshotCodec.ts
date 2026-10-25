@@ -1,8 +1,8 @@
 /**
  * The world stream's packed snapshot (HYPOTHESES.md #7): a WorldSnapshot as
  * bytes, carried base64 in the stream item (`PackedWorldItem`, `{ b }`),
- * about a third of its JSON. The Godot client reads Engine.IO text frames only,
- * so the bytes travel as a JSON string; a binary attachment would save the
+ * about a third of its JSON. The bytes travel as a JSON string (a text
+ * frame reaches every client); a binary attachment would save the
  * base64's third (a follow-up). A head travels exactly as the sim rounds it
  * (tenths of a pixel, thousandths of a direction), so a decoded snapshot
  * holds the players that were encoded, its length too (a float32, as the
@@ -28,8 +28,7 @@
  * until a keyframe names them all again.
  *
  * SnapshotEncoder (snapshotEncoder.ts) packs, SnapshotDecoder
- * (snapshotDecoder.ts) unpacks; apps/game/godot/scripts/snapshot_decoder.gd
- * is the decoder's port: keep the two in lockstep. Layout, little-endian:
+ * (snapshotDecoder.ts) unpacks. Layout, little-endian:
  *
  *   u8   SNAPSHOT_CODEC_VERSION
  *   u8   flags: SNAPSHOT_FLAG_T (has `t`), SNAPSHOT_FLAG_KEYFRAME

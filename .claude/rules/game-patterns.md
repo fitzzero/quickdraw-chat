@@ -1,6 +1,6 @@
 # Game Patterns
 
-The game foundation (gameService + the Godot client) extends the service
+The game foundation (gameService + the web's game client) extends the service
 architecture with quickdraw 5.0's realtime kit. Everything here can be carved
 out of a fork with `./scripts/init-fork.sh <name> --without-game`.
 
@@ -11,7 +11,7 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
 - **Methods** — request/response, acknowledged, full access checks. Use for
   every command: `joinGame`, `respawn`, a spell cast, a "start next wave"
   button. Callable identically from React (`qd.gameService.joinGame.useMutation()`)
-  and the Godot client (`Net.client.call_method(...)`): game commands stay
+  and from any client of the protocol (the bench bots' `callData`): game commands stay
   typed and secured like all other quickdraw traffic. The high scores
   (`getHighScores`, `getMyBest`) declare `watch: { service: ["gameScore"] }`:
   a stored score (a GameScore row, which gameService lists in `writes`)
@@ -70,8 +70,8 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   id table, which one SnapshotEncoder per runtime keeps: the keyframe
   introduces every player, and each snapshot the players first introduced
   in its last six ticks (a seed's new player from the next tick on). A
-  client decodes with one SnapshotDecoder (`snapshot_decoder.gd` in Godot),
-  kept across its subscriptions and reset for another server's world, and
+  client decodes with one SnapshotDecoder, kept across its subscriptions
+  and reset for another server's world, and
   asks for a keyframe when a snapshot names a player by an introduction it
   missed (`needsKeyframe`). A client takes a keyframe's food and its names,
   never its snakes: it may be handled after newer snapshots, which place
@@ -92,9 +92,9 @@ world's events, counts as its audience, and may send input. A reconnected
 socket is in no room until it calls again, so clients call on every
 connection:
 
-1. subscribe to the `world` stream (`qd:stream:sub`; the GDScript client
-   holds the feed, `is_subscribed`, and subscribes again by itself after a
-   reconnect);
+1. subscribe to the `world` stream (`qd:stream:sub`; the page's transport
+   and the bots' subscribe again on every hello, `pageTransport.ts` and
+   `socket-transport.ts`);
 2. call `watchWorld` or `joinGame` over the same socket (bootstrap);
 3. send input frames (each message with the unacknowledged ones before its
    newest); reconcile against `PlayerSnap.ack`, and when the ack ran past
@@ -103,24 +103,38 @@ connection:
    trip), number the next frame after it instead of stepping that frame;
    when a fifth of the snapshots say `late` (averaged over about a
    second), gain half a tick on the frame clock over a quarter second
-   (`local_snake.gd` `_nudge_phase`, `prediction.ts` `nudgePhase`), once
+   (`prediction.ts` `nudgePhase`), once
    per half second at most.
 
-The web boots Godot into SPECTATE (`watchWorld`: full bootstrap, no spawn);
-the React pre-game dialog then joins the game on the page's own socket and
-Godot spawns the local snake when its id appears in a snapshot. The page's
-socket joins with `useJoin` (`GameSurface.tsx`), which runs the call again
-on every connection: `watchWorld` always (its HUD hears the world), and
-`joinGame` while the user plays and is alive (Respawn lets it run again:
-joinGame spawns a dead player's snake). Presence is room-anchored: a player
-stays in the sim while ANY of their sockets is in the world's room (page +
-Godot are two sockets, one user); gameService's own `onRoomLeave` removes
-the player (and sends `playerLeft`) when the last one leaves or disconnects,
-in every server the service runs in (the API, the test app, the bench).
+The web page's game client (`apps/web/src/game/`, client-patterns.md) runs
+on the page's own socket. `GameSurface` joins with `useJoin`, which runs
+the call again on every connection: `watchWorld` always (spectate: full
+bootstrap, no spawn; its HUD hears the world), and `joinGame` while the
+user plays and is alive (Respawn lets it run again: joinGame spawns a dead
+player's snake). The client subscribes the world stream on every hello and
+spawns the local snake when its id appears in a snapshot
+(`GameClientCore.spawnLocal(null)`). One socket per user. Presence is
+room-anchored: a player stays in the sim while any socket of theirs is in
+the world's room; gameService's own `onRoomLeave` removes the player (and
+sends `playerLeft`) when the last one leaves or disconnects, in every
+server the service runs in (the API, the test app, the bench). A party is
+the same client over the host's link, on the same socket.
 
-A server restart is a new world whose ticks start over: the Godot client
-tells it from a network blip by the hello's `server_id`, as the bench bots
-do with `serverId`. Every hello anchors the world clock again on the next
+What a client draws of the other snakes is the shared client's
+`RemotesMode` (`interpolation.ts`): `playback`, the default, renders them
+on the render timeline, 1.5–6 ticks behind the world clock's estimate as
+the link needs (the playback delay), interpolating between the snapshots
+that bracket the tick; `present` renders them at the estimate of the
+server's tick now, the newest snapshot extrapolated along its heading at
+its speed (dead reckoning), within a one-way trip of where the server has
+them, at the cost of the overshoot a turn brings. Either way every snapshot's arrival glides the
+drawn head onto the new path instead of popping. The page takes
+`?remotes=playback|present` (A/B play), the bots `BotSpec.remotes` and
+`bench:netcode --remotes <mode>`; the ledger has the measured trade.
+
+A server restart is a new world whose ticks start over: the clients (the
+page's, the bench bots') tell it from a network blip by the hello's
+`serverId`. Every hello anchors the world clock again on the next
 snapshot; another server's also forgets what the playback delay learned of
 the link (a blip keeps it).
 
@@ -146,7 +160,8 @@ place of them: one member is served by the server or by a host, never both.
   (`apps/web/src/components/game/partyHost.ts`) while the server names its
   socket the room's host (`qd:host`). Players reach the host over peer
   links: WebRTC where it connects, the server's relay otherwise (always,
-  from headless or native Godot). The server never sees that traffic.
+  from a Node client: the bench's host, `check:web`'s). The server never
+  sees that traffic.
 - **The methods**: `hostParty` (the calling socket joins the room and
   becomes its host; the caller's other open parties end, and one call runs
   at a time per user), `joinParty` by code (the room, the chat and who
@@ -194,12 +209,19 @@ place of them: one member is served by the server or by a host, never both.
   reaches the sim no sooner than its players', and its snapshots arrive no
   sooner. `?fairLink=off` on `/game` turns it off for A/B play; the HUD
   shows each player's round trip and the lag.
-- **Godot**: the page puts the party's code in `QuickdrawHost.party` and
-  boots the engine again (the canvas is keyed by user and party).
-  `game.gd` calls `joinParty`, subscribes to `partyEvents` and `partyWorld`
-  with the party's room (the reference client links to `host_of(room)`
-  itself), sends `partyInput` the same way, and respawns with `playParty`.
-  Never call `peer_link` from app code.
+- **The web client**: the page's `useParty` hosts or joins on the page's
+  socket, and the same game client plays the party (the canvas is keyed by
+  user and world): `PartyWire.tsx` takes `partyWorld` and `partyEvents`
+  with `useStream` and sends `partyInput` with `useChannel`, which reach
+  the room's host over the link the typed client opens, and hands each
+  item to the client's `PartyTransport`, which tells a keyframe (a seed)
+  from a snapshot by its send time (a seed has none); a keyframe ask holds
+  the world feed off for a moment, so its next subscription answers a fresh
+  seed (a `quickdraw-5.0 finding`, with the bridge itself: no React-free
+  API for a host-served member yet, so the 20 Hz feed crosses a React
+  component, and no refresh for a stream); the dialog respawns with
+  `playParty`. Never open a peer link or speak host mode's framing from app
+  code.
 - **Limits**: a party runs the default tunables (`PARTY_TUNABLES`; admin
   edits of the snake definition reach the server's world only). A server
   restart ends every party (hosts are held in memory): `ensureGlobalWorld`
@@ -239,9 +261,11 @@ place of them: one member is served by the server or by a host, never both.
 - `bun run --filter @project/api test`: the game over real protocol 5
   sockets (`game.int.test.ts`, its frames matched with `streamFrames` and
   `eventFrames`).
-- `bun run check:godot`: two real headless Godot clients in one world, through
-  an API restart, then in a party a Node client hosts, over the relay (see
-  `apps/game/README.md`).
+- `bun run check:web`: two real browser pages of the game client in one
+  world (Playwright, headless Chromium), through an API restart, then in a
+  party a Node client hosts, over the relay
+  (`apps/api/src/bench/web-session.ts`; the page's probe, `?probe=1`,
+  records what each client sees).
 - `bun run --filter @project/api test` covers the party's server half
   (`party.int.test.ts`): the host frame, joins by code, who may link to the
   host, and how a party ends.
@@ -249,14 +273,18 @@ place of them: one member is served by the server or by a host, never both.
 ## Netcode benchmarking
 
 Netcode changes are judged by scorecards, not eyeballs: `bun run
-bench:netcode` runs headless bot clients (TS ports of the Godot netcode in
-`apps/api/src/bench/bot/` — keep them in lockstep with `local_snake.gd` /
-`remote_snake.gd` / `game.gd`'s world clock / `main.gd`'s food) over
-protocol v5 through a
+bench:netcode` runs headless bot clients (`apps/api/src/bench/bot/`: a
+behavior and a trace around the shared package's `GameClientCore`,
+`packages/shared/src/game/client/`: the netcode the web page runs, one
+implementation measured where it is played) over protocol v5 through a
 latency proxy against a live-loop server; a party scenario runs them over
-loopback links to a host in process. See `docs/netcode-bench.md`,
-baselines in `bench-baselines/`, and the `/netcode-rd` skill for the
-hypothesis loop.
+loopback links to a host in process. The browser tier (`bun run
+bench:web`, `apps/bench-web`) plays the real page and gates what players
+feel: frame time p95 and p99 against an acceptance per display rate, long
+tasks and geometry builds at zero, on both GPU backends; `bun run
+bench:play -- --url <game url>` judges a deployed instance the same way
+from a desk. See `docs/netcode-bench.md`, baselines in `bench-baselines/`,
+and the `/netcode-rd` skill for the hypothesis loop.
 
 ## Scaling note
 

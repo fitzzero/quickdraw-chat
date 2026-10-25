@@ -24,8 +24,9 @@ single PR to main.
    EnterWorktree or `git worktree add`). All work happens there.
 
 3. **Implement** the hypothesis in the Tier-1 netcode first:
-   - Client-side ideas → `apps/api/src/bench/bot/prediction.ts` /
-     `interpolation.ts` / `client.ts`.
+   - Client-side ideas → `packages/shared/src/game/client/prediction.ts` /
+     `interpolation.ts` / `core.ts` (the bots' shell is
+     `apps/api/src/bench/bot/client.ts`).
    - Server/wire ideas → `packages/shared/src/types/game.ts` +
      `packages/shared/src/game/` (the sim, its loop, the codec) +
      `apps/api/src/services/game/` (the runtime and the service) (+ keep
@@ -60,9 +61,9 @@ single PR to main.
      three baseline scorecards ON `netcode/rd`
      (`bun run bench:netcode -- --scenario <s> --runs 3` × 3, copy the new
      aggregated cards into `bench-baselines/<scenario>.json`), commit, and
-     if the change affects client behavior note "GDScript port pending" in
-     the ledger entry (the Godot port + Tier-2 validation happens in a
-     dedicated pass, not mid-loop).
+     if the change affects client behavior, say so in the ledger entry (the
+     web page runs the same `GameClientCore`, so it is in the game at once;
+     Tier-2 validation happens in a dedicated pass, not mid-loop).
    - DISCARD: commit only the ledger entry to `netcode/rd`; delete the
      hypothesis branch and its worktree.
 
@@ -77,8 +78,9 @@ single PR to main.
   own commit, clearly separated from netcode changes.
 - If the same scenario's `runVariance` exceeds the improvement you're
   chasing, prefer raising `--runs` over declaring victory.
-- Wire-format changes must keep the Godot client functional (additive
-  fields only, or gate behind tolerant parsing) — the WASM build in
-  apps/web/public/game lags the TS side until a dedicated port pass.
+- Wire-format changes reach every client at once (the bots and the web
+  page run one `GameClientCore` over the shared codec): change the codec
+  and its tests together, and bump `SNAPSHOT_CODEC_VERSION` when the
+  layout changes.
 - Keep each iteration to ONE hypothesis; spin discovered side-issues into
   new HYPOTHESES.md entries instead of expanding scope.

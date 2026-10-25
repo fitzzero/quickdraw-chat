@@ -48,6 +48,15 @@ export interface ClientTrace {
   nudges?: { tWall: number }[];
   /** Tier 2 only */
   fpsSamples?: { tWall: number; fps: number }[];
+  /** Tier 2 only: the page's long tasks (PerformanceObserver `longtask` entries, 50 ms or more) */
+  longTasks?: { tWall: number; durationMs: number }[];
+  /** Tier 2 only: the renderer's stats, as the page samples them (every half second) */
+  renderer?: {
+    /** the GPU API the engine ended up on, the last the page reported (null before it said) */
+    backend: string | null;
+    /** `geometryBuilds` is the renderer's running count since mount; `drawCalls` is null where the backend does not expose them */
+    samples: { tWall: number; drawCalls: number | null; geometryBuilds: number }[];
+  };
   /**
    * the food the client held at the end, as of `tick` (its changes up to that
    * tick), its latest snapshot's tick, and the keyframes it asked for after gaps
@@ -102,6 +111,13 @@ export interface BotSpec {
    * tick clock drifts (1.01 runs 1% fast), nothing else.
    */
   clockScale?: number;
+  /**
+   * Where the bot renders its remotes: on the playback timeline behind the
+   * world clock, or at the estimate of the present (the shared client's
+   * RemotesMode; its default when omitted). `bench:netcode --remotes <mode>`
+   * sets it on every bot a scenario leaves unset.
+   */
+  remotes?: "playback" | "present";
 }
 
 /** A loopback link's lag, both ways: each message `ms` plus up to `jitter` ms, `loss` of `fast` ones lost. */
@@ -138,6 +154,12 @@ export interface Scenario {
   respawnDelayMs: number;
   /** GameTunables overrides (npcCount etc.) — validated server-side */
   tunables?: Record<string, number>;
+  /**
+   * The tiers that run it (default both). A render-stress scenario is the
+   * browser tier's alone: the headless sweep (`--all`) skips it, and it
+   * needs no baseline.
+   */
+  tiers?: readonly (1 | 2)[];
   clients: BotSpec[];
   /** A party instead of the server's world: its bots play over its links, and take no `net`. */
   party?: PartySpec;
@@ -150,6 +172,8 @@ export interface Stats {
   mean: number;
   p50: number;
   p95: number;
+  /** the tail a stall shows in (scorecards made before it lack it) */
+  p99: number;
   max: number;
 }
 
@@ -273,9 +297,23 @@ export interface Scorecard {
    * without the metric makes it NaN, which a saved card holds as null
    */
   runWorst?: Record<string, number | null>;
+  /** The browser tier's own numbers (absent from Tier-1 cards). */
   tier2?: {
     fps: Stats;
+    /** between rendered frames: the tails (p95, p99) are the headline, never the mean */
     frameTimeMs: Stats;
+    /** the pages' long tasks (a main-thread stall of 50 ms or more) a minute, all clients: must be 0 */
+    longTasksPerMin: number;
+    /** geometry the renderers built within the window a minute, all clients: must be 0 (per-frame geometry is the renderer rule broken) */
+    geometryBuildsPerMin: number;
+    /** gaps of a second or more between rendered frames a minute, all clients: must be 0 (the frame times leave them out) */
+    pausesPerMin: number;
+    /** the display rate the runner was told (`--hz`); without it the judge reads the rate from the frames, which cannot tell a 144 Hz display at half rate from a 72 Hz one */
+    displayHz?: number;
+    /** draw calls per frame, where the backend reports them (WebGL; WebGPU says nothing) */
+    drawCalls: Stats;
+    /** the GPU API the pages ran on: "webgl" or "webgpu", several joined with "+", "unknown" when none said */
+    backend: string;
   };
   /** A party scenario's fairness (reported, not compared) */
   party?: PartyFairness;

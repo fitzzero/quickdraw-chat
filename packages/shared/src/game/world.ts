@@ -4,7 +4,7 @@
  * Pure and deterministic by construction: no I/O, no Date.now(), all
  * randomness through an injectable seeded RNG, fixed timestep. This is what
  * makes the netcode testable (identical inputs → identical state) and what
- * lets the Godot client run the same movement rules for prediction.
+ * lets every client run the same movement rules for prediction.
  *
  * Key design choice: only snake HEADS exist on the wire. Each side keeps a
  * per-snake path history of head positions and derives body segments at fixed
@@ -238,7 +238,7 @@ export class GameWorldSim {
    * and NPCs stay within COUNT_TUNABLE_MAX: a packed snapshot counts food
    * and players in 16 bits, and a seed carries all the food in one entry.
    *
-   * Note for live edits: connected Godot clients keep predicting with the
+   * Note for live edits: connected clients keep predicting with the
    * values they fetched at load, so movement tunables cause reconciliation
    * drift until players reload. Server-authoritative correction absorbs it.
    */

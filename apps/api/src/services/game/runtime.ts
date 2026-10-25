@@ -202,8 +202,8 @@ export function removePlayer(runtime: GameRuntime, userId: string): void {
 
 /**
  * The game service's room-leave hook: a player stays in the sim while any
- * socket of theirs is in the world's room (the web page and the Godot client
- * are two sockets of one user), and leaves it when the last one leaves or
+ * socket of theirs is in the world's room (a second tab is a second socket
+ * of one user), and leaves it when the last one leaves or
  * disconnects. Every server the service runs in calls it.
  */
 export const onGameRoomLeave: RoomLeaveHandler = ({ principal, rooms }) => {

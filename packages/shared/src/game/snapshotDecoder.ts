@@ -2,8 +2,8 @@
  * Unpacks the world stream's snapshots (snapshotCodec.ts has the layout),
  * learning the stream's id table: one decoder per client, kept across its
  * subscriptions to the stream and reset when the client follows another
- * server's world. Ported to GDScript as
- * apps/game/godot/scripts/snapshot_decoder.gd: keep the two in lockstep.
+ * server's world. The web page, the bench's bots and the test app's clients
+ * all decode with this one class.
  */
 
 import type { FoodDelta, FoodDTO, PlayerSnap, WorldSnapshot } from "../types/game.js";
@@ -69,8 +69,8 @@ export class SnapshotDecoder {
     // An index first introduced after the newest snapshot this decoder saw,
     // and no longer introduced: a name it holds may stand for another player
     if (this.lastTick >= 0 && unrepeated > this.lastTick) this.names.clear();
-    // A seed older than the newest snapshot's window (Godot hands a seed
-    // over after the items that came with it) may name an index by an owner
+    // A seed older than the newest snapshot's window (a client may hand a
+    // seed over after the items that came with it) may name an index by an owner
     // whose newer give no snapshot introduces any more: it names nobody
     this.readIntroductions(input, keyframe && snapshot.tick < this.lastTick - GAME_FOOD_WINDOW);
     this.unnamedCount = this.readPlayers(input, snapshot.players);

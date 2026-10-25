@@ -273,7 +273,7 @@ describe("snapshotCodec", () => {
     tick(snapshot(4, ["a", "c"])); // b leaves, c takes b's index
     for (let t = 5; t <= 9; t++) tick(snapshot(t, ["a", "c"]));
     const decoder = new SnapshotDecoder();
-    // Godot handles the seed after the items that came with it
+    // a client may handle the seed after the items that came with it
     decoder.decode(tick(snapshot(10, ["a", "c"])));
     decoder.decode(old);
     const next = decoder.decode(tick(snapshot(11, ["a", "c"])));

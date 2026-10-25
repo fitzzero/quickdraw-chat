@@ -1,6 +1,7 @@
 // ============================================================================
-// Game Service — types shared by the API, the web wrapper, and (as the
-// documented wire contract) the Godot client. The contract is
+// Game Service — types shared by the API, the web app, the bench's bots
+// and (as the documented wire contract) a client of another language. The
+// contract is
 // contracts/game.ts; on quickdraw protocol v5 (docs/protocol-v5.md in
 // @fitzzero/quickdraw-core) the game's traffic is:
 //
@@ -24,7 +25,7 @@
 
 /**
  * The single global world. A deterministic id (not a cuid) so the API, seed,
- * tests, and the Godot client can all reference it without a lookup, and so
+ * tests, and the clients can all reference it without a lookup, and so
  * the row can be recreated idempotently (e.g. after test-database resets).
  */
 export const GLOBAL_WORLD_ID = "gameworld_global";
@@ -154,8 +155,8 @@ export interface WorldSnapshot {
 
 /**
  * The world stream's item: a WorldSnapshot packed into bytes, base64
- * (`b`). Decode it with a SnapshotDecoder (game/snapshotDecoder.ts; the
- * Godot client's port is snapshot_decoder.gd), one per client, kept across
+ * (`b`). Decode it with a SnapshotDecoder (game/snapshotDecoder.ts), one
+ * per client, kept across
  * its subscriptions and reset for another server's world: the players are
  * named by the stream's id table, which each snapshot and keyframe
  * introduces.
@@ -184,9 +185,9 @@ export interface LeaderboardEntry {
 }
 
 /**
- * Spectate bootstrap: full world state without spawning. Godot boots into
- * this on the web; joinGame (called by the wrapper's pre-game dialog) is
- * what actually spawns the player.
+ * Spectate bootstrap: full world state without spawning. The page's game
+ * client boots into this (watchWorld); joinGame (called by the pre-game
+ * dialog) is what actually spawns the player.
  */
 export interface WorldBootstrap {
   worldId: string;
@@ -213,27 +214,6 @@ export interface HighScoreEntry {
   image: string | null;
   isGuest: boolean;
   bestLength: number;
-}
-
-/**
- * The contract between the web wrapper and the Godot build. The page sets
- * `window.QuickdrawHost` to this shape BEFORE starting the engine; Godot
- * reads it via JavaScriptBridge (see apps/game/godot/scripts/autoload/net.gd).
- */
-export interface QuickdrawHostConfig {
-  /** API origin, e.g. "http://localhost:4000". */
-  apiUrl: string;
-  /** Socket.io path override (Discord Activities: "/.proxy/api/socket.io"). */
-  socketPath?: string;
-  /** JWT for token auth; null/absent = cookie auth rides the WS handshake. */
-  authToken?: string | null;
-  /** World to join (slug). */
-  worldSlug: string;
-  /**
-   * A party to join instead of the world, by its code: the page sets it
-   * once it hosts a party or joined one, and boots the engine again.
-   */
-  party?: { code: string } | null;
 }
 
 // ============================================================================

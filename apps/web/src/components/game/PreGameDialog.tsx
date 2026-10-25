@@ -58,8 +58,8 @@ export interface PreGameDialogProps {
 /**
  * The pre-game / death dialog — deliberately a plain React overlay driving
  * the game through ordinary quickdraw methods: Start/Respawn call
- * gameService.joinGame / respawn on the PAGE socket while the Godot client
- * (its own socket, same user) renders the world behind it.
+ * gameService.joinGame / respawn on the page's socket while the game client
+ * (the same socket) renders the world behind it.
  */
 function startButtonContent(
   props: PreGameDialogProps,

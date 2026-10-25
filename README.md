@@ -30,7 +30,7 @@ This repo is three things at once:
 2. **The reference implementation** of quickdraw 5.0: contracts, services with declared access, tracked writes, **collections**, kits, the realtime kit, the auth routes kit and the typed client.
 3. **A working demo** — a realtime chat app on one typed API. [See it live.](https://quickdraw.techtree.gg)
    <!-- ── quickdraw-game:start ── -->
-   The demo also ships a multiplayer Godot snake game on that same API.
+   The demo also ships a multiplayer snake game on that same API, drawn in the page.
    [Play it.](https://quickdraw.techtree.gg/game)
    <!-- ── quickdraw-game:end ── -->
 
@@ -76,11 +76,11 @@ The template shows both scope shapes end to end:
 - **Access on every row** — each method declares who may call it (`"authenticated"`, `{ entry: "Moderate" }`, a service-wide grant, ...) and each service a row policy, shown in all three shapes: an owner column (`pushService`), a JSON access list (`documentService`) and a membership table (`chatService`), plus public profiles (`everyone("Read")`). The same policy decides calls, subscriptions, collections and lists, and fails closed.
 - **Kits instead of boilerplate** — the read/write, sharing and admin kits implement documents entirely; every service gets a generic admin screen at `/admin` (grants included) for free.
 <!-- ── quickdraw-game:start ── -->
-- **A multiplayer game foundation** _(optional — carve it out in one command)_ — a Godot 4 client speaking quickdraw's protocol 5 in GDScript, a 20 Hz input channel gated on the world's room, a volatile snapshot stream, client-side prediction + reconciliation, snapshot interpolation, server-side NPCs, guest play, live leaderboards, and React overlays driving the same typed API as the game engine.
+- **A multiplayer game foundation** _(optional — carve it out in one command)_ — a TypeScript client in the page (the shared netcode core under a PixiJS renderer), a 20 Hz input channel gated on the world's room, a volatile snapshot stream, client-side prediction + reconciliation, snapshot interpolation, server-side NPCs, guest play, live leaderboards, party worlds a player's browser hosts over peer links, and React overlays driving the same typed API as the game client.
 <!-- ── quickdraw-game:end ── -->
 - **Auth, all of it** — quickdraw's auth routes kit over the app's `Session` table: Google and Discord OAuth, revocable sessions in an httpOnly cookie, a **mock OAuth** provider for zero-credential local dev, and development credentials for tools. Development sign-in refuses to run in production.
 <!-- ── quickdraw-game:start ── -->
-- **Game sign-in** — guest sessions for anonymous play, a Discord Activity embed, and development credentials for the Godot editor.
+- **Game sign-in** — guest sessions for anonymous play, a Discord Activity embed, and development credentials for the netcode bench's bots.
 <!-- ── quickdraw-game:end ── -->
 - **MCP server** — every service method served as an MCP tool over stdio (`.mcp.json` wired for Claude Code), with the same access checks as the web app.
 - **Tests that pin behavior** — the integration suites run on in-memory PGlite locally (no PostgreSQL, seconds) and real PostgreSQL in CI, with an access matrix per service, a committed snapshot of who may call each method and open each row and list, live-delta tests over real sockets, component tests against the real server, and committed query budgets for the hot paths.
@@ -136,7 +136,7 @@ The script only rewrites app identity — framework references
 <!-- ── quickdraw-game:start ── -->
 
 **Not building a game?** `--without-game` removes the entire game foundation
-(Godot app, gameService, definitionService, Discord Activity, guest sign-in,
+(the game client, gameService, definitionService, Discord Activity, guest sign-in,
 scores, the netcode bench) along marked seams, regenerates the API
 reference, then verifies the carve-out builds, lints, typechecks and tests
 clean.
@@ -198,8 +198,7 @@ vs configured, plus a minimal shape illustration of the workflow.
 │   │       ├── auth/         # The auth routes kit's wiring: providers, sessions, grants
 │   │       └── __tests__/    # Integration tests, factories, budgets
 <!-- ── quickdraw-game:start ── -->
-│   ├── game/             # Godot 4 project (exports into apps/web/public/game)
-│   ├── bench-web/        # Browser viewer for netcode benchmark runs
+│   ├── bench-web/        # The netcode bench's browser tier, and bench:play
 <!-- ── quickdraw-game:end ── -->
 │   └── web/              # Next.js frontend (MUI, dark-tokyo theme)
 <!-- ── quickdraw-storybook:start ── -->
@@ -260,24 +259,26 @@ manually with `bun run mcp` from `apps/api`.
 
 ## Game Foundation
 
-The template ships a working multiplayer game: a Godot 4 client
-(`apps/game/`, embedded at `/game`) playing a slither-style snake in one
-global world, with real netcode (client-side prediction + reconciliation,
-snapshot-buffer interpolation), server-side NPC snakes, a GDScript client of
-quickdraw's protocol 5, guest sessions for anonymous play, a public
-high-scores page (`/scores`), a DOM overlay HUD + game-server chat,
+The template ships a working multiplayer game: a TypeScript client drawn
+in the page (`apps/web/src/game/`, at `/game`: the shared netcode core
+under a PixiJS renderer) playing a slither-style snake in one global world,
+with real netcode (client-side prediction + reconciliation, snapshot-buffer
+interpolation on a world clock), server-side NPC snakes, party worlds a
+player's browser hosts over peer links, guest sessions for anonymous play, a
+public high-scores page (`/scores`), a DOM overlay HUD + game-server chat,
 DB-driven tunables editable in the admin UI, and a Discord Activity entry at
 `/discord`.
 
 - Patterns: `.claude/rules/game-patterns.md` (methods, the channel, the
-  stream and events; rooms and the ordering contract; sim purity) and
-  `apps/game/README.md` (editor setup, dev auth, export, Discord).
-- Game commands are ordinary quickdraw methods — a React button and the Godot
-  client call them identically; only tick-rate traffic uses the realtime
-  kit's channel and stream. The pre-game dialog is the showcase: React
-  drives the world Godot renders, through the same typed API.
-- `bun run check:godot` runs two headless Godot clients in one world,
-  through an API restart.
+  stream and events; rooms and the ordering contract; host mode; sim
+  purity) and `.claude/rules/client-patterns.md` (the game client's three
+  layers: the shared netcode, the shell, the renderer behind one interface).
+- Game commands are ordinary quickdraw methods — a React button and the
+  bench's bots call them identically; only tick-rate traffic uses the
+  realtime kit's channel and stream. The pre-game dialog is the showcase:
+  React drives the world the client renders, through the same typed API.
+- `bun run check:web` runs two real browser pages of the client in one
+  world, through an API restart, then in a party a Node client hosts.
 - **Not building a game?** `./scripts/init-fork.sh <name> --without-game`
 removes all of it (or run `node scripts/strip-game.mjs` standalone).
 <!-- ── quickdraw-game:end ── -->
@@ -390,8 +391,8 @@ its secret refuses to boot.
 <!-- ── quickdraw-game:start ── -->
 - **Guest sessions**: `POST /auth/guest` creates a real (marked `isGuest`)
   user and session so signed-out visitors can play the game.
-- **Dev credentials**: `ENABLE_DEV_CREDENTIALS=true` lets the Godot editor
-(and test bots) sign a socket in as a seeded user during development —
+- **Dev credentials**: `ENABLE_DEV_CREDENTIALS=true` lets the netcode bench's
+bots (and tests) sign a socket in as a seeded user during development —
 also refused in production.
 <!-- ── quickdraw-game:end ── -->
 - **Bootstrap admin**: list emails in `ADMIN_EMAILS` to auto-promote to Admin,

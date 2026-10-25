@@ -1,6 +1,6 @@
 /**
  * PartyWorld — a party's world as its host runs it (host mode): the sim and
- * its loop, wherever the host runs (the host's web page, check:godot's Node
+ * its loop, wherever the host runs (the host's web page, check:web's Node
  * host, the bench's loopback host). It knows nothing of links or sockets.
  * The host hands it the server's word on who plays (`play`, `leave`: the
  * partyPlayer and partyPlayerLeft events) and each player's input, and it

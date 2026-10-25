@@ -9,7 +9,7 @@ the view layer needs rewriting, and the genuinely portable surface (chat) is
 
 <!-- ── quickdraw-game:start ── -->
 
-Neither would the Godot canvas.
+Neither would the game's canvas (PixiJS on a DOM canvas).
 
 <!-- ── quickdraw-game:end ── -->
 
@@ -34,7 +34,7 @@ Does not share:
 - `next/navigation` (16 files) → Expo Router, near 1:1 mapping.
 - `useIsMobile` (MUI-bound) → `useWindowDimensions`.
 <!-- ── quickdraw-game:start ── -->
-- The Godot web embed (see below).
+- The game client's renderer (see below).
 <!-- ── quickdraw-game:end ── -->
 
 ## Auth: a token in the handshake
@@ -46,9 +46,8 @@ client is a first-class case.
 
 <!-- ── quickdraw-game:start ── -->
 
-The Discord Activity already does (its page and its Godot client send
-`auth.token`): `DiscordActivityShell.tsx` is the closest reference
-implementation.
+The Discord Activity already does (its page sends `auth.token`):
+`DiscordActivityShell.tsx` is the closest reference implementation.
 
 <!-- ── quickdraw-game:end ── -->
 
@@ -86,26 +85,26 @@ An RN client follows three steps:
 
 ## The game on mobile
 
-The 38MB WASM embed (`GodotCanvas.tsx`) is only the _web delivery_ of the
-game — the Godot project (`apps/game/godot`) exports natively to
-iOS/Android, and its netcode speaks quickdraw's protocol 5 directly with
-token auth (`addons/quickdraw/quickdraw_client.gd`); it never depended on a
-browser.
+The game client is TypeScript in three layers (`apps/web/src/game/`): the
+netcode is the shared package's `GameClientCore` (no DOM, no Node), the
+shell is a `requestAnimationFrame` loop with pointer input, and the
+renderer sits behind one interface (`render/renderer.ts`) that PixiJS
+implements on a DOM canvas. On React Native the core carries over as is;
+the shell needs a frame loop and touch input, and the renderer a surface.
 
 Options, best-first:
 
-1. **`@borndotcom/react-native-godot`** (Born + Migeran, LibGodot-based):
-   real native engine in an RN view, JS↔Godot bridge, production-proven.
-   The `.gd` netcode carries over; hand the SecureStore token into
-   `net.gd` the way the Discord Activity does. Verify its bundled Godot
-   runtime matches our editor version (`.pck` compatibility).
-2. **WebView on the hosted `/game` route** — zero maintenance but 38MB
-   over cellular plus iOS WKWebView SharedArrayBuffer/audio-worklet
-   quirks. Fallback, not plan.
+1. **A native renderer behind the same interface**
+   (`@shopify/react-native-skia`, or PixiJS over `expo-gl` where it runs):
+   the renderer folder is the only part that touches a drawing engine, so a
+   native implementation replaces it without touching the netcode.
+2. **WebView on the hosted `/game` route** — zero maintenance; the page's
+   socket works in a WebView, with the Discord Activity's token flow for an
+   app that has no cookie. Fallback, not plan.
 3. **Ship chat-only first** — game code is already fenced
    (`quickdraw-game` markers + `scripts/strip-game.mjs`). Game _state_
    (join/leaderboard) flows over ordinary typed service methods, so a
-   native leaderboard needs no engine at all.
+   native leaderboard needs no renderer at all.
 
 <!-- ── quickdraw-game:end ── -->
 
