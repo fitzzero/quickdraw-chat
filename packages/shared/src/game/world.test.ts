@@ -279,7 +279,7 @@ describe("GameWorldSim", () => {
     expect(result.inputs).toEqual({ p1: { stepped: 1, depth: 0 } });
   });
 
-  it("says late when the client numbered past the frame a coast stood in for, and not for a stall it answers", () => {
+  it("says late when the client numbered past the frame a coast stood in for, and for the late frame itself by its own rule", () => {
     const sim = makeSim();
     sim.addPlayer("p1", null);
     sim.queueInputs("p1", [input(1, 1, 0)]);

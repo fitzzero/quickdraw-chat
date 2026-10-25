@@ -99,8 +99,9 @@ export interface PlayerSnap {
   /**
    * The server adopted the intent of a frame of this player's that arrived
    * after a coast stood in for it (a frame that landed just after the tick),
-   * or the client numbered past such a frame without sending it (at a round
-   * trip under a tick), since the last tick's snapshot. A client that hears it on a fifth of
+   * or the next frame to arrive was past such a frame (the client numbered
+   * past it at a round trip under a tick, or the messages carrying it were
+   * lost), since the last tick's snapshot. A client that hears it on a fifth of
    * its snapshots moves its frame clock half a tick earlier, off the tick
    * boundary (at most once per half second). Absent when not.
    */
