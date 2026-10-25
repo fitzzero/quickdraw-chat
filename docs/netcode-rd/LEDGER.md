@@ -25,7 +25,7 @@ Template:
 - Why: remotes render on the playback timeline, 1.5–6 ticks behind the
   world clock's estimate, while the local snake is predicted ahead of the
   server by the round trip: a remote head sits 20–45 px from where the
-  server has it relative to the player's own (ownVsRemotePx p95 34–75 px
+  server has it relative to the player's own (ownVsRemotePx p95 27–75 px
   in `g1c-phase`), and a cut-off the player sees by less never happens on
   the server.
 - Change: `RemotesMode` (`packages/shared/src/game/client/interpolation.ts`).
@@ -36,7 +36,8 @@ Template:
   `?remotes=playback|present` on the page, `BotSpec.remotes` and
   `bench:netcode --remotes <mode>`.
 - The glide, three cuts (single runs of baseline-3p-100ms against
-  `g1c-phase`). (1) As it was, a fold only for a jump no motion explains:
+  `g1c-phase`; the cards are in `bench-results/baseline-3p-100ms/` under
+  the labels `remotes-*-smoke`, `-glide` and `-arrival`). (1) As it was, a fold only for a jump no motion explains:
   at the present every snapshot re-bases the reckoning under that
   threshold and pops, jerkRms 417 → 1423 (+242 %), for ownVsRemotePx p95
   54 → 27 px and renderLatencyMs 87 → 33. (2) A continuity glide, folding
@@ -56,10 +57,11 @@ remotes-present` against `g1c-phase`, judged with
   p95 −33 to −80 % (baseline-3p-100ms 54 → 33 px, bursty-3p 71 → 26,
   jitter-heavy-3p 75 → 28, control-0ms 28 → 6, the parties 65 → 33–36),
   renderLatencyMs −58 to −92 % (69–122 → 27–39 ms; control-0ms 52 → 4),
-  remoteVsRemotePx p50 converging (bursty-3p 16.9 → 0.3, mixed-3p 9.8 →
-  5.4, jitter-heavy-3p 0.68 → 0.15). The costs: jerkRms +42 to +744 %
+  remoteVsRemotePx p50 down where it was apart (bursty-3p 16.9 → 0.3,
+  mixed-3p 9.8 → 5.4, jitter-heavy-3p 0.68 → 0.15; party-3p-unfair 4.0 →
+  7.8, within noise). The costs: jerkRms +42 to +744 %
   (asym-2p 39 → 302, encounter-3p-100ms 42 → 356, bursty-3p 624 → 1309,
-  the rest 380–540 → 630–800; control-0ms +7 %, within noise) and
+  the rest 366–544 → 612–800; control-0ms +7 %, within noise) and
   shapeErrorPx p95 +31 to +152 % (control-0ms 1.2 → 3.1 px, bursty-3p 3.9
   → 8.1, drift-slow-client 3.3 → 7.2, the rest 3.6–5.5 → 6.2–7.8), except
   jitter-heavy-3p, where it fell (8.5 → 6.2). No teleport and no hard snap
@@ -90,7 +92,10 @@ remotes-present` against `g1c-phase`, judged with
   (present on a clean link, playback past a jitter threshold the playback
   delay already measures), not a mode kept for its own sake.
 - Baselines: all thirteen scenarios re-made from the default mode on
-  reaper0 (label `remotes-playback`, at REBASELINE_SHA).
+  reaper0 (the sweep `--all --runs 3 --label remotes-playback` at d404f87;
+  the review's follow-up commit changed comments and tests, no
+  arithmetic), and they pass against `g1c-phase` with
+  `remotes-playback.json`.
 
 ## 2026-10-25 — Input phase: the server says late, the client moves its frames [KEPT]
 

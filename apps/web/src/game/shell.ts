@@ -224,8 +224,8 @@ export class GameShell {
     const { renderer, userId, onState } = this.opts;
     let camera: { x: number; y: number };
     if (rendered.local === null) {
-      // before the player joins and after a death, the camera
-      // drifts toward the busiest part of the world
+      // before the player joins and after a death, the camera drifts
+      // toward the busiest part of the world
       this.spectate.retarget(rendered.remotes);
       this.spectate.advance(deltaS);
       camera = this.spectate.position;

@@ -88,9 +88,9 @@ export class LocalPredictor {
   }
 
   /**
-   * Advances the fixed-step accumulator
-   * (sampling input + stepping the local sim per 50ms boundary), then decay
-   * the correction offset and compute the interpolated render position.
+   * Advances the fixed-step accumulator (sampling input + stepping the
+   * local sim per 50ms boundary), then decays the correction offset and
+   * computes the interpolated render position.
    * Returns one message per step taken this render frame, to be sent: the
    * step's frame last, with up to three unacknowledged frames before it
    * (each step sends the same).

@@ -11,6 +11,7 @@ import type { GameDeathEvent, GameInput, PlayerSnap, WorldSnapshot } from "../..
 import { GAME_TICK_RATE } from "../../types/game.js";
 import { DEFAULT_TUNABLES } from "../world.js";
 import { GameClientCore, type GameClientHooks } from "./core.js";
+import type { RemotesMode } from "./interpolation.js";
 import type { GameJoin, GameTransport, GameWire } from "./transport.js";
 
 const ME = "p1";
@@ -72,6 +73,7 @@ class FakeTransport implements GameTransport {
 async function client(
   join: GameJoin,
   spectator = false,
+  remotes?: RemotesMode,
 ): Promise<{
   core: GameClientCore;
   transport: FakeTransport;
@@ -115,6 +117,7 @@ async function client(
     tunables: DEFAULT_TUNABLES,
     tickRate: GAME_TICK_RATE,
     now: (): number => nowMs,
+    ...(remotes === undefined ? {} : { remotes }),
     hooks,
   });
   await core.start(spectator);
@@ -173,6 +176,26 @@ describe("GameClientCore", () => {
       len: 10,
       boost: true,
     });
+  });
+
+  it("renders the remotes at the clock's estimate in present mode, on the render timeline by default", async () => {
+    const present = await client(JOINED, false, "present");
+    const playback = await client(JOINED);
+    for (const { wire, tick } of [present, playback]) {
+      wire.snapshot(snapshot(1, [snapOf(ME, 509, 1), snapOf(OTHER, 100)]));
+      tick(0.016);
+    }
+    const atPresent = present.core.renderFrame(0.016, aim);
+    expect(atPresent.renderTick).toBe(present.core.worldClock.estimateTick());
+    const onPlayback = playback.core.renderFrame(0.016, aim);
+    expect(onPlayback.renderTick).toBe(playback.core.worldClock.renderTick());
+    // the estimate leads the render timeline, so the present draws the remote further along its heading
+    expect(atPresent.renderTick ?? 0).toBeGreaterThan(onPlayback.renderTick ?? 0);
+    expect(atPresent.remotes.get(OTHER)?.x ?? 0).toBeGreaterThan(
+      onPlayback.remotes.get(OTHER)?.x ?? 0,
+    );
+    present.core.stop();
+    playback.core.stop();
   });
 
   it("ignores a snapshot older than the newest, though a shell still hears it arrive", async () => {

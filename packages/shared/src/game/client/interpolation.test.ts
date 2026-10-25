@@ -76,7 +76,7 @@ describe("RemoteInterpolator", () => {
     expect(before).not.toBeNull();
     if (first === null || before === null) return;
     // the first frame after the arrival moves a frame's worth, not the whole 40 px
-    expect(Math.hypot(first.x - before.x, first.y - before.y)).toBeLessThan(15);
+    expect(Math.hypot(first.x - before.x, first.y - before.y)).toBeLessThan(8);
     // a second later the head is where the snapshots put it (an interpolator
     // with no history renders the raw target)
     const settled = rendered(interp, 101.5 + 2 * FRAME_S * TICK_RATE, 121.5);
@@ -87,6 +87,40 @@ describe("RemoteInterpolator", () => {
     expect(target).not.toBeNull();
     if (target === null) return;
     expect(Math.hypot(settled.x - target.x, settled.y - target.y)).toBeLessThan(0.5);
+  });
+
+  it("folds nothing on a snapshot that confirms the reckoning: a straight line at the present", () => {
+    const interp = new RemoteInterpolator(TUNABLES, TICK_RATE);
+    interp.pushSnap(100, snap(0, 0));
+    const before = interp.renderFrame(101.5, FRAME_S);
+    // the snake went straight: the snapshot lands where the heading said
+    interp.pushSnap(101, snap(9, 0));
+    const after = interp.renderFrame(101.5, FRAME_S);
+    expect(after).toEqual(before);
+  });
+
+  it("folds nothing on the playback timeline when a snapshot lands past the rendered bracket", () => {
+    const interp = new RemoteInterpolator(TUNABLES, TICK_RATE);
+    interp.pushSnap(100, snap(0, 0));
+    interp.pushSnap(101, snap(9, 0));
+    const before = interp.renderFrame(100.5, FRAME_S);
+    // the next snapshot is off the heading, but the rendered tick's bracket is unchanged
+    interp.pushSnap(102, snap(9, 40));
+    const after = interp.renderFrame(100.5, FRAME_S);
+    expect(after).toEqual(before);
+    expect(after).toEqual({ x: 4.5, y: 0 });
+  });
+
+  it("snaps, not glides, on an arrival that moves the rendered head MAX_GLIDE_PX or more", () => {
+    const interp = new RemoteInterpolator(TUNABLES, TICK_RATE);
+    interp.pushSnap(100, snap(0, 0));
+    interp.renderFrame(101.5, FRAME_S);
+    // a respawn-scale jump: the next frame draws the raw target at once
+    interp.pushSnap(101, snap(9, 400));
+    const fresh = new RemoteInterpolator(TUNABLES, TICK_RATE);
+    fresh.pushSnap(100, snap(0, 0));
+    fresh.pushSnap(101, snap(9, 400));
+    expect(interp.renderFrame(101.5, FRAME_S)).toEqual(fresh.renderFrame(101.5, FRAME_S));
   });
 
   it("folds nothing while the target moves on: motion between frames is continuity, not a jump", () => {

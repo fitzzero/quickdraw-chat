@@ -318,8 +318,8 @@ export class GameClientCore {
   }
 
   private onDeath(death: GameDeathEvent): void {
-    // Drop dead remotes immediately so no
-    // frozen ghost keeps rendering until the prune timeout
+    // Drop dead remotes immediately so no frozen ghost keeps rendering
+    // until the prune timeout
     if (death.id === this.opts.userId) {
       this.alive = false;
     } else {

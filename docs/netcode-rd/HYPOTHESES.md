@@ -184,5 +184,6 @@ snake turns.
   per snapshot) and `fidelity.shapeErrorPx` ↑ (the overshoot on turns),
   `teleportsPerMin` 0.
 - Wire: none.
-- Verdict: see the LEDGER entry of 2026-10-25 (the default stays the
-  measured winner; the other mode stays behind the flag for A/B play).
+- Verdict: `playback` stays the default, `present` behind the flag; the
+  LEDGER entry "Remotes at the present: dead reckoning to the world clock"
+  (2026-10-25) has the numbers and the follow-ups.

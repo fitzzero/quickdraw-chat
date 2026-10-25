@@ -160,7 +160,9 @@ async function startWebApp(): Promise<WebApp> {
 /**
  * True when `client`'s world clock renders just behind the newest snapshot
  * (the interpolation delay and the trip), not on another world's timeline:
- * after a restart the new world's ticks start over.
+ * after a restart the new world's ticks start over. The pages run the
+ * default `RemotesMode` (playback); at the present the render tick is the
+ * estimate, at or past the newest tick, and this check would say no.
  */
 function clockOnTime(client: WebClient, from: number): boolean {
   const seen = client.since(from, "seen").at(-1);

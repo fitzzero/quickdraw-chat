@@ -29,8 +29,8 @@ export class BodyPath {
   }
 
   /**
-   * A new sample every `sampleSpacing` px of head
-   * travel, keeping as much history as a body of `length` segments needs.
+   * A new sample every `sampleSpacing` px of head travel, keeping as much
+   * history as a body of `length` segments needs.
    */
   public advance(x: number, y: number, length: number, t: RenderTunables): void {
     const n = this.xs.length;
@@ -57,9 +57,9 @@ export class BodyPath {
   }
 
   /**
-   * The walk: from the head at (hx, hy) back along the
-   * history, one segment every `segmentSpacing` px of arc length, `length`
-   * of them at most. Fills `out` (reusing its objects) and returns the count.
+   * The walk: from the head at (hx, hy) back along the history, one
+   * segment every `segmentSpacing` px of arc length, `length` of them at
+   * most. Fills `out` (reusing its objects) and returns the count.
    */
   public segments(
     hx: number,

@@ -92,9 +92,9 @@ world's events, counts as its audience, and may send input. A reconnected
 socket is in no room until it calls again, so clients call on every
 connection:
 
-1. subscribe to the `world` stream (`qd:stream:sub`; the GDScript client
-   holds the feed, `is_subscribed`, and subscribes again by itself after a
-   reconnect);
+1. subscribe to the `world` stream (`qd:stream:sub`; the page's transport
+   and the bots' subscribe again on every hello, `pageTransport.ts` and
+   `socket-transport.ts`);
 2. call `watchWorld` or `joinGame` over the same socket (bootstrap);
 3. send input frames (each message with the unacknowledged ones before its
    newest); reconcile against `PlayerSnap.ack`, and when the ack ran past
@@ -126,8 +126,8 @@ on the render timeline, 1.5–6 ticks behind the world clock's estimate as
 the link needs (the playback delay), interpolating between the snapshots
 that bracket the tick; `present` renders them at the estimate of the
 server's tick now, the newest snapshot extrapolated along its heading at
-its speed (dead reckoning), where the server has them, at the cost of the
-overshoot a turn brings. Either way every snapshot's arrival glides the
+its speed (dead reckoning), within a one-way trip of where the server has
+them, at the cost of the overshoot a turn brings. Either way every snapshot's arrival glides the
 drawn head onto the new path instead of popping. The page takes
 `?remotes=playback|present` (A/B play), the bots `BotSpec.remotes` and
 `bench:netcode --remotes <mode>`; the ledger has the measured trade.

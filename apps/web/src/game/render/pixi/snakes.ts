@@ -127,9 +127,9 @@ export class SnakeView {
   }
 
   /**
-   * Grows or shrinks the pools to `n` segments (the body is drawn
-   * int(length) of them) and lays the container's children out again: the
-   * glows first, so every body draws over every glow.
+   * Grows or shrinks the pools to `n` segments (`int(length)` of them are
+   * drawn) and lays the container's children out again: the glows first,
+   * so every body draws over every glow.
    */
   private fit(n: number): void {
     if (this.glows.length === n) return;

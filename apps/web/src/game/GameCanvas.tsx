@@ -89,8 +89,8 @@ export function GameCanvas({
   });
 
   // The movement tunables the server simulates with, so the prediction
-  // steps as the server does; bench mode
-  // and a party run the defaults, as the bench's scenarios and a host do
+  // steps as the server does; bench mode and a party run the defaults, as
+  // the bench's scenarios and a host do
   const definition = qd.definitionService.getDefinition.useQuery(TUNABLES_KEY, {
     enabled: bench === undefined && partyWorldId === null,
   });

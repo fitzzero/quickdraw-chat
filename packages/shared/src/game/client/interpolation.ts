@@ -18,9 +18,9 @@ import type { PlayerSnap } from "../../types/game.js";
 /**
  * Where a client renders its remotes. `playback`: 1.5–6 ticks behind the
  * estimate, smooth, late by the delay and the trip. `present`: at the
- * estimate of the server's tick now, where the server has the snake, at
- * the cost of the overshoot a turn brings and a pop per snapshot. The core
- * picks the tick each interpolator renders at.
+ * estimate of the server's tick now, within a one-way trip of where the
+ * server has the snake, at the cost of the overshoot a turn brings and a
+ * glide per snapshot. The core picks the tick each interpolator renders at.
  */
 export type RemotesMode = "playback" | "present";
 export const DEFAULT_REMOTES_MODE: RemotesMode = "playback";
@@ -83,10 +83,12 @@ export class RemoteInterpolator {
    * Buffers a snapshot of the remote (the clock lives in WorldClock), and
    * folds the difference it makes at the last rendered tick into the glide:
    * the drawn head stays where it was and glides onto the new path.
+   * `prevTarget` is that tick's raw target before the push (renderFrame and
+   * this method keep it as `renderAt(prevTick)` of the buffer as it stands).
    */
   public pushSnap(tick: number, snap: PlayerSnap): void {
     this.lastSeenTick = tick;
-    const before = this.prevTarget === null ? null : this.renderAt(this.prevTick);
+    const before = this.prevTarget;
     this.buffer.push({
       tick,
       x: snap.x,
