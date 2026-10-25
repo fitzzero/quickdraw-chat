@@ -86,7 +86,11 @@ export class BotClient {
 
   public async start(): Promise<void> {
     const wire: BotWire = {
-      follow: (serverId) => this.worldClock.followServer(serverId),
+      follow: (serverId) => {
+        // another server's world counts its ticks from the start
+        this.latestTick = 0;
+        this.worldClock.followServer(serverId);
+      },
       snapshot: (snapshot) => this.onSnapshot(snapshot),
       keyframe: (keyframe) => this.food.keyframe(keyframe),
       death: (death) => this.onDeath(death),
@@ -223,6 +227,10 @@ export class BotClient {
   private onSnapshot(snapshot: WorldSnapshot): void {
     const tWall = now();
     this.trace.snapshots.push({ tWall, tick: snapshot.tick });
+    // An older snapshot after a newer one (a party's `fast` channel is
+    // unordered) says nothing new: reconciling against it would move the
+    // snake a step back and forward again (main.gd _on_snapshot)
+    if (snapshot.tick < this.latestTick) return;
     this.latestTick = snapshot.tick;
     this.worldClock.observe(snapshot.tick, snapshot.t, tWall);
     if (this.food.apply(snapshot) || (this.transport.needsKeyframe && this.food.askKeyframe())) {

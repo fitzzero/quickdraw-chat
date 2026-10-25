@@ -60,7 +60,9 @@ function makeJitterSampler(model: JitterModel, rng: Rng): () => number {
 
 /**
  * Forward one direction with delay. Chunks are timestamped on arrival and
- * released no earlier than `arrival + base + jitter`, FIFO order enforced.
+ * released no earlier than `arrival + base + jitter`, in arrival order: one
+ * queue drained by one timer, so a spike holds everything behind it and
+ * nothing passes it.
  */
 function pipeDelayed(
   source: Socket,
@@ -72,8 +74,25 @@ function pipeDelayed(
 ): void {
   const jitter = makeJitterSampler(profile.jitter, rng);
   let lastDeliverAt = 0;
-  let pending = 0;
   let sourceEnded = false;
+  // One queue and one timer per direction: a timer per chunk let two chunks
+  // due at the same millisecond fire in either order (a spiked chunk and the
+  // ones clamped behind it), which reordered whole WebSocket frames.
+  const queue: { chunk: Buffer; deliverAt: number }[] = [];
+  let drain: ReturnType<typeof setTimeout> | null = null;
+  const flush = (): void => {
+    drain = null;
+    const now = Date.now();
+    while (queue.length > 0 && (queue[0]?.deliverAt ?? Infinity) <= now) {
+      const next = queue.shift();
+      if (next && !dest.destroyed) dest.write(next.chunk);
+    }
+    if (queue.length > 0) {
+      drain = setTimeout(flush, Math.max(1, (queue[0]?.deliverAt ?? now) - now));
+    } else if (sourceEnded && !dest.destroyed) {
+      dest.end();
+    }
+  };
 
   // Time-driven stall: pause reads from the source in a fixed cycle so the
   // sender feels real backpressure (see module header).
@@ -98,20 +117,14 @@ function pipeDelayed(
     const deliverAt = Math.max(lastDeliverAt, now + delay);
     lastDeliverAt = deliverAt;
     onDelay(deliverAt - now);
-    pending++;
-    setTimeout(() => {
-      pending--;
-      if (!dest.destroyed) {
-        dest.write(chunk);
-        if (sourceEnded && pending === 0) dest.end();
-      }
-    }, deliverAt - now);
+    queue.push({ chunk, deliverAt });
+    if (drain === null) drain = setTimeout(flush, Math.max(1, deliverAt - now));
   });
 
   // Propagate FIN only after all delayed chunks have flushed
   source.on("end", () => {
     sourceEnded = true;
-    if (pending === 0 && !dest.destroyed) dest.end();
+    if (queue.length === 0 && !dest.destroyed) dest.end();
   });
   source.on("error", () => dest.destroy());
 }

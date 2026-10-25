@@ -17,8 +17,10 @@
  * so the snapshot's `ack` names the last frame the server's state holds and
  * the client's replay reproduces its position. Once its first frame stepped,
  * a tick without a frame coasts on the last intent, and the ack covers the
- * coast. A tick of several steps checks collisions at every head it passed.
- * NPCs steer in place and step once a tick.
+ * coast as the client's next frame; that frame, when it arrives, is not
+ * stepped but steers the next step (the ack always counts the steps). A
+ * tick of several steps checks collisions at every head it passed. NPCs
+ * steer in place and step once a tick.
  */
 
 import type {
@@ -121,6 +123,8 @@ export interface SnakeState {
   path: Vec[];
   /** the client's frames waiting to be stepped (humans; NPCs steer in place) */
   inputs: InputQueue;
+  /** the seq of the newest frame whose intent steers the snake, stepped or adopted late */
+  steeredSeq: number;
   /** stepped a frame since it spawned: until then no client has stepped it either */
   fed: boolean;
   /** heads it passed this tick before its last step (a tick of several): collisions check them too */
@@ -137,7 +141,10 @@ export interface BodySample {
 
 /** One human snake's input accounting for a tick. */
 export interface TickInputs {
-  /** frames stepped this tick (0: none had arrived, the snake coasted on its last intent) */
+  /**
+   * frames stepped this tick (0: none had arrived, the snake coasted on its
+   * last intent, standing in for the client's next frame)
+   */
   stepped: number;
   /** frames still queued after the take */
   depth: number;
@@ -235,6 +242,7 @@ export class GameWorldSim {
       len: this.tunables.startLength,
       path: [],
       inputs: new InputQueue(),
+      steeredSeq: 0,
       fed: false,
       swept: [],
     };
@@ -302,13 +310,23 @@ export class GameWorldSim {
   /**
    * Queues a client's frames (a message carries its newest last and up to
    * three before it). The ticks that follow step them in seq order, one a
-   * tick; a frame stepped or queued already is ignored, as is everything for
-   * a dead snake.
+   * tick; a frame queued already is ignored, as is everything for a dead
+   * snake. A frame for a seq the snake's state already holds (a coast stood
+   * in for it) is not stepped, but when it is newer than the frame the
+   * snake last steered by, its intent is adopted now, so the next coast or
+   * step moves on it: a client whose frames keep landing just after the
+   * tick is steered one tick behind its prediction, never a step behind it.
    */
   public queueInputs(id: string, frames: readonly GameInput[]): void {
     const snake = this.players.get(id);
     if (!snake || !snake.alive || isNpcId(id)) return;
-    for (const frame of frames) snake.inputs.push(frame);
+    for (const frame of frames) {
+      if (snake.inputs.push(frame)) continue;
+      if (frame.seq > snake.steeredSeq && frame.seq <= snake.inputs.lastSeq) {
+        this.steer(snake, frame);
+        snake.steeredSeq = frame.seq;
+      }
+    }
   }
 
   /** A frame's intent: its direction (when it has one) and its boost. */
@@ -343,12 +361,13 @@ export class GameWorldSim {
       }
       // One step per frame its client sent, one frame a tick; once it has
       // sent its first, a tick without one coasts on the last intent, and
-      // the queue counts the coast for the late frame
+      // the queue counts the coast as the client's next frame
       const frames = snake.inputs.take(this.dt);
       snake.swept.length = 0;
       for (const [i, frame] of frames.entries()) {
         if (i > 0) snake.swept.push({ ...snake.head });
         this.steer(snake, frame);
+        snake.steeredSeq = Math.max(snake.steeredSeq, frame.seq);
         this.moveSnake(snake);
         this.eatNearbyFood(snake, foodEaten);
       }

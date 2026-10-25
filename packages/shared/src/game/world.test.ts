@@ -184,6 +184,57 @@ describe("GameWorldSim", () => {
     expect(lossy.getLength("p1")).toEqual(lossless.getLength("p1"));
   });
 
+  it("a late frame steers the next tick instead of stepping: the ack counts the steps", () => {
+    const sim = makeSim();
+    sim.addPlayer("p1", null);
+    const heading = (): number => {
+      const snap = must(sim.getBootstrapState().snaps[0]);
+      return Math.atan2(snap.dy, snap.dx);
+    };
+    const turn = (from: number, to: number): number =>
+      Math.atan2(Math.sin(to - from), Math.cos(to - from));
+    const start = heading();
+    const stepPx = DEFAULT_TUNABLES.baseSpeed * sim.dt;
+    const maxTurn = DEFAULT_TUNABLES.turnRate * sim.dt;
+
+    // frame 1 along the heading steps; tick 2 has no frame: the snake coasts,
+    // standing in for frame 2
+    sim.queueInputs("p1", [input(1, Math.cos(start), Math.sin(start))]);
+    sim.step();
+    let result = sim.step();
+    expect(must(result.snapshot.players[0]).ack).toBe(2);
+    expect(result.inputs).toEqual({ p1: { stepped: 0, depth: 0 } });
+    expect(heading()).toBeCloseTo(start, 6);
+
+    // frame 2 arrives late and alone, aiming a quarter turn to the left: it is
+    // not stepped (the ack moves on by the coast, one step), but the coast
+    // turns toward it
+    let head = must(sim.getHead("p1"));
+    sim.queueInputs("p1", [input(2, Math.cos(start + Math.PI / 2), Math.sin(start + Math.PI / 2))]);
+    result = sim.step();
+    expect(must(result.snapshot.players[0]).ack).toBe(3);
+    expect(result.inputs).toEqual({ p1: { stepped: 0, depth: 0 } });
+    expect(turn(start, heading())).toBeCloseTo(maxTurn, 2);
+    let moved = must(sim.getHead("p1"));
+    expect(Math.hypot(moved.x - head.x, moved.y - head.y)).toBeCloseTo(stepPx, 5);
+
+    // an older frame does not steer: frame 1 again, aiming back, leaves the
+    // turn toward frame 2's aim
+    head = moved;
+    sim.queueInputs("p1", [input(1, -Math.cos(start), -Math.sin(start))]);
+    result = sim.step();
+    expect(must(result.snapshot.players[0]).ack).toBe(4);
+    expect(turn(start, heading())).toBeCloseTo(2 * maxTurn, 2);
+    moved = must(sim.getHead("p1"));
+    expect(Math.hypot(moved.x - head.x, moved.y - head.y)).toBeCloseTo(stepPx, 5);
+
+    // frame 5, in before its tick, steps as usual and the ack follows it
+    sim.queueInputs("p1", [input(5, Math.cos(start), Math.sin(start))]);
+    result = sim.step();
+    expect(must(result.snapshot.players[0]).ack).toBe(5);
+    expect(result.inputs).toEqual({ p1: { stepped: 1, depth: 0 } });
+  });
+
   it("accounts for human snakes that stepped since they spawned, never NPCs", () => {
     const sim = makeSim({ npcCount: 2 });
     sim.addPlayer("p1", null);
@@ -271,7 +322,10 @@ describe("GameWorldSim", () => {
     // facing it (the geometry is set on the sim's own snakes)
     const { players } = sim as unknown as { players: Map<string, SnakeState> };
     const wall = must(players.get("wall"));
-    wall.path = Array.from({ length: 30 }, (_, i) => ({ x: 300 + i * 8, y: 500 }));
+    wall.path = Array.from({ length: 30 }, (_, i) => ({
+      x: 300 + i * 8,
+      y: 500,
+    }));
     wall.head = { x: 532, y: 500 };
     wall.dir = { x: 1, y: 0 };
     const runner = must(players.get("runner"));
@@ -325,7 +379,11 @@ describe("GameWorldSim", () => {
   });
 
   it("respawns food up to maxFood and reports spawns as the tick's food change", () => {
-    const sim = makeSim({ initialFood: 0, maxFood: 3, foodSpawnIntervalTicks: 2 });
+    const sim = makeSim({
+      initialFood: 0,
+      maxFood: 3,
+      foodSpawnIntervalTicks: 2,
+    });
     sim.addPlayer("p1", null);
 
     const spawned: number[] = [];
@@ -356,7 +414,12 @@ describe("GameWorldSim", () => {
 describe("tunables", () => {
   it("keeps the counts of food and NPCs within a packed snapshot's 16 bits", () => {
     const sim = new GameWorldSim({ seed: 1, tunables: { initialFood: 0 } });
-    sim.applyTunables({ maxFood: 1e9, initialFood: 70_000, npcCount: 1e6, worldWidth: 1e5 });
+    sim.applyTunables({
+      maxFood: 1e9,
+      initialFood: 70_000,
+      npcCount: 1e6,
+      worldWidth: 1e5,
+    });
     expect(sim.tunables.maxFood).toBe(COUNT_TUNABLE_MAX);
     expect(sim.tunables.initialFood).toBe(COUNT_TUNABLE_MAX);
     expect(sim.tunables.npcCount).toBe(COUNT_TUNABLE_MAX);
@@ -367,7 +430,10 @@ describe("tunables", () => {
 
 describe("NPC snakes", () => {
   function npcSim(count = 3): GameWorldSim {
-    return new GameWorldSim({ seed: 11, tunables: { npcCount: count, npcRespawnTicks: 5 } });
+    return new GameWorldSim({
+      seed: 11,
+      tunables: { npcCount: count, npcRespawnTicks: 5 },
+    });
   }
 
   it("syncs the population to npcCount, including live lowering", () => {

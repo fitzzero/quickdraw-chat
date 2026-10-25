@@ -95,6 +95,13 @@ without a frame coasts and stands in for the late frame.
 - Result: `correctionPx` p95 at most 0.8 px on every client, from 9–16 px;
   `jerkRms` −17…−43% where it moved. See the 2026-10-23 LEDGER entry, with
   the dead ends.
+- Amended 2026-10-24: the queue's "owed" coast (a stood-in frame that came
+  alone was stepped anyway, a later frame skipped to pay for it) moved the
+  ack and the steps apart by one each way, about once a second for a
+  player on the tick boundary, which the live game showed as a surge and a
+  stall; p95 hid it. Every coast now stands in, and a late frame steers
+  the next tick instead of stepping. See the 2026-10-24 LEDGER entry and
+  the must-be-zero `stepAckMismatchPerMin`.
 
 ## 6. Correction tuning sweep
 

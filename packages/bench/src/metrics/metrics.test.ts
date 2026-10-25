@@ -14,6 +14,7 @@ import {
 } from "./index.js";
 import { computeInputQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
+import { STEP_CORRECTION_PX, computeSmoothness } from "./smoothness.js";
 
 function makeServerTrace(): ServerTrace {
   // Entity "e1" moves +10px/tick along x for 100 ticks at 50ms
@@ -35,7 +36,14 @@ function makeClientTrace(clientId: string, offsetPx: number): ClientTrace {
     const serverX = ((t - 1000) / 50 + 1) * 10;
     return { tWall: t, entities: { e1: { x: serverX + offsetPx, y: 0 } } };
   });
-  return { clientId, kind: "bot" as const, frames, snapshots: [], corrections: [], inputs: [] };
+  return {
+    clientId,
+    kind: "bot" as const,
+    frames,
+    snapshots: [],
+    corrections: [],
+    inputs: [],
+  };
 }
 
 describe("computeStats", () => {
@@ -165,6 +173,63 @@ describe("computeInputQueue", () => {
     expect(own?.depthP95).toBe(5);
     expect(computeInputQueue(ticks, "p2")?.depthTrend).toBe(0);
   });
+
+  it("counts the ticks where the ack moved by other than the steps, once the trace has acks", () => {
+    // p1 over 60 s: a coast (ack +1) and a two-step tick (ack +2) agree; a
+    // tick where the ack stood still and one where it skipped a frame do not
+    const stepped = (i: number): number => (i === 10 ? 0 : i === 20 ? 2 : 1);
+    const ackDelta = (i: number): number =>
+      i === 25 ? 0 : i === 40 ? 2 : i === 10 ? 1 : stepped(i);
+    let ack = 0;
+    const ticks = ticksOf((i) => ({ stepped: stepped(i), depth: 0 })).map((tick, i) => {
+      ack += ackDelta(i);
+      // p2 is in every snapshot without an ack, as a trace from before the check
+      return {
+        ...tick,
+        players: [
+          { id: "p1", x: 0, y: 0, ack },
+          { id: "p2", x: 0, y: 0 },
+        ],
+      };
+    });
+    // a tick p1 was not fed on breaks the chain: the next tick's delta (two,
+    // over the gap) is not judged
+    const unfed = ticks.map((tick, i) =>
+      i === 50 ? { ...tick, inputs: tick.inputs.filter((e) => e.id !== "p1") } : tick,
+    );
+    expect(computeInputQueue(unfed, "p1")?.stepAckMismatchPerMin).toBeCloseTo(
+      2 / ((1199 * 50) / 60_000),
+      5,
+    );
+    // a tick the snapshot left p1 out of (it died stepping) breaks the chain
+    // the same way, and keeps the metric
+    const died = unfed.map((tick, i) => (i === 70 ? { ...tick, players: [] } : tick));
+    expect(computeInputQueue(died, "p1")?.stepAckMismatchPerMin).toBeCloseTo(
+      2 / ((1199 * 50) / 60_000),
+      5,
+    );
+    // p2 has no ack in the trace: the metric is left out, not zero
+    expect(computeInputQueue(unfed, "p2")?.stepAckMismatchPerMin).toBeUndefined();
+    expect(computeInputQueue(unfed)?.stepAckMismatchPerMin).toBeUndefined();
+  });
+});
+
+describe("computeSmoothness", () => {
+  it("counts the corrections of a whole movement step a minute", () => {
+    const server = makeServerTrace();
+    const client = makeClientTrace("c1", 0);
+    // the window is the server's 5 s: six corrections, three of them a step or more
+    client.corrections = [0.3, 4.4, STEP_CORRECTION_PX - 0.01, STEP_CORRECTION_PX, 9, 16].map(
+      (magnitudePx, i) => ({
+        tWall: 1100 + i * 500,
+        magnitudePx,
+        hard: false,
+      }),
+    );
+    const report = computeSmoothness(client, server, 1000, 1000 + 99 * 50);
+    expect(report.stepCorrectionsPerMin).toBeCloseTo(3 / ((99 * 50) / 60_000), 5);
+    expect(report.correctionPx.n).toBe(6);
+  });
 });
 
 describe("computeFood", () => {
@@ -199,7 +264,10 @@ describe("computeFood", () => {
   });
 
   it("reports no mismatch without the server's food at that tick, and nothing without food", () => {
-    const stale: ClientTrace = { ...client, food: { tick: 7, latestTick: 7, ids: [], resyncs: 0 } };
+    const stale: ClientTrace = {
+      ...client,
+      food: { tick: 7, latestTick: 7, ids: [], resyncs: 0 },
+    };
     expect(computeFood(stale, server)).toEqual({ foodResyncs: 0 });
     expect(computeFood(client, server)).toEqual({});
   });
@@ -210,7 +278,10 @@ describe("headlineMetrics", () => {
   const meta = { tier: 1 as const, gitCommit: "test", branch: "test" };
 
   it("gates on the worst client's food, once the card carries it", () => {
-    const server: ServerTrace = { ...makeServerTrace(), food: [{ tick: 100, ids: ["a"] }] };
+    const server: ServerTrace = {
+      ...makeServerTrace(),
+      food: [{ tick: 100, ids: ["a"] }],
+    };
     const fed = (clientId: string, ids: string[]): ClientTrace => ({
       ...makeClientTrace(clientId, 0),
       food: { tick: 100, latestTick: 100, ids, resyncs: 0 },
@@ -229,8 +300,78 @@ describe("headlineMetrics", () => {
     expect(headlineMetrics(bare)).not.toHaveProperty(["food.mismatchAtEnd"]);
   });
 
+  it("fails a card whose ack parted from the steps, and headlines the worst client's step corrections", () => {
+    // e1 is a fed human snake whose ack counts its steps, but for one tick
+    const traceWith = (mismatch: boolean): ServerTrace => ({
+      ...makeServerTrace(),
+      ticks: makeServerTrace().ticks.map((tick, i) => ({
+        ...tick,
+        players: [
+          {
+            id: "e1",
+            x: (i + 1) * 10,
+            y: 0,
+            ack: mismatch && i >= 50 ? i : i + 1,
+          },
+        ],
+        inputs: [{ id: "e1", stepped: 1, depth: 0 }],
+      })),
+    });
+    const corrected = (clientId: string, magnitudes: number[]): ClientTrace => ({
+      ...makeClientTrace(clientId, 0),
+      playerId: clientId === "c1" ? "e1" : undefined,
+      corrections: magnitudes.map((magnitudePx, i) => ({
+        tWall: 1100 + i * 100,
+        magnitudePx,
+        hard: false,
+      })),
+    });
+    const clean = computeScorecard(
+      {
+        server: traceWith(false),
+        clients: [corrected("c1", [0.2]), corrected("c2", [9, 9])],
+      },
+      scenario,
+      meta,
+    );
+    const minutes = (99 * 50) / 60_000;
+    expect(headlineMetrics(clean)["server.inputQueue.stepAckMismatchPerMin"]).toBe(0);
+    expect(headlineMetrics(clean)["smoothness.stepCorrectionsPerMin"]).toBeCloseTo(2 / minutes, 5);
+    const parted = computeScorecard(
+      {
+        server: traceWith(true),
+        clients: [corrected("c1", []), corrected("c2", [])],
+      },
+      scenario,
+      meta,
+    );
+    // the queue's minutes are its fed ticks (100 of them), the window's its span
+    expect(headlineMetrics(parted)["server.inputQueue.stepAckMismatchPerMin"]).toBeCloseTo(
+      1 / ((100 * 50) / 60_000),
+      5,
+    );
+    expect(compareScorecards(clean, clean).failed).toBe(false);
+    const verdict = compareScorecards(clean, parted);
+    expect(verdict.failed).toBe(true);
+    expect(
+      verdict.comparisons.find((c) => c.metric === "server.inputQueue.stepAckMismatchPerMin")
+        ?.verdict,
+    ).toBe("fail");
+    // a baseline from before the check carries neither metric; the candidate's still gate
+    const before = computeScorecard(
+      { server: makeServerTrace(), clients: [makeClientTrace("c1", 0)] },
+      scenario,
+      meta,
+    );
+    expect(headlineMetrics(before)).not.toHaveProperty(["server.inputQueue.stepAckMismatchPerMin"]);
+    expect(compareScorecards(before, parted).failed).toBe(true);
+  });
+
   it("keeps each metric's worst run in an aggregated card, which the food gate judges", () => {
-    const server: ServerTrace = { ...makeServerTrace(), food: [{ tick: 100, ids: ["a"] }] };
+    const server: ServerTrace = {
+      ...makeServerTrace(),
+      food: [{ tick: 100, ids: ["a"] }],
+    };
     const ids = ["c1", "c2", "c3"];
     const run = (wrong: string | null) =>
       computeScorecard(
@@ -238,7 +379,12 @@ describe("headlineMetrics", () => {
           server,
           clients: ids.map((id) => ({
             ...makeClientTrace(id, 0),
-            food: { tick: 100, latestTick: 100, ids: id === wrong ? [] : ["a"], resyncs: 0 },
+            food: {
+              tick: 100,
+              latestTick: 100,
+              ids: id === wrong ? [] : ["a"],
+              resyncs: 0,
+            },
           })),
         },
         scenario,
@@ -271,7 +417,12 @@ function partyClient(ackMs: number, predictionPx: number | null, acks = 10): Cli
       maxConsecutiveMissedTicks: 0,
       inputAckRttMs: flat(ackMs, acks),
     },
-    smoothness: { teleportsPerMin: 0, jerkRms: 0, hardSnapsPerMin: 0, correctionPx: stats },
+    smoothness: {
+      teleportsPerMin: 0,
+      jerkRms: 0,
+      hardSnapsPerMin: 0,
+      correctionPx: stats,
+    },
     perEntity: {},
     ...(predictionPx === null ? {} : { predictionErrorPx: flat(predictionPx) }),
     effectiveFps: 60,
@@ -301,7 +452,10 @@ describe("partyFairness", () => {
       spectator: partyClient(0, null, 0),
     });
     expect(fairness.inputAckRttP50).toEqual({ host: Number.NaN, peers: 150 });
-    expect(fairness.predictionErrorP95).toEqual({ host: Number.NaN, peers: Number.NaN });
+    expect(fairness.predictionErrorP95).toEqual({
+      host: Number.NaN,
+      peers: Number.NaN,
+    });
     expect(middleOf([Number.NaN, 3, 1, 2])).toBe(2);
   });
 });

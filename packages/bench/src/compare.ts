@@ -38,6 +38,9 @@ export const DEFAULT_THRESHOLDS: CompareThresholds = {
     // A client's queue holds 0 or 1 frames by the phase it connected at; a
     // ratchet toward the cap grows by more
     "server.inputQueue.depthP95": 1,
+    // One whole-step correction a minute on one client is a late frame's
+    // change of intent at a sharp turn, not the queue; a run of them is
+    "smoothness.stepCorrectionsPerMin": 1,
   },
 };
 
@@ -46,9 +49,13 @@ export type Verdict = "ok" | "improved" | "within-noise" | "warn" | "fail";
 /**
  * Headline metrics that must be 0 in every run (judged on the worst one):
  * any other value fails, whatever the baseline and the run spread. A food
- * mismatch is a change a client lost.
+ * mismatch is a change a client lost; a step/ack mismatch is a movement step
+ * the client's replay did not predict (a 9 px jolt on its snake).
  */
-export const MUST_BE_ZERO: readonly string[] = ["food.mismatchAtEnd"];
+export const MUST_BE_ZERO: readonly string[] = [
+  "food.mismatchAtEnd",
+  "server.inputQueue.stepAckMismatchPerMin",
+];
 
 export interface MetricComparison {
   metric: string;

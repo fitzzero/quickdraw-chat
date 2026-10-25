@@ -15,6 +15,16 @@ import { buildDiscontinuityMask, computeStats } from "./tracks.js";
 
 /** Legal top speed (boost) — used to size the teleport threshold. */
 const VMAX_PX_PER_S = 320;
+/**
+ * A correction of at least this many px is a whole movement step the
+ * prediction missed (a base step is 9 px, a boosted one 16): the ones a
+ * player sees as a surge or a stall. Below it: the change of intent a coast
+ * stood in for (a few px at the turn rate), and the 7 px of a boosted step
+ * the client predicted at base speed, which happens while a snake boosts
+ * within one segment of the minimum length (the server decides boost from
+ * its fractional length, the client from the integer one on the wire).
+ */
+export const STEP_CORRECTION_PX = 8;
 /** Threshold floor so sub-pixel wobble at tiny dt never counts. */
 const TELEPORT_FLOOR_PX = 24;
 /** Frames further apart than this are a render gap, not a movement sample. */
@@ -59,16 +69,19 @@ export function computeSmoothness(
   const corrections = client.corrections.filter(
     (c) => c.tWall >= windowStart && c.tWall <= windowEnd,
   );
-  const hardSnaps = corrections.filter((c) => c.hard).length;
+  const perMinute = (count: number): number => (minutes > 0 ? count / minutes : 0);
   const jerkRms =
     accelerations.length > 0
       ? Math.sqrt(accelerations.reduce((s, a) => s + a * a, 0) / accelerations.length)
       : 0;
 
   return {
-    teleportsPerMin: minutes > 0 ? teleports / minutes : 0,
+    teleportsPerMin: perMinute(teleports),
     jerkRms,
-    hardSnapsPerMin: minutes > 0 ? hardSnaps / minutes : 0,
+    hardSnapsPerMin: perMinute(corrections.filter((c) => c.hard).length),
     correctionPx: computeStats(corrections.map((c) => c.magnitudePx)),
+    stepCorrectionsPerMin: perMinute(
+      corrections.filter((c) => c.magnitudePx >= STEP_CORRECTION_PX).length,
+    ),
   };
 }

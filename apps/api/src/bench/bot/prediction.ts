@@ -134,10 +134,13 @@ export class LocalPredictor {
     while (this.pending.length > 0 && (this.pending[0]?.seq ?? Infinity) <= snap.ack) {
       this.pending.shift();
     }
-    // The server coasted through a stall of this client's: the ack ran more
-    // than a message's frames past its newest. Number the next frame after
-    // the ack, or the server ignores the frames until the client catches up
-    if (snap.ack > this.seq + GAME_INPUT_FRAMES) this.seq = snap.ack;
+    // The ack ran past the newest frame: a coast stood in for a frame this
+    // client has not stepped yet (a stall of its own, a slow clock, or at a
+    // round trip under a tick, a frame that lands just after the tick).
+    // Number the next frame after the ack: stepping the stood-in frame here
+    // would count its movement twice, a step forward now and back on the
+    // next snapshot, and the server refuses its seq anyway.
+    if (snap.ack > this.seq) this.seq = snap.ack;
 
     // Replay unacknowledged inputs from the authoritative state
     let rp: Vec = { x: snap.x, y: snap.y };

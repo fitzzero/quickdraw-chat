@@ -65,14 +65,14 @@ export function printSummary(card: Scorecard): string {
   );
   push("");
   push(
-    "  Client                 tele/min  jerkRMS  snaps/min  gap%   ackRTT p95  interArr p95  fps",
+    "  Client                 tele/min  jerkRMS  snaps/min  gap%   ackRTT p95  interArr p95  fps  stepCorr/min",
   );
   for (const [id, c] of Object.entries(card.clients)) {
     push(
       `    ${id.padEnd(20)} ${pad(num(c.smoothness.teleportsPerMin))} ${pad(num(c.smoothness.jerkRms, 0))} ` +
         `${pad(num(c.smoothness.hardSnapsPerMin))} ${pad(num(c.packet.gapRate * 100, 2))} ` +
         `${pad(num(c.packet.inputAckRttMs.p95, 0))} ${pad(num(c.packet.interArrivalMs.p95, 0))} ` +
-        `${pad(num(c.effectiveFps, 0))}`,
+        `${pad(num(c.effectiveFps, 0))} ${pad(measured(c.smoothness.stepCorrectionsPerMin ?? null))}`,
     );
   }
   push("");
@@ -104,7 +104,8 @@ export function printSummary(card: Scorecard): string {
   if (queue) {
     push(
       `  Input queue: depth p95 ${num(queue.depthP95, 0)}, starved ${num(queue.starvedRate * 100, 2)}%, ` +
-        `multi-step ${num(queue.multiStepRate * 100, 2)}%, depth trend ${num(queue.depthTrend, 2)}`,
+        `multi-step ${num(queue.multiStepRate * 100, 2)}%, depth trend ${num(queue.depthTrend, 2)}, ` +
+        `step/ack mismatch ${measured(queue.stepAckMismatchPerMin ?? null, 2)}/min`,
     );
   }
   if (card.party) push(partyLine(card.party));

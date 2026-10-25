@@ -157,6 +157,12 @@ func _spawn_snake_from_snap(snap: Dictionary, tick: int) -> void:
 
 func _on_snapshot(snapshot: Dictionary) -> void:
 	var tick := int(snapshot["tick"])
+	# An older snapshot after a newer one (a party's fast channel is
+	# unordered) says nothing new, and reconciling the local snake against it
+	# would move it a step back and forward again. The bots do the same
+	# (apps/api/src/bench/bot/client.ts onSnapshot).
+	if tick < _latest_tick:
+		return
 	_latest_tick = tick
 	_apply_food(snapshot, tick)
 	# A player the snapshot names by an introduction this client missed (the
