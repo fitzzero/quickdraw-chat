@@ -164,7 +164,9 @@ noise, and so does a candidate without it once the baseline has it.
 `bench-baselines/thresholds/` holds the thresholds a change that moved
 metrics on purpose was judged with, each saying what it accepts and
 against which baselines: `g3-adaptive-delay.json`, the adaptive delay
-against the baselines before it.
+against the baselines before it; `g1b-stand-in.json`, the input-queue fix
+against `g4-final`; `len-tenths.json`, the float32 length against
+`g1b-stand-in`, on another machine.
 
 ## Honest limits
 

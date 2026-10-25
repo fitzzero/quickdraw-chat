@@ -68,6 +68,12 @@ Template:
   removes that regime and judges 4.5 px again.
 - Baselines: all thirteen scenarios are this sweep's (label `len-tenths`,
   at 4321d07; the traces' scorecards computed again at 8 px).
+- Review fix after the sweep: `buildSnaps` sends the float32 on the sim's
+  side of the minimum (`wireLength`), since a plain rounding flips the
+  boost test for a minimum float32 cannot hold (5.3 rounds up: a snake at
+  the minimum looks boost-eligible) and for a length a float error leaves
+  just above it. With the default tunables (an integer minimum) it changes
+  only lengths within float32 precision of the minimum, so the sweep stands.
 
 ## 2026-10-24 — H5b: Every coast stands in; a late frame steers the next tick [KEPT]
 

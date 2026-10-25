@@ -118,6 +118,19 @@ describe("GameWorldSim", () => {
     expect(replayed.len).toBeCloseTo(after.len, 1);
   });
 
+  it("sends a length on the sim's side of the minimum, which float32 rounding alone could flip", () => {
+    // float32 holds no 5.3: Math.fround(5.3) is above it, which would say a snake at the minimum boosts
+    const atMin = makeSim({ minLength: 5.3, startLength: 5.3 });
+    atMin.addPlayer("p1", null);
+    expect(must(atMin.step().snapshot.players[0]).len).toBeLessThanOrEqual(5.3);
+    // a float error just above the minimum: the server boosts once more, and so must the replay
+    const above = makeSim({ minLength: 5, startLength: 5 + 1e-12 });
+    above.addPlayer("p1", null);
+    const snap = must(above.step().snapshot.players[0]);
+    expect(snap.len).toBeGreaterThan(5);
+    expect(snap.len).toBe(Math.fround(snap.len));
+  });
+
   it("acknowledges the last frame its state holds, and ignores a frame at or below it", () => {
     const sim = makeSim();
     sim.addPlayer("p1", null);

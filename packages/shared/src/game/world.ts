@@ -176,6 +176,31 @@ function mulberry32(seed: number): () => number {
 
 const SPATIAL_CELL = 64;
 
+const f32 = new Float32Array(1);
+const f32Bits = new Uint32Array(f32.buffer);
+
+/** The float32 next to a positive float32 `x`, above or below it. */
+function float32Beside(x: number, up: boolean): number {
+  f32[0] = x;
+  f32Bits[0] = (f32Bits[0] ?? 0) + (up ? 1 : -1);
+  return f32[0];
+}
+
+/**
+ * A snake's length as the packed snapshot carries it (a float32), on the
+ * same side of `minLength` as the sim's: the client's prediction decides
+ * boost by `len > minLength` from it as the server does, where a plain
+ * rounding could flip it (a length a float error leaves just above the
+ * minimum, or a minimum float32 cannot hold, such as 5.3).
+ */
+function wireLength(len: number, minLength: number): number {
+  let wire = Math.fround(len);
+  if (!(wire > 0)) return wire;
+  while (len > minLength && wire <= minLength) wire = float32Beside(wire, true);
+  while (len <= minLength && wire > minLength && wire > 0) wire = float32Beside(wire, false);
+  return wire;
+}
+
 export class GameWorldSim {
   public readonly tunables: GameTunables;
   public readonly dt = 1 / GAME_TICK_RATE;
@@ -591,7 +616,7 @@ export class GameWorldSim {
         y: Math.round(snake.head.y * 10) / 10,
         dx: Math.round(snake.dir.x * 1000) / 1000,
         dy: Math.round(snake.dir.y * 1000) / 1000,
-        len: Math.fround(snake.len),
+        len: wireLength(snake.len, this.tunables.minLength),
         boost: snake.boost && snake.len > this.tunables.minLength,
         ack: snake.inputs.lastSeq,
       });
