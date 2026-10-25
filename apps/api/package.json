@@ -19,7 +19,8 @@
     "test:coverage": "vitest run --coverage",
     "bench:netcode": "tsx src/bench/run.ts",
     "bench:server": "tsx src/bench/standalone.ts",
-    "check:web": "tsx src/bench/web-session.ts"
+    "check:web": "tsx src/bench/web-session.ts",
+    "playwright:install": "playwright install chromium"
   },
   "dependencies": {
     "@fitzzero/quickdraw-core": "^5.1.3",

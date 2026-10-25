@@ -315,7 +315,10 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
 
-      - run: bunx playwright install --with-deps chromium
+      # Through the API package's own script: `bunx playwright` at the root
+      # fetches another playwright from npm and installs the browsers of a
+      # revision the session's playwright does not look for
+      - run: bun run --cwd apps/api playwright:install -- --with-deps
 
       - run: bun run check:web
         env:

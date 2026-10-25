@@ -23,8 +23,7 @@ tests — run them yourself.
 
 A change to the game client or its netcode also runs `bun run check:web`:
 two real browser pages of the client against the bench server, through an
-API restart, then a party (Playwright's Chromium, `bunx playwright install
-chromium` once). CI runs it too.
+API restart, then a party (Playwright's Chromium, `bun run --cwd apps/api playwright:install` once). CI runs it too.
 
 <!-- ── quickdraw-game:end ── -->
 

@@ -7,7 +7,7 @@ Tier-1 harness (`bun run bench:netcode`) with the browser tier's own block
 See `docs/netcode-bench.md`.
 
 ```bash
-# prerequisites: bun run dev (web on :3000), bunx playwright install chromium
+# prerequisites: bun run dev (web on :3000), bun run --cwd apps/api playwright:install
 bun run bench:web                                        # the default list on both GPU backends
 bun run bench:web -- --scenario render-stress-8p --gpu webgl --window-position 2000,0
 bun run bench:web -- --all --label desk
