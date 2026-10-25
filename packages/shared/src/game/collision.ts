@@ -14,7 +14,7 @@ export interface BodySample {
   x: number;
   y: number;
   /** the owner's true head, not a sample of its path */
-  head?: true;
+  head: boolean;
 }
 
 /** Every live snake's samples, by spatial cell. */
@@ -58,7 +58,7 @@ export function buildBodyHash(snakes: Iterable<SnakeState>): BodyHash {
   };
   for (const snake of snakes) {
     if (!snake.alive) continue;
-    for (const p of snake.path) add({ owner: snake.meta.id, x: p.x, y: p.y });
+    for (const p of snake.path) add({ owner: snake.meta.id, x: p.x, y: p.y, head: false });
     add({ owner: snake.meta.id, x: snake.head.x, y: snake.head.y, head: true });
   }
   return hash;
@@ -81,6 +81,7 @@ export function killingSample(
 ): BodySample | null {
   const cx = Math.floor(at.x / SPATIAL_CELL);
   const cy = Math.floor(at.y / SPATIAL_CELL);
+  const reachSq = reach * reach;
   let nearest: BodySample | null = null;
   let nearestDist = Infinity;
 
@@ -89,13 +90,16 @@ export function killingSample(
       const cell = hash.get(cellKey(ix, iy));
       if (!cell) continue;
       for (const s of cell) {
+        // self-collision is off (and its own body fills the cells around its head)
+        if (s.owner === selfId) continue;
         const dx = s.x - at.x;
         const dy = s.y - at.y;
-        const dist = Math.hypot(dx, dy);
-        if (s.owner === selfId || dist > reach) continue;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > reachSq) continue;
+        const dist = Math.sqrt(distSq);
         // the angle between the sample's direction and the heading is within half the arc
         if (dx * at.dirX + dy * at.dirY < dist * cosHalfArc - ARC_SLACK) continue;
-        if (dist < nearestDist || (dist === nearestDist && s.head === true)) {
+        if (dist < nearestDist || (dist === nearestDist && s.head)) {
           nearest = s;
           nearestDist = dist;
         }
