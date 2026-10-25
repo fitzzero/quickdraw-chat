@@ -319,5 +319,6 @@ jobs:
 
       - run: bun run check:web
         env:
-          JWT_SECRET: test-secret-for-ci
+          # the sign-in routes refuse a secret under 32 characters
+          JWT_SECRET: test-jwt-secret-of-at-least-32-characters
   # ── quickdraw-game:end ──

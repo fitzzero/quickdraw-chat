@@ -40,6 +40,13 @@ process.env.NODE_ENV = "test";
 process.env.LOG_LEVEL = process.env.LOG_LEVEL ?? "error";
 process.env.ENABLE_DEV_CREDENTIALS = "true";
 process.env.SERVICE_DEFAULT_ACCESS = "userService:Read";
+// The pages sign in as guests through the kit's routes, which sign their
+// cookies with JWT_SECRET and refuse one under 32 characters (CI sets a short
+// one for the test jobs, whose test app pins its own); a short or missing
+// secret becomes the tests' pin
+if ((process.env.JWT_SECRET ?? "").length < 32) {
+  process.env.JWT_SECRET = "test-jwt-secret-of-at-least-32-characters";
+}
 
 import { spawn } from "node:child_process";
 import { createServer as createNetServer } from "node:net";
