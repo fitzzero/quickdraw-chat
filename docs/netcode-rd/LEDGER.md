@@ -16,6 +16,59 @@ Template:
 
 ---
 
+## 2026-10-25 — Length on the wire: the client decides boost from the server's length [KEPT]
+
+- Branch: conveyor/netcode-seams-after-the-input-queue-fix-tbvgb1 (89d2f3b
+  tenths, 4321d07 float32), the Conveyor card
+  `boost-near-the-minimum-length-the-client-predicts-a-base-ste`.
+- Why: `stepMovement` decides `boosting` from `len > minLength` on the
+  server's fractional length, and the client replayed from `PlayerSnap.len`,
+  floored on the wire. A snake boosting within one segment of the minimum
+  moved 16 px a tick on the server and 9 px in its own prediction: a 7 px
+  correction every tick (`correctionPx` p95 7.0 px on fps-varying-3p and
+  both party scenarios in `g1b-stand-in`).
+- First cut, tenths of a segment (u16): the every-tick surge went, but not
+  all of it. A burn tick is 0.075 segments, so a snake boosting down to the
+  minimum can hold 5.025 while the wire says 5.0, and the client predicts a
+  base step where the server boosts once more: two 7 px corrections in
+  about two of three boosts down to the minimum (control-0ms bot-b, 0.84
+  min traced: 19 corrections of 7 px). Driving the sim and LocalPredictor
+  through 200 boosts down to the minimum with a two-tick round trip: 174 to
+  225 corrections of 4.5 px or more with tenths, 0 to 14 with float32 (the
+  rest from lengths a float error leaves 1e-15 above the minimum).
+- Change, as Logan chose on the card: `PlayerSnap.len` is the sim's length
+  as a float32 (`Math.fround` in `buildSnaps`), and the packed player
+  carries it as an f32 (23 bytes a player, from 21; codec version 2,
+  `snapshot_decoder.gd` refuses version 1 with a warning). Deaths and the
+  leaderboard stay floored.
+- Scenarios (the sweep, `--all --runs 3`, label `len-tenths`, against
+  `g1b-stand-in`, judged with `bench-baselines/thresholds/len-tenths.json`):
+  all thirteen pass. `server.inputQueue.stepAckMismatchPerMin` 0 in every
+  run. `correctionPx` p95, worst client: control-0ms 0.11 → 0.10,
+  baseline-3p-100ms 0.68 → 0.12, fps-varying-3p 6.94 → 0.57,
+  party-3p-lossy 7.00 → 0.67, party-3p-unfair 6.99 → 0.10.
+  `stepCorrectionsPerMin` (8 px or more, worst client) falls in 10 of 13
+  scenarios (control-0ms 10.8 → 2.2, party-3p-lossy 19.3 → 3.2); it rises
+  on encounter-3p-100ms (5.3 → 10.6, within noise: one bot on the tick
+  boundary, starved 31.9 %) and bursty-3p (0 → 1.1). `snapshotBytes` mean
+  +8 B on three players (+5 %); the party's JSON snapshots +6–9 %, a
+  float32 printing with many digits.
+- Machine: this sweep ran on reaper1, where the tick p95 is about twice
+  the baselines' (0.17–0.24 ms against 0.08–0.11); the shipped code
+  (6495269) measures 0.19 ms there too. Against the shipped code on the
+  same machine, control-0ms `ownVsRemotePx` p95 23.6 → 26.9 px is within
+  noise (its spread 4.1), and jitter-heavy-3p `shapeErrorPx` p95 8.3 →
+  7.3 px.
+- Threshold: `STEP_CORRECTION_PX` stays 8 px. At 4.5 px (traced on all
+  thirteen scenarios) the proxied ones show 2–15 a minute, nearly all 7 px
+  and its multiples on the clients in the late regime (baseline-3p-100ms
+  bot-b and bot-c, starved 15 and 28 % in the traces): a frame a coast
+  stood in for that toggled boost is a boosted step against a base one.
+  The input-phase card (`input-phase-a-client-whose-frames-land-just-after-the-tick-m`)
+  removes that regime and judges 4.5 px again.
+- Baselines: all thirteen scenarios are this sweep's (label `len-tenths`,
+  at 4321d07; the traces' scorecards computed again at 8 px).
+
 ## 2026-10-24 — H5b: Every coast stands in; a late frame steers the next tick [KEPT]
 
 - Branch: fix/input-queue-coast-stands-in (9257796 the queue, dd2caeb the

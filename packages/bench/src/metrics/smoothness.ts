@@ -16,13 +16,14 @@ import { buildDiscontinuityMask, computeStats } from "./tracks.js";
 /** Legal top speed (boost) — used to size the teleport threshold. */
 const VMAX_PX_PER_S = 320;
 /**
- * A correction of at least this many px, half a base step, is a movement
- * step the prediction missed (a base step is 9 px, a boosted one 16, and a
- * boosted step predicted at base speed 7): the ones a player sees as a
- * surge or a stall. Below it: the change of intent a coast stood in for (a
- * few px at the turn rate).
+ * A correction of at least this many px is a whole movement step the
+ * prediction missed (a base step is 9 px, a boosted one 16): the ones a
+ * player sees as a surge or a stall. Below it: the change of intent a coast
+ * stood in for, a few px at the turn rate and 7 px when the frame toggled
+ * boost (a boosted step against a base one), which a client whose frames
+ * land just after the tick takes several times a minute.
  */
-export const STEP_CORRECTION_PX = 4.5;
+export const STEP_CORRECTION_PX = 8;
 /** Threshold floor so sub-pixel wobble at tiny dt never counts. */
 const TELEPORT_FLOOR_PX = 24;
 /** Frames further apart than this are a render gap, not a movement sample. */
