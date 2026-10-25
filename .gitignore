@@ -5,6 +5,7 @@ node_modules/
 # Build outputs
 dist/
 .next/
+.next-*/
 .turbo/
 out/
 
@@ -57,8 +58,6 @@ yalc.lock
 
 
 # ── quickdraw-game:start ──
-# Godot editor caches
-apps/game/godot/.godot/
 # Netcode benchmark output (scorecards + raw traces)
 bench-results/
 # ── quickdraw-game:end ──

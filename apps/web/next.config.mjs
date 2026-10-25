@@ -12,30 +12,12 @@ const isDev = process.env.NODE_ENV !== "production";
 // Report-Only CSP: violations log to the browser devtools console without
 // blocking anything. Forks tighten it and move it to enforced — see
 // .claude/rules/security.md.
-// Optional CSP pieces. Each array empties when `init-fork.sh --without-game`
-// strips its marker block, which drops those tokens from the policy (see
-// scripts/strip-game.mjs). The markers can only DELETE lines, so the
-// removable parts live in their own arrays rather than in alternative
-// versions of each directive.
-const gameScriptSrc = [
-  // ── quickdraw-game:start ──
-  // The Godot 4 engine (/game/index.wasm) compiles WebAssembly.
-  "'wasm-unsafe-eval'",
-  // ── quickdraw-game:end ──
-];
-const gameImgSrc = [
-  // ── quickdraw-game:start ──
-  // Godot's boot splash is a blob: URL.
-  "blob:",
-  // ── quickdraw-game:end ──
-];
-const gameDirectives = [
-  // ── quickdraw-game:start ──
-  // Godot audio worklets
-  "worker-src 'self' blob:",
-  "media-src 'self' blob:",
-  // ── quickdraw-game:end ──
-];
+// The game's one CSP piece (the game client itself needs nothing beyond
+// the page's policy: no wasm, no workers, no blobs). The array empties when
+// `init-fork.sh --without-game` strips its marker block, which drops those
+// tokens from the policy (see scripts/strip-game.mjs). The markers can only
+// DELETE lines, so the removable part lives in its own array rather than
+// in alternative versions of the directive.
 const gameFrameAncestors = [
   // ── quickdraw-game:start ──
   // The app runs inside Discord's Activity iframe.
@@ -52,16 +34,15 @@ const cspReportOnly = [
   "default-src 'self'",
   // 'unsafe-inline': Next.js App Router bootstrap scripts (no nonce infra).
   // dev adds 'unsafe-eval' for react-refresh.
-  directive("script-src 'self' 'unsafe-inline'", ...gameScriptSrc, isDev ? "'unsafe-eval'" : ""),
+  directive("script-src 'self' 'unsafe-inline'", isDev ? "'unsafe-eval'" : ""),
   // MUI/emotion inject inline <style> tags
   "style-src 'self' 'unsafe-inline'",
   // Same-origin assets + the API (REST + Socket.IO websocket)
   `connect-src 'self' ${apiOrigin} ${apiWsOrigin}`,
   // OAuth avatars come from provider CDNs (Google/Discord) — forks should pin
   // https: to their actual avatar hosts
-  directive("img-src 'self' data:", ...gameImgSrc, "https:"),
+  "img-src 'self' data: https:",
   "font-src 'self' data:",
-  ...gameDirectives,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -86,6 +67,9 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Next allows one dev server per dist dir: check:web runs the app beside a
+  // developer's with NEXT_DIST_DIR=.next-check
+  distDir: process.env.NEXT_DIST_DIR ?? ".next",
   transpilePackages: ["@project/shared"],
   output: "standalone",
   // Monorepo: pin the workspace root explicitly — inference fails under

@@ -11,8 +11,8 @@
  * The one rule every implementation keeps: per-frame work is transform
  * updates only. Nothing geometry-shaped is built in `draw`: no path
  * re-tessellated, no texture generated, no text re-laid out unless its
- * string changed. The Godot client this replaces rebuilt about a thousand
- * circle polygons a frame in immediate-mode `_draw` calls; a port that does
+ * string changed. The engine embed this replaced rebuilt about a thousand
+ * circle polygons a frame in immediate-mode draw calls; a port that does
  * the same in another engine gives the same stalls. `stats().geometryBuilds`
  * counts the builds; the client sends it in its bench telemetry, and the
  * browser tier's scorecard gates it (it must sit still after the first

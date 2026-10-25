@@ -6,7 +6,8 @@ import { DiscordActivityShell } from "../../components/discord/DiscordActivitySh
 /**
  * Discord Activity entry route. Configure your Discord application's
  * Activity URL mappings to point "/" at the web host and "/api" at the API
- * host, then set this route as the Activity entry (see apps/game/README.md).
+ * host, then set this route as the Activity entry; the web build needs the
+ * application's id (`NEXT_PUBLIC_DISCORD_CLIENT_ID`, env.example).
  *
  * Rendered without the app shell — Providers skips ClientShell and the
  * default socket for /discord (its own provider connects through the proxy).

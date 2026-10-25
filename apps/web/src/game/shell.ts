@@ -19,6 +19,7 @@ import type {
 import { GAME_TICK_RATE, GameClientCore } from "@project/shared";
 import type { BenchTelemetry } from "./bench";
 import { PointerInput } from "./input";
+import type { GameProbe } from "./probe";
 import type { GameRenderer, RenderBackend, RendererStats } from "./render/renderer";
 import { SpectateCamera } from "./render/spectate";
 import type { GameLoadState } from "./types";
@@ -42,6 +43,8 @@ export interface GameShellOptions {
   telemetry?: BenchTelemetry;
   /** Bench mode: respawn this many ms after the local snake's death (no dialog). */
   autoRespawnMs?: number;
+  /** check:web's probe (`?probe=1`): records what the client sees, steers the local snake. */
+  probe?: GameProbe;
   onState: (state: GameLoadState) => void;
   /** The renderer's stats, the frame rate and the newest tick, every half second (the debug overlay). */
   onStats?: (stats: GameStats) => void;
@@ -64,6 +67,19 @@ export interface GameStats extends RendererStats {
 
 function now(): number {
   return performance.timeOrigin + performance.now();
+}
+
+/** The step's input toward a world point from the head; the current heading once there. */
+function steerToward(
+  at: { x: number; y: number },
+  target: { x: number; y: number },
+  heading: { x: number; y: number },
+): GameClientInput {
+  const dx = target.x - at.x;
+  const dy = target.y - at.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance < 1) return { dx: heading.x, dy: heading.y, boost: false };
+  return { dx: dx / distance, dy: dy / distance, boost: false };
 }
 
 /** The p99 and the mean of a window of frame times (zeros for an empty one). */
@@ -109,12 +125,14 @@ export class GameShell {
         },
         onLeft: (id) => {
           this.players.delete(id);
+          opts.probe?.left(id);
         },
         onSpawn: () => {
           // open on the snake, wherever the spectate camera was
           this.snapCamera = true;
         },
         onDeath: (death) => {
+          opts.probe?.death(death);
           if (death.id !== userId || opts.autoRespawnMs === undefined) return;
           setTimeout(() => {
             if (!this.stopped) this.core.respawn();
@@ -186,10 +204,12 @@ export class GameShell {
     this.raf = requestAnimationFrame(this.frame);
   };
 
-  /** One predicted step's input: toward the pointer from the head as drawn. */
+  /** One predicted step's input: toward the pointer (or the probe's target) from the head as drawn. */
   private readonly sampleInput = (): GameClientInput => {
     const predictor = this.core.localPredictor;
     if (this.input === null || predictor === null) return { dx: 1, dy: 0, boost: false };
+    const target = this.opts.probe?.steerTarget ?? null;
+    if (target !== null) return steerToward(predictor.getRenderedPos(), target, predictor.simDir);
     return this.input.sample(predictor.getRenderedPos(), {
       dx: predictor.simDir.x,
       dy: predictor.simDir.y,
@@ -241,6 +261,8 @@ export class GameShell {
       this.workMs.length = 0;
       telemetry?.rendererStats(tWall, { ...stats, frameWorkMs });
       onStats?.({ ...stats, fps, tick: this.core.latestTick, frameWorkMs });
+      this.opts.probe?.seen(rendered, this.core.latestTick);
+      this.opts.probe?.food(this.core.foodState());
     }
     telemetry?.flushIfDue(tWall);
   }

@@ -3,14 +3,17 @@
  * (__tests__/utils/app.ts + setup.ts) minus vitest, plus a RUNNING game
  * loop and the ground-truth recorder. PGlite by default (the tick path is
  * DB-free; score writes are fire-and-forget), real PostgreSQL when
- * TEST_DATABASE_URL is set. The bots sign in as the Godot editor does: the
- * app's own `authenticate` with development credentials (`auth: { userId }`).
+ * TEST_DATABASE_URL is set. The bots sign in with the app's own
+ * `authenticate` and development credentials (`auth: { userId }`).
  *
  * IMPORTANT: import this module only AFTER setting the bench env
  * (see run.ts) — the app's sign-in reads ENABLE_DEV_CREDENTIALS when built.
  */
 
 import type { AddressInfo } from "node:net";
+import cookieParser from "cookie-parser";
+import cors from "cors";
+import express from "express";
 import { PrismaClient } from "@project/db";
 import { setTestPrisma, testDb, testPrisma } from "@project/db/testing";
 import type { Scenario } from "@project/bench";
@@ -19,7 +22,8 @@ import {
   openPgliteFromTemplate,
 } from "@fitzzero/quickdraw-core/testing/prisma";
 import { TEST_TEMPLATE } from "../__tests__/utils/test-template.js";
-import { createAppAuth } from "../auth/index.js";
+import { isAllowedOrigin } from "../auth/config.js";
+import { createAppAuth, type AppAuth } from "../auth/index.js";
 import { qd } from "../quickdraw.js";
 import { serviceNames, services } from "../services/index.js";
 import { ensureGlobalWorld } from "../services/game/bootstrap.js";
@@ -59,8 +63,25 @@ async function ensureDatabase(): Promise<void> {
 }
 
 export interface BenchServerOptions {
-  /** The port to listen on; default any free one. The Godot check restarts on the same one. */
+  /** The port to listen on; default any free one. The session checks restart on the same one. */
   readonly port?: number;
+  /** Also serve the sign-in routes (the guest route among them), for browser pages that sign in by cookie: check:web's. */
+  readonly routes?: boolean;
+}
+
+type CorsOrigin = (
+  origin: string | undefined,
+  callback: (err: Error | null, allow?: boolean) => void,
+) => void;
+
+/** An Express app with the sign-in routes, as the API mounts them (CORS, cookies, JSON bodies). */
+function routesApp(auth: AppAuth, origin: CorsOrigin): express.Express {
+  const app = express();
+  app.use(cors({ origin, credentials: true }));
+  app.use(cookieParser());
+  app.use(express.json({ limit: "100kb" }));
+  app.use(auth.routes);
+  return app;
 }
 
 export async function startBenchServer(
@@ -92,15 +113,23 @@ export async function startBenchServer(
     child: () => silentLogger,
   };
 
+  // bots sign in with development credentials (auth.userId); check:web's
+  // pages as guests, by cookie, through the routes
+  const auth = createAppAuth({ prisma: testPrisma, serviceNames });
+  // Real browsers connect (Tier 2's pages from the web dev server, check:web's
+  // from its own): the auth's allowed origins, CLIENT_URL and localhost
+  const origin: CorsOrigin = (from, callback) => {
+    callback(null, from === undefined || isAllowedOrigin(auth.allowedOrigins, from));
+  };
+  const app = options.routes ? routesApp(auth, origin) : undefined;
   const server = qd.createServer({
+    ...(app === undefined ? {} : { app }),
     services,
     db: testDb,
     logger: silentLogger,
-    // Tier 2 connects real browsers (pages served from the web dev server)
-    cors: { origin: [process.env.CLIENT_URL ?? "http://localhost:3000"], credentials: true },
-    // bots sign in with development credentials (auth.userId)
-    auth: createAppAuth({ prisma: testPrisma, serviceNames }).server,
-    // a party is host mode, which runs over peer links (check:godot's party)
+    cors: { origin, credentials: true },
+    auth: auth.server,
+    // a party is host mode, which runs over peer links (the session checks' party)
     peers: true,
   });
   await ensureGlobalWorld(testDb);

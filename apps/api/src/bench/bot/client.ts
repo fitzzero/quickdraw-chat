@@ -4,7 +4,7 @@
  * RemoteInterpolator, the world clock, the food) under a bot's shell, which
  * steers it with a behavior and records a ClientTrace for the metrics
  * pipeline. Its transport carries the wire: the production one, quickdraw
- * protocol v5 as the Godot client speaks it, through an optional latency
+ * protocol v5 as the web client speaks it, through an optional latency
  * proxy (socket-transport.ts), or a loopback link to a party's host in
  * process (party-transport.ts).
  *

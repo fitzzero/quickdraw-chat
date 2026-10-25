@@ -20,7 +20,6 @@ quickdraw-chat/
 ├── apps/
 │   ├── api/          # Express + quickdraw server (Socket.IO, HTTP, MCP)
 <!-- ── quickdraw-game:start ── -->
-│   ├── game/         # Godot client for the demo snake world
 │   ├── bench-web/    # Browser viewer for netcode benchmark runs
 <!-- ── quickdraw-game:end ── -->
 │   └── web/          # Next.js frontend (MUI) on the typed client
@@ -72,7 +71,7 @@ bun run check && bun run test
 bun run bench:netcode                      # headless Tier-1 scorecard (default scenario)
 bun run bench:netcode -- --all --runs 3    # full sweep, median-of-3
 bun run bench:compare <baseline> <candidate>
-bun run check:godot   # two headless Godot clients in one world, through an API restart
+bun run check:web     # two browser pages of the game client in one world, through an API restart, then a party
 # ── quickdraw-game:end ──
 ```
 
@@ -115,7 +114,7 @@ when you work on matching files, beside the linked framework rules:
 - `testing-patterns.md`: the test app, access matrices and the snapshot, budgets
 - `linting.md` and `security.md`
 <!-- ── quickdraw-game:start ── -->
-- `game-patterns.md`: the realtime game and its Godot client
+- `game-patterns.md`: the realtime game, its web client and host mode
   <!-- ── quickdraw-game:end ── -->
   <!-- ── quickdraw-storybook:start ── -->
 - `storybook.md`: stories on the mock client

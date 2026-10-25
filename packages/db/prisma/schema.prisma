@@ -264,10 +264,10 @@ model GameWorld {
 }
 
 // Data-driven game content: tunables, items, spells — anything you'd
-// otherwise bake into Godot .tres resources. Rows are served by
+// otherwise bake into the client. Rows are served by
 // DefinitionService (public read, admin write via the generic admin UI),
-// fetched by both the server sim and the Godot client at load, so balance
-// changes never require re-exporting the game.
+// fetched by both the server sim and the game client at load, so balance
+// changes never require a client build.
 model Definition {
   id        String   @id @default(cuid())
   // Namespace, e.g. "tunables", "items", "spells"

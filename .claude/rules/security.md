@@ -132,11 +132,11 @@ report-only directives into the enforced `Content-Security-Policy` header
 
 <!-- ── quickdraw-game:start ── -->
 
-The game routes (`/game`, the Discord Activity) are the ones most likely to
-report violations. `./scripts/init-fork.sh --without-game` already drops
-`wasm-unsafe-eval`, the `worker-src`/`media-src` blob entries, the `img-src`
-`blob:` token and the Discord `frame-ancestors`: those directives live in
-marker-wrapped arrays in `apps/web/next.config.mjs`.
+The Discord Activity is the route most likely to report violations (the
+game client itself needs nothing beyond the page's policy).
+`./scripts/init-fork.sh --without-game` already drops the Discord
+`frame-ancestors` entries, the game's only directives: they live in a
+marker-wrapped array in `apps/web/next.config.mjs`.
 
 <!-- ── quickdraw-game:end ── -->
 

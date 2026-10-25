@@ -90,7 +90,7 @@ const IN_WORLD = { entry: "Read", id: "worldId" } as const;
  * GameService — the real-time game server for the demo snake world.
  *
  * Commands (join/respawn/leave) are ordinary typed methods, callable
- * identically from React and from the Godot client. watchWorld and joinGame
+ * identically from React and from any client of the protocol. watchWorld and joinGame
  * put the calling socket in the world's room, which carries the world's
  * events and gates the `input` channel, and whose last socket of a player
  * takes them out of the sim when it leaves (`onRoomLeave`); snapshots go out

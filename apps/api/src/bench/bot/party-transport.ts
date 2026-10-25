@@ -5,7 +5,7 @@
  * links carry them in the app: the bot's input on `fast`, the host's
  * snapshots on `fast` (raw: nothing to decode, every player named inline),
  * its events and a keyframe on `rel`. Host mode's own framing is exercised
- * by check:godot and the browser test, not here. The party's server
+ * by check:web, not here. The party's server
  * (joinParty, playParty) is the runner's: `play` spawns the bot at once.
  */
 
