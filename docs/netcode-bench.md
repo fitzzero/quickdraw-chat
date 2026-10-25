@@ -52,22 +52,23 @@ real render pipeline, including WASM frame pacing.
 
 ## Reading a scorecard
 
-| Metric                                   | Meaning                                                                                                                | Healthy shape                                                              |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `divergence.remoteVsRemotePx`            | Same entity, same instant, two clients that BOTH see it remotely. The purest desync signal.                            | ~0–1px on equal links; unequal ones: speed × the delays' gap (10–20px).    |
-| `divergence.ownVsRemotePx`               | Owner's predicted-now view vs another client's delayed view.                                                           | ≈ (RTT + interp delay) × speed. Dropping it means cutting perceived delay. |
-| `perEntity.renderLatencyMs`              | Lag that best aligns a client's render with the server track (staleness incl. the intentional interp delay).           | ~transport + the playback delay (75–300ms) for remotes; ~0 for the local.  |
-| `perEntity.shapeErrorPx`                 | Residual error after removing that lag — trajectory fidelity.                                                          | Low single digits. Spikes = warping/snapping.                              |
-| `predictionErrorPx`                      | Local snake raw error vs server (lag 0) — prediction accuracy.                                                         | < ~15px under 100ms RTT.                                                   |
-| `smoothness.teleportsPerMin`             | Frame-to-frame displacement beyond any legal speed (deaths masked).                                                    | 0. Any value is user-visible popping.                                      |
-| `smoothness.jerkRms`                     | RMS frame-to-frame acceleration of rendered motion.                                                                    | Relative metric — compare across runs, not absolutely.                     |
-| `hardSnapsPerMin` / `correctionPx`       | Reconciliation events on the local snake.                                                                              | Rare / small.                                                              |
-| `packet.gapRate`                         | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted). | ~0 except bursty scenarios.                                                |
-| `packet.inputAckRttMs`                   | Input send → first snapshot acking it.                                                                                 | RTT + up-to-one-tick alignment.                                            |
-| `server.tickDurMs` / `effectiveTickRate` | Sim cost and loop health.                                                                                              | ≪ 50ms / 20Hz.                                                             |
-| `server.snapshotBytes`                   | The stream item's JSON: the packed snapshot, base64 in `{ b }`. On the wire each `qd:stream` frame adds 59 bytes.      | 21 B a player (28 in base64); add fields consciously.                      |
-| `server.inputQueue`                      | Server's view of client clocks: queue depth p95, coasted and multi-step tick rates, depth trend; per client too.       | depth 0–1, multi-step < 5%, trend ~0; coasts are cheap (see below).        |
-| `foodMismatchAtEnd` / `foodResyncs`      | Per client: food ids held at the end that differ from the server's at that tick (the worst gates); keyframes asked.    | 0 / 0. Tier 1 only (Godot reports none); check:godot checks Godot's.       |
+| Metric                                   | Meaning                                                                                                                  | Healthy shape                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| `divergence.remoteVsRemotePx`            | Same entity, same instant, two clients that BOTH see it remotely. The purest desync signal.                              | ~0–1px on equal links; unequal ones: speed × the delays' gap (10–20px).    |
+| `divergence.ownVsRemotePx`               | Owner's predicted-now view vs another client's delayed view.                                                             | ≈ (RTT + interp delay) × speed. Dropping it means cutting perceived delay. |
+| `perEntity.renderLatencyMs`              | Lag that best aligns a client's render with the server track (staleness incl. the intentional interp delay).             | ~transport + the playback delay (75–300ms) for remotes; ~0 for the local.  |
+| `perEntity.shapeErrorPx`                 | Residual error after removing that lag — trajectory fidelity.                                                            | Low single digits. Spikes = warping/snapping.                              |
+| `predictionErrorPx`                      | Local snake raw error vs server (lag 0) — prediction accuracy.                                                           | < ~15px under 100ms RTT.                                                   |
+| `smoothness.teleportsPerMin`             | Frame-to-frame displacement beyond any legal speed (deaths masked).                                                      | 0. Any value is user-visible popping.                                      |
+| `smoothness.jerkRms`                     | RMS frame-to-frame acceleration of rendered motion.                                                                      | Relative metric — compare across runs, not absolutely.                     |
+| `hardSnapsPerMin` / `correctionPx`       | Reconciliation events on the local snake.                                                                                | Rare / small.                                                              |
+| `smoothness.stepCorrectionsPerMin`       | Per client: corrections of a whole movement step (≥ 7 px), a surge or a stall the player sees; the worst client gates.   | 0; at most one a minute from a stood-in frame's change of intent.          |
+| `packet.gapRate`                         | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted).   | ~0 except bursty scenarios.                                                |
+| `packet.inputAckRttMs`                   | Input send → first snapshot acking it.                                                                                   | RTT + up-to-one-tick alignment.                                            |
+| `server.tickDurMs` / `effectiveTickRate` | Sim cost and loop health.                                                                                                | ≪ 50ms / 20Hz.                                                             |
+| `server.snapshotBytes`                   | The stream item's JSON: the packed snapshot, base64 in `{ b }`. On the wire each `qd:stream` frame adds 59 bytes.        | 21 B a player (28 in base64); add fields consciously.                      |
+| `server.inputQueue`                      | Server's view of client clocks: depth p95, coasted and multi-step tick rates, depth trend, step/ack mismatches a minute. | depth 0–1, multi-step < 5%, trend ~0, mismatches 0 (must be; see below).   |
+| `foodMismatchAtEnd` / `foodResyncs`      | Per client: food ids held at the end that differ from the server's at that tick (the worst gates); keyframes asked.      | 0 / 0. Tier 1 only (Godot reports none); check:godot checks Godot's.       |
 
 Aggregated runs (`--runs 3`) report element-wise medians plus `runVariance`
 (max−min of headline metrics across runs). `bench:compare` treats deltas
@@ -97,10 +98,18 @@ queue must hold the fast one's depth (`depthTrend` ~0, no ratchet toward the
 cap) and coast the slow one about two ticks in a hundred.
 
 A coasted tick (`starvedRate`) is cheap: the coast stands in for the late
-frame, so the snake still moves once a tick and the client corrects only that
-frame's change of intent. A client whose frames land within a render frame
-(about 17 ms) of the server's tick coasts often, by design; which bot that is
-in a run is the chance of its connect time.
+frame, so the snake still moves once a tick, the ack counts the coast as
+that frame, and the frame, when it arrives, steers the next tick instead of
+stepping; the client corrects only that frame's change of intent. A client
+whose frames land within a render frame (about 17 ms) of the server's tick
+coasts often, by design; which bot that is in a run is the chance of its
+connect time. What is never cheap is the ack parting from the steps
+(`stepAckMismatchPerMin`): the queue's first version let a coast be "owed"
+when the stood-in frame came alone, stepped that frame anyway and skipped a
+later one to pay for it, and a player on the tick boundary got a whole-step
+correction each way about once a second (the live game on 2026-10-24).
+`correctionPx` p95 never saw it, which is why that metric must be zero and
+`stepCorrectionsPerMin` counts the corrections a player feels.
 
 `party-3p-lossy` and `party-3p-unfair` are parties (host mode,
 `Scenario.party`): no server. A host in process runs the party's world

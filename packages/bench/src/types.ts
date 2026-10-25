@@ -21,7 +21,8 @@ export interface ServerTick {
   tWall: number;
   tickDurMs: number;
   snapshotBytes: number;
-  players: { id: string; x: number; y: number }[];
+  /** each player's head, and its `PlayerSnap.ack` (absent from traces recorded before the step/ack check) */
+  players: { id: string; x: number; y: number; ack?: number }[];
   /**
    * Per human snake alive and fed that tick (the sim's TickResult.inputs):
    * the frames it stepped, and the frames still queued after the take.
@@ -166,6 +167,12 @@ export interface SmoothnessReport {
   jerkRms: number;
   hardSnapsPerMin: number;
   correctionPx: Stats;
+  /**
+   * corrections of at least STEP_CORRECTION_PX a minute: a whole movement
+   * step the prediction missed, which a player sees as a surge or a stall
+   * (absent from scorecards made before it)
+   */
+  stepCorrectionsPerMin?: number;
 }
 
 export interface EntityFidelity {
@@ -189,6 +196,12 @@ export interface InputQueueReport {
   multiStepRate: number;
   /** mean depth over the window's last 10 s minus its first 10 s: a queue ratcheting toward its cap grows it */
   depthTrend: number;
+  /**
+   * ticks a minute where the ack moved by other than the steps the snake
+   * took (one for a coast): each is a whole-step correction on its client.
+   * Must be 0; absent when the trace recorded no acks.
+   */
+  stepAckMismatchPerMin?: number;
 }
 
 export interface ClientReport {

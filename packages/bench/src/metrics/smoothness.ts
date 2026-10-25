@@ -15,6 +15,13 @@ import { buildDiscontinuityMask, computeStats } from "./tracks.js";
 
 /** Legal top speed (boost) — used to size the teleport threshold. */
 const VMAX_PX_PER_S = 320;
+/**
+ * A correction of at least this many px is a whole movement step the
+ * prediction missed (a base step is 9 px, a boosted one 16), not the change
+ * of intent a coast stood in for (a few px at the turn rate): the ones a
+ * player sees as a surge or a stall.
+ */
+export const STEP_CORRECTION_PX = 7;
 /** Threshold floor so sub-pixel wobble at tiny dt never counts. */
 const TELEPORT_FLOOR_PX = 24;
 /** Frames further apart than this are a render gap, not a movement sample. */
@@ -59,16 +66,19 @@ export function computeSmoothness(
   const corrections = client.corrections.filter(
     (c) => c.tWall >= windowStart && c.tWall <= windowEnd,
   );
-  const hardSnaps = corrections.filter((c) => c.hard).length;
+  const perMinute = (count: number): number => (minutes > 0 ? count / minutes : 0);
   const jerkRms =
     accelerations.length > 0
       ? Math.sqrt(accelerations.reduce((s, a) => s + a * a, 0) / accelerations.length)
       : 0;
 
   return {
-    teleportsPerMin: minutes > 0 ? teleports / minutes : 0,
+    teleportsPerMin: perMinute(teleports),
     jerkRms,
-    hardSnapsPerMin: minutes > 0 ? hardSnaps / minutes : 0,
+    hardSnapsPerMin: perMinute(corrections.filter((c) => c.hard).length),
     correctionPx: computeStats(corrections.map((c) => c.magnitudePx)),
+    stepCorrectionsPerMin: perMinute(
+      corrections.filter((c) => c.magnitudePx >= STEP_CORRECTION_PX).length,
+    ),
   };
 }

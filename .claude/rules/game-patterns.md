@@ -28,10 +28,14 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   frame last with up to three unacknowledged ones before it, so a lost
   message's frames ride the next. The sim queues each frame once by seq
   (`InputQueue`) and steps one a tick unless a backlog builds; a tick
-  without one coasts on the last intent, and the ack covers the coast (a
-  late frame it stood in for is ignored when it arrives). So a snake moves
-  every tick, and `PlayerSnap.ack` names the last frame the server's state
-  holds.
+  without one coasts on the last intent, and the ack covers the coast as
+  the client's next frame: that frame, when it arrives, is not stepped but
+  steers the next step (world.ts `queueInputs`). So a snake moves every
+  tick, `PlayerSnap.ack` names the last frame the server's state holds,
+  and the ack always counts the steps: the client's replay never meets a
+  step it did not predict (one would be a 9 px jolt), only the change of
+  intent of a frame a coast stood in for. The bench gates it
+  (`server.inputQueue.stepAckMismatchPerMin`, must be 0).
   `requires: { room: GLOBAL_WORLD_ROOM }`: dropped unless the sending socket
   is in the world's room; anonymous sockets are always dropped. One world,
   so one room by name; a game of many worlds requires

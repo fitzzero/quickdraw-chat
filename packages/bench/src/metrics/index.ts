@@ -181,8 +181,27 @@ export function headlineMetrics(card: Scorecard): Record<string, number> {
     ...(card.server.inputQueue
       ? { "server.inputQueue.depthP95": card.server.inputQueue.depthP95 }
       : {}),
+    // Must be zero, once a card carries them (traces from before the step/ack check do not)
+    ...(card.server.inputQueue?.stepAckMismatchPerMin === undefined
+      ? {}
+      : {
+          "server.inputQueue.stepAckMismatchPerMin": card.server.inputQueue.stepAckMismatchPerMin,
+        }),
+    ...stepCorrectionsMetric(clientReports),
     ...foodMetric(clientReports),
   };
+}
+
+/**
+ * The most whole-step corrections a minute any client's local snake took:
+ * each is a surge or a stall the player saw. Compared once both cards carry
+ * it (scorecards made before it do not).
+ */
+function stepCorrectionsMetric(clients: ClientReport[]): Record<string, number> {
+  const rates = clients.flatMap((c) =>
+    c.smoothness.stepCorrectionsPerMin === undefined ? [] : [c.smoothness.stepCorrectionsPerMin],
+  );
+  return rates.length > 0 ? { "smoothness.stepCorrectionsPerMin": Math.max(...rates) } : {};
 }
 
 /**

@@ -68,7 +68,8 @@ export interface GameInput {
  * lost or late message arrive with the next one. The server queues each
  * frame once by seq and steps one a tick, up to three while a backlog drains;
  * a tick with none queued coasts on the last intent, and `PlayerSnap.ack`
- * covers the coast.
+ * covers the coast as the next frame, which then steers the next tick
+ * instead of stepping: the ack always counts the steps.
  */
 export interface GameInputs {
   frames: GameInput[];

@@ -6,10 +6,20 @@ import {
   INPUT_QUEUE_CAP,
   InputQueue,
   MAX_STEPS_PER_TICK,
-  OWED_TICKS,
 } from "./inputQueue.js";
 
 const DT = 1 / 20;
+
+/** Deterministic PRNG (mulberry32), so the arrival sweep below is the same every run. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 function frame(seq: number): GameInput {
   return { seq, dx: 1, dy: 0, boost: false };
@@ -90,45 +100,70 @@ describe("InputQueue", () => {
     expect(queue.depth()).toBe(0);
   });
 
-  it("owes the next coast when the stood-in frame comes alone (a client behind), and steps the frame after it", () => {
+  it("stands in on every coast: the frame it stood in for is never stepped, alone or not", () => {
     const queue = new InputQueue(4);
     expect(tick(queue)).toEqual([]);
-    // frame 5 comes with nothing after it: the client is behind, not late
-    queue.push(frame(5));
+    expect(queue.lastSeq).toBe(5);
+    // frame 5 comes alone (a client behind, not just late): refused all the
+    // same, and the tick coasts again, standing in for frame 6
+    expect(queue.push(frame(5))).toBe(false);
     expect(tick(queue)).toEqual([]);
     expect(queue.lastSeq).toBe(6);
-    // so frame 6 still steps: the owed coast was a step of its own
-    queue.push(frame(6));
-    expect(tick(queue)).toEqual([6]);
-    queue.push(frame(7));
-    expect(tick(queue)).toEqual([7]);
-  });
-
-  it("pays an owed step with a frame that arrives with another after it", () => {
-    const queue = new InputQueue(4);
-    tick(queue);
-    queue.push(frame(5));
-    tick(queue);
-    // frames 6 and 7 together: 6 is skipped (its step was the owed coast)
-    queue.push(frame(6));
-    queue.push(frame(7));
+    // frame 6 comes alone too: refused; frame 7, in before the tick, steps
+    expect(queue.push(frame(6))).toBe(false);
+    expect(queue.push(frame(7))).toBe(true);
     expect(tick(queue)).toEqual([7]);
     expect(queue.lastSeq).toBe(7);
+    expect(queue.depth()).toBe(0);
   });
 
-  it("lets an owed step expire after OWED_TICKS ticks", () => {
-    const queue = new InputQueue(4);
-    tick(queue);
-    queue.push(frame(5));
-    tick(queue);
-    for (let seq = 6; seq < 6 + OWED_TICKS; seq++) {
-      queue.push(frame(seq));
-      expect(tick(queue)).toEqual([seq]);
+  it("keeps the ack counting the steps at every arrival phase, jitter and clock drift", () => {
+    // A client at 20 Hz whose frames land `phase` ms into the server's tick
+    // interval, each ± `jitter` ms, on a clock `drift` ppm fast (negative:
+    // slow), its message repeating the three frames before its newest. The
+    // steps the server took and the ack must agree after every tick: the
+    // first queue let them drift apart by one, about 40 times a minute for a
+    // client on the tick boundary, each a whole-step correction on its snake.
+    const violations = (phase: number, jitter: number, drift: number): number => {
+      const rng = mulberry32(1);
+      const queue = new InputQueue();
+      const period = 50 * (1 - drift / 1e6);
+      const arrivals = Array.from({ length: 2100 }, (_, i) => ({
+        t: (i + 1) * period + phase + (rng() * 2 - 1) * jitter,
+        seq: i + 1,
+      }));
+      let next = 0;
+      let steps = 0;
+      let fed = false;
+      let count = 0;
+      for (let t = 1; t <= 2000; t++) {
+        const now = t * 50;
+        for (; next < arrivals.length && (arrivals[next]?.t ?? Infinity) <= now; next++) {
+          const newest = arrivals[next]?.seq ?? 0;
+          for (let seq = Math.max(1, newest - 3); seq <= newest; seq++) queue.push(frame(seq));
+        }
+        const taken = queue.take(DT);
+        if (taken.length > 0) {
+          fed = true;
+          steps += taken.length;
+        } else if (fed) {
+          steps += 1;
+          queue.coast();
+        }
+        if (fed && steps !== queue.lastSeq) count++;
+      }
+      return count;
+    };
+    for (const drift of [0, 1000, -1000]) {
+      for (const jitter of [0, 3, 8, 17, 25]) {
+        for (const phase of [5, 25, 45, 49]) {
+          expect(
+            violations(phase, jitter, drift),
+            `phase ${phase} ms, jitter ±${jitter} ms, drift ${drift} ppm`,
+          ).toBe(0);
+        }
+      }
     }
-    // the debt expired: two frames now are an early one, not a late one
-    queue.push(frame(6 + OWED_TICKS));
-    queue.push(frame(7 + OWED_TICKS));
-    expect(tick(queue)).toEqual([6 + OWED_TICKS]);
   });
 
   it("stands in for every coast while the client is silent, and ignores its stalled frames", () => {
@@ -175,7 +210,7 @@ describe("InputQueue", () => {
     expect(queue.depth()).toBe(0);
   });
 
-  it("clears its frames and what it owes, and keeps its ack (a snake that spawned again)", () => {
+  it("clears its frames and keeps its ack (a snake that spawned again)", () => {
     const queue = new InputQueue();
     for (const seq of [1, 2]) queue.push(frame(seq));
     tick(queue);
@@ -202,38 +237,44 @@ describe("InputQueue", () => {
     expect(late / 200).toBeCloseTo(1 + 3 * DT, 1);
   });
 
-  it("holds a client 1% fast near an empty queue, and coasts twice for each frame a 1% slow one misses", () => {
-    const run = (scale: number): { coasted: number; deepest: number; missed: number } => {
+  it("holds a client 1% fast near an empty queue, and coasts for a 1% slow one, refusing its late frames", () => {
+    const run = (
+      scale: number,
+    ): { coasted: number; deepest: number; refused: number; apart: number } => {
       const queue = new InputQueue();
       let due = 0;
       let next = 0;
       let coasted = 0;
-      let stepped = 0;
+      let steps = 0;
       let deepest = 0;
+      let refused = 0;
+      let apart = 0;
       for (let t = 0; t < 2000; t++) {
         due += scale;
         while (due >= 1) {
           due -= 1;
-          queue.push(frame(++next));
+          // the client numbers its next frame after an ack that ran more than
+          // a message's frames ahead of it (local_snake.gd, prediction.ts)
+          if (queue.lastSeq > next + 4) next = queue.lastSeq;
+          if (!queue.push(frame(++next))) refused++;
         }
         const taken = tick(queue);
         if (taken.length === 0) coasted++;
-        stepped += taken.length;
+        steps += taken.length === 0 ? 1 : taken.length;
         deepest = Math.max(deepest, queue.depth());
+        if (steps !== queue.lastSeq) apart++;
       }
-      return { coasted, deepest, missed: next - queue.depth() - stepped };
+      return { coasted, deepest, refused, apart };
     };
     // fast: an extra frame waits, then steps with the next one
-    expect(run(1.01)).toEqual({ coasted: 0, deepest: 1, missed: 0 });
+    expect(run(1.01)).toEqual({ coasted: 0, deepest: 1, refused: 0, apart: 0 });
     // slow: a tick now and then has no frame and coasts, standing in for the
-    // frame that comes alone on the next; the next coast is owed, and the
-    // frame after it steps
+    // frame that comes alone on the next, which is refused (it steers the
+    // next step instead: world.ts); the ack never parts from the steps
     const slow = run(0.99);
-    expect(slow.missed).toBeGreaterThanOrEqual(15);
-    expect(slow.missed).toBeLessThanOrEqual(25);
-    // two coasts each (the run may end between the two of its last)
-    expect(slow.coasted - 2 * slow.missed).toBeGreaterThanOrEqual(0);
-    expect(slow.coasted - 2 * slow.missed).toBeLessThanOrEqual(1);
+    expect(slow.coasted).toBeGreaterThanOrEqual(20);
+    expect(slow.refused).toBeGreaterThanOrEqual(20);
     expect(slow.deepest).toBe(0);
+    expect(slow.apart).toBe(0);
   });
 });
