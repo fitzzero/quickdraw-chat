@@ -16,6 +16,70 @@ Template:
 
 ---
 
+## 2026-10-25 — Input phase: the server says late, the client moves its frames [KEPT]
+
+- Branch: conveyor/netcode-seams-after-the-input-queue-fix-tbvgb1 (0f13cdc
+  the late bit, f41de9f the rate and the warp, 2bcf633 the skipped
+  stand-in), the Conveyor card
+  `input-phase-a-client-whose-frames-land-just-after-the-tick-m`.
+- Why: the server consumes one seq a tick from a client's first frame on,
+  so a client whose frames land just after the tick stays there, refused a
+  quarter to a third of its frames and steered by them one tick late
+  (starvedRate 22–41 % on one bot of bursty-3p, encounter-3p-100ms,
+  fps-varying-3p and jitter-heavy-3p in `len-tenths`).
+- Change: the tick's snapshot after the sim adopted a late frame's intent,
+  or after the client numbered past a frame a coast stood in for, says
+  `PlayerSnap.late` (bit 1 of the packed player's flags, codec version 2;
+  optional in the contract). A client averages the bit over about a second
+  (gain 1/20) and, when a fifth of its snapshots say it, gains half a tick
+  on its frame clock over a quarter second (10 % fast), at most once per
+  half second, never later (`local_snake.gd` `_nudge_phase`, `prediction.ts`
+  `nudgePhase`). The bench reports `inputQueue.nudgesPerMin` per client.
+- Dead end 1, the card's rule (nudge on every late, once per half second):
+  the boundary clients left the boundary (starvedRate under 2 % on the
+  clean links), but a mid-tick client on a jittery or lossy link is late on
+  3–9 % of its snapshots anyway, nudged 27–40 times a minute, and walked its
+  phase around the tick into queues the server drained in double steps:
+  jerkRms 460 → 1889 on jitter-heavy-3p, about 3x on mixed-3p and both
+  parties. And the half tick added at once moved what the player sees half
+  a step in one frame (drift-slow-client's slow bot, jerkRms 688 against
+  395). The late rate keeps jitter under the bar (0–2 nudges a minute
+  there); the warp keeps the slow bot's 24 nudges a minute smooth (382).
+- Dead end 2: at a round trip under a tick (control-0ms) the snapshot
+  reaches the client before it steps the frame a coast stood in for, the
+  client numbers past it and the late frame never leaves, so the server
+  never said late: every one of a bot's 9 px corrections within 120 ms of
+  such a skip. The sim now says late for the skip too (`standIn`). It
+  halves control-0ms's step corrections (10.8 → 5.4 a minute, the worst
+  client); the 0 ms bots do not reach the nudge's rate (the skips come once
+  per regime entry), so the 0 ms surge stays in part.
+- Scenarios (the sweep at 2bcf633, `--all --runs 3`, label `g1c-phase`,
+  against `len-tenths`, judged with `bench-baselines/thresholds/g1c-phase.json`):
+  all thirteen pass. `stepAckMismatchPerMin` 0 in every run. starvedRate on
+  the boundary bots: bursty-3p 21.8 → 0.0 %, encounter-3p-100ms 31.9 → 0.0,
+  fps-varying-3p 40.7 → 0.5, spectator-plus-2p 35.8 → 0.0, jitter-heavy-3p
+  39.5 → 7.6, drift-slow-client's slow bot 92.3 → 15.0 (it nudges 24 a
+  minute, as a 1 % slow clock needs); every client of control-0ms,
+  baseline-3p-100ms, asym-2p and encounter-3p-100ms at 0.7 % or under.
+  drift-fast-client depthTrend 0.03–0.06 (flat). Improved:
+  drift-slow-client stepCorrectionsPerMin 8.3 → 0.5 and shapeErrorPx p95
+  −34 %, encounter-3p-100ms jerkRms −71 % and stepCorrectionsPerMin 10.6 →
+  0, fps-varying-3p jerkRms −13 % and stepCorrectionsPerMin 4.3 → 0.
+  `inputAckRttMs` p95 did not fall measurably on the clients that were late
+  (within the run spread, ±10–30 ms on the proxied links).
+- Machine: jitter-heavy-3p ownVsRemotePx (61.3 → 75.2 px) and shapeErrorPx
+  (5.9 → 8.5 px) fail against `len-tenths` but pass against the
+  `len-tenths` code (c745e21) run on the machine the same hour (73.6 px,
+  9.0 px worst run); party-3p-unfair stepCorrectionsPerMin 2.1 → 4.3 with
+  no party bot nudging (its clients ran as before). The thresholds file
+  raises those three floors for this verdict only.
+- Threshold: `STEP_CORRECTION_PX` stays 8 px. At 4.5 px (traced) the
+  proxied scenarios show 2–6 a minute, worst client, median of three runs:
+  7 px and its multiples, stood-in frames on jittery and lossy links that
+  toggled boost, which neither card removes.
+- Baselines: all thirteen scenarios are this sweep's (label `g1c-phase`,
+  at 2bcf633).
+
 ## 2026-10-25 — Length on the wire: the client decides boost from the server's length [KEPT]
 
 - Branch: conveyor/netcode-seams-after-the-input-queue-fix-tbvgb1 (89d2f3b
