@@ -117,6 +117,7 @@ when you work on matching files, beside the linked framework rules:
 - `linting.md` and `security.md`
 <!-- ── quickdraw-game:start ── -->
 - `game-patterns.md`: the realtime game, its web client and host mode
+  (another renderer than PixiJS: `docs/game-renderer.md`)
   <!-- ── quickdraw-game:end ── -->
   <!-- ── quickdraw-storybook:start ── -->
 - `storybook.md`: stories on the mock client

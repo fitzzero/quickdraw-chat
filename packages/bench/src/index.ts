@@ -1,4 +1,5 @@
 export type * from "./types.js";
+export { ackInputs, type AckArrival } from "./acks.js";
 export { mulberry32, deriveSeed, normal, type Rng } from "./prng.js";
 export { startLatencyProxy, type LatencyProxy, type LatencyProxyConfig } from "./proxy.js";
 export {

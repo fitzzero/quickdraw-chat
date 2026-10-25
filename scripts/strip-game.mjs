@@ -63,6 +63,7 @@ const DELETE_PATHS = [
   "bench-results",
   "docs/netcode-bench.md",
   "docs/netcode-rd",
+  "docs/game-renderer.md",
   ".claude/skills/netcode-rd",
   ".claude/rules/game-patterns.md",
   "docs/api/gameService.md",

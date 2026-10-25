@@ -9,7 +9,8 @@
  * beat it, so frame time p95 may be the period plus 15 % of jitter, and p99
  * 1.75 periods, under one dropped frame's worth (two periods): fewer than
  * one frame in a hundred dropped. Long tasks and geometry builds are 0 a
- * minute at any rate.
+ * minute at any rate. An aggregated card (`bench:web --runs N`) is judged
+ * on its medians for the tails and on its worst run for the counts.
  */
 
 import type { Scorecard } from "./types.js";
@@ -62,13 +63,24 @@ export interface Tier2Verdict {
 const held = (value: number | undefined): number => value ?? Number.NaN;
 
 /**
+ * A must-be-zero count: on an aggregated card its worst run (`runWorst`,
+ * as `bench:compare` judges it: the median of three runs hides the one
+ * long task), else the card's own value.
+ */
+function countOf(card: Scorecard, metric: string, own: number | undefined): number {
+  if (card.runWorst === undefined) return held(own);
+  return card.runWorst[metric] ?? Number.NaN;
+}
+
+/**
  * Judges a Tier-2 card against the acceptance of its display rate: the one
  * the runner declared (`tier2.displayHz`, from `--hz`), else the common
  * rate nearest the one its frames show, which cannot tell a display at
  * half rate from a slower display, so a desk declares its rate. The
  * frame-time tails against the rate's limits; long tasks, geometry builds
- * and pauses against zero. A card without a Tier-2 block, or without a
- * rendered frame, fails: there is nothing to pass.
+ * and pauses against zero, each from the worst run of an aggregated card.
+ * A card without a Tier-2 block, or without a rendered frame, fails: there
+ * is nothing to pass.
  */
 export function judgeTier2(card: Scorecard): Tier2Verdict {
   const tier2 = card.tier2;
@@ -106,16 +118,35 @@ export function judgeTier2(card: Scorecard): Tier2Verdict {
       limit: acceptance.frameTimeP99Ms,
       unit: "ms",
     },
-    { label: "long tasks", value: held(tier2.longTasksPerMin), limit: 0, unit: "/min" },
-    { label: "geometry builds", value: held(tier2.geometryBuildsPerMin), limit: 0, unit: "/min" },
-    { label: "pauses", value: held(tier2.pausesPerMin), limit: 0, unit: "/min" },
+    {
+      label: "long tasks",
+      value: countOf(card, "tier2.longTasksPerMin", tier2.longTasksPerMin),
+      limit: 0,
+      unit: "/min",
+    },
+    {
+      label: "geometry builds",
+      value: countOf(card, "tier2.geometryBuildsPerMin", tier2.geometryBuildsPerMin),
+      limit: 0,
+      unit: "/min",
+    },
+    {
+      label: "pauses",
+      value: countOf(card, "tier2.pausesPerMin", tier2.pausesPerMin),
+      limit: 0,
+      unit: "/min",
+    },
   ];
   const rate =
     declared === undefined
       ? `judged at ${acceptance.hz} Hz (from the frames; --hz declares the display)`
       : `judged at the declared ${acceptance.hz} Hz`;
+  const runs =
+    card.runWorst === undefined
+      ? ""
+      : `, over ${card.runs} runs (the tails' medians, each count's worst run)`;
   const lines = [
-    `  Tier 2 at ~${measuredHz ?? "?"} Hz on ${tier2.backend}, ${rate}:`,
+    `  Tier 2 at ~${measuredHz ?? "?"} Hz on ${tier2.backend}, ${rate}${runs}:`,
     ...checks.map(
       (c) =>
         `    ${c.value <= c.limit ? "✓" : "✗"} ${c.label} ${c.value.toFixed(c.unit === "ms" ? 1 : 2)} ${c.unit}` +

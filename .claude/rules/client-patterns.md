@@ -129,14 +129,17 @@ not an engine embed, in three layers:
 - **The renderer** is one interface (`render/renderer.ts`) and one
   implementation (`render/pixi/`, PixiJS 8). Only that folder imports the
   engine (`__tests__/boundary.test.ts` pins it), so a fork swaps engines by
-  replacing it; the body-path walk, the palette and the spectate camera sit
-  beside the interface for the same reason. The one rule: per-frame work is
-  transform updates only; nothing geometry-shaped is built in `draw` (one
-  circle texture, particles for the food and the body segments, the grid
-  built once per change of the bounds, a label laid out only when its name
-  changes). `stats().geometryBuilds` counts the builds; the client sends it
-  in its bench telemetry, and the browser tier's scorecard gates it
-  (`tier2.geometryBuildsPerMin` must be 0; `bun run bench:web`).
+  replacing it (`docs/game-renderer.md`: the contract, the swap and the
+  checks a new renderer passes); the body-path walk, the palette and the
+  spectate camera sit beside the interface for the same reason. The one
+  rule: per-frame work is transform updates only; nothing geometry-shaped
+  is built in `draw` (one circle texture, particles for the food and the
+  body segments, the grid built once per change of the bounds, a label
+  laid out only when its name changes). `stats().geometryBuilds` counts
+  the builds; the client sends it in its bench telemetry, and the browser
+  tier's scorecard gates it (`tier2.geometryBuildsPerMin` must be 0;
+  `bun run bench:web`), with the main thread's work per frame beside it
+  (`tier2.frameWorkMs`, reported).
 
 A party (host mode) is the same client over the host's link: `useParty`
 hosts or joins on the page's socket, and `PartyWire.tsx` bridges the

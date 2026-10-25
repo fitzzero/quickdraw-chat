@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { ackInputs } from "../acks.js";
 import { getScenario } from "../scenarios.js";
+import { printSummary } from "../scorecard.js";
 import type { ClientReport, ClientTrace, ServerTick, ServerTrace, Stats } from "../types.js";
 import { computeStats, sampleTrack, buildDiscontinuityMask } from "./tracks.js";
 import { computeDivergence } from "./divergence.js";
@@ -455,12 +457,17 @@ describe("the browser tier", () => {
   const scenario = { ...getScenario("control-0ms"), warmupMs: 0 };
   const meta = { tier: 2 as const, gitCommit: "test", branch: "test" };
 
-  /** A browser client at 144 Hz with `stalls` frames of 40 ms, long tasks and renderer samples. */
+  /**
+   * A browser client at 144 Hz with `stalls` frames of 40 ms, long tasks and
+   * renderer samples every half second (`work`: each sample's p99 of the
+   * work per frame, where given).
+   */
   function browserTrace(opts: {
     stalls: number;
     longTasks: number[];
     builds: number[];
     backend: string | null;
+    work?: number[];
   }): ClientTrace {
     const frames: ClientTrace["frames"] = [];
     let t = 1000;
@@ -480,11 +487,15 @@ describe("the browser tier", () => {
       longTasks: opts.longTasks.map((tWall) => ({ tWall, durationMs: 80 })),
       renderer: {
         backend: opts.backend,
-        samples: opts.builds.map((geometryBuilds, i) => ({
-          tWall: 1000 + i * 500,
-          drawCalls: opts.backend === "webgpu" ? null : 12,
-          geometryBuilds,
-        })),
+        samples: opts.builds.map((geometryBuilds, i) => {
+          const work = opts.work?.[i];
+          return {
+            tWall: 1000 + i * 500,
+            drawCalls: opts.backend === "webgpu" ? null : 12,
+            geometryBuilds,
+            ...(work === undefined ? {} : { frameWorkP99Ms: work }),
+          };
+        }),
       },
     };
   }
@@ -707,6 +718,90 @@ describe("the browser tier", () => {
     expect(acceptanceFor(120)).toEqual({ hz: 120, frameTimeP95Ms: 9.6, frameTimeP99Ms: 14.6 });
     expect(acceptanceFor(60)).toEqual({ hz: 60, frameTimeP95Ms: 19.2, frameTimeP99Ms: 29.2 });
     expect(TIER2_ACCEPTANCE.map((row) => row.hz)).toEqual([60, 75, 90, 120, 144, 165, 240]);
+  });
+
+  it("acknowledges an input by the first own snapshot after its send whose ack covers it, oldest first", () => {
+    const inputs: ClientTrace["inputs"] = [
+      { seq: 1, tSent: 100 },
+      { seq: 2, tSent: 150 },
+      { seq: 3, tSent: 200 },
+      { seq: 4, tSent: 250 },
+    ];
+    ackInputs(inputs, [
+      // acknowledges 1 and 2: 3 was not sent yet, though the ack covers its seq
+      { tWall: 180, ack: 3 },
+      // 3 at last; 4 waits past this ack
+      { tWall: 260, ack: 3 },
+    ]);
+    expect(inputs.map((input) => input.tAcked)).toEqual([180, 180, 260, undefined]);
+  });
+
+  it("gives a browser card the input round trip, from the page's sends and its own snapshots' acks", () => {
+    const page = browserTrace({ stalls: 0, longTasks: [], builds: [1, 1], backend: "webgl" });
+    // an input every tick; each own snapshot arrives half a tick after a send and
+    // acknowledges the input sent two ticks before that send: 125 ms after it
+    page.inputs = Array.from({ length: 60 }, (_, i) => ({ seq: i + 1, tSent: 1050 + i * 50 }));
+    ackInputs(
+      page.inputs,
+      Array.from({ length: 60 }, (_, i) => ({ tWall: 1075 + i * 50, ack: i - 1 })),
+    );
+    const card = computeScorecard({ server: makeServerTrace(), clients: [page] }, scenario, meta);
+    const rtt = card.clients.page?.packet.inputAckRttMs;
+    // the last two inputs are never acknowledged
+    expect(rtt?.n).toBe(58);
+    expect(rtt?.p50).toBe(125);
+    expect(rtt?.p95).toBe(125);
+  });
+
+  it("reports the main thread's work per frame, each half second's p99, and never gates it", () => {
+    const card = computeScorecard(
+      {
+        server: makeServerTrace(),
+        clients: [
+          browserTrace({
+            stalls: 0,
+            longTasks: [],
+            builds: [1, 1, 1, 1, 1],
+            backend: "webgl",
+            // the last sample comes from a page older than the field
+            work: [1.5, 2, 2.5, 30],
+          }),
+        ],
+      },
+      scenario,
+      meta,
+    );
+    const work = card.tier2?.frameWorkMs;
+    expect(work?.n).toBe(4);
+    expect(work?.p50).toBe(2.5);
+    expect(work?.max).toBe(30);
+    // on the card's Tier-2 line, never compared or judged: 30 ms of work fails nothing
+    expect(printSummary(card)).toContain("frame work p99 2.50 ms (worst half second 30.00)");
+    expect(Object.keys(headlineMetrics(card)).some((key) => key.includes("frameWork"))).toBe(false);
+    expect(judgeTier2(card).passed).toBe(true);
+  });
+
+  it("judges an aggregated card's tails on their medians and each count on its worst run", () => {
+    const run = (opts: { stalls: number; longTasks: number[] }) =>
+      computeScorecard(
+        {
+          server: makeServerTrace(),
+          clients: [browserTrace({ ...opts, builds: [1, 1], backend: "webgl" })],
+        },
+        scenario,
+        meta,
+      );
+    const clean = () => run({ stalls: 0, longTasks: [] });
+    // one run's p99 over the limit: the median of three runs is a clean run's
+    const hitch = aggregateScorecards([run({ stalls: 40, longTasks: [] }), clean(), clean()]);
+    expect(judgeTier2(hitch).passed).toBe(true);
+    // one run's long task: the median hides it, the worst run does not
+    const stall = aggregateScorecards([run({ stalls: 0, longTasks: [2500] }), clean(), clean()]);
+    expect(stall.tier2?.longTasksPerMin).toBe(0);
+    const verdict = judgeTier2(stall);
+    expect(verdict.passed).toBe(false);
+    expect(verdict.lines[0]).toContain("over 3 runs");
+    expect(verdict.lines.some((line) => line.includes("✗ long tasks"))).toBe(true);
   });
 });
 

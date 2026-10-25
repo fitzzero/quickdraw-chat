@@ -3,7 +3,7 @@
  * bytes, carried base64 in the stream item (`PackedWorldItem`, `{ b }`),
  * about a third of its JSON. The bytes travel as a JSON string (a text
  * frame reaches every client); a binary attachment would save the
- * base64's third (a follow-up). A head travels exactly as the sim rounds it
+ * base64's third (HYPOTHESES.md #7b). A head travels exactly as the sim rounds it
  * (tenths of a pixel, thousandths of a direction), so a decoded snapshot
  * holds the players that were encoded, its length too (a float32, as the
  * sim rounds it: the client decides boost from the server's own length);
