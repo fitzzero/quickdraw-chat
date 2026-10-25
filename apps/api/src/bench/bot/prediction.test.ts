@@ -51,8 +51,7 @@ describe("LocalPredictor", () => {
     const seen = predictor.getRenderedPos();
     const at = (s: PlayerSnap) => ({ ...s, x: predictor.simPos.x, y: predictor.simPos.y });
 
-    // no word of the server's, no nudge: an ack past the newest frame alone is
-    // also what a round trip under a tick looks like; nor one late now and then
+    // one late now and then is no nudge
     expect(predictor.onServerSnap(at({ ...snap, ack: 102 })).nudged).toBe(false);
     expect(predictor.onServerSnap(at({ ...snap, ack: 102, late: true })).nudged).toBe(false);
     for (let i = 0; i < 40; i++) predictor.onServerSnap(at({ ...snap, ack: 102, late: false }));
@@ -61,21 +60,43 @@ describe("LocalPredictor", () => {
       predictor.onServerSnap(at({ ...snap, ack: 102, late: true })),
     ).map((c) => c.nudged);
     expect(nudges).toEqual([false, false, false, false, true]);
-    // what the player sees stays put, and the frame clock gains the half tick
-    // over a quarter second, 10 % faster: frames leave 25 ms earlier after it
+    // nothing moves at once: the frame clock gains the half tick over a quarter
+    // second, 10 % faster, so frames leave 25 ms earlier after it
     predictor.renderFrame(0, aim);
     expect(predictor.getRenderedPos().x).toBeCloseTo(seen.x, 6);
     // 10 ms into the tick, 270 ms on and 25 ms gained: 305 ms of frame clock, six
-    // frames, where without the nudge 280 ms would make five
+    // frames, where without the nudge 280 ms would make five; and what the
+    // player sees moves at most 10 % faster on any frame (1.8 px in 10 ms, 2
+    // at 1.1 times), never by the half step at once (4.5 px more)
     let frames = 0;
-    for (let i = 0; i < 27; i++) frames += predictor.renderFrame(0.01, aim).length;
+    let last = predictor.getRenderedPos().x;
+    let fastest = 0;
+    for (let i = 0; i < 27; i++) {
+      frames += predictor.renderFrame(0.01, aim).length;
+      fastest = Math.max(fastest, predictor.getRenderedPos().x - last);
+      last = predictor.getRenderedPos().x;
+    }
     expect(frames).toBe(6);
+    expect(fastest).toBeLessThan(2.5);
 
-    // late again at once: not within half a second (ten frames) of the last nudge
+    // late again at once: not within half a second (ten frames: the nudge was
+    // at seq 102, the warp's frames took it to 108) of the last nudge
     for (let i = 0; i < 6; i++) {
       expect(predictor.onServerSnap(at({ ...snap, ack: 103, late: true })).nudged).toBe(false);
     }
-    for (let i = 0; i < 9; i++) predictor.renderFrame(dt, aim);
+    for (let i = 0; i < 3; i++) predictor.renderFrame(dt, aim);
+    expect(predictor.seq).toBe(111);
+    expect(predictor.onServerSnap(at({ ...snap, ack: 103, late: true })).nudged).toBe(false);
+    predictor.renderFrame(dt, aim);
     expect(predictor.onServerSnap(at({ ...snap, ack: 103, late: true })).nudged).toBe(true);
+  });
+
+  it("never nudges on an ack past its newest frame alone, which a round trip under a tick looks like", () => {
+    const predictor = new LocalPredictor(DEFAULT_TUNABLES, 1 / GAME_TICK_RATE);
+    const snap = { id: "p1", x: 500, y: 500, dx: 1, dy: 0, len: 10, boost: false, ack: 100 };
+    predictor.initFromSnap(snap);
+    for (let ack = 101; ack <= 200; ack++) {
+      expect(predictor.onServerSnap({ ...snap, ack }).nudged).toBe(false);
+    }
   });
 });

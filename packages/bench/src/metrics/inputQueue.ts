@@ -102,7 +102,6 @@ export function computeInputQueue(
   };
 }
 
-
 /**
  * One client's own snake's input queue over `ticks` (already windowed), and
  * the half-tick nudges of its frame clock a minute within them when its
@@ -117,7 +116,11 @@ export function computeOwnQueue(
   const first = ticks[0];
   const last = ticks[ticks.length - 1];
   if (!report || !client.nudges || !first || !last) return report;
-  const minutes = (last.tWall - first.tWall) / 60_000;
+  // a minute of the snake's fed ticks, as stepAckMismatchPerMin counts it
+  const playerId = client.playerId;
+  const fed = ticks.filter((t) => t.inputs.some((e) => e.id === playerId)).length;
+  const tickMs = ticks.length > 1 ? (last.tWall - first.tWall) / (ticks.length - 1) : 0;
+  const minutes = (fed * tickMs) / 60_000;
   const nudges = client.nudges.filter((n) => n.tWall >= first.tWall && n.tWall <= last.tWall);
   return { ...report, nudgesPerMin: minutes > 0 ? nudges.length / minutes : 0 };
 }

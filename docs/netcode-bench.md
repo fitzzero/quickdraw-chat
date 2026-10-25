@@ -108,8 +108,10 @@ browser): the tick's snapshot after a late frame steered says `late`, and
 a client that hears it on a fifth of its snapshots (averaged over about a
 second) moves its frame clock half a tick earlier, gained over a quarter
 second, at most once per half second (`inputQueue.nudgesPerMin` per
-client). Jitter alone stays under that rate, so it does not walk the
-phase around the tick. So `starvedRate` now means jitter, a stall or a
+client). Jitter alone stays under that rate while its spread is under
+about half a tick, so it does not walk the phase around the tick; on a
+link jittery past that, watch `nudgesPerMin` (nudges only move frames
+earlier, and only the queue's hold drains a frame a whole tick early). So `starvedRate` now means jitter, a stall or a
 slow clock, not a phase: a few percent on a clean link.
 What is never cheap is the ack parting from the steps
 (`stepAckMismatchPerMin`): the queue's first version let a coast be "owed"

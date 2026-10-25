@@ -41,8 +41,9 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   frame steered says `PlayerSnap.late`, and a client that hears it on a
   fifth of its snapshots moves its frame clock half a tick earlier (at
   most once per half second, never later), off the tick boundary; jitter
-  alone stays under that rate. Only on that bit: an ack past the newest
-  frame is also what a round trip under a tick looks like.
+  alone stays under that rate while its spread is under about half a
+  tick. Only on that bit: an ack past the newest frame is also what a
+  round trip under a tick looks like.
   `requires: { room: GLOBAL_WORLD_ROOM }`: dropped unless the sending socket
   is in the world's room; anonymous sockets are always dropped. One world,
   so one room by name; a game of many worlds requires
