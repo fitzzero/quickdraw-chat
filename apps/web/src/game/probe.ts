@@ -38,6 +38,8 @@ export interface ProbeSink {
   mutedUntil: number;
   /** The newest snapshot's tick the wire heard, muted or not. */
   latestTick: number;
+  /** The hello recorded last (`user@server`), until the connection is lost: a listener added later hears it again. */
+  lastHello: string | null;
   /** The entries since the last drain, oldest first. */
   drain(): ProbeEntry[];
   /** Steers the local snake toward a world point, until the next call. */
@@ -65,6 +67,7 @@ function installSink(): ProbeSink {
     target: null,
     mutedUntil: 0,
     latestTick: 0,
+    lastHello: null,
     drain() {
       const drained = this.entries;
       this.entries = [];
@@ -103,6 +106,20 @@ export class GameProbe {
     pushTo(this.sink, kind, fields);
   }
 
+  /** A hello: once per connection (the client replays the current one to each new listener). */
+  public connected(userId: string | null, serverId: string): void {
+    const key = `${String(userId)}@${serverId}`;
+    if (this.sink.lastHello === key) return;
+    this.sink.lastHello = key;
+    this.push("connected", { userId, serverId });
+  }
+
+  /** The connection was lost; the next hello is news again. */
+  public disconnected(status: string): void {
+    this.sink.lastHello = null;
+    this.push("disconnected", { status });
+  }
+
   /** Every half second: the local snake, and where every other snake is drawn, on the client's clocks. */
   public seen(rendered: RenderedWorld, latestTick: number): void {
     const drawn: Record<string, [number, number]> = {};
@@ -131,9 +148,10 @@ export class GameProbe {
   /**
    * The transport under the sink's blackout: a muted snapshot never reaches
    * the client (its tick is still the latest heard, which the blackout's
-   * entries name), and `joined` says the world was joined.
+   * entries name), and `joined` says the world was joined (a party's, when
+   * `party`: the page's clients share the sink).
    */
-  public wrap(transport: GameTransport): GameTransport {
+  public wrap(transport: GameTransport, party: boolean): GameTransport {
     const { sink } = this;
     const muted = (wire: GameWire): GameWire => ({
       follow: (serverId) => wire.follow(serverId),
@@ -152,7 +170,7 @@ export class GameProbe {
       },
       start: async (wire, spectator): Promise<GameJoin> => {
         const joined = await transport.start(muted(wire), spectator);
-        this.push("joined", { bounds: joined.bounds, spectator });
+        this.push("joined", { bounds: joined.bounds, spectator, party });
         return joined;
       },
       sendInput: (frames) => transport.sendInput(frames),

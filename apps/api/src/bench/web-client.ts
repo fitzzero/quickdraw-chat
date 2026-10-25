@@ -14,6 +14,8 @@ export const STEP_TIMEOUT_MS = 45_000;
 /** How long after its death a page clicks Respawn. */
 const RESPAWN_AFTER_MS = 1_000;
 const DRAIN_EVERY_MS = 200;
+/** Chromium's network log reaches the console as errors: a socket's retry while the API restarts is one. */
+const NETWORK_LOG = /^(Failed to load resource|WebSocket connection to )/;
 
 export interface Probe {
   readonly kind: string;
@@ -54,7 +56,10 @@ export class WebClient {
     this.context = await this.browser.newContext({ viewport: { width: 1280, height: 720 } });
     this.page = await this.context.newPage();
     this.page.on("console", (message) => {
-      if (message.type() === "error") this.errors.push(message.text().slice(0, 300));
+      // the page's own errors, not the browser's network log
+      if (message.type() === "error" && !NETWORK_LOG.test(message.text())) {
+        this.errors.push(message.text().slice(0, 300));
+      }
     });
     this.page.on("pageerror", (error) =>
       this.errors.push(`pageerror: ${String(error).slice(0, 300)}`),

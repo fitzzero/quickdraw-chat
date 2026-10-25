@@ -45,7 +45,7 @@ import { spawn } from "node:child_process";
 import { createServer as createNetServer } from "node:net";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
-import { chromium } from "playwright";
+import { chromium, type Browser } from "playwright";
 
 type Scenario = import("@project/bench").Scenario;
 
@@ -144,7 +144,7 @@ async function startWebApp(): Promise<WebApp> {
       throw new Error(`the web app exited with ${String(child.exitCode)}`);
     }
     try {
-      const response = await fetch(`${WEB_URL}/game`);
+      const response = await fetch(`${WEB_URL}/game`, { signal: AbortSignal.timeout(5_000) });
       if (response.ok) return { stop };
     } catch {
       // not up yet
@@ -373,6 +373,90 @@ async function checkRestart({ both, pairs }: Players, running: Running): Promise
   });
 }
 
+/** The checks, in order, on two pages that opened the game. */
+async function checkSession(players: Players, running: Running, hostUserId: string): Promise<void> {
+  await checkJoinAndMove(players);
+  await checkDeathAndLeaderboard(players);
+  await checkFood(
+    "each holds the server's food, each tick's change applied once",
+    players,
+    running,
+    () => 0,
+  );
+  await checkFoodResync(players, running);
+  await checkNoResync(players);
+  await checkRestart(players, running);
+  // the new world's ids repeat the old one's: its keyframe and its
+  // bootstrap must replace them
+  await checkFood(
+    "each holds the new world's food, none of the old world's",
+    players,
+    running,
+    (client) => client.probes.map((probe) => probe.kind).lastIndexOf("world"),
+  );
+  await checkParty(API_URL, { both: players.both, pairs: players.pairs }, hostUserId);
+  for (const client of players.both) {
+    if (client.errors.length > 0) {
+      throw new Error(`${client.name}'s page logged errors:\n  ${client.errors.join("\n  ")}`);
+    }
+  }
+}
+
+function countsOf(players: Players): string {
+  return players.both
+    .map(
+      (client) =>
+        `${client.name}: ${String(client.since(0, "seen").length)} sightings, ${String(client.since(0, "death").length)} deaths, ${String(client.since(0, "leaderboard").length)} leaderboards, ${String(client.since(0, "connected").length)} hellos, ${String(client.since(0, "food").length)} food checks`,
+    )
+    .join("; ");
+}
+
+/** Two pages of the game, their browser and their web app, released whatever happens. */
+async function withPages(
+  running: Running,
+  run: (players: Players) => Promise<void>,
+): Promise<Players> {
+  const web = await startWebApp();
+  // an interrupt must not leave the web app's process group behind
+  const interrupted = (): void => {
+    web.stop();
+    process.exit(130);
+  };
+  process.once("SIGINT", interrupted);
+  process.once("SIGTERM", interrupted);
+  let browser: Browser | null = null;
+  let players: Players | null = null;
+  try {
+    browser = await chromium.launch({ headless: process.env.QD_HEADED !== "1" });
+    console.log(`check:web: server on ${API_URL}, web app on ${WEB_URL}; two pages of /game`);
+    const ada = new WebClient("ada", browser, WEB_URL);
+    const bo = new WebClient("bo", browser, WEB_URL);
+    players = {
+      ada,
+      bo,
+      both: [ada, bo],
+      pairs: [
+        [ada, bo],
+        [bo, ada],
+      ],
+    };
+    for (const client of players.both) await client.open();
+    try {
+      await run(players);
+    } catch (error) {
+      for (const client of players.both) dump(client);
+      throw error;
+    }
+    return players;
+  } finally {
+    for (const client of players?.both ?? []) await client.stop();
+    await browser?.close();
+    web.stop();
+    process.off("SIGINT", interrupted);
+    process.off("SIGTERM", interrupted);
+  }
+}
+
 async function session(): Promise<void> {
   const running: Running = {
     server: await startBenchServer(SESSION, { port: apiPort, routes: true }),
@@ -382,61 +466,12 @@ async function session(): Promise<void> {
     if (id === undefined) throw new Error(`no user ${name}`);
     return id;
   };
-  const web = await startWebApp();
-  const browser = await chromium.launch({ headless: process.env.QD_HEADED !== "1" });
-  console.log(`check:web: server on ${API_URL}, web app on ${WEB_URL}; two pages of /game`);
-  const ada = new WebClient("ada", browser, WEB_URL);
-  const bo = new WebClient("bo", browser, WEB_URL);
-  const players: Players = {
-    ada,
-    bo,
-    both: [ada, bo],
-    pairs: [
-      [ada, bo],
-      [bo, ada],
-    ],
-  };
   try {
-    for (const client of players.both) await client.open();
-    await checkJoinAndMove(players);
-    await checkDeathAndLeaderboard(players);
-    await checkFood(
-      "each holds the server's food, each tick's change applied once",
-      players,
-      running,
-      () => 0,
-    );
-    await checkFoodResync(players, running);
-    await checkNoResync(players);
-    await checkRestart(players, running);
-    // the new world's ids repeat the old one's: its keyframe and its
-    // bootstrap must replace them
-    await checkFood(
-      "each holds the new world's food, none of the old world's",
-      players,
-      running,
-      (client) => client.probes.map((probe) => probe.kind).lastIndexOf("world"),
-    );
-    await checkParty(API_URL, { both: players.both, pairs: players.pairs }, userOf("cy"));
-    for (const client of players.both) {
-      if (client.errors.length > 0) {
-        throw new Error(`${client.name}'s page logged errors:\n  ${client.errors.join("\n  ")}`);
-      }
-    }
-  } catch (error) {
-    for (const client of players.both) dump(client);
-    throw error;
+    const players = await withPages(running, (pages) => checkSession(pages, running, userOf("cy")));
+    console.log(`check:web: every check held (${countsOf(players)})`);
   } finally {
-    for (const client of players.both) await client.stop();
-    await browser.close();
-    web.stop();
     await running.server.stop();
   }
-  const counts = players.both.map(
-    (client) =>
-      `${client.name}: ${String(client.since(0, "seen").length)} sightings, ${String(client.since(0, "death").length)} deaths, ${String(client.since(0, "leaderboard").length)} leaderboards, ${String(client.since(0, "connected").length)} hellos, ${String(client.since(0, "food").length)} food checks`,
-  );
-  console.log(`check:web: every check held (${counts.join("; ")})`);
 }
 
 try {

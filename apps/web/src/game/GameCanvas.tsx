@@ -211,7 +211,7 @@ function useProbeOfConnection(
   React.useEffect(() => {
     if (probe === null) return undefined;
     return connection.onHello((hello) => {
-      probe.push("connected", { userId: hello.userId, serverId: hello.serverId });
+      probe.connected(hello.userId, hello.serverId);
     });
   }, [probe, connection]);
   const wasConnected = React.useRef(false);
@@ -220,7 +220,7 @@ function useProbeOfConnection(
     if (status === "connected") wasConnected.current = true;
     else if (wasConnected.current) {
       wasConnected.current = false;
-      probe.push("disconnected", { status });
+      probe.disconnected(status);
     }
   }, [probe, status]);
 }
@@ -273,6 +273,7 @@ function createClient(inputs: ClientInputs): { shell: GameShell; renderer: GameR
           userId: player,
           onPlayer: (meta) => shell.addPlayer(meta),
         }),
+      inputs.party !== null,
     ),
     renderer,
     userId: player,
@@ -295,8 +296,8 @@ function createClient(inputs: ClientInputs): { shell: GameShell; renderer: GameR
 }
 
 /** The transport under the probe's controls (a blackout of its snapshots), or itself. */
-function probed(probe: GameProbe | null, transport: GameTransport): GameTransport {
-  return probe === null ? transport : probe.wrap(transport);
+function probed(probe: GameProbe | null, transport: GameTransport, party: boolean): GameTransport {
+  return probe === null ? transport : probe.wrap(transport, party);
 }
 
 /** Bench mode's connection of the client's own, to the bench server; none for the page's world or a party. */

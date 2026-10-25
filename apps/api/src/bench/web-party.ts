@@ -38,17 +38,24 @@ async function checkJoin(
     async () => {
       for (const client of both) {
         await client.goToGame();
+        // the party's client is the page's next: the sink keeps the target for it
+        await client.steer(PARTY_CENTRE.x, PARTY_CENTRE.y);
+        const opened = client.probes.length;
         await client.fill(/party code/i, code);
         await client.click(/^join$/i);
         await client.waitForText(/you joined this party/i);
-        marks.set(client, client.probes.length);
+        // the party's client joined its world (the server world's client before it did not):
+        // everything the page records from here on is the party's
+        const joined = await client.waitFor(
+          "the party's world",
+          opened,
+          (p) => p.kind === "joined" && p.party === true,
+        );
+        marks.set(client, client.probes.indexOf(joined));
         await client.click(/^start$/i);
       }
       for (const client of both) {
-        const from = marks.get(client) ?? 0;
-        await client.steer(PARTY_CENTRE.x, PARTY_CENTRE.y);
-        await client.waitFor("the party's world", from, (p) => p.kind === "joined");
-        await client.waitFor("its snake, from the host", from, playing);
+        await client.waitFor("its snake, from the host", marks.get(client) ?? 0, playing);
       }
     },
   );

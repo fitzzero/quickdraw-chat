@@ -279,6 +279,7 @@ jobs:
   # apps/api/src/bench/web-session.ts). PGlite, no database service.
   check-web:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
     steps:
