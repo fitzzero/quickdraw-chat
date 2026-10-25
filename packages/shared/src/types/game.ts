@@ -84,8 +84,9 @@ export interface PlayerSnap {
   dx: number;
   dy: number;
   /**
-   * Length in segments, with its fraction (tenths): the client's prediction
-   * decides boost from it as the server does.
+   * Length in segments, with its fraction (a float32 in the packed
+   * snapshot): the client's prediction decides boost from it as the server
+   * does.
    */
   len: number;
   boost: boolean;

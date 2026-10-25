@@ -97,7 +97,7 @@ describe("GameWorldSim", () => {
     const start = must(sim.getHead("p1"));
     const snap = must(sim.step().snapshot.players[0]);
     const head = must(sim.getHead("p1"));
-    expect(snap.len).toBe(10.4);
+    expect(snap.len).toBe(Math.fround(10.4));
     expect(snap.boost).toBe(true);
     expect(Math.hypot(head.x - start.x, head.y - start.y)).toBeCloseTo(
       DEFAULT_TUNABLES.boostSpeed * sim.dt,

@@ -31,8 +31,8 @@ function player(id: string, n: number): PlayerSnap {
     y: Math.round((n * 97.3 + 5) * 10) / 10,
     dx: Math.round(Math.cos(n) * 1000) / 1000,
     dy: Math.round(Math.sin(n) * 1000) / 1000,
-    // tenths of a segment on the wire: the fraction must survive
-    len: 10 + n + ((n * 3) % 10) / 10,
+    // a float32 on the wire: the fraction must survive
+    len: Math.fround(10 + n + ((n * 3) % 10) / 10 - 0.025),
     boost: n % 2 === 0,
     ack: 4_000_000_000 + n,
   };

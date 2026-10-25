@@ -122,7 +122,7 @@ function writePlayer(out: ByteWriter, index: number, player: PlayerSnap): void {
   out.u32(tenths(player.y));
   out.i16(clamp(Math.round(player.dx * 1000), -0x8000, 0x7fff));
   out.i16(clamp(Math.round(player.dy * 1000), -0x8000, 0x7fff));
-  out.u16(clamp(tenths(player.len), 0, 0xffff));
+  out.f32(player.len);
   out.u8(player.boost ? 1 : 0);
   out.u32(player.ack);
 }

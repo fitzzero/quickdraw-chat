@@ -22,7 +22,7 @@ const FLAG_T := 1
 const FLAG_KEYFRAME := 2
 ## GameConfig.FOOD_WINDOW: the ticks a snapshot repeats introductions over
 const FOOD_WINDOW := 6
-const PLAYER_BYTES := 21
+const PLAYER_BYTES := 23
 const SPAWNED_BYTES := 13
 
 ## index → [id, the tick it was given]
@@ -102,9 +102,9 @@ func decode(packed: String) -> Dictionary:
 				"y": bytes.decode_u32(at + 6) / 10.0,
 				"dx": bytes.decode_s16(at + 10) / 1000.0,
 				"dy": bytes.decode_s16(at + 12) / 1000.0,
-				"len": bytes.decode_u16(at + 14) / 10.0,
-				"boost": (bytes.decode_u8(at + 16) & 1) != 0,
-				"ack": bytes.decode_u32(at + 17),
+				"len": bytes.decode_float(at + 14),
+				"boost": (bytes.decode_u8(at + 18) & 1) != 0,
+				"ack": bytes.decode_u32(at + 19),
 			})
 		at += PLAYER_BYTES
 	snapshot["players"] = players

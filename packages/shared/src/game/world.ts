@@ -9,7 +9,7 @@
  * Key design choice: only snake HEADS exist on the wire. Each side keeps a
  * per-snake path history of head positions and derives body segments at fixed
  * arc-length spacing along it — the server for collision, clients for
- * rendering. Each player adds 21 bytes to a packed snapshot (28 in its
+ * rendering. Each player adds 23 bytes to a packed snapshot (31 in its
  * base64, about 110 as JSON), whatever its snake's length.
  *
  * A human snake steps once for each input frame its client sent (InputQueue),
@@ -591,7 +591,7 @@ export class GameWorldSim {
         y: Math.round(snake.head.y * 10) / 10,
         dx: Math.round(snake.dir.x * 1000) / 1000,
         dy: Math.round(snake.dir.y * 1000) / 1000,
-        len: Math.round(snake.len * 10) / 10,
+        len: Math.fround(snake.len),
         boost: snake.boost && snake.len > this.tunables.minLength,
         ack: snake.inputs.lastSeq,
       });
