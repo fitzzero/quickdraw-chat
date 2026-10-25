@@ -38,10 +38,11 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   (`server.inputQueue.stepAckMismatchPerMin`, must be 0). The server's
   consumption clock is fixed (one seq a tick from the first frame on), so
   the client's frame clock follows it: the tick's snapshot after a late
-  frame steered says `PlayerSnap.late`, and the client moves its frame
-  clock half a tick earlier (at most once per half second, never later),
-  off the tick boundary. Only on that bit: an ack past the newest frame
-  is also what a round trip under a tick looks like.
+  frame steered says `PlayerSnap.late`, and a client that hears it on a
+  fifth of its snapshots moves its frame clock half a tick earlier (at
+  most once per half second, never later), off the tick boundary; jitter
+  alone stays under that rate. Only on that bit: an ack past the newest
+  frame is also what a round trip under a tick looks like.
   `requires: { room: GLOBAL_WORLD_ROOM }`: dropped unless the sending socket
   is in the world's room; anonymous sockets are always dropped. One world,
   so one room by name; a game of many worlds requires
@@ -98,9 +99,10 @@ connection:
    the newest (a coast stood in for a frame not yet stepped: a stall, a
    slow clock, or a frame landing just after the tick at a short round
    trip), number the next frame after it instead of stepping that frame;
-   when the snapshot says `late`, add half a tick to the frame clock's
-   accumulator (`local_snake.gd`, `prediction.ts`), once per half second
-   at most.
+   when a fifth of the snapshots say `late` (averaged over about a
+   second), gain half a tick on the frame clock over a quarter second
+   (`local_snake.gd` `_nudge_phase`, `prediction.ts` `nudgePhase`), once
+   per half second at most.
 
 The web boots Godot into SPECTATE (`watchWorld`: full bootstrap, no spawn);
 the React pre-game dialog then joins the game on the page's own socket and

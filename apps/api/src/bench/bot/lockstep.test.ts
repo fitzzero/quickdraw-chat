@@ -36,6 +36,7 @@ import {
   PLAYBACK_WARP,
 } from "./playback-delay.js";
 import { MAX_EXTRAPOLATION_TICKS } from "./interpolation.js";
+import { LATE_RATE_GAIN, NUDGE_LATE_RATE, NUDGE_WARP } from "./prediction.js";
 
 const SCRIPTS = "../../../../game/godot/scripts/";
 
@@ -70,6 +71,13 @@ describe("the Godot client's constants", () => {
     expect(gd("PLAYBACK_MAX_LAG_TICKS")).toBe(PLAYBACK_MAX_LAG_TICKS);
     expect(gd("PLAYBACK_MAX_AHEAD_TICKS")).toBe(PLAYBACK_MAX_AHEAD_TICKS);
     expect(gd("PLAYBACK_MAX_FRAME_MS")).toBe(PLAYBACK_MAX_FRAME_MS);
+  });
+
+  it("local_snake.gd nudges its frame clock on the late rate prediction.ts does", () => {
+    const gd = gdConsts("local_snake.gd");
+    expect(gd("LATE_RATE_GAIN")).toBe(LATE_RATE_GAIN);
+    expect(gd("NUDGE_LATE_RATE")).toBe(NUDGE_LATE_RATE);
+    expect(gd("NUDGE_WARP")).toBe(NUDGE_WARP);
   });
 
   it("snapshot_decoder.gd reads the layout snapshotCodec.ts packs", () => {

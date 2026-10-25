@@ -105,9 +105,12 @@ stepping; the client corrects only that frame's change of intent. A client
 whose frames land within a render frame (about 17 ms) of the server's tick
 coasted often before the clients re-phased (14–28 % of its ticks in a real
 browser): the tick's snapshot after a late frame steered says `late`, and
-the client moves its frame clock half a tick earlier, at most once per
-half second (`inputQueue.nudgesPerMin` per client). So `starvedRate` now means a
-stall or a slow clock, not a phase: a few percent at most on a clean link.
+a client that hears it on a fifth of its snapshots (averaged over about a
+second) moves its frame clock half a tick earlier, gained over a quarter
+second, at most once per half second (`inputQueue.nudgesPerMin` per
+client). Jitter alone stays under that rate, so it does not walk the
+phase around the tick. So `starvedRate` now means jitter, a stall or a
+slow clock, not a phase: a few percent on a clean link.
 What is never cheap is the ack parting from the steps
 (`stepAckMismatchPerMin`): the queue's first version let a coast be "owed"
 when the stood-in frame came alone, stepped that frame anyway and skipped a
