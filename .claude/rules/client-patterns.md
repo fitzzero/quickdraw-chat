@@ -135,8 +135,8 @@ not an engine embed, in three layers:
   circle texture, particles for the food and the body segments, the grid
   built once per change of the bounds, a label laid out only when its name
   changes). `stats().geometryBuilds` counts the builds; the client sends it
-  in its bench telemetry, and the browser tier's scorecard gates it once
-  its gates land (`browser-tier-gates-on-frame-time-and-long-tasks-and-a-bench`).
+  in its bench telemetry, and the browser tier's scorecard gates it
+  (`tier2.geometryBuildsPerMin` must be 0; `bun run bench:web`).
 
 A party (host mode) is the same client over the host's link: `useParty`
 hosts or joins on the page's socket, and `PartyWire.tsx` bridges the

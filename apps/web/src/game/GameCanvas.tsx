@@ -182,6 +182,7 @@ export function GameCanvas({
       {stats !== null && (
         <Box
           component="pre"
+          data-testid="game-stats"
           sx={{
             position: "absolute",
             left: 12,

@@ -278,9 +278,13 @@ behavior and a trace around the shared package's `GameClientCore`,
 `packages/shared/src/game/client/`: the netcode the web page runs, one
 implementation measured where it is played) over protocol v5 through a
 latency proxy against a live-loop server; a party scenario runs them over
-loopback links to a host in process. See `docs/netcode-bench.md`,
-baselines in `bench-baselines/`, and the `/netcode-rd` skill for the
-hypothesis loop.
+loopback links to a host in process. The browser tier (`bun run
+bench:web`, `apps/bench-web`) plays the real page and gates what players
+feel: frame time p95 and p99 against an acceptance per display rate, long
+tasks and geometry builds at zero, on both GPU backends; `bun run
+bench:play -- --url <game url>` judges a deployed instance the same way
+from a desk. See `docs/netcode-bench.md`, baselines in `bench-baselines/`,
+and the `/netcode-rd` skill for the hypothesis loop.
 
 ## Scaling note
 

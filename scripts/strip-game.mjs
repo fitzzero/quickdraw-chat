@@ -217,6 +217,8 @@ editJson("package.json", (data) => {
   delete data.scripts?.["bench:netcode"];
   delete data.scripts?.["bench:server"];
   delete data.scripts?.["bench:compare"];
+  delete data.scripts?.["bench:play"];
+  delete data.scripts?.["bench:web"];
   delete data.scripts?.["check:web"];
 });
 
@@ -312,6 +314,7 @@ const LEFTOVER_PATTERN = [
   "definitionService",
   "GameCanvas",
   "bench:netcode",
+  "bench:play",
   "multiplayer game",
   "Discord Activity",
   "high-scores",

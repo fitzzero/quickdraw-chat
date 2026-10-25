@@ -15,8 +15,8 @@
  * circle polygons a frame in immediate-mode draw calls; a port that does
  * the same in another engine gives the same stalls. `stats().geometryBuilds`
  * counts the builds; the client sends it in its bench telemetry, and the
- * browser tier's scorecard gates it (it must sit still after the first
- * second) once the pack's gates child lands.
+ * browser tier's scorecard gates it: `tier2.geometryBuildsPerMin` must be 0
+ * (a build within the measured window is per-frame geometry).
  */
 
 import type { FoodDTO, GamePlayerMeta, RenderedSnake } from "@project/shared";
