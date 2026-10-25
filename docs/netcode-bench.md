@@ -11,6 +11,7 @@ netcode R&D loop (`.claude/skills/netcode-rd`), useful for any perf work.
 bun run bench:netcode                          # baseline-3p-100ms, 1 run
 bun run bench:netcode -- --scenario control-0ms --duration 15
 bun run bench:netcode -- --all --runs 3        # full sweep, median-of-3 (~45 min)
+bun run bench:netcode -- --all --runs 3 --remotes present --label remotes-present   # the remotes at the present (A/B)
 bun run bench:compare bench-baselines/baseline-3p-100ms.json bench-results/baseline-3p-100ms/<card>.json
 ```
 
@@ -188,7 +189,10 @@ against which baselines: `g3-adaptive-delay.json`, the adaptive delay
 against the baselines before it; `g1b-stand-in.json`, the input-queue fix
 against `g4-final`; `len-tenths.json`, the float32 length against
 `g1b-stand-in`, on another machine; `g1c-phase.json`, the input phase
-against `len-tenths`.
+against `len-tenths`; `remotes-present.json`, the remotes at the present
+(`--remotes present`) against `g1c-phase`, the mode's measured trade, and
+`remotes-playback.json`, the default mode of the same card against
+`g1c-phase`, on another machine.
 
 ## Honest limits
 
@@ -223,6 +227,5 @@ includes them.
   `packages/shared/src/game/client/prediction.ts` / `interpolation.ts` (the
   bots and the web page run them; server changes in
   `packages/shared/src/game/`, the sim and its loop, or
-  `apps/api/src/services/game/`), benchmark, and only port winners to
-  GDScript. Keep the ports and `local_snake.gd` /
-  `remote_snake.gd` in lockstep otherwise.
+  `apps/api/src/services/game/`), benchmark, and keep winners: there is one
+  client, so nothing to port.

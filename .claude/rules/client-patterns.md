@@ -123,7 +123,7 @@ not an engine embed, in three layers:
   `requestAnimationFrame` loop. Each display frame the core steps the local
   predictor on its own 20 Hz accumulator (sending each step's input) and
   renders every remote at the render tick; the shell points the camera (the
-  local head, or main.gd's spectate target) and hands the frame to the
+  local head, or the spectate camera's target) and hands the frame to the
   renderer. No fixed-rate physics timer: the local snake moves at the
   display's rate.
 - **The renderer** is one interface (`render/renderer.ts`) and one
@@ -155,7 +155,9 @@ channel or event API yet. The local snake is placed by the first own
 snapshot after the page's join, never from the bootstrap, which may be
 ticks old. `?gpu=webgl|webgpu` picks the backend (Pixi's default is WebGL;
 both are measured), `?debug=1` shows the renderer's stats (the backend, fps, the main thread's
-work per frame as mean/p99 ms, draw calls, builds, the newest tick), and
+work per frame as mean/p99 ms, draw calls, builds, the newest tick),
+`?remotes=playback|present` picks where the other snakes render (the
+shared client's `RemotesMode`, game-patterns.md; A/B play), and
 `?bench=1` is
 the bench's mode: a connection of the client's own to the bench server,
 telemetry to `window.QuickdrawBench`.

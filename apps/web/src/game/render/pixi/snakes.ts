@@ -1,5 +1,5 @@
 /**
- * One snake as drawn (snake_body.gd): its segments as pooled particles in
+ * One snake as drawn: its segments as pooled particles in
  * one particle container (the glows first, under the bodies), its head as a
  * few sprites in a container the renderer keeps in a layer above every
  * snake's segments (so all heads and labels batch together), its name as a
@@ -64,7 +64,7 @@ export class SnakeView {
       return s;
     };
     const { headRadius } = tunables;
-    // snake_body.gd _draw's head: boost flare, glow, head, two eyes
+    // the head: boost flare, glow, head, two eyes
     this.flare = sprite(headRadius + 6, 0.25);
     this.flare.visible = false;
     this.headGlow = sprite(headRadius + 3, 0.35);
@@ -127,9 +127,9 @@ export class SnakeView {
   }
 
   /**
-   * Grows or shrinks the pools to `n` segments (snake_body.gd draws
-   * int(length) of them) and lays the container's children out again: the
-   * glows first, so every body draws over every glow.
+   * Grows or shrinks the pools to `n` segments (`int(length)` of them are
+   * drawn) and lays the container's children out again: the glows first,
+   * so every body draws over every glow.
    */
   private fit(n: number): void {
     if (this.glows.length === n) return;

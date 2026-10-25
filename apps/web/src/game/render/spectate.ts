@@ -1,5 +1,5 @@
 /**
- * The spectate camera (the port of main.gd's): before the player joins, and
+ * The spectate camera: before the player joins, and
  * after a death, the camera drifts toward the busiest part of the world so
  * the pre-game dialog sits over live action. Engine-neutral: the shell
  * advances it and hands the renderer its position as the camera target.
@@ -37,7 +37,7 @@ export class SpectateCamera {
   }
 
   /**
-   * main.gd _update_spectate_target: focus the snake with the most company
+   * Focus the snake with the most company
    * (a density score), with hysteresis so the camera does not flick between
    * similar clusters.
    */
@@ -65,7 +65,7 @@ export class SpectateCamera {
     }
   }
 
-  /** main.gd _process: the camera pans toward its target. */
+  /** The camera pans toward its target. */
   public advance(deltaS: number): void {
     const k = Math.min(1, deltaS * SPECTATE_PAN_SPEED);
     this.position.x += (this.target.x - this.position.x) * k;

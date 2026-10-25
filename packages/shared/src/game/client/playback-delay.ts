@@ -1,8 +1,7 @@
 /**
  * PlaybackDelay (netcode variant: HYPOTHESES.md #3 — adaptive interpolation
  * delay). How far behind the world clock a client renders its remote
- * snakes: as little as its own connection allows. Pinned to game.gd's
- * playback section: keep the two in lockstep.
+ * snakes: as little as its own connection allows.
  *
  * Each snapshot arrival updates an exponentially weighted mean (k = 2/201,
  * about the last 200 arrivals: 10 s at 20 Hz) of the time between

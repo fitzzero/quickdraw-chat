@@ -1,5 +1,5 @@
 /**
- * The food (food_layer.gd): one particle per item in two particle
+ * The food: one particle per item in two particle
  * containers (the glows under the bodies), from the one circle texture.
  * Items are added and removed as the food held changes; per frame only the
  * pulse writes each particle's scale.
@@ -13,7 +13,7 @@ import { scaleFor } from "./textures";
 interface FoodView {
   glow: Particle;
   body: Particle;
-  /** food_layer.gd: 3 + v * 1.5 */
+  /** A food item's radius: 3 + v * 1.5 */
   radius: number;
   /** The frame that last saw the item; an item a frame did not see is gone. */
   stamp: number;
@@ -42,7 +42,7 @@ export class FoodLayer {
   /** The food held now: adds what is new, drops what is gone, pulses the rest. */
   public sync(food: readonly FoodDTO[], nowS: number): void {
     this.stamp += 1;
-    // food_layer.gd: wobble = 1 + 0.12 * sin(pulse), the pulse at 2 rad/s
+    // wobble = 1 + 0.12 * sin(pulse), the pulse at 2 rad/s
     const wobble = 1 + 0.12 * Math.sin(nowS * 2);
     for (const item of food) {
       let view = this.items.get(item.id);

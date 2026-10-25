@@ -16,7 +16,7 @@ import { GAME_INPUT_FRAMES, GAME_TICK_RATE } from "../../types/game.js";
 import type { MovementTunables } from "../movement.js";
 import { stepMovement } from "../movement.js";
 
-// Constants pinned to local_snake.gd
+// The prediction's constants
 const HARD_SNAP_DIST = 64.0;
 const CORRECTION_HALF_LIFE = 0.08;
 /** The late-rate average's gain per snapshot: about a second of them. */
@@ -69,7 +69,7 @@ export class LocalPredictor {
     this.simLen = tunables.startLength;
   }
 
-  /** local_snake.gd init_from_snap */
+  /** Starts the prediction from the snake's first own snapshot. */
   public initFromSnap(snap: PlayerSnap): void {
     this.simPos = { x: snap.x, y: snap.y };
     const mag = Math.hypot(snap.dx, snap.dy) || 1;
@@ -88,12 +88,12 @@ export class LocalPredictor {
   }
 
   /**
-   * local_snake.gd _physics_process: advance the fixed-step accumulator
-   * (sampling input + stepping the local sim per 50ms boundary), then decay
-   * the correction offset and compute the interpolated render position.
+   * Advances the fixed-step accumulator (sampling input + stepping the
+   * local sim per 50ms boundary), then decays the correction offset and
+   * computes the interpolated render position.
    * Returns one message per step taken this render frame, to be sent: the
    * step's frame last, with up to three unacknowledged frames before it
-   * (local_snake.gd _step_once sends the same).
+   * (each step sends the same).
    */
   public renderFrame(
     deltaS: number,
@@ -127,7 +127,7 @@ export class LocalPredictor {
     return { ...this.renderedPos };
   }
 
-  /** local_snake.gd _step_once */
+  /** One predicted step. */
   private stepOnce(input: { dx: number; dy: number; boost: boolean }): void {
     const mag = Math.hypot(input.dx, input.dy);
     const aim = mag > 1e-6 ? { x: input.dx / mag, y: input.dy / mag } : { ...this.simDir };
@@ -155,7 +155,7 @@ export class LocalPredictor {
   }
 
   /**
-   * local_snake.gd _nudge_phase. The server says `late` when it adopted a
+   * The phase nudge. The server says `late` when it adopted a
    * frame of ours that landed after a coast stood in for it. When a fifth
    * of the snapshots say so (averaged over about a second), our frames
    * reach it just after its tick: move the frame clock half a tick earlier,
@@ -178,7 +178,7 @@ export class LocalPredictor {
     return true;
   }
 
-  /** local_snake.gd on_server_snap. Returns the applied correction. */
+  /** Reconciles against the server's own snapshot. Returns the applied correction. */
   public onServerSnap(snap: PlayerSnap): Correction {
     while (this.pending.length > 0 && (this.pending[0]?.seq ?? Infinity) <= snap.ack) {
       this.pending.shift();

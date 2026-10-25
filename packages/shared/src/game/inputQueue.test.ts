@@ -254,7 +254,7 @@ describe("InputQueue", () => {
         while (due >= 1) {
           due -= 1;
           // the client numbers its next frame after an ack that ran past its
-          // newest (local_snake.gd, prediction.ts)
+          // newest (prediction.ts)
           if (queue.lastSeq > next) next = queue.lastSeq;
           if (!queue.push(frame(++next))) refused++;
         }

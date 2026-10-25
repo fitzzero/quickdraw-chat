@@ -74,7 +74,7 @@ export interface GameRenderer {
   setPlayers(players: Iterable<GamePlayerMeta>): void;
   /** One display frame. */
   draw(frame: RenderFrame): void;
-  /** A snake's body history starts over at its head (local_snake.gd reset_path: a hard snap teleported it). */
+  /** A snake's body history starts over at its head (a hard snap teleported it). */
   resetPath(id: string): void;
   /** The world point under a client (viewport) point: what input aims at. */
   worldPointAt(clientX: number, clientY: number): { x: number; y: number };

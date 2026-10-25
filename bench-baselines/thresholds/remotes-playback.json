@@ -1,0 +1,18 @@
+{
+  "description": "This card's default mode (card remote-snakes-at-the-present-dead-reckoning-to-the-world-clo, `--remotes playback`, the interpolator now folding a snapshot's arrival into its glide) against the g1c-phase baselines, which were made on another machine (reaper1). Nothing moves on purpose. On reaper0 three scenarios fail the defaults: spectator-plus-2p ownVsRemotePx p95 48.9 to 57.7 px, drift-slow-client shapeErrorPx p95 3.3 to 3.9 px, fps-varying-3p 4.0 to 5.2 px. The code before this card (b81c0a3) run three times on reaper0 the same hour measures 56.2, 4.1 and 4.7 px there, the compare between it and this card's playback passes on all three with every delta within the run spread, and the baseline against b81c0a3 fails spectator-plus-2p the same way (56.2 px): the machine's move, not the fold. So the floors are 10 px for ownVsRemotePx p95 and 1.5 px for shapeErrorPx p95. The others restate DEFAULT_THRESHOLDS, since this file replaces the whole absoluteFloor map. Use it for this card's playback runs against the g1c-phase baselines only, and the default thresholds against the baselines this card made.",
+  "absoluteFloor": {
+    "divergence.remoteVsRemotePx.p95": 0.5,
+    "divergence.remoteVsRemotePx.p50": 0.5,
+    "divergence.ownVsRemotePx.p95": 10,
+    "smoothness.teleportsPerMin": 0.2,
+    "smoothness.jerkRms": 25,
+    "smoothness.hardSnapsPerMin": 0.2,
+    "packet.gapRate": 0.005,
+    "packet.inputAckRttMs.p95": 3,
+    "fidelity.shapeErrorPx.p95": 1.5,
+    "fidelity.renderLatencyMs": 5,
+    "server.tickDurMs.p95": 0.05,
+    "server.inputQueue.depthP95": 1,
+    "smoothness.stepCorrectionsPerMin": 1
+  }
+}
