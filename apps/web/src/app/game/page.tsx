@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { GameSurface } from "../../components/game";
-import { GodotCanvas } from "../../components/game/GodotCanvas";
+import { GameCanvas } from "../../game";
 import { GLOBAL_WORLD_SLUG, type QuickdrawHostConfig } from "@project/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -53,10 +53,10 @@ function GamePageInner(): React.ReactElement {
 
 /**
  * Netcode-bench mode (dev-gated, driven by apps/bench-web via Playwright):
- * bare Godot canvas, no dialogs/HUD/React socket. The page defines the
- * telemetry sink + bench config BEFORE the engine boots; Godot connects
- * through the latency proxy (`benchApi`) with dev-credential auth and
- * spawns itself (autoSpawn), then streams telemetry into
+ * the bare game client, no dialogs, HUD or page socket. The page defines the
+ * telemetry sink BEFORE the client starts; the client opens a connection of
+ * its own through the latency proxy (`benchApi`) with dev-credential auth,
+ * joins and respawns itself, and streams telemetry into
  * window.QuickdrawBench for the runner to drain.
  */
 function BenchSurface({ apiUrl, userId }: { apiUrl: string; userId: string }): React.ReactElement {
@@ -72,12 +72,8 @@ function BenchSurface({ apiUrl, userId }: { apiUrl: string; userId: string }): R
         return drained;
       },
     };
-    window.QuickdrawBenchConfig = { autoSpawn: true, devUserId: userId };
   }
 
-  const hostConfig = React.useMemo<QuickdrawHostConfig>(
-    () => ({ apiUrl, worldSlug: GLOBAL_WORLD_SLUG, authToken: null }),
-    [apiUrl],
-  );
-  return <GodotCanvas hostConfig={hostConfig} />;
+  const bench = React.useMemo(() => ({ apiUrl, userId }), [apiUrl, userId]);
+  return <GameCanvas bootstrap={null} bench={bench} />;
 }

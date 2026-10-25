@@ -4,17 +4,17 @@ import * as React from "react";
 import { Box, CircularProgress, Fade, LinearProgress, Typography } from "@mui/material";
 import { useTranslations } from "next-intl";
 import { useSlowLoadHint } from "../../hooks";
-import type { GodotLoadState } from "./GodotCanvas";
+import type { GameLoadState } from "../../game/types";
 
 export interface GameLoadingProps {
-  state: GodotLoadState;
+  state: GameLoadState;
 }
 
 /**
- * DOM loading overlay above the Godot canvas: engine download progress →
- * connecting → fades out when the game reports ready. The wrapper owning
- * loading UI (instead of Godot's built-in splash) is the template's
- * "web wrapper does the heavy lifting" pattern.
+ * DOM loading overlay above the game canvas: the client's chunk loading →
+ * connecting → fades out when the game reports ready (the first snapshot).
+ * The wrapper owning the loading UI is the template's "web wrapper does the
+ * heavy lifting" pattern.
  */
 export function GameLoading({ state }: GameLoadingProps): React.ReactElement {
   const t = useTranslations("GamePage");

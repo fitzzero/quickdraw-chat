@@ -20,7 +20,7 @@ const STACK_CHIPS = [
   "Socket.IO",
   "Prisma",
   // ── quickdraw-game:start ──
-  "Godot",
+  "PixiJS",
   // ── quickdraw-game:end ──
 ];
 

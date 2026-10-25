@@ -138,6 +138,12 @@ export interface Scenario {
   respawnDelayMs: number;
   /** GameTunables overrides (npcCount etc.) — validated server-side */
   tunables?: Record<string, number>;
+  /**
+   * The tiers that run it (default both). A render-stress scenario is the
+   * browser tier's alone: the headless sweep (`--all`) skips it, and it
+   * needs no baseline.
+   */
+  tiers?: readonly (1 | 2)[];
   clients: BotSpec[];
   /** A party instead of the server's world: its bots play over its links, and take no `net`. */
   party?: PartySpec;
