@@ -25,7 +25,8 @@
   also ignore a snapshot older than the newest they saw (a party's
   unordered `fast` channel can deliver one; TCP never does), instead of
   reconciling the local snake a step back and forward again. The web's
-  `index.pck` is exported again (Godot 4.7.2).
+  `index.pck` is exported again (Godot 4.7.2). The netcode baselines are
+  this change's sweep (label `g1b-stand-in`), with the two new metrics.
 
 ## quickdraw 5.1.3 (2026-10-23)
 

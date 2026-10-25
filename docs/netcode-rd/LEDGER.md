@@ -61,7 +61,7 @@ Template:
   boosting within one segment of the minimum length corrects exactly 7 px
   a step (the server decides boost from its fractional length, the client
   from the integer on the wire: a seam of its own, the card
-  `boost-near-the-minimum-length-the-client-predicts-a-base-step-wher`),
+  `boost-near-the-minimum-length-the-client-predicts-a-base-ste`),
   so the client count is not must-be-zero; the server metric is the exact
   gate.
 - Browser tier (Chromium on the 144 Hz display of the desktop, 60 s each,
@@ -89,7 +89,34 @@ Template:
   re-phasing is the follow-up card
   `input-phase-a-client-whose-frames-land-just-after-the-tick-m`.
 - Scenarios (the sweep, `--all --runs 3`, label `g1b-stand-in`, against the
-  committed baselines): SWEEP_RESULTS
+  committed baselines): against the committed baselines (`g4-final`, `g6-final` for the parties):
+  `server.inputQueue.stepAckMismatchPerMin` 0.00 in every scenario, worst
+  run 0 everywhere. Eleven scenarios pass; two fail `fidelity.shapeErrorPx`
+  p95 by 0.7–0.9 px, each on a client's OWN snake and nowhere else:
+  spectator-plus-2p 3.07 → 3.80 (bot-b→bot-b 12.6 → 16.0 px) and
+  party-3p-unfair 4.07 → 5.02 (host→host 0.4 → 9.7 px, on the in-process
+  link). Both are the trade: a client the server steers one tick late
+  (the late regime) turns one tick before the server's track does, and a
+  client at a round trip under a tick now predicts one step ahead of the
+  server (the stand-in consumed its next seq, it numbered past it) where
+  the H5 queue had it stepping the same frame twice. Remote entities and
+  the spectator hold at 0.4–0.8 px. drift-slow-client, which failed the
+  same metric in the first sweep (4.4 → 7.8 px) before the clients
+  numbered past a leading ack, passes (renderLatency +7.7 %, warn).
+  Improved: control-0ms ownVsRemotePx p95 26.5 → 20.5 px, bursty-3p
+  jerkRms −12 %, jitter-heavy-3p gapRate 0.01 → 0 and inputAckRtt p95
+  −7 % (the order-preserving proxy), party-3p-lossy remoteVsRemotePx p50
+  −16 %; tick p95 −44…−59 % everywhere (the machine). `starvedRate` per
+  scenario, now the only late-frame path: 0.1–4 % where no client sits on
+  the tick boundary, 9–31 % where one does (baseline-3p-100ms 12.7,
+  jitter-heavy-3p 12.5, mixed-3p 25.7, drift-slow-client 31.0,
+  party-3p-lossy 23.2). `stepCorrectionsPerMin` (8 px or more, worst
+  client) 0–5 a minute on the proxied scenarios, 10–11 on the two 0 ms
+  clients (control-0ms bot-a, drift-slow-client bot-a: the one surge per
+  regime entry when a stand-in runs ahead of a client at 0 ms, which the
+  phase card removes) and 11–19 on the party bots over their lossy,
+  unordered links. `bench-baselines/thresholds/g1b-stand-in.json` raises
+  the shape-error floor to 1 px for this verdict only.
 - Baselines: all thirteen scenarios are this sweep's (label `g1b-stand-in`).
 
 ## 2026-10-23 — Party worlds over peer links (the pack's G6) [KEPT]
