@@ -117,13 +117,12 @@ spawns the local snake when its id appears in a snapshot
 room-anchored: a player stays in the sim while any socket of theirs is in
 the world's room; gameService's own `onRoomLeave` removes the player (and
 sends `playerLeft`) when the last one leaves or disconnects, in every
-server the service runs in (the API, the test app, the bench). A party
-still boots the Godot embed (a second socket, one user) until the client
-plays parties too.
+server the service runs in (the API, the test app, the bench). A party is
+the same client over the host's link, on the same socket.
 
 A server restart is a new world whose ticks start over: the clients (the
-page's, the Godot embed's, the bench bots') tell it from a network blip by
-the hello's `serverId`. Every hello anchors the world clock again on the next
+page's, the bench bots') tell it from a network blip by the hello's
+`serverId`. Every hello anchors the world clock again on the next
 snapshot; another server's also forgets what the playback delay learned of
 the link (a blip keeps it).
 
@@ -197,12 +196,19 @@ place of them: one member is served by the server or by a host, never both.
   reaches the sim no sooner than its players', and its snapshots arrive no
   sooner. `?fairLink=off` on `/game` turns it off for A/B play; the HUD
   shows each player's round trip and the lag.
-- **Godot**: the page puts the party's code in `QuickdrawHost.party` and
-  boots the engine again (the canvas is keyed by user and party).
-  `game.gd` calls `joinParty`, subscribes to `partyEvents` and `partyWorld`
-  with the party's room (the reference client links to `host_of(room)`
-  itself), sends `partyInput` the same way, and respawns with `playParty`.
-  Never call `peer_link` from app code.
+- **The web client**: the page's `useParty` hosts or joins on the page's
+  socket, and the same game client plays the party (the canvas is keyed by
+  user and world): `PartyWire.tsx` takes `partyWorld` and `partyEvents`
+  with `useStream` and sends `partyInput` with `useChannel`, which reach
+  the room's host over the link the typed client opens, and hands each
+  item to the client's `PartyTransport`, which tells a keyframe (a seed)
+  from a snapshot by its send time (a seed has none); a keyframe ask holds
+  the world feed off for a moment, so its next subscription answers a fresh
+  seed (a `quickdraw-5.0 finding`, with the bridge itself: no React-free
+  API for a host-served member yet, so the 20 Hz feed crosses a React
+  component, and no refresh for a stream); the dialog respawns with
+  `playParty`. Never open a peer link or speak host mode's framing from app
+  code.
 - **Limits**: a party runs the default tunables (`PARTY_TUNABLES`; admin
   edits of the snake definition reach the server's world only). A server
   restart ends every party (hosts are held in memory): `ensureGlobalWorld`

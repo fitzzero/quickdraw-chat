@@ -10,11 +10,9 @@ import {
   GLOBAL_WORLD_SLUG,
   type GameDeathEvent,
   type HighScoreEntry,
-  type QuickdrawHostConfig,
   type WorldBootstrap,
 } from "@project/shared";
-import { GameCanvas, type GameLoadState } from "../../game";
-import { GodotCanvas } from "./GodotCanvas";
+import { GameCanvas, type GameLoadState, type GamePartyMode } from "../../game";
 import { GameLoading } from "./GameLoading";
 import { GameHud } from "./GameHud";
 import { GameChatOverlay } from "./GameChatOverlay";
@@ -28,8 +26,6 @@ const PENDING_START_KEY = "game:pendingStart";
 const RETURN_TO_KEY = "returnTo";
 
 interface GameSurfaceProps {
-  /** Written to window.QuickdrawHost before the engine boots. */
-  hostConfig: QuickdrawHostConfig;
   /** Offer the signed-out guest flow (off inside the Discord Activity). */
   guestFlow: boolean;
   /** Guest session endpoint (absolute or proxy-relative). */
@@ -60,45 +56,29 @@ const TOP_SCORES_PAYLOAD = { worldId: GLOBAL_WORLD_ID, limit: 5 };
  *
  * A party (host mode) is the same surface over another world: the dialog
  * hosts one (this page then runs its world, usePartyHost) or joins one by
- * its code. A party still boots the Godot embed (QuickdrawHost.party) until
- * the TypeScript client plays parties too.
+ * its code, and the same client plays it over the host's link (its feeds
+ * through PartyWire, on this socket).
  */
 export function GameSurface({
-  hostConfig,
   guestFlow,
   guestAuthUrl,
   fairLink = true,
 }: GameSurfaceProps): React.ReactElement {
   const session = useGameSession(guestFlow, guestAuthUrl, fairLink);
   const partyCode = session.party.party?.code ?? null;
-  // the engine reads it once, at boot: entering or leaving a party boots it again
-  const engineConfig = React.useMemo<QuickdrawHostConfig>(
-    () => ({ ...hostConfig, party: partyCode === null ? null : { code: partyCode } }),
-    [hostConfig, partyCode],
-  );
 
   return (
     <Box sx={{ position: "relative", flex: 1, minHeight: 0, overflow: "hidden" }}>
       {session.bootCanvas ? (
         <>
-          {/* Keyed by user: creating a guest session must reboot the engine
-              so its websocket handshake carries the new cookie, and a
-              party is another world to join */}
-          {partyCode === null ? (
-            <GameCanvas
-              key={session.canvasKey}
-              bootstrap={session.bootstrap}
-              onStateChange={session.setLoadState}
-            />
-          ) : (
-            // a party still plays in the Godot embed until the TypeScript
-            // client plays parties too
-            <GodotCanvas
-              key={session.canvasKey}
-              hostConfig={engineConfig}
-              onStateChange={session.setLoadState}
-            />
-          )}
+          {/* Keyed by user and world: a guest session starts the client over
+              as the new user, and a party is another world to play in */}
+          <GameCanvas
+            key={session.canvasKey}
+            bootstrap={session.bootstrap}
+            party={session.partyMode}
+            onStateChange={session.setLoadState}
+          />
           <GameLoading state={session.loadState} />
         </>
       ) : (
@@ -123,6 +103,19 @@ export function GameSurface({
 /** The server's world, as a run's world: a party's is its world id. */
 const WORLD_KEY = "world";
 
+/** The world the client draws from: the page's watchWorld join, or nothing in a party (its host sends the world). */
+function worldBootstrapOf(
+  inParty: boolean,
+  joined: WorldBootstrap | undefined,
+): WorldBootstrap | null {
+  return inParty ? null : (joined ?? null);
+}
+
+/** The party for the client: its world, and whether its feeds may subscribe (a host's page serves first). */
+function partyModeOf(party: PartyState | null, serving: boolean): GamePartyMode | null {
+  return party === null ? null : { worldId: party.worldId, ready: serving };
+}
+
 /** A run: the world the user asked to play in, and their last death there. */
 interface Run {
   readonly world: string;
@@ -142,8 +135,10 @@ function runOf(
 interface GameSession {
   loadState: GameLoadState;
   setLoadState: (state: GameLoadState) => void;
-  /** The world the page's watchWorld join answered; the game client draws from here. */
+  /** The world the page's watchWorld join answered; the game client draws from here (null in a party). */
   bootstrap: WorldBootstrap | null;
+  /** The party the page is in, for the client: its world, and whether its feeds may subscribe. */
+  partyMode: GamePartyMode | null;
   bootCanvas: boolean;
   canvasKey: string;
   showHud: boolean;
@@ -289,7 +284,8 @@ function useGameSession(
   return {
     loadState,
     setLoadState,
-    bootstrap: watch.data ?? null,
+    bootstrap: worldBootstrapOf(inParty, watch.data),
+    partyMode: partyModeOf(party, partySession.serving),
     // Guest surfaces boot straight into anonymous spectate; authed surfaces
     // (Discord Activity) wait for their token auth
     bootCanvas: guestFlow || !!userId,
@@ -412,8 +408,7 @@ function buildDialog(inputs: DialogInputs): React.ReactElement | null {
 }
 
 function focusCanvas(): void {
-  // the game client's canvas, or a party's Godot embed
-  (document.getElementById("game-canvas") ?? document.getElementById("godot-canvas"))?.focus();
+  document.getElementById("game-canvas")?.focus();
 }
 
 async function createGuestSession(url: string, name: string): Promise<boolean> {

@@ -6,7 +6,7 @@
 import dynamic from "next/dynamic";
 
 export type { GameLoadState } from "./types";
-export type { GameBenchMode } from "./GameCanvas";
+export type { GameBenchMode, GamePartyMode } from "./GameCanvas";
 
 export const GameCanvas = dynamic(() => import("./GameCanvas").then((m) => m.GameCanvas), {
   ssr: false,

@@ -138,6 +138,13 @@ not an engine embed, in three layers:
   in its bench telemetry, and the browser tier's scorecard gates it once
   its gates land (`browser-tier-gates-on-frame-time-and-long-tasks-and-a-bench`).
 
+A party (host mode) is the same client over the host's link: `useParty`
+hosts or joins on the page's socket, and `PartyWire.tsx` bridges the
+host-served feeds (`useStream` of `partyWorld` and `partyEvents`,
+`useChannel` of `partyInput`) into the client's `PartyTransport`, under a
+`quickdraw-5.0 finding` marker: the typed client has no React-free API for
+a host-served member yet. The game client itself never opens a link.
+
 One socket per user: the page's. `GameSurface` joins the world's room
 (`useJoin(watchWorld)`, and `joinGame` while the user plays), and the
 client's transport (`wire/pageTransport.ts`) subscribes the world stream

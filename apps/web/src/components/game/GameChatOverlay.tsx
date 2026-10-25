@@ -47,7 +47,7 @@ export function GameChatOverlay({ chatId, partyCode }: GameChatOverlayProps): Re
   const handleMinimize = (): void => {
     setOpen(false);
     // Hand keyboard focus back to the game
-    (document.getElementById("game-canvas") ?? document.getElementById("godot-canvas"))?.focus();
+    document.getElementById("game-canvas")?.focus();
   };
 
   if (!open) {

@@ -7,20 +7,33 @@ import {
   createQuickdrawConnection,
   type QuickdrawConnection,
 } from "@fitzzero/quickdraw-core/client/core";
-import { DEFAULT_TUNABLES, type GameTunables, type WorldBootstrap } from "@project/shared";
+import {
+  DEFAULT_TUNABLES,
+  PARTY_TUNABLES,
+  type GameTunables,
+  type WorldBootstrap,
+} from "@project/shared";
 import { qd } from "../lib/quickdraw";
 import { BenchTelemetry } from "./bench";
+import { PartyWire } from "./PartyWire";
 import { GAME_BACKGROUND_CSS } from "./render/palette";
 import { createPixiRenderer } from "./render/pixi";
 import type { GameRenderer, RenderBackend } from "./render/renderer";
 import { GameShell, type GameStats } from "./shell";
 import type { GameLoadState } from "./types";
 import { PageTransport } from "./wire/pageTransport";
+import { PartyTransport } from "./wire/partyTransport";
 
 /** Bench mode (`?bench=1`): a connection of the client's own, to the bench server, as this user. */
 export interface GameBenchMode {
   apiUrl: string;
   userId: string;
+}
+
+/** A party (host mode): its world, and whether its feeds may subscribe yet (a host's page serves first). */
+export interface GamePartyMode {
+  worldId: string;
+  ready: boolean;
 }
 
 export interface GameCanvasProps {
@@ -32,11 +45,16 @@ export interface GameCanvasProps {
   bootstrap: WorldBootstrap | null;
   onStateChange?: (state: GameLoadState) => void;
   bench?: GameBenchMode;
+  /** The party the page is in: the world comes from its host, not the server. */
+  party?: GamePartyMode | null;
 }
 
 const TUNABLES_KEY = { type: "tunables", key: "snake" };
 /** Bench mode respawns the snake itself this long after a death (the Godot Bench autoload did). */
 const BENCH_RESPAWN_MS = 750;
+/** A party runs the default tunables (PARTY_TUNABLES over them): no definition to read. */
+const PARTY_GAME_TUNABLES: GameTunables = { ...DEFAULT_TUNABLES, ...PARTY_TUNABLES };
+const PARTY_BOUNDS = { w: PARTY_GAME_TUNABLES.worldWidth, h: PARTY_GAME_TUNABLES.worldHeight };
 
 /**
  * The game, drawn in the page: the shared netcode core and a PixiJS
@@ -49,24 +67,43 @@ export function GameCanvas({
   bootstrap,
   onStateChange,
   bench,
+  party,
 }: GameCanvasProps): React.ReactElement {
   const hostRef = React.useRef<HTMLDivElement>(null);
   const shellRef = React.useRef<GameShell | null>(null);
   const { connection, userId } = useQuickdraw();
   const [stats, setStats] = React.useState<GameStats | null>(null);
   const flags = React.useMemo(readFlags, []);
+  const partyWorldId = party?.worldId ?? null;
 
   // The movement tunables the server simulates with, so the prediction
   // steps as the server does (game.gd loaded them the same way); bench mode
-  // runs the defaults, as its scenarios do
+  // and a party run the defaults, as the bench's scenarios and a host do
   const definition = qd.definitionService.getDefinition.useQuery(TUNABLES_KEY, {
-    enabled: bench === undefined,
+    enabled: bench === undefined && partyWorldId === null,
   });
-  const settled = bench !== undefined || !definition.isPending;
-  const tunables = React.useMemo(() => tunablesFrom(definition.data?.data), [definition.data]);
-
+  const settled = bench !== undefined || partyWorldId !== null || !definition.isPending;
+  const tunables = React.useMemo(
+    () => (partyWorldId === null ? tunablesFrom(definition.data?.data) : PARTY_GAME_TUNABLES),
+    [definition.data, partyWorldId],
+  );
   const stateChangeRef = React.useRef(onStateChange);
   stateChangeRef.current = onStateChange;
+  // The party's wire: fed by PartyWire below, read by the core like the
+  // server's; a feed the host refused is this client's error
+  const partyTransport = React.useMemo(
+    () =>
+      partyWorldId === null
+        ? null
+        : new PartyTransport({
+            worldId: partyWorldId,
+            bounds: PARTY_BOUNDS,
+            onPlayer: (meta) => shellRef.current?.addPlayer(meta),
+            onError: (error) =>
+              stateChangeRef.current?.({ phase: "error", message: error.message }),
+          }),
+    [partyWorldId],
+  );
   const bootstrapRef = React.useRef(bootstrap);
   bootstrapRef.current = bootstrap;
   const hasBootstrap = bootstrap !== null;
@@ -75,7 +112,8 @@ export function GameCanvas({
 
   React.useEffect(() => {
     const host = hostRef.current;
-    if (host === null || !settled || (benchApi === undefined && !hasBootstrap)) return undefined;
+    const joined = benchApi !== undefined || partyTransport !== null || hasBootstrap;
+    if (host === null || !settled || !joined) return undefined;
     // A canvas of this run's own: destroying a renderer loses its canvas's
     // GL context, so the next client (a tunables change; StrictMode's second
     // mount in development) must not inherit the element
@@ -90,6 +128,7 @@ export function GameCanvas({
           ? null
           : { apiUrl: benchApi, userId: benchUser },
       bootstrap: () => bootstrapRef.current,
+      party: partyTransport,
       tunables,
       flags,
       onState: (state) => stateChangeRef.current?.(state),
@@ -104,7 +143,17 @@ export function GameCanvas({
       client.shell.stop();
       canvas.remove();
     };
-  }, [connection, userId, benchApi, benchUser, hasBootstrap, settled, tunables, flags]);
+  }, [
+    connection,
+    userId,
+    benchApi,
+    benchUser,
+    hasBootstrap,
+    partyTransport,
+    settled,
+    tunables,
+    flags,
+  ]);
 
   // The players every join answers (a reconnect; a new world after a server
   // restart draws new hues, and the snapshots name players by id alone)
@@ -131,6 +180,9 @@ export function GameCanvas({
           {formatStats(stats)}
         </Box>
       )}
+      {party !== undefined && party !== null && partyTransport !== null && (
+        <PartyWire worldId={party.worldId} transport={partyTransport} enabled={party.ready} />
+      )}
     </Box>
   );
 }
@@ -150,6 +202,8 @@ interface ClientInputs {
   userId: string | null;
   bench: GameBenchMode | null;
   bootstrap: () => WorldBootstrap | null;
+  /** The party's transport, fed by PartyWire; null for the server's world. */
+  party: PartyTransport | null;
   tunables: GameTunables;
   flags: { preference?: RenderBackend; debug: boolean };
   onState: (state: GameLoadState) => void;
@@ -158,13 +212,14 @@ interface ClientInputs {
 
 /**
  * The client: the transport over the page's connection (or, in bench mode,
- * one of its own to the bench server), the PixiJS renderer and the shell
- * that drives them; started here, stopped by the effect's cleanup.
+ * one of its own to the bench server; or the party's, fed by the bridge),
+ * the PixiJS renderer and the shell that drives them; started here, stopped
+ * by the effect's cleanup.
  */
 function createClient(inputs: ClientInputs): { shell: GameShell; renderer: GameRenderer } {
   const { bench, flags } = inputs;
   const own =
-    bench === null
+    bench === null || inputs.party !== null
       ? null
       : createQuickdrawConnection({ url: bench.apiUrl, auth: { userId: bench.userId } });
   const player = bench?.userId ?? inputs.userId;
@@ -172,12 +227,14 @@ function createClient(inputs: ClientInputs): { shell: GameShell; renderer: GameR
   const sink = bench === null ? undefined : window.QuickdrawBench;
   const shell: GameShell = new GameShell({
     canvas: inputs.canvas,
-    transport: new PageTransport({
-      connection: own ?? inputs.connection,
-      join: own === null ? { kind: "page", bootstrap: inputs.bootstrap } : { kind: "self" },
-      userId: player,
-      onPlayer: (meta) => shell.addPlayer(meta),
-    }),
+    transport:
+      inputs.party ??
+      new PageTransport({
+        connection: own ?? inputs.connection,
+        join: own === null ? { kind: "page", bootstrap: inputs.bootstrap } : { kind: "self" },
+        userId: player,
+        onPlayer: (meta) => shell.addPlayer(meta),
+      }),
     renderer,
     userId: player,
     tunables: inputs.tunables,
