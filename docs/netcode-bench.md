@@ -103,10 +103,12 @@ frame, so the snake still moves once a tick, the ack counts the coast as
 that frame, and the frame, when it arrives, steers the next tick instead of
 stepping; the client corrects only that frame's change of intent. A client
 whose frames land within a render frame (about 17 ms) of the server's tick
-coasts often, by design (14–28 % of its ticks in a real browser), and is
-steered by those frames one tick later; which client that is in a run is
-the chance of its connect time, until the client re-phases its frames (the
-card `input-phase-a-client-whose-frames-land-just-after-the-tick-m`). What is never cheap is the ack parting from the steps
+coasted often before the clients re-phased (14–28 % of its ticks in a real
+browser): the tick's snapshot after a late frame steered says `late`, and
+the client moves its frame clock half a tick earlier, at most once per
+half second (`inputQueue.nudgesPerMin` per client). So `starvedRate` now means a
+stall or a slow clock, not a phase: a few percent at most on a clean link.
+What is never cheap is the ack parting from the steps
 (`stepAckMismatchPerMin`): the queue's first version let a coast be "owed"
 when the stood-in frame came alone, stepped that frame anyway and skipped a
 later one to pay for it, and a player on the tick boundary got a whole-step

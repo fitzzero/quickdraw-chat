@@ -56,7 +56,7 @@ Input:
 | --------- | -------- | -------------------- |
 | `worldId` | `string` | at least 1 character |
 
-Output: `{ worldId: string; chatId: string | null; tick: integer; tickRate: number; bounds: { w: number; h: number }; players: { id: string; name: string | null; hue: number }[]; snaps: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; food: { id: string; x: number; y: number; v: number }[]; you: { id: string; name: string | null; hue: number } }`.
+Output: `{ worldId: string; chatId: string | null; tick: integer; tickRate: number; bounds: { w: number; h: number }; players: { id: string; name: string | null; hue: number }[]; snaps: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer; late?: boolean }[]; food: { id: string; x: number; y: number; v: number }[]; you: { id: string; name: string | null; hue: number } }`.
 
 ### `watchWorld`
 
@@ -76,7 +76,7 @@ Input:
 | --------- | -------- | -------------------- |
 | `worldId` | `string` | at least 1 character |
 
-Output: `{ worldId: string; chatId: string | null; tick: integer; tickRate: number; bounds: { w: number; h: number }; players: { id: string; name: string | null; hue: number }[]; snaps: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; food: { id: string; x: number; y: number; v: number }[] }`.
+Output: `{ worldId: string; chatId: string | null; tick: integer; tickRate: number; bounds: { w: number; h: number }; players: { id: string; name: string | null; hue: number }[]; snaps: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer; late?: boolean }[]; food: { id: string; x: number; y: number; v: number }[] }`.
 
 ### `respawn`
 
@@ -149,7 +149,7 @@ Input:
 | ------ | -------- | ------------------ |
 | `code` | `string` | 1 to 16 characters |
 
-Output: `{ worldId: string; chatId: string | null; tick: integer; tickRate: number; bounds: { w: number; h: number }; players: { id: string; name: string | null; hue: number }[]; snaps: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; food: { id: string; x: number; y: number; v: number }[]; code: string; hostUserId: string | null; hostSocketId: string | null }`.
+Output: `{ worldId: string; chatId: string | null; tick: integer; tickRate: number; bounds: { w: number; h: number }; players: { id: string; name: string | null; hue: number }[]; snaps: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer; late?: boolean }[]; food: { id: string; x: number; y: number; v: number }[]; code: string; hostUserId: string | null; hostSocketId: string | null }`.
 
 ### `playParty`
 
@@ -407,15 +407,15 @@ Every tick of a world, starting from the whole world (every snake and all the fo
 
 Every tick of a party's world, from its host: a snapshot as the world stream unpacks to, volatile; the seed is the world now. Only sockets in the party's room subscribe.
 
-| Option    | Value                                                                                                                                                                                                                                                          |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Served by | the room's host (`serve: "host"`), over peer links: the server never handles it                                                                                                                                                                                |
-| Item      | `{ tick: integer; t?: number; players: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer }[]; food?: { tick: integer; spawned?: { id: string; x: number; y: number; v: number }[]; eaten?: string[] }[] }` |
-| Scope     | one feed per `worldId`                                                                                                                                                                                                                                         |
-| Seed      | the latest item the host kept, or the host's own                                                                                                                                                                                                               |
-| Volatile  | yes                                                                                                                                                                                                                                                            |
-| Access    | `{ room: (scope) => ... }`                                                                                                                                                                                                                                     |
-| Checked   | always                                                                                                                                                                                                                                                         |
+| Option    | Value                                                                                                                                                                                                                                                                          |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Served by | the room's host (`serve: "host"`), over peer links: the server never handles it                                                                                                                                                                                                |
+| Item      | `{ tick: integer; t?: number; players: { id: string; x: number; y: number; dx: number; dy: number; len: number; boost: boolean; ack: integer; late?: boolean }[]; food?: { tick: integer; spawned?: { id: string; x: number; y: number; v: number }[]; eaten?: string[] }[] }` |
+| Scope     | one feed per `worldId`                                                                                                                                                                                                                                                         |
+| Seed      | the latest item the host kept, or the host's own                                                                                                                                                                                                                               |
+| Volatile  | yes                                                                                                                                                                                                                                                                            |
+| Access    | `{ room: (scope) => ... }`                                                                                                                                                                                                                                                     |
+| Checked   | always                                                                                                                                                                                                                                                                         |
 
 ### `partyEvents`
 

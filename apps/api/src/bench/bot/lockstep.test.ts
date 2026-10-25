@@ -17,7 +17,9 @@ import {
   SNAPSHOT_CODEC_VERSION,
   SNAPSHOT_FLAG_KEYFRAME,
   SNAPSHOT_FLAG_T,
+  SNAPSHOT_PLAYER_BOOST,
   SNAPSHOT_PLAYER_BYTES,
+  SNAPSHOT_PLAYER_LATE,
   SNAPSHOT_SPAWNED_BYTES,
 } from "@project/shared";
 import { describe, expect, it } from "vitest";
@@ -76,6 +78,8 @@ describe("the Godot client's constants", () => {
     expect(gd("FLAG_T")).toBe(SNAPSHOT_FLAG_T);
     expect(gd("FLAG_KEYFRAME")).toBe(SNAPSHOT_FLAG_KEYFRAME);
     expect(gd("PLAYER_BYTES")).toBe(SNAPSHOT_PLAYER_BYTES);
+    expect(gd("PLAYER_BOOST")).toBe(SNAPSHOT_PLAYER_BOOST);
+    expect(gd("PLAYER_LATE")).toBe(SNAPSHOT_PLAYER_LATE);
     expect(gd("SPAWNED_BYTES")).toBe(SNAPSHOT_SPAWNED_BYTES);
     expect(gd("FOOD_WINDOW")).toBe(GAME_FOOD_WINDOW);
   });

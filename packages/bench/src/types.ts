@@ -44,6 +44,8 @@ export interface ClientTrace {
   corrections: { tWall: number; magnitudePx: number; hard: boolean }[];
   /** input frames sent; tAcked = arrival of first snapshot with ack >= seq */
   inputs: { seq: number; tSent: number; tAcked?: number }[];
+  /** the half-tick nudges of the frame clock a snapshot's `late` set off (absent from older traces) */
+  nudges?: { tWall: number }[];
   /** Tier 2 only */
   fpsSamples?: { tWall: number; fps: number }[];
   /**
@@ -202,6 +204,11 @@ export interface InputQueueReport {
    * Must be 0; absent when the trace recorded no acks.
    */
   stepAckMismatchPerMin?: number;
+  /**
+   * one client's half-tick nudges of its frame clock a minute (its snapshot
+   * said `late`); absent from the server's report and from older traces
+   */
+  nudgesPerMin?: number;
 }
 
 export interface ClientReport {

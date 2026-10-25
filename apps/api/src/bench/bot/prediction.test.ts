@@ -4,7 +4,7 @@
  * predicted costs no correction.
  */
 
-import { DEFAULT_TUNABLES, GameWorldSim } from "@project/shared";
+import { DEFAULT_TUNABLES, GAME_TICK_RATE, GameWorldSim } from "@project/shared";
 import { describe, expect, it } from "vitest";
 import { LocalPredictor } from "./prediction.js";
 
@@ -35,5 +35,29 @@ describe("LocalPredictor", () => {
       if (next === undefined) throw new Error("no snapshot");
       expect(predictor.onServerSnap(next).magnitudePx).toBeLessThan(0.2);
     }
+  });
+
+  it("moves its frame clock half a tick earlier on the server's late, at most once per half second", () => {
+    const tunables = { ...DEFAULT_TUNABLES, npcCount: 0 };
+    const dt = 1 / GAME_TICK_RATE;
+    const predictor = new LocalPredictor(tunables, dt);
+    const snap = { id: "p1", x: 500, y: 500, dx: 1, dy: 0, len: 10, boost: false, ack: 100 };
+    predictor.initFromSnap(snap);
+    const aim = () => ({ dx: 1, dy: 0, boost: false });
+    // 30 ms into the tick: no frame yet
+    expect(predictor.renderFrame(0.03, aim)).toHaveLength(0);
+
+    // no word of the server's, no nudge: an ack past the newest frame alone is
+    // also what a round trip under a tick looks like
+    expect(predictor.onServerSnap({ ...snap, ack: 101 }).nudged).toBe(false);
+    expect(predictor.onServerSnap({ ...snap, ack: 101, late: true }).nudged).toBe(true);
+    // the frame leaves 25 ms earlier: at 45 ms, not 50
+    expect(predictor.renderFrame(0.015, aim)).toHaveLength(1);
+
+    // a second late within half a second (ten frames) is not followed
+    for (let i = 0; i < 8; i++) predictor.renderFrame(dt, aim);
+    expect(predictor.onServerSnap({ ...snap, ack: 105, late: true }).nudged).toBe(false);
+    predictor.renderFrame(dt, aim);
+    expect(predictor.onServerSnap({ ...snap, ack: 106, late: true }).nudged).toBe(true);
   });
 });

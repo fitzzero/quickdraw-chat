@@ -27,6 +27,8 @@ var _prev_sim_pos := Vector2.ZERO
 var _pending: Array[Dictionary] = []
 var _accum := 0.0
 var _visual_offset := Vector2.ZERO
+## The seq of the last half-tick nudge of the frame clock (on_server_snap)
+var _last_nudge_seq := 0
 
 
 func init_from_snap(snap: Dictionary) -> void:
@@ -35,6 +37,7 @@ func init_from_snap(snap: Dictionary) -> void:
 	sim_len = float(snap["len"])
 	length = sim_len
 	seq = int(snap.get("ack", 0))
+	_last_nudge_seq = seq - int(GameConfig.TICK_RATE)
 	_prev_sim_pos = sim_pos
 	position = sim_pos
 	reset_path(sim_pos)
@@ -103,6 +106,16 @@ func on_server_snap(snap: Dictionary) -> void:
 	# same: prediction.ts onServerSnap).
 	if ack > seq:
 		seq = ack
+	# The server adopted a frame of ours that landed after a coast stood in
+	# for it: our frames reach it just after its tick. Move the frame clock
+	# half a tick earlier, off the boundary; at most once per half second, so
+	# jitter cannot walk the phase around the tick, and never later (the
+	# server cannot tell early). Only on the server's word: an ack past our
+	# newest frame is also what a round trip under a tick looks like. The
+	# bots do the same (prediction.ts onServerSnap).
+	if bool(snap.get("late", false)) and seq - _last_nudge_seq >= GameConfig.TICK_RATE / 2.0:
+		_accum += GameConfig.FIXED_DT * 0.5
+		_last_nudge_seq = seq
 
 	# Replay unacknowledged inputs from the authoritative state
 	var rp := Vector2(float(snap["x"]), float(snap["y"]))

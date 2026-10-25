@@ -96,6 +96,14 @@ export interface PlayerSnap {
    * client that stalled.
    */
   ack: number;
+  /**
+   * The server adopted the intent of a frame of this player's that arrived
+   * after a coast stood in for it (a frame that landed just after the tick),
+   * since the last tick's snapshot. The client moves its frame clock half a
+   * tick earlier (at most once per half second), off the tick boundary.
+   * Absent when not.
+   */
+  late?: boolean;
 }
 
 export interface FoodDTO {

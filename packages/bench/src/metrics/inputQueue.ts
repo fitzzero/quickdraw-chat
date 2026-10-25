@@ -8,7 +8,7 @@
  * did not predict, a 9 px correction it shows as a surge or a stall.
  */
 
-import type { InputQueueReport, ServerTick } from "../types.js";
+import type { ClientTrace, InputQueueReport, ServerTick } from "../types.js";
 import { computeStats } from "./tracks.js";
 
 /** The window's first and last stretch the depth trend compares. */
@@ -100,4 +100,24 @@ export function computeInputQueue(
       ? { stepAckMismatchPerMin: minutes > 0 ? mismatch.count / minutes : 0 }
       : {}),
   };
+}
+
+
+/**
+ * One client's own snake's input queue over `ticks` (already windowed), and
+ * the half-tick nudges of its frame clock a minute within them when its
+ * trace records them; undefined for a spectator.
+ */
+export function computeOwnQueue(
+  ticks: ServerTick[],
+  client: ClientTrace,
+): InputQueueReport | undefined {
+  if (!client.playerId) return undefined;
+  const report = computeInputQueue(ticks, client.playerId);
+  const first = ticks[0];
+  const last = ticks[ticks.length - 1];
+  if (!report || !client.nudges || !first || !last) return report;
+  const minutes = (last.tWall - first.tWall) / 60_000;
+  const nudges = client.nudges.filter((n) => n.tWall >= first.tWall && n.tWall <= last.tWall);
+  return { ...report, nudgesPerMin: minutes > 0 ? nudges.length / minutes : 0 };
 }

@@ -35,7 +35,13 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   and the ack always counts the steps: the client's replay never meets a
   step it did not predict (one would be a 9 px jolt), only the change of
   intent of a frame a coast stood in for. The bench gates it
-  (`server.inputQueue.stepAckMismatchPerMin`, must be 0).
+  (`server.inputQueue.stepAckMismatchPerMin`, must be 0). The server's
+  consumption clock is fixed (one seq a tick from the first frame on), so
+  the client's frame clock follows it: the tick's snapshot after a late
+  frame steered says `PlayerSnap.late`, and the client moves its frame
+  clock half a tick earlier (at most once per half second, never later),
+  off the tick boundary. Only on that bit: an ack past the newest frame
+  is also what a round trip under a tick looks like.
   `requires: { room: GLOBAL_WORLD_ROOM }`: dropped unless the sending socket
   is in the world's room; anonymous sockets are always dropped. One world,
   so one room by name; a game of many worlds requires
@@ -91,7 +97,10 @@ connection:
    newest); reconcile against `PlayerSnap.ack`, and when the ack ran past
    the newest (a coast stood in for a frame not yet stepped: a stall, a
    slow clock, or a frame landing just after the tick at a short round
-   trip), number the next frame after it instead of stepping that frame.
+   trip), number the next frame after it instead of stepping that frame;
+   when the snapshot says `late`, add half a tick to the frame clock's
+   accumulator (`local_snake.gd`, `prediction.ts`), once per half second
+   at most.
 
 The web boots Godot into SPECTATE (`watchWorld`: full bootstrap, no spawn);
 the React pre-game dialog then joins the game on the page's own socket and

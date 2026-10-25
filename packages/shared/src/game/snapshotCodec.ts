@@ -40,7 +40,8 @@
  *   u16  introductions, each: u16 index, u32 tick given, u8 length, UTF-8 id
  *   u16  players, each: u16 index, u32 x, u32 y (tenths of a px),
  *        i16 dx, i16 dy (thousandths), f32 len (segments, with its
- *        fraction), u8 flags (1: boost), u32 ack
+ *        fraction), u8 flags (SNAPSHOT_PLAYER_BOOST, SNAPSHOT_PLAYER_LATE),
+ *        u32 ack
  *   u8   food entries, each: u32 tick,
  *        u16 spawned, each: u32 id (the n of `f<n>`), u32 x, u32 y (tenths), u8 v
  *        u16 eaten, each: u32 id
@@ -55,6 +56,10 @@ export const SNAPSHOT_CODEC_VERSION = 2;
 export const SNAPSHOT_FLAG_T = 1;
 /** A keyframe: its introductions are the whole id table. */
 export const SNAPSHOT_FLAG_KEYFRAME = 2;
+/** A player's flags: it boosts. */
+export const SNAPSHOT_PLAYER_BOOST = 1;
+/** A player's flags: the server adopted a late frame of its client's (`PlayerSnap.late`). */
+export const SNAPSHOT_PLAYER_LATE = 2;
 /** The bytes of one player in a snapshot. */
 export const SNAPSHOT_PLAYER_BYTES = 23;
 /** The bytes of one piece of food a food entry spawns. */

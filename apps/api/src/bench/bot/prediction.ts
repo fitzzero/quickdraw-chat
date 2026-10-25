@@ -14,7 +14,7 @@
  */
 
 import type { GameInput, MovementTunables, PlayerSnap } from "@project/shared";
-import { GAME_INPUT_FRAMES, stepMovement } from "@project/shared";
+import { GAME_INPUT_FRAMES, GAME_TICK_RATE, stepMovement } from "@project/shared";
 
 // Constants pinned to local_snake.gd:12-13
 const HARD_SNAP_DIST = 64.0;
@@ -27,6 +27,8 @@ export interface PredictionTunables extends MovementTunables {
 export interface Correction {
   magnitudePx: number;
   hard: boolean;
+  /** the snapshot said `late` and the frame clock moved half a tick earlier */
+  nudged: boolean;
 }
 
 interface Vec {
@@ -43,6 +45,8 @@ export class LocalPredictor {
   private prevSimPos: Vec = { x: 0, y: 0 };
   private readonly pending: GameInput[] = [];
   private accum = 0;
+  /** the seq of the last half-tick nudge of the frame clock (onServerSnap) */
+  private lastNudgeSeq = 0;
   private visualOffset: Vec = { x: 0, y: 0 };
   private renderedPos: Vec = { x: 0, y: 0 };
 
@@ -60,6 +64,7 @@ export class LocalPredictor {
     this.simDir = { x: snap.dx / mag, y: snap.dy / mag };
     this.simLen = snap.len;
     this.seq = snap.ack;
+    this.lastNudgeSeq = this.seq - GAME_TICK_RATE;
     this.prevSimPos = { ...this.simPos };
     this.renderedPos = { ...this.simPos };
     this.visualOffset = { x: 0, y: 0 };
@@ -141,6 +146,18 @@ export class LocalPredictor {
     // would count its movement twice, a step forward now and back on the
     // next snapshot, and the server refuses its seq anyway.
     if (snap.ack > this.seq) this.seq = snap.ack;
+    // The server adopted a frame of ours that landed after a coast stood in
+    // for it: our frames reach it just after its tick. Move the frame clock
+    // half a tick earlier, off the boundary; at most once per half second,
+    // so jitter cannot walk the phase around the tick, and never later (the
+    // server cannot tell early). Only on the server's word: an ack past our
+    // newest frame is also what a round trip under a tick looks like.
+    let nudged = false;
+    if (snap.late === true && this.seq - this.lastNudgeSeq >= GAME_TICK_RATE / 2) {
+      this.accum += this.fixedDt * 0.5;
+      this.lastNudgeSeq = this.seq;
+      nudged = true;
+    }
 
     // Replay unacknowledged inputs from the authoritative state
     let rp: Vec = { x: snap.x, y: snap.y };
@@ -171,7 +188,7 @@ export class LocalPredictor {
       this.visualOffset = { x: 0, y: 0 };
       this.renderedPos = { ...rp };
       this.simLen = rl;
-      return { magnitudePx, hard: true };
+      return { magnitudePx, hard: true, nudged };
     }
 
     // Adopt the corrected state; keep what the player SEES continuous
@@ -183,6 +200,6 @@ export class LocalPredictor {
     this.simDir = { ...rd };
     // Length is server-authoritative (growth comes from server-side eating)
     this.simLen = rl;
-    return { magnitudePx, hard: false };
+    return { magnitudePx, hard: false, nudged };
   }
 }

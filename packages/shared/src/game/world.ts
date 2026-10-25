@@ -125,6 +125,8 @@ export interface SnakeState {
   inputs: InputQueue;
   /** the seq of the newest frame whose intent steers the snake, stepped or adopted late */
   steeredSeq: number;
+  /** a late frame's intent was adopted since the last tick's snapshot: that snapshot says `late` */
+  lateAdopted: boolean;
   /** stepped a frame since it spawned: until then no client has stepped it either */
   fed: boolean;
   /** heads it passed this tick before its last step (a tick of several): collisions check them too */
@@ -269,6 +271,7 @@ export class GameWorldSim {
       path: [],
       inputs: new InputQueue(),
       steeredSeq: 0,
+      lateAdopted: false,
       fed: false,
       swept: [],
     };
@@ -327,6 +330,7 @@ export class GameWorldSim {
     // again from the snapshot's ack, which the queue keeps
     snake.inputs.clear();
     snake.fed = false;
+    snake.lateAdopted = false;
   }
 
   // ==========================================================================
@@ -341,7 +345,9 @@ export class GameWorldSim {
    * in for it) is not stepped, but when it is newer than the frame the
    * snake last steered by, its intent is adopted now, so the next coast or
    * step moves on it: a client whose frames keep landing just after the
-   * tick is steered one tick behind its prediction, never a step behind it.
+   * tick is steered one tick behind its prediction, never a step behind it,
+   * and the next tick's snapshot tells it so (`PlayerSnap.late`): its client
+   * moves its frames earlier.
    */
   public queueInputs(id: string, frames: readonly GameInput[]): void {
     const snake = this.players.get(id);
@@ -351,6 +357,7 @@ export class GameWorldSim {
       if (frame.seq > snake.steeredSeq && frame.seq <= snake.inputs.lastSeq) {
         this.steer(snake, frame);
         snake.steeredSeq = frame.seq;
+        snake.lateAdopted = true;
       }
     }
   }
@@ -414,7 +421,7 @@ export class GameWorldSim {
 
     const changed = foodSpawned.length > 0 || foodEaten.length > 0;
     return {
-      snapshot: { tick: this.tick, players: this.buildSnaps() },
+      snapshot: { tick: this.tick, players: this.buildSnaps(true) },
       food: changed
         ? {
             tick: this.tick,
@@ -607,10 +614,17 @@ export class GameWorldSim {
   // Snapshots & bootstrap
   // ==========================================================================
 
-  private buildSnaps(): PlayerSnap[] {
+  /**
+   * Every live snake's head. A tick's snapshot (`tick`) also says `late` for
+   * a snake that adopted a late frame since the last one, and clears it; a
+   * keyframe or a bootstrap between ticks leaves it to the next tick's.
+   */
+  private buildSnaps(tick = false): PlayerSnap[] {
     const snaps: PlayerSnap[] = [];
     for (const snake of this.players.values()) {
       if (!snake.alive) continue;
+      const late = tick && snake.lateAdopted;
+      if (tick) snake.lateAdopted = false;
       snaps.push({
         id: snake.meta.id,
         x: Math.round(snake.head.x * 10) / 10,
@@ -620,6 +634,7 @@ export class GameWorldSim {
         len: wireLength(snake.len, this.tunables.minLength),
         boost: snake.boost && snake.len > this.tunables.minLength,
         ack: snake.inputs.lastSeq,
+        ...(late ? { late: true } : {}),
       });
     }
     return snaps;

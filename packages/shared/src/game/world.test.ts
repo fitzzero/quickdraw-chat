@@ -279,6 +279,31 @@ describe("GameWorldSim", () => {
     expect(result.inputs).toEqual({ p1: { stepped: 1, depth: 0 } });
   });
 
+  it("says late on the tick's snapshot after a late frame steered, once, and never for a redundant frame", () => {
+    const sim = makeSim();
+    sim.addPlayer("p1", null);
+    sim.queueInputs("p1", [input(1, 1, 0)]);
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+    // tick 2 coasts, standing in for frame 2
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+
+    // frame 2 lands after the coast: its intent is adopted, and the next
+    // tick's snapshot says so; a keyframe between ticks leaves it to the tick's
+    sim.queueInputs("p1", [input(1, 1, 0), input(2, 0, 1)]);
+    expect(must(sim.keyframe().players[0]).late).toBeUndefined();
+    expect(must(sim.getBootstrapState().snaps[0]).late).toBeUndefined();
+    expect(must(sim.step().snapshot.players[0]).late).toBe(true);
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+
+    // the coasts stood in for frames 3 and 4: frames in time from 5 on, each
+    // message repeating the ones before it, are never late
+    sim.queueInputs("p1", [input(5, 1, 0), input(6, 1, 0)]);
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+    sim.queueInputs("p1", [input(5, 1, 0), input(6, 1, 0), input(7, 1, 0)]);
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+    expect(must(sim.step().snapshot.players[0]).ack).toBe(7);
+  });
+
   it("accounts for human snakes that stepped since they spawned, never NPCs", () => {
     const sim = makeSim({ npcCount: 2 });
     sim.addPlayer("p1", null);

@@ -13,6 +13,8 @@ import {
   SNAPSHOT_CODEC_VERSION,
   SNAPSHOT_FLAG_KEYFRAME,
   SNAPSHOT_FLAG_T,
+  SNAPSHOT_PLAYER_BOOST,
+  SNAPSHOT_PLAYER_LATE,
   base64ToBytes,
 } from "./snapshotCodec.js";
 
@@ -108,16 +110,17 @@ export class SnapshotDecoder {
 }
 
 function readPlayer(input: ByteReader, id: string): PlayerSnap {
-  return {
-    id,
-    x: input.u32() / 10,
-    y: input.u32() / 10,
-    dx: input.i16() / 1000,
-    dy: input.i16() / 1000,
-    len: input.f32(),
-    boost: (input.u8() & 1) !== 0,
-    ack: input.u32(),
-  };
+  const x = input.u32() / 10;
+  const y = input.u32() / 10;
+  const dx = input.i16() / 1000;
+  const dy = input.i16() / 1000;
+  const len = input.f32();
+  const flags = input.u8();
+  const ack = input.u32();
+  const boost = (flags & SNAPSHOT_PLAYER_BOOST) !== 0;
+  // `late` only when set, as the sim's snapshot says it
+  if ((flags & SNAPSHOT_PLAYER_LATE) === 0) return { id, x, y, dx, dy, len, boost, ack };
+  return { id, x, y, dx, dy, len, boost, ack, late: true };
 }
 
 /** The food entries; a keyframe's one keeps `spawned` though it is empty. */

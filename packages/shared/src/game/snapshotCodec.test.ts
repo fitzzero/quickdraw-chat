@@ -94,6 +94,21 @@ describe("snapshotCodec", () => {
     expect(decoder.decode(tick(sent)).players.map((p) => p.len)).toEqual(lens);
   });
 
+  it("carries a player's late flag, and leaves it out where it is not set", () => {
+    const { tick, seed } = stream();
+    const decoder = new SnapshotDecoder();
+    decoder.decode(seed(snapshot(1, ["a"])));
+    const sent = snapshot(2, ["a", "b", "c"]);
+    const late = sent.players[1];
+    if (!late) throw new Error("no player b");
+    late.late = true;
+    const got = decoder.decode(tick(sent)).players;
+    expect(got).toEqual(sent.players);
+    expect(got.map((p) => "late" in p)).toEqual([false, true, false]);
+    // boost and late share the flags byte: each stays its own
+    expect(got.map((p) => p.boost)).toEqual(sent.players.map((p) => p.boost));
+  });
+
   it("carries the food changes, positions in tenths of a pixel", () => {
     const { tick } = stream();
     const sent = snapshot(10, ["a"], {

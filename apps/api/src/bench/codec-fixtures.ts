@@ -6,8 +6,8 @@
  * order, a seed handled after newer snapshots): a snapshot before the seed,
  * a keyframe, introductions after lost snapshots, an index given again, an
  * index a seed gives between ticks, a forgotten table, late seeds, positions
- * past 6553.5 px, lengths with a fraction, acks past 2^31, an id that is not
- * ASCII, a snapshot without `t`.
+ * past 6553.5 px, lengths with a fraction, the late flag, acks past 2^31, an
+ * id that is not ASCII, a snapshot without `t`.
  */
 
 import type { PlayerSnap, WorldSnapshot } from "@project/shared";
@@ -35,6 +35,8 @@ function player(id: string, n: number): PlayerSnap {
     len: Math.fround(10 + n + ((n * 3) % 10) / 10 - 0.025),
     boost: n % 2 === 0,
     ack: 4_000_000_000 + n,
+    // the late flag shares the flags byte with boost
+    ...(n % 3 === 0 ? { late: true } : {}),
   };
 }
 
