@@ -15,6 +15,7 @@
 import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import type { RemotesMode } from "@project/shared";
 
 // Bench env must be in place before any service module loads (they read env
 // at import time). Mirrors __tests__/setup.ts.
