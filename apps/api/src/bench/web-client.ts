@@ -14,8 +14,15 @@ export const STEP_TIMEOUT_MS = 45_000;
 /** How long after its death a page clicks Respawn. */
 const RESPAWN_AFTER_MS = 1_000;
 const DRAIN_EVERY_MS = 200;
-/** Chromium's network log reaches the console as errors: a socket's retry while the API restarts is one. */
-const NETWORK_LOG = /^(Failed to load resource|WebSocket connection to )/;
+/**
+ * Chromium's network log reaches the console as errors: a socket's retry
+ * while the API restarts is one, and so is a frame the socket's transport
+ * wrote as the server closed it (engine.io-client writes before the browser
+ * tells it of the close, which it expects: Chromium drops the frame and logs
+ * it, and the socket connects again).
+ */
+const NETWORK_LOG =
+  /^(Failed to load resource|WebSocket connection to |WebSocket is already in CLOSING or CLOSED state)/;
 
 export interface Probe {
   readonly kind: string;
@@ -58,7 +65,9 @@ export class WebClient {
     this.page.on("console", (message) => {
       // the page's own errors, not the browser's network log
       if (message.type() === "error" && !NETWORK_LOG.test(message.text())) {
-        this.errors.push(message.text().slice(0, 300));
+        // where it was logged: a bundle's url and line name the module
+        const { url, lineNumber } = message.location();
+        this.errors.push(`${message.text().slice(0, 300)} (${url}:${String(lineNumber)})`);
       }
     });
     this.page.on("pageerror", (error) =>
