@@ -194,10 +194,11 @@ function float32Beside(x: number, up: boolean): number {
  * minimum, or a minimum float32 cannot hold, such as 5.3).
  */
 function wireLength(len: number, minLength: number): number {
-  let wire = Math.fround(len);
+  const wire = Math.fround(len);
   if (!(wire > 0)) return wire;
-  while (len > minLength && wire <= minLength) wire = float32Beside(wire, true);
-  while (len <= minLength && wire > minLength && wire > 0) wire = float32Beside(wire, false);
+  // the nearest float32 and the one beside it hold `len` between them
+  if (len > minLength && wire <= minLength) return float32Beside(wire, true);
+  if (len <= minLength && wire > minLength) return float32Beside(wire, false);
   return wire;
 }
 
