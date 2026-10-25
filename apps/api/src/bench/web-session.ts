@@ -412,10 +412,7 @@ function countsOf(players: Players): string {
 }
 
 /** Two pages of the game, their browser and their web app, released whatever happens. */
-async function withPages(
-  running: Running,
-  run: (players: Players) => Promise<void>,
-): Promise<Players> {
+async function withPages(run: (players: Players) => Promise<void>): Promise<Players> {
   const web = await startWebApp();
   // an interrupt must not leave the web app's process group behind
   const interrupted = (): void => {
@@ -467,7 +464,7 @@ async function session(): Promise<void> {
     return id;
   };
   try {
-    const players = await withPages(running, (pages) => checkSession(pages, running, userOf("cy")));
+    const players = await withPages((pages) => checkSession(pages, running, userOf("cy")));
     console.log(`check:web: every check held (${countsOf(players)})`);
   } finally {
     await running.server.stop();
