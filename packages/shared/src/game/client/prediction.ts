@@ -61,6 +61,8 @@ export class LocalPredictor {
   private nudgeLeft = 0;
   private visualOffset: Vec = { x: 0, y: 0 };
   private renderedPos: Vec = { x: 0, y: 0 };
+  /** whether the last step's input boosted: what the local snake is drawn doing */
+  public boosting = false;
 
   constructor(
     private readonly tunables: PredictionTunables,
@@ -84,6 +86,7 @@ export class LocalPredictor {
     this.visualOffset = { x: 0, y: 0 };
     this.accum = 0;
     this.pending.length = 0;
+    this.boosting = false;
   }
 
   /**
@@ -134,6 +137,7 @@ export class LocalPredictor {
     this.seq += 1;
     const frame: GameInput = { seq: this.seq, dx: aim.x, dy: aim.y, boost: input.boost };
     this.pending.push(frame);
+    this.boosting = input.boost;
 
     const next = stepMovement(
       {

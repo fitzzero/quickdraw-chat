@@ -69,6 +69,11 @@ export class FoodTracker {
     this.awaitingKeyframe = false;
   }
 
+  /** The food held. */
+  public all(): FoodDTO[] {
+    return [...this.food.values()];
+  }
+
   /** The ids of the food held, sorted. */
   public ids(): string[] {
     return [...this.food.keys()].sort();

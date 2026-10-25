@@ -75,6 +75,12 @@ export class RemoteInterpolator {
     while (this.buffer.length > BUFFER_LIMIT) this.buffer.shift();
   }
 
+  /** The newest snapshot's heading, length and boost (null before one): what a renderer draws beside the head. */
+  public newest(): { dx: number; dy: number; len: number; boost: boolean } | null {
+    const snap = this.buffer.at(-1);
+    return snap ? { dx: snap.dx, dy: snap.dy, len: snap.len, boost: snap.boost } : null;
+  }
+
   /** Render on the shared timeline. Null until a snapshot arrives. */
   public renderFrame(renderTick: number, deltaS: number): { x: number; y: number } | null {
     if (this.buffer.length === 0) return null;

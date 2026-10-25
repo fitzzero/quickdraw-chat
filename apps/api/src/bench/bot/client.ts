@@ -45,7 +45,6 @@ export class BotClient {
   private readonly core: GameClientCore;
   private readonly spectator: boolean;
   private behavior: BehaviorFn;
-  private bounds = { w: 0, h: 0 };
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
   private lastFrameAt = 0;
   private stopped = false;
@@ -76,7 +75,7 @@ export class BotClient {
       tunables: opts.tunables,
       tickRate: opts.tickRate,
       now,
-      ...(opts.clockScale === undefined ? {} : { clockScale: opts.clockScale }),
+      clockScale: opts.clockScale,
       hooks: {
         onSnapshotArrival: (tWall, tick) => {
           this.trace.snapshots.push({ tWall, tick });
@@ -89,8 +88,7 @@ export class BotClient {
   }
 
   public async start(): Promise<void> {
-    const joined = await this.core.start(this.spectator);
-    this.bounds = joined.bounds;
+    await this.core.start(this.spectator);
     this.lastFrameAt = performance.now();
     this.scheduleRenderFrame();
   }
@@ -160,14 +158,15 @@ export class BotClient {
           selfY: predictor?.simPos.y ?? 0,
           dirX: predictor?.simDir.x ?? 1,
           dirY: predictor?.simDir.y ?? 0,
-          bounds: this.bounds,
+          bounds: this.core.worldBounds,
         }),
       tWall,
     );
 
+    // The trace records heads only
     const entities: Record<string, { x: number; y: number }> = {};
-    if (rendered.local) entities[this.opts.userId] = rendered.local;
-    for (const [id, pos] of rendered.remotes) entities[id] = pos;
+    if (rendered.local) entities[this.opts.userId] = { x: rendered.local.x, y: rendered.local.y };
+    for (const [id, snake] of rendered.remotes) entities[id] = { x: snake.x, y: snake.y };
     this.trace.frames.push({ tWall, entities });
     this.scheduleRenderFrame();
   }

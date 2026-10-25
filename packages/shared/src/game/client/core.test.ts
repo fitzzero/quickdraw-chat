@@ -79,7 +79,8 @@ async function client(
   heard: {
     arrivals: number[];
     acks: number[];
-    spawns: (PlayerSnap | null)[];
+    corrections: number[];
+    spawns: PlayerSnap[];
     deaths: string[];
     left: string[];
     inputs: number[];
@@ -90,14 +91,18 @@ async function client(
   const heard = {
     arrivals: [] as number[],
     acks: [] as number[],
-    spawns: [] as (PlayerSnap | null)[],
+    corrections: [] as number[],
+    spawns: [] as PlayerSnap[],
     deaths: [] as string[],
     left: [] as string[],
     inputs: [] as number[],
   };
   const hooks: GameClientHooks = {
     onSnapshotArrival: (_tWall, tick) => heard.arrivals.push(tick),
-    onCorrection: (_correction, ack) => heard.acks.push(ack),
+    onCorrection: (correction, ack) => {
+      heard.acks.push(ack);
+      heard.corrections.push(correction.magnitudePx);
+    },
     onSpawn: (snap) => heard.spawns.push(snap),
     onDeath: (death) => heard.deaths.push(death.id),
     onLeft: (id) => heard.left.push(id),
@@ -141,14 +146,19 @@ describe("GameClientCore", () => {
     expect(heard.inputs).toEqual([1]);
     // the step moved the sim; the render interpolates from the previous step's position
     expect(core.localPredictor?.simPos.x).toBeGreaterThan(500);
-    expect(rendered.local).toEqual({ x: 500, y: 500 });
+    expect(rendered.local).toMatchObject({ x: 500, y: 500, dx: 1, dy: 0, boost: false });
+    expect(rendered.local?.len).toBeCloseTo(10, 5);
     expect(rendered.remotes.size).toBe(0);
+    expect(rendered.food).toEqual([]);
   });
 
   it("reconciles its own snake and interpolates the others", async () => {
     const { core, wire, heard, tick } = await client(JOINED);
-    wire.snapshot(snapshot(1, [snapOf(ME, 509, 1), snapOf(OTHER, 100)]));
+    wire.snapshot(snapshot(1, [snapOf(ME, 509, 1), snapOf(OTHER, 100, 0, { boost: true })]));
     expect(heard.acks).toEqual([1]);
+    // nothing of ours was pending: the server's step is adopted whole, a 9 px correction
+    expect(heard.corrections[0]).toBeCloseTo(9, 5);
+    expect(core.localPredictor?.simPos.x).toBeCloseTo(509, 5);
     expect(core.latestTick).toBe(1);
 
     tick(0.016);
@@ -156,7 +166,13 @@ describe("GameClientCore", () => {
     expect(rendered.renderTick).not.toBeNull();
     expect(rendered.remotes.has(OTHER)).toBe(true);
     expect(rendered.remotes.has(ME)).toBe(false);
-    expect(rendered.remotes.get(OTHER)?.y).toBe(500);
+    expect(rendered.remotes.get(OTHER)).toMatchObject({
+      y: 500,
+      dx: 1,
+      dy: 0,
+      len: 10,
+      boost: true,
+    });
   });
 
   it("ignores a snapshot older than the newest, though a shell still hears it arrive", async () => {
@@ -192,6 +208,8 @@ describe("GameClientCore", () => {
   it("forgets a remote that died or left", async () => {
     const { core, wire, heard, tick } = await client(JOINED);
     wire.snapshot(snapshot(1, [snapOf(ME, 500, 1), snapOf(OTHER, 100), snapOf("p3", 200)]));
+    tick(0.016);
+    expect(core.renderFrame(0.016, aim).remotes.size).toBe(2);
     wire.death({ id: OTHER, len: 7 });
     wire.left("p3");
     tick(0.016);
@@ -227,7 +245,10 @@ describe("GameClientCore", () => {
   });
 
   it("spectates without a local snake until told to play", async () => {
-    const { core, wire, heard, tick } = await client({ bounds: { w: 2000, h: 2000 } }, true);
+    const { core, wire, transport, heard, tick } = await client(
+      { bounds: { w: 2000, h: 2000 } },
+      true,
+    );
     expect(core.isAlive).toBe(false);
     expect(core.localPredictor).toBeNull();
     wire.snapshot(snapshot(1, [snapOf(ME, 500, 1), snapOf(OTHER, 100)]));
@@ -237,9 +258,22 @@ describe("GameClientCore", () => {
 
     // the page joined the game: the next own snapshot spawns the snake (main.gd)
     core.spawnLocal(null);
-    expect(heard.spawns).toEqual([null]);
-    expect(core.isAlive).toBe(true);
+    expect(core.isAlive).toBe(false);
     expect(core.localPredictor).not.toBeNull();
+    expect(heard.spawns).toEqual([]);
+    tick(1 / GAME_TICK_RATE);
+    expect(core.renderFrame(1 / GAME_TICK_RATE, aim).local).toBeNull();
+    expect(transport.sent).toHaveLength(0);
+
+    const placed = snapOf(ME, 300, 0, { y: 400 });
+    wire.snapshot(snapshot(2, [placed, snapOf(OTHER, 100)]));
+    expect(core.isAlive).toBe(true);
+    expect(heard.spawns).toEqual([placed]);
+    expect(heard.acks).toEqual([]);
+    tick(0.001);
+    const { local } = core.renderFrame(0.001, aim);
+    expect(local?.x).toBeCloseTo(300, 0);
+    expect(local?.y).toBeCloseTo(400, 0);
 
     core.dropLocal();
     expect(core.isAlive).toBe(false);

@@ -14,7 +14,13 @@
  * (a death dialog) reaches it through the hooks.
  */
 
-import type { GameDeathEvent, GameInput, PlayerSnap, WorldSnapshot } from "../../types/game.js";
+import type {
+  FoodDTO,
+  GameDeathEvent,
+  GameInput,
+  PlayerSnap,
+  WorldSnapshot,
+} from "../../types/game.js";
 import { FoodTracker } from "./food.js";
 import { RemoteInterpolator } from "./interpolation.js";
 import { LocalPredictor, type Correction, type PredictionTunables } from "./prediction.js";
@@ -35,12 +41,12 @@ export interface GameClientInput {
 export interface GameClientHooks {
   /** A snapshot arrived, at `tWall` on the core's clock (before the out-of-order guard). */
   onSnapshotArrival?(tWall: number, tick: number): void;
-  /** One input message left: the step's frame last, with up to three unacknowledged ones before it. */
-  onInputSent?(frames: GameInput[], tWall: number): void;
+  /** One input message left, at `tSent`: the step's frame last, with up to three unacknowledged ones before it. */
+  onInputSent?(frames: GameInput[], tSent: number): void;
   /** The local snake reconciled against a snapshot that acknowledged `ack`. */
   onCorrection?(correction: Correction, ack: number, tWall: number): void;
-  /** The local snake spawned: with the join (`snap` may be null then), or again after a death. */
-  onSpawn?(snap: PlayerSnap | null, tWall: number): void;
+  /** The local snake spawned, placed by `snap`: with the join, by the first own snapshot, or again after a death. */
+  onSpawn?(snap: PlayerSnap, tWall: number): void;
   /** A death: the local snake's (`alive` is false now) or a remote's (its interpolator is gone). */
   onDeath?(death: GameDeathEvent): void;
   /** A player left the world (its interpolator is gone). */
@@ -65,14 +71,26 @@ export interface GameClientOptions {
   hooks?: GameClientHooks;
 }
 
+/** A snake as drawn: its head, where it points, its length and whether it boosts (bodies derive from head history). */
+export interface RenderedSnake {
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  len: number;
+  boost: boolean;
+}
+
 /** One display frame's output: where to draw everything. */
 export interface RenderedWorld {
-  /** The local snake's rendered position (null while spectating or dead). */
-  local: { x: number; y: number } | null;
-  /** Every remote snake's rendered position, by player id. */
-  remotes: Map<string, { x: number; y: number }>;
+  /** The local snake (null while spectating, or dead and not yet placed again). */
+  local: RenderedSnake | null;
+  /** Every remote snake, by player id: its head at the render tick, the rest from its newest snapshot. */
+  remotes: Map<string, RenderedSnake>;
   /** The tick the remotes rendered at (null before a snapshot). */
   renderTick: number | null;
+  /** The food held, as of the newest snapshot applied. */
+  food: FoodDTO[];
 }
 
 export class GameClientCore {
@@ -121,13 +139,15 @@ export class GameClientCore {
 
   /**
    * The local snake plays: with its snake when the join answered one, else
-   * the first own snapshot places it (main.gd spawns the local snake when
-   * its id appears in a snapshot).
+   * nothing steps or sends until the first own snapshot places it
+   * (onOwnSnap: main.gd spawns the local snake when its id appears in a
+   * snapshot).
    */
   public spawnLocal(own: PlayerSnap | null): void {
     this.predictor = new LocalPredictor(this.opts.tunables, 1 / this.opts.tickRate);
-    if (own) this.predictor.initFromSnap(own);
-    this.alive = true;
+    this.alive = own !== null;
+    if (own === null) return;
+    this.predictor.initFromSnap(own);
     this.spawnedAt = this.opts.now();
     this.hooks.onSpawn?.(own, this.spawnedAt);
   }
@@ -148,7 +168,11 @@ export class GameClientCore {
     return this.predictor;
   }
 
-  /** The local snake is in the world (false while spectating, and between a death and the respawn's snapshot). */
+  /**
+   * The local snake is in the world: false while spectating, until the
+   * first own snapshot after `spawnLocal(null)`, and between a death and the
+   * respawn's snapshot. Nothing steps or sends while it is false.
+   */
   public get isAlive(): boolean {
     return this.alive;
   }
@@ -205,34 +229,43 @@ export class GameClientCore {
     sampleInput: () => GameClientInput,
     tWall: number = this.opts.now(),
   ): RenderedWorld {
-    let local: { x: number; y: number } | null = null;
+    let local: RenderedSnake | null = null;
     if (this.predictor && this.alive) {
       // Only the predictor's clock drifts (clockScale): its fixed steps, so
       // the frames it sends; the world and render clocks do not
       const messages = this.predictor.renderFrame(deltaS * this.clockScale, sampleInput);
-      for (const frames of messages) this.sendInput(frames, tWall);
-      local = this.predictor.getRenderedPos();
+      for (const frames of messages) this.sendInput(frames);
+      const { x, y } = this.predictor.getRenderedPos();
+      local = {
+        x,
+        y,
+        dx: this.predictor.simDir.x,
+        dy: this.predictor.simDir.y,
+        len: this.predictor.simLen,
+        boost: this.predictor.boosting,
+      };
     }
 
     this.worldClock.advance(deltaS, tWall);
     const renderTick = this.worldClock.renderTick();
-    const remotes = new Map<string, { x: number; y: number }>();
+    const remotes = new Map<string, RenderedSnake>();
     for (const [id, interp] of this.interpolators) {
       if (this.latest - interp.lastSeenTick > PRUNE_AFTER_TICKS) {
         this.interpolators.delete(id);
         continue;
       }
       const pos = renderTick === null ? null : interp.renderFrame(renderTick, deltaS);
-      if (pos) remotes.set(id, pos);
+      const newest = interp.newest();
+      if (pos && newest) remotes.set(id, { ...pos, ...newest });
     }
-    return { local, remotes, renderTick };
+    return { local, remotes, renderTick, food: this.food.all() };
   }
 
   /** One message: the step's frame last, with up to three unacknowledged ones before it. */
-  private sendInput(frames: GameInput[], tWall: number): void {
+  private sendInput(frames: GameInput[]): void {
     if (frames.length === 0) return;
     this.transport.sendInput(frames);
-    this.hooks.onInputSent?.(frames, tWall);
+    this.hooks.onInputSent?.(frames, this.opts.now());
   }
 
   // ── The wire's word ─────────────────────────────────────────────────────
