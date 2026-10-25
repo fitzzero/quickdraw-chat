@@ -8,7 +8,7 @@
  * Discord sign-in route (same provider+providerAccountId, so an existing
  * Discord-linked user resolves to the same account), start a session on the
  * auth routes kit's store (`issueSession`), and RETURN its JWT in the body:
- * the Activity's page and its Godot client sign in with it
+ * the Activity's page signs in with it
  * (token-in-handshake, `auth.token`). No cookie is set: the page never
  * sends one (an iframe on Discord's site rarely keeps it), and a cookie is
  * only for a page that calls the API with it.
@@ -131,8 +131,8 @@ export function registerDiscordActivityRoutes(app: Express, deps: DiscordActivit
           { provider: "discord-activity", userAgent: req.get("user-agent"), ip: req.ip },
           SESSION_TTL_MS,
         );
-        // The Activity signs in with the body's token (its socket's and the
-        // Godot client's auth.token): no cookie, which its page never uses
+        // The Activity signs in with the body's token (its socket's
+        // auth.token): no cookie, which its page never uses
         // (quickdraw's guide since 5.0.0-rc.6 sets none here either)
         res.json({ token });
       } catch (error) {

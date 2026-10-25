@@ -19,6 +19,15 @@ bun run check && bun run test
 A husky pre-push hook runs lint and typecheck for you, but it does not run the
 tests — run them yourself.
 
+<!-- ── quickdraw-game:start ── -->
+
+A change to the game client or its netcode also runs `bun run check:web`:
+two real browser pages of the client against the bench server, through an
+API restart, then a party (Playwright's Chromium, `bunx playwright install
+chromium` once). CI runs it too.
+
+<!-- ── quickdraw-game:end ── -->
+
 Always use `bun run <script>`, never bare `bun <script>`. Bare `bun test` and
 `bun build` invoke bun's own tools instead of the package.json scripts.
 

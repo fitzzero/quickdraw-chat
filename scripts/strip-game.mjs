@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Remove the entire game foundation from this repo (Godot app, GameService,
+ * Remove the entire game foundation from this repo (the game client, GameService,
  * DefinitionService, Discord Activity, overlays, migrations, docs).
  *
  * Called by `init-fork.sh <name> --without-game`, or run standalone:
@@ -32,15 +32,15 @@ const END = "── quickdraw-game:end ──";
 
 // ── 1. Whole paths ──────────────────────────────────────────────────────
 const DELETE_PATHS = [
-  "apps/game",
-  "apps/web/public/game",
   "apps/web/src/app/game",
   "apps/web/src/app/discord",
   "apps/web/src/app/scores",
   "apps/web/src/components/game",
   "apps/web/src/game",
+  "apps/web/src/__tests__/game-transport.int.test.tsx",
+  // the party's stream hook (useParty is the only reader)
+  "apps/web/src/hooks/useNewItems.ts",
   "apps/web/src/components/discord",
-  "apps/web/src/lib/godot-engine.d.ts",
   "apps/api/src/services/game",
   "apps/api/src/services/definition",
   "apps/api/src/auth/discord-activity.ts",
@@ -217,14 +217,16 @@ editJson("package.json", (data) => {
   delete data.scripts?.["bench:netcode"];
   delete data.scripts?.["bench:server"];
   delete data.scripts?.["bench:compare"];
-  delete data.scripts?.["check:godot"];
+  delete data.scripts?.["check:web"];
 });
 
 editJson("apps/api/package.json", (data) => {
   delete data.scripts?.["bench:netcode"];
   delete data.scripts?.["bench:server"];
-  delete data.scripts?.["check:godot"];
+  delete data.scripts?.["check:web"];
   delete data.dependencies?.["@project/bench"];
+  // check:web drove browsers with it
+  delete data.devDependencies?.playwright;
 });
 
 // The shared package's tests are the game's (packages/shared/src/game):
@@ -304,11 +306,11 @@ const LEFTOVER_ALLOWLIST = new Set([
 ]);
 
 const LEFTOVER_PATTERN = [
-  "godot",
+  "check:web",
   "quickdraw-game",
   "gameService",
   "definitionService",
-  "GodotCanvas",
+  "GameCanvas",
   "bench:netcode",
   "multiplayer game",
   "Discord Activity",

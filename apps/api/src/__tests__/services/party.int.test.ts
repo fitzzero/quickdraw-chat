@@ -1,7 +1,7 @@
 // Party worlds on the server (host mode): the row, its code and chat, its
 // room and its host, over real protocol 5 sockets. The party's world runs
 // in its host's client; here a Node client hosts with defineHost, as the
-// web page and check:godot's host do, so the server's half is checked
+// web page and check:web's host do, so the server's half is checked
 // against what a host and its players see: the host frame, the party's
 // events, who may link to the host, and how a party ends.
 import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } from "vitest";

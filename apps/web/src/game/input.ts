@@ -20,7 +20,7 @@ export class PointerInput {
     canvas: HTMLCanvasElement,
     private readonly worldPointAt: (clientX: number, clientY: number) => { x: number; y: number },
   ) {
-    // the pointer steers from anywhere on the page, as Godot's global mouse did
+    // the pointer steers from anywhere on the page, not only over the canvas
     this.listen(window, "pointermove", (event) => {
       this.pointer = { x: event.clientX, y: event.clientY };
     });

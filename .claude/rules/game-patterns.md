@@ -11,7 +11,7 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
 - **Methods** — request/response, acknowledged, full access checks. Use for
   every command: `joinGame`, `respawn`, a spell cast, a "start next wave"
   button. Callable identically from React (`qd.gameService.joinGame.useMutation()`)
-  and the Godot client (`Net.client.call_method(...)`): game commands stay
+  and from any client of the protocol (the bench bots' `callData`): game commands stay
   typed and secured like all other quickdraw traffic. The high scores
   (`getHighScores`, `getMyBest`) declare `watch: { service: ["gameScore"] }`:
   a stored score (a GameScore row, which gameService lists in `writes`)
@@ -70,8 +70,8 @@ All of it is declared in `packages/shared/src/contracts/game.ts`:
   id table, which one SnapshotEncoder per runtime keeps: the keyframe
   introduces every player, and each snapshot the players first introduced
   in its last six ticks (a seed's new player from the next tick on). A
-  client decodes with one SnapshotDecoder (`snapshot_decoder.gd` in Godot),
-  kept across its subscriptions and reset for another server's world, and
+  client decodes with one SnapshotDecoder, kept across its subscriptions
+  and reset for another server's world, and
   asks for a keyframe when a snapshot names a player by an introduction it
   missed (`needsKeyframe`). A client takes a keyframe's food and its names,
   never its snakes: it may be handled after newer snapshots, which place
@@ -148,7 +148,8 @@ place of them: one member is served by the server or by a host, never both.
   (`apps/web/src/components/game/partyHost.ts`) while the server names its
   socket the room's host (`qd:host`). Players reach the host over peer
   links: WebRTC where it connects, the server's relay otherwise (always,
-  from headless or native Godot). The server never sees that traffic.
+  from a Node client: the bench's host, `check:web`'s). The server never
+  sees that traffic.
 - **The methods**: `hostParty` (the calling socket joins the room and
   becomes its host; the caller's other open parties end, and one call runs
   at a time per user), `joinParty` by code (the room, the chat and who
@@ -248,9 +249,11 @@ place of them: one member is served by the server or by a host, never both.
 - `bun run --filter @project/api test`: the game over real protocol 5
   sockets (`game.int.test.ts`, its frames matched with `streamFrames` and
   `eventFrames`).
-- `bun run check:godot`: two real headless Godot clients in one world, through
-  an API restart, then in a party a Node client hosts, over the relay (see
-  `apps/game/README.md`).
+- `bun run check:web`: two real browser pages of the game client in one
+  world (Playwright, headless Chromium), through an API restart, then in a
+  party a Node client hosts, over the relay
+  (`apps/api/src/bench/web-session.ts`; the page's probe, `?probe=1`,
+  records what each client sees).
 - `bun run --filter @project/api test` covers the party's server half
   (`party.int.test.ts`): the host frame, joins by code, who may link to the
   host, and how a party ends.
@@ -260,9 +263,8 @@ place of them: one member is served by the server or by a host, never both.
 Netcode changes are judged by scorecards, not eyeballs: `bun run
 bench:netcode` runs headless bot clients (`apps/api/src/bench/bot/`: a
 behavior and a trace around the shared package's `GameClientCore`,
-`packages/shared/src/game/client/`, the TS ports of the Godot netcode —
-keep them in lockstep with `local_snake.gd` / `remote_snake.gd` /
-`game.gd`'s world clock / `main.gd`'s food) over protocol v5 through a
+`packages/shared/src/game/client/`: the netcode the web page runs, one
+implementation measured where it is played) over protocol v5 through a
 latency proxy against a live-loop server; a party scenario runs them over
 loopback links to a host in process. See `docs/netcode-bench.md`,
 baselines in `bench-baselines/`, and the `/netcode-rd` skill for the

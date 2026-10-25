@@ -166,8 +166,8 @@ async function seedGameWorld(ids: { adminId: string }): Promise<void> {
 /**
  * Snake movement tunables as a Definition row. Must mirror DEFAULT_TUNABLES
  * in packages/shared/src/game/world.ts — the server sim loads these at
- * boot (and hot-reloads on admin edit); the Godot client fetches them at
- * load. Edit via /admin/definitionService — no re-export needed.
+ * boot (and hot-reloads on admin edit); the game client fetches them at
+ * load. Edit via /admin/definitionService — no client build needed.
  */
 async function seedDefinitions(): Promise<void> {
   await prisma.definition.upsert({

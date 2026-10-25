@@ -1,7 +1,5 @@
 /**
- * FoodTracker — 1:1 TS port of the Godot client's food (main.gd
- * `_apply_food`, `_on_keyframe` and `_request_keyframe`, food_layer.gd
- * `apply_deltas`): the food a client holds, kept from the world stream.
+ * FoodTracker: the food a client holds, kept from the world stream.
  *
  * Every snapshot repeats the food changes of the GAME_FOOD_WINDOW ticks up
  * to its own, so a client applies each tick's change once, in tick order,

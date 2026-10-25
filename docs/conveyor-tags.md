@@ -39,15 +39,15 @@ The game foundation is optional, so its tags live in their own table.
 `init-fork.sh --without-game` strips this section along with the files it
 points at.
 
-| Tag             | Description                                                   | overviewPath                     | Parent |
-| --------------- | ------------------------------------------------------------- | -------------------------------- | ------ |
-| `game`          | The game foundation: GameService, channels, the Godot client. | `.claude/rules/game-patterns.md` | —      |
-| `netcode-bench` | The benchmark harness and the R&D hypothesis loop.            | `docs/netcode-bench.md`          | `game` |
+| Tag             | Description                                                      | overviewPath                     | Parent |
+| --------------- | ---------------------------------------------------------------- | -------------------------------- | ------ |
+| `game`          | The game foundation: GameService, channels, the web game client. | `.claude/rules/game-patterns.md` | —      |
+| `netcode-bench` | The benchmark harness and the R&D hypothesis loop.               | `docs/netcode-bench.md`          | `game` |
 
-| Tag             | Context paths                                                                                                                             |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `game`          | `apps/api/src/services/game` (folder), `packages/shared/src/game` (folder), `apps/game` (folder), `.claude/rules/game-patterns.md` (rule) |
-| `netcode-bench` | `packages/bench` (folder), `apps/api/src/bench` (folder), `bench-baselines` (folder), `docs/netcode-bench.md` (doc)                       |
+| Tag             | Context paths                                                                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `game`          | `apps/api/src/services/game` (folder), `packages/shared/src/game` (folder), `apps/web/src/game` (folder), `.claude/rules/game-patterns.md` (rule) |
+| `netcode-bench` | `packages/bench` (folder), `apps/api/src/bench` (folder), `bench-baselines` (folder), `docs/netcode-bench.md` (doc)                               |
 
 <!-- ── quickdraw-game:end ── -->
 

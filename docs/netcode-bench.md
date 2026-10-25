@@ -32,15 +32,13 @@ when a netcode improvement lands on main).
   `stall` (paused reads → real backpressure → the volatile world stream
   genuinely drops snapshots);
 - bot clients (`apps/api/src/bench/bot/`) speaking the production wire,
-  quickdraw protocol v5, the way the Godot client does: `qd:stream:sub` of
+  quickdraw protocol v5, as the web client does: `qd:stream:sub` of
   the `world` stream, then `joinGame`/`watchWorld` (`qd:call`, which puts the
   socket in the world's room), input as `qd:ch` (volatile, never answered),
   snapshots as `qd:stream` frames and deaths as `qd:event` — and running the
   shared package's client netcode (`packages/shared/src/game/client/`:
-  `GameClientCore` over 1:1 TS ports of the Godot netcode, `prediction.ts`
-  ≡ `local_snake.gd`, `interpolation.ts` ≡ `remote_snake.gd`,
-  `world-clock.ts` ≡ `game.gd`'s clock, `food.ts` ≡ `main.gd`'s food
-  (`_apply_food`, `_on_keyframe`)), which the web page's client shares. Bots
+  `GameClientCore` over `prediction.ts`, `interpolation.ts`,
+  `world-clock.ts` and `food.ts`), the one the web page's client runs. Bots
   render at ~60Hz and record every rendered frame.
 
 Everything shares one machine clock, so cross-client comparisons are exact.
@@ -75,20 +73,27 @@ real render pipeline, including the engine's frame pacing.
 | `server.tickDurMs` / `effectiveTickRate` | Sim cost and loop health.                                                                                                | ≪ 50ms / 20Hz.                                                             |
 | `server.snapshotBytes`                   | The stream item's JSON: the packed snapshot, base64 in `{ b }`. On the wire each `qd:stream` frame adds 59 bytes.        | 23 B a player (31 in base64); add fields consciously.                      |
 | `server.inputQueue`                      | Server's view of client clocks: depth p95, coasted and multi-step tick rates, depth trend, step/ack mismatches a minute. | depth 0–1, multi-step < 5%, trend ~0, mismatches 0 (must be; see below).   |
-| `foodMismatchAtEnd` / `foodResyncs`      | Per client: food ids held at the end that differ from the server's at that tick (the worst gates); keyframes asked.      | 0 / 0. Tier 1 only (Godot reports none); check:godot checks Godot's.       |
+| `foodMismatchAtEnd` / `foodResyncs`      | Per client: food ids held at the end that differ from the server's at that tick (the worst gates); keyframes asked.      | 0 / 0. Tier 1 only; check:web checks the page's.                           |
 
 Aggregated runs (`--runs 3`) report element-wise medians plus `runVariance`
 (max−min of headline metrics across runs). `bench:compare` treats deltas
 inside the noise band as `within-noise` — don't ship a "win" that lives there.
 
-## The real client: `check:godot`
+## The real client: `check:web`
 
-The bots stand in for the Godot client; `bun run check:godot` runs the real
-one: two headless copies of `apps/game/godot` (`test/session.gd`) against
-the same bench server, checking a whole session (join, each sees the other
-move, a death, the leaderboard, each holding the server's food, one that
-missed a second of snapshots asking for a keyframe and the other for none,
-an API restart with both reconnecting). See `apps/game/README.md`.
+The bots run the page's netcode without its page; `bun run check:web` runs
+the real thing: two Playwright pages of `/game` (headless Chromium) against
+the same bench server, each playing as a guest through the real dialog,
+checking a whole session (join, each sees the other move, a death and a
+respawn, the leaderboard, each holding the server's food, one that missed a
+second of snapshots asking for a keyframe and the other for none, an API
+restart with both reconnecting), then a party a Node client hosts (join by
+code through the dialog, play over the relay, a death on `partyEvents`, the
+host ending it). The page's probe (`apps/web/src/game/probe.ts`, under
+`?probe=1`) records what each client sees and steers its snake; the runner
+is `apps/api/src/bench/web-session.ts`. The web app runs from `apps/web`
+with its own dist dir (`NEXT_DIST_DIR=.next-check`), so the check runs
+beside a developer's dev server.
 
 ## Scenarios
 
@@ -138,7 +143,7 @@ each bot plays over a loopback link to it (core's `createLoopbackPeerLink`):
 `packet.gapRate` measures real loss. The bots and the host exchange the
 app's payloads over the ends (`apps/api/src/bench/party.ts`: input and raw
 snapshots on `fast`, the party's events and keyframes on `rel`); host
-mode's own framing is `check:godot`'s and the browser's to check. The bot
+mode's own framing is `check:web`'s to check. The bot
 `host` is the host's own user, whose game runs on the host's machine: it
 plays over a link no network slows (0 ms, no loss). In `party-3p-lossy`
 the harness lags that link as the host's page does, with the page's own
@@ -156,7 +161,7 @@ tick grid: bots at different phases differ by up to a tick on equal links.
 So every party bot starts its clock 10 ms after a host tick
 (`INPUT_PHASE_MS` in `party.ts`), and the party line compares links, not
 join times. A respawn starts the clock again at the bot's first snapshot,
-as in Godot, so from then on its link sets the phase. Prediction error (the
+as in the page, so from then on its link sets the phase. Prediction error (the
 own snake against the host's at the same instant) grows with the same trip
 and wait: the party's 5% loss adds coasted ticks, not prediction error (the
 LEDGER's G6 entry has the A/B).
@@ -193,8 +198,8 @@ against `len-tenths`.
 - The proxy cannot reorder or truly drop TCP data; jitter manifests as
   clumping and `stall` as drop-inducing backpressure — which matches what
   real WebSocket traffic experiences.
-- Tier-1 bots model the Godot client's netcode, not its renderer. Godot-side
-  frame pacing, WASM GC pauses, and draw cost only show up in Tier 2.
+- Tier-1 bots run the web client's netcode, not its renderer. The page's
+  frame pacing and draw cost only show up in Tier 2.
 - The remote interpolator's convergence is frame-rate dependent (per-frame
   nudge); bots must hold ~60fps — `effectiveFps` in the scorecard guards this.
 

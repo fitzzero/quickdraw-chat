@@ -2,10 +2,9 @@
  * GameClientCore — what every game client does with the wire, whichever
  * shell drives it: the bench bots (apps/api/src/bench/bot/client.ts, their
  * behaviors and trace around it) and the web page (its input and renderer
- * around it). It is the netcode the Godot client runs too: the local
- * predictor (local_snake.gd), one interpolator per remote snake
- * (remote_snake.gd) on the shared world clock (game.gd), and the food
- * (main.gd), driven by the transport's snapshots, keyframes and events.
+ * around it): the local predictor, one interpolator per remote snake on
+ * the shared world clock, and the food, driven by the transport's
+ * snapshots, keyframes and events.
  *
  * No React, no DOM, no Node: the clock comes in as `now` (epoch ms, the
  * one the world clock's arrivals and frames share), and the shell calls

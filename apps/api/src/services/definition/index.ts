@@ -43,8 +43,8 @@ export function notifyChanged(definition: ChangedDefinition): void {
  * DefinitionService — data-driven game content.
  *
  * The furnace lesson ("make everything resource-driven") applied to a
- * quickdraw backend: instead of baked Godot .tres resources, content lives
- * in Definition rows. Reads are Public (the Godot client fetches tunables
+ * quickdraw backend: instead of content baked into the client, it lives
+ * in Definition rows. Reads are Public (the game client fetches tunables
  * at load, pre- or post-auth); writes go through the generic admin UI, so
  * balance changes never require re-exporting the game — the server sim also
  * re-reads on change (see onChanged).

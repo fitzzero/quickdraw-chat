@@ -2,7 +2,7 @@
 // world's realtime half (the input channel, the snapshot stream and the
 // world's events) and the admin kit. Each schema below
 // satisfies the wire type of the same shape in ../types/game.ts, which
-// documents the protocol for the Godot client.
+// documents the protocol for a client of another language.
 
 import { admin, defineContract, mutation, query } from "@fitzzero/quickdraw-core";
 import { z } from "zod";

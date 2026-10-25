@@ -1,16 +1,14 @@
 /**
- * LocalPredictor — 1:1 TS port of the Godot client's local-snake netcode
- * (apps/game/godot/scripts/local_snake.gd): client-side prediction at the
+ * LocalPredictor — the local snake's netcode: client-side prediction at the
  * fixed tick rate, seq'd pending-input queue (each step's message carries its
  * frame last, with up to three unacknowledged ones before it), reconciliation
  * against PlayerSnap.ack with replay of unacknowledged inputs, corrections folded
  * into an exponentially decaying visual offset (hard snap past 64px), and
  * render interpolation between the previous and current sim states.
  *
- * This port is the Tier-1 stand-in for the real client AND the place where
- * netcode hypotheses get implemented first — keep it in lockstep with
- * local_snake.gd until a variant is promoted, then port the winner to
- * GDScript.
+ * The bench's bots and the web page run this one class, so a netcode
+ * hypothesis implemented here is measured by Tier 1 and played in the page
+ * at once.
  */
 
 import type { GameInput, PlayerSnap } from "../../types/game.js";

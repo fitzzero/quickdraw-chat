@@ -32,7 +32,7 @@ dispatcher, access checks and tracked writes:
 
 - **Socket.IO**, protocol 5: the web client.
   <!-- ── quickdraw-game:start ── -->
-  The Godot client speaks it too.
+  The netcode bench's bot clients speak it too.
   <!-- ── quickdraw-game:end ── -->
 - **HTTP**: `POST /qd/{service}/{method}`, with the session cookie or a
   bearer token (`http.rateLimit: createCallLimiter()`, since the HTTP

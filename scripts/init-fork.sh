@@ -10,7 +10,7 @@ set -euo pipefail
 # Rewrites the app identity (database names, titles, deploy service name,
 # devcontainer, MCP server name), optionally the backend port and the
 # @project/* package scope, refreshes the lockfile, formats, then deletes
-# itself. --without-game removes the entire game foundation first (Godot app,
+# itself. --without-game removes the entire game foundation first (the game client,
 # GameService, DefinitionService, Discord Activity — see scripts/strip-game.mjs).
 # --without-storybook removes the component catalog (see
 # scripts/strip-storybook.mjs). Framework references (quickdraw-core,
@@ -78,7 +78,7 @@ echo "Display name: $DISPLAY"
 echo "Database:     $DB_NAME (+ ${DB_NAME}_test, ${DB_NAME}_shadow)"
 [ -n "$PORT" ] && echo "Backend port: 4000 -> $PORT"
 [ -n "$SCOPE" ] && echo "Pkg scope:    @project -> @$SCOPE"
-[ -n "$WITHOUT_GAME" ] && echo "Game:         removing (Godot app, GameService, definitions, Discord Activity)"
+[ -n "$WITHOUT_GAME" ] && echo "Game:         removing (the game client, GameService, definitions, Discord Activity)"
 [ -n "$WITHOUT_STORYBOOK" ] && echo "Storybook:    removing (config, stories, docs, CI step)"
 echo ""
 

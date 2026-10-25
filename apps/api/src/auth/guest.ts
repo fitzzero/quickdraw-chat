@@ -4,8 +4,8 @@
  * Everything downstream (socket auth, channels, chat membership, scores)
  * requires a real userId, so instead of supporting anonymous sockets we
  * mint a real-but-guest User row + session cookie. The game's pre-game
- * dialog calls this before booting the Godot client for signed-out
- * visitors ("log in for persistent stats" upsells the real thing).
+ * dialog calls this for signed-out visitors, and the game client starts
+ * over as the guest ("log in for persistent stats" upsells the real thing).
  *
  * The auth routes kit serves it (`POST /auth/guest`, rate-limited there):
  * this module is the app's half, `createUser`, which validates the name and

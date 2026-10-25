@@ -23,8 +23,8 @@ type ActivityPhase =
  * the SAME game components as /game, wired through Discord's proxy.
  *
  * Token-in-handshake is primary here because third-party cookies don't
- * survive the Activity iframe; both the socket provider and the Godot host
- * config carry the JWT explicitly.
+ * survive the Activity iframe; the socket provider carries the JWT
+ * explicitly.
  */
 export function DiscordActivityShell(): React.ReactElement {
   const t = useTranslations("DiscordActivity");

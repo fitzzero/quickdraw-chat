@@ -1,5 +1,5 @@
 /**
- * The game's colors, as the Godot client chose them (Color.from_hsv), as
+ * The game's colors, chosen in HSV, as
  * 0xRRGGBB numbers an engine tints a white texture with.
  */
 
@@ -39,7 +39,7 @@ export function hsv(h: number, s: number, v: number): number {
   return (Math.round(r * 255) << 16) | (Math.round(g * 255) << 8) | Math.round(b * 255);
 }
 
-/** Godot's Color.darkened: each channel scaled toward black by `amount`. */
+/** Each channel scaled toward black by `amount`. */
 export function darken(rgb: number, amount: number): number {
   const k = 1 - amount;
   const r = Math.round(((rgb >> 16) & 0xff) * k);

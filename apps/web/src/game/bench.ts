@@ -4,8 +4,8 @@
  * every snake, plus snapshot arrivals, input sends, corrections, fps, the
  * page's long tasks and the renderer's stats, flushed as JSON batches to
  * `window.QuickdrawBench.push` every 500 ms for the runner to drain. The
- * shape is the one apps/bench-web/src/run.ts ingests (the Godot Bench
- * autoload's), with `longTasks` and `renderer` beside it. Times are epoch
+ * shape is the one apps/bench-web/src/run.ts ingests, with `longTasks` and
+ * `renderer` beside it. Times are epoch
  * ms, the clock the core and the server's ground truth share.
  */
 
@@ -14,6 +14,18 @@ import type { RendererStats } from "./render/renderer";
 
 export interface BenchSink {
   push(json: string): void;
+}
+
+/** The batches the page collects for the runner to drain (apps/bench-web): the page defines it before the client starts. */
+export interface QuickdrawBenchSink extends BenchSink {
+  batches: unknown[];
+  drain(): unknown[];
+}
+
+declare global {
+  interface Window {
+    QuickdrawBench?: QuickdrawBenchSink;
+  }
 }
 
 const FLUSH_INTERVAL_MS = 500;

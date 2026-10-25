@@ -1,10 +1,10 @@
 /**
- * The server's wire for a bot: quickdraw protocol v5 as the Godot client
+ * The server's wire for a bot: quickdraw protocol v5 as the web client
  * speaks it (handshake → `qd:hello` → `qd:stream:sub` of the world stream →
  * joinGame/watchWorld, which puts the socket in the world's room → `qd:ch`
  * input → volatile `qd:stream` snapshots, packed, and `qd:event` world
  * events), through an optional latency proxy. Snapshots are unpacked with
- * one SnapshotDecoder (game.gd's `_decoder`): kept across resubscribes,
+ * one SnapshotDecoder: kept across resubscribes,
  * reset for another server's world.
  */
 
@@ -86,7 +86,7 @@ export class SocketTransport implements GameTransport {
 
   public async start(wire: GameWire, spectator: boolean): Promise<GameJoin> {
     this.wire = wire;
-    // Development credentials (`auth.userId`), as the Godot editor signs in
+    // Development credentials (`auth.userId`): the bench server's sign-in
     const socket = ioClient(`http://127.0.0.1:${this.port}`, {
       auth: { userId: this.userId, qd: HANDSHAKE },
       transports: ["websocket"],
