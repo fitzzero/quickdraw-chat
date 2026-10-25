@@ -64,15 +64,14 @@ describe("PartyTransport", () => {
     expect(transport.needsKeyframe).toBe(false);
   });
 
-  it("takes the first item of a fresh list, and any item without a send time, as a keyframe", async () => {
+  it("takes an item without a send time as a keyframe, wherever it comes in the feed", async () => {
     const { transport, wire } = await started();
-    transport.item(keyframe(10), true);
-    transport.item(snapshot(11), false);
-    transport.item(snapshot(12), false);
-    // a new link's seed: its first item is a keyframe again, its tick older than the newest snapshot
-    transport.item(keyframe(12), true);
-    // a keyframe the bridge did not flag still has no send time
-    transport.item(keyframe(13), false);
+    transport.item(keyframe(10));
+    transport.item(snapshot(11));
+    transport.item(snapshot(12));
+    // a new link's seed, its tick older than the newest snapshot: a keyframe still
+    transport.item(keyframe(12));
+    transport.item(keyframe(13));
     expect(wire.keyframes.map((k) => k.tick)).toEqual([10, 12, 13]);
     expect(wire.snapshots.map((s) => s.tick)).toEqual([11, 12]);
   });
@@ -114,7 +113,7 @@ describe("PartyTransport", () => {
     expect(reseeds).toBe(1);
     await vi.advanceTimersByTimeAsync(10);
     expect(resolved).toBe(false);
-    transport.item(keyframe(20), true);
+    transport.item(keyframe(20));
     await ask;
     expect(resolved).toBe(true);
     expect(wire.keyframes.map((k) => k.tick)).toEqual([20]);
@@ -132,14 +131,29 @@ describe("PartyTransport", () => {
     expect(resolved).toBe(true);
   });
 
-  it("hands nothing on once closed", async () => {
+  it("hands a refused feed to the client", async () => {
+    const errors: Error[] = [];
+    const transport = new PartyTransport({
+      worldId: WORLD,
+      bounds: BOUNDS,
+      onError: (error) => errors.push(error),
+    });
+    transport.failed(new Error("No app room serves scope party-1"));
+    expect(errors.map((e) => e.message)).toEqual(["No app room serves scope party-1"]);
+  });
+
+  it("hands nothing on once closed, and keeps the bridge (PartyWire detaches it)", async () => {
     const { transport, wire } = await started();
+    const sent: unknown[] = [];
+    transport.attach({ send: (payload) => sent.push(payload), reseed: () => undefined });
     transport.close();
-    transport.item(keyframe(1), true);
-    transport.item(snapshot(2), false);
+    transport.item(keyframe(1));
+    transport.item(snapshot(2));
     transport.event({ kind: "left", id: "p2" });
+    transport.sendInput([{ seq: 1, dx: 1, dy: 0, boost: false }]);
     expect(wire.keyframes).toEqual([]);
     expect(wire.snapshots).toEqual([]);
     expect(wire.gone).toEqual([]);
+    expect(sent).toHaveLength(1);
   });
 });

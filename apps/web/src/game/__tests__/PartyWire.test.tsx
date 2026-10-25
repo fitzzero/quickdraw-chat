@@ -1,8 +1,9 @@
 /**
  * The bridge on the mock client (no server, no host): what the hooks show
- * reaches the transport in order, the seed first as a keyframe; input the
- * transport sends reaches the channel; a keyframe ask remounts the world
- * feed, whose fresh list is a seed again.
+ * reaches the transport in order, each item once, a seed as a keyframe;
+ * input the transport sends reaches the channel; a keyframe ask holds the
+ * world feed off for a moment, and the seed its next subscription answers
+ * reaches the transport as a keyframe.
  */
 
 import * as React from "react";
@@ -101,18 +102,28 @@ describe("PartyWire", () => {
     expect(mock.gameService.partyInput.sent).toEqual([{ frames }]);
   });
 
-  it("subscribes the world feed again for a keyframe: a fresh list is a seed again", async () => {
+  it("holds the world feed off for a keyframe, and takes the seed its next subscription answers", async () => {
     mock.gameService.partyWorld.mockItems(WORLD, [keyframe(10), snapshot(11)]);
     const { transport, wire } = await mounted();
     expect(wire.keyframes).toEqual([10]);
     expect(wire.snapshots).toEqual([11]);
     let asked: Promise<void> | undefined;
-    // the ask remounts the world feed; the remounted feed's list is a seed again
     act(() => {
       asked = transport.requestKeyframe();
     });
+    // the feed is off; what the host answers its next subscription is the
+    // world now (the mock shows it once the feed is on again)
+    act(() => {
+      mock.gameService.partyWorld.mockItems(WORLD, [keyframe(12), snapshot(13)]);
+    });
+    // the pause ends on its own
+    await act(async () => {
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 30);
+      });
+    });
     await asked;
-    expect(wire.keyframes).toEqual([10, 10]);
-    expect(wire.snapshots).toEqual([11, 11]);
+    expect(wire.keyframes).toEqual([10, 12]);
+    expect(wire.snapshots).toEqual([11, 13]);
   });
 });

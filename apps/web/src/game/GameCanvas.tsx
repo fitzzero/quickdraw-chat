@@ -87,7 +87,10 @@ export function GameCanvas({
     () => (partyWorldId === null ? tunablesFrom(definition.data?.data) : PARTY_GAME_TUNABLES),
     [definition.data, partyWorldId],
   );
-  // The party's wire: fed by PartyWire below, read by the core like the server's
+  const stateChangeRef = React.useRef(onStateChange);
+  stateChangeRef.current = onStateChange;
+  // The party's wire: fed by PartyWire below, read by the core like the
+  // server's; a feed the host refused is this client's error
   const partyTransport = React.useMemo(
     () =>
       partyWorldId === null
@@ -96,12 +99,11 @@ export function GameCanvas({
             worldId: partyWorldId,
             bounds: PARTY_BOUNDS,
             onPlayer: (meta) => shellRef.current?.addPlayer(meta),
+            onError: (error) =>
+              stateChangeRef.current?.({ phase: "error", message: error.message }),
           }),
     [partyWorldId],
   );
-
-  const stateChangeRef = React.useRef(onStateChange);
-  stateChangeRef.current = onStateChange;
   const bootstrapRef = React.useRef(bootstrap);
   bootstrapRef.current = bootstrap;
   const hasBootstrap = bootstrap !== null;

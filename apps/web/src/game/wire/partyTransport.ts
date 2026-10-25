@@ -9,14 +9,19 @@
  * `partyEvents` (joins, leaves, deaths, the leaderboard, in order) and
  * `partyInput` back on the link's `fast`. The bridge hands items in here;
  * the core reads them through the same GameWire the server's world uses.
+ * A keyframe is told by its shape: the host's loop stamps a send time on
+ * every tick's snapshot (`t`), and a seed is the sim's keyframe, which
+ * carries none.
  *
  * quickdraw-5.0 finding: the typed client has no React-free way to
  * subscribe to a host-served stream or send on a host-served channel (the
  * React hooks alone speak host mode's link framing, which an app must never
- * hand-write), so the 20 Hz feed crosses a React component. The quickdraw
- * card `client-core-streams-channels-and-events-without-react-host-s` asks
- * for the API; when it ships, this transport subscribes itself and the
- * bridge goes.
+ * hand-write), so the 20 Hz feed crosses a React component; and a stream
+ * has no refresh, so a keyframe ask is the bridge's to serve (PartyWire).
+ * The quickdraw card
+ * `client-core-streams-channels-and-events-without-react-host-s` asks for
+ * the API; when it ships, this transport subscribes itself and the bridge
+ * goes.
  */
 
 import type {
@@ -41,13 +46,15 @@ export interface PartyTransportOptions {
   bounds: { w: number; h: number };
   /** A player's name and hue: the seed's `joined` for every player, then each later join. */
   onPlayer?: (meta: GamePlayerMeta) => void;
+  /** A feed the host refused (no host serves the room, or it refused this user): final until a new subscription. */
+  onError?: (error: Error) => void;
 }
 
 /** What the bridge gives the transport while it is mounted. */
 export interface PartyBridge {
-  /** The channel's `send` while it is ready, null until then (frames sent before are dropped, as the wire would). */
+  /** The channel's `send` while the socket is connected, null until then (a frame with no link to the host is dropped, as the wire would). */
   send: ((payload: GameInputs) => void) | null;
-  /** Subscribes the world feed again: its new seed is the keyframe a gap asks for. */
+  /** Holds the world feed off for a moment, so its next subscription answers a fresh seed: the keyframe a gap asks for. */
   reseed: () => void;
 }
 
@@ -77,12 +84,11 @@ export class PartyTransport implements GameTransport {
   }
 
   /**
-   * An item of the world feed. The feed's seed is a keyframe (the world now,
-   * all the food in one entry, no send time): the bridge says so for the
-   * first item of a fresh list, and a snapshot without a send time is one too.
+   * An item of the world feed. A seed is a keyframe (the world now, all the
+   * food in one entry) and carries no send time; every tick's snapshot does.
    */
-  public item(snapshot: WorldSnapshot, first: boolean): void {
-    if (first || snapshot.t === undefined) {
+  public item(snapshot: WorldSnapshot): void {
+    if (snapshot.t === undefined) {
       this.wire?.keyframe(snapshot);
       for (const resolve of this.keyframeWaiters.splice(0)) resolve();
       return;
@@ -107,6 +113,11 @@ export class PartyTransport implements GameTransport {
     this.bridge?.send?.({ frames });
   }
 
+  /** A feed the host refused: the client shows it (the store keeps the refusal until a new subscription). */
+  public failed(error: Error): void {
+    this.opts.onError?.(error);
+  }
+
   /** Asks the bridge for a fresh seed; resolves on the keyframe it brings, or after KEYFRAME_TIMEOUT_MS. */
   public requestKeyframe(): Promise<void> {
     return new Promise((resolve) => {
@@ -127,9 +138,9 @@ export class PartyTransport implements GameTransport {
     // nothing: the server, not the transport, tells the host to spawn
   }
 
+  /** The client stopped; the bridge stays until PartyWire detaches it (their lifetimes differ). */
   public close(): void {
     this.wire = null;
-    this.bridge = null;
     for (const resolve of this.keyframeWaiters.splice(0)) resolve();
   }
 }

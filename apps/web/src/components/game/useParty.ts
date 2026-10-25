@@ -189,9 +189,10 @@ export function useParty(options: {
   // quickdraw-5.0 finding: the host's own feed of a room it hosts reaches it
   // over an in-process link, but one subscribed before `serve` (core 5.1.3)
   // never gets its seed or items: the host's page subscribes once it serves
+  const serving = party?.role !== "host" || hosting.serving;
   const events = qd.gameService.partyEvents.useStream(party?.worldId ?? null, {
     max: 200,
-    enabled: party?.role !== "host" || hosting.serving,
+    enabled: serving,
   });
   // a list a new seed replaced holds no news: the deaths in it were heard
   useNewItems(
@@ -208,7 +209,7 @@ export function useParty(options: {
     error,
     ended,
     leaderboard: latestBoard(events.items),
-    serving: party?.role !== "host" || hosting.serving,
+    serving,
     host: () => {
       leaving.current = null;
       endedWorld.current = null;
