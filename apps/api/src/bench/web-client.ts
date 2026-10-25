@@ -14,15 +14,18 @@ export const STEP_TIMEOUT_MS = 45_000;
 /** How long after its death a page clicks Respawn. */
 const RESPAWN_AFTER_MS = 1_000;
 const DRAIN_EVERY_MS = 200;
+/** Chromium's network log reaches the console as errors: a socket's retry while the API restarts is one. */
+const NETWORK_LOG = /^(Failed to load resource|WebSocket connection to )/;
 /**
- * Chromium's network log reaches the console as errors: a socket's retry
- * while the API restarts is one, and so is a frame the socket's transport
- * wrote as the server closed it (engine.io-client writes before the browser
- * tells it of the close, which it expects: Chromium drops the frame and logs
- * it, and the socket connects again).
+ * Chromium's log of a send on a WebSocket that is already closing: Socket.IO
+ * writes to its socket until the close event, so an input frame or a pong
+ * in the moment after the server closed it (the API restart) lands there.
+ * That is the race, not the page's error, only when the page recorded the
+ * disconnect within CLOSING_SEND_MS of it; any other is the page's error (a
+ * socket it kept writing to after it closed).
  */
-const NETWORK_LOG =
-  /^(Failed to load resource|WebSocket connection to |WebSocket is already in CLOSING or CLOSED state)/;
+const CLOSING_SEND = "WebSocket is already in CLOSING or CLOSED state.";
+const CLOSING_SEND_MS = 2_000;
 
 export interface Probe {
   readonly kind: string;
@@ -42,8 +45,8 @@ declare const window: {
 /** One page of the game: its browser context and every entry its probe recorded. */
 export class WebClient {
   public readonly probes: Probe[] = [];
-  /** The page's console errors and uncaught exceptions: a session with any fails. */
-  public readonly errors: string[] = [];
+  /** The page's console errors and uncaught exceptions, when each came (epoch ms) and where from. */
+  private readonly logged: { t: number; text: string; at: string }[] = [];
   /** The user the page signed in as (a guest): the first hello that named one. */
   public userId = "";
   private context: BrowserContext | null = null;
@@ -65,16 +68,38 @@ export class WebClient {
     this.page.on("console", (message) => {
       // the page's own errors, not the browser's network log
       if (message.type() === "error" && !NETWORK_LOG.test(message.text())) {
-        // where it was logged: a bundle's url and line name the module
         const { url, lineNumber } = message.location();
-        this.errors.push(`${message.text().slice(0, 300)} (${url}:${String(lineNumber)})`);
+        this.logged.push({
+          t: Date.now(),
+          text: message.text().slice(0, 300),
+          at: url === "" ? "" : ` (${url}:${String(lineNumber)})`,
+        });
       }
     });
     this.page.on("pageerror", (error) =>
-      this.errors.push(`pageerror: ${String(error).slice(0, 300)}`),
+      this.logged.push({
+        t: Date.now(),
+        text: `pageerror: ${String(error).slice(0, 300)}`,
+        at: "",
+      }),
     );
     await this.goToGame();
     this.timer = setInterval(() => void this.drain(), DRAIN_EVERY_MS);
+  }
+
+  /**
+   * The page's console errors and uncaught exceptions, each with where it
+   * came from: a session with any fails. A send that raced the server's
+   * close of the page's socket is left out (CLOSING_SEND).
+   */
+  public get errors(): string[] {
+    const disconnects = this.probes.filter((p) => p.kind === "disconnected").map((p) => p.t);
+    return this.logged
+      .filter(
+        ({ t, text }) =>
+          text !== CLOSING_SEND || !disconnects.some((at) => Math.abs(at - t) <= CLOSING_SEND_MS),
+      )
+      .map(({ text, at }) => `${text}${at}`);
   }
 
   /** The game page (again: the dialog back, the session kept); its probe starts over with the page. */

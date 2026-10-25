@@ -122,8 +122,8 @@ export class GameShell {
       hooks: {
         onSnapshotArrival: (tWall, tick) => telemetry?.snapshot(tWall, tick),
         onInputSent: (frames, tSent) => telemetry?.input(frames.at(-1)?.seq ?? -1, tSent),
-        onCorrection: (correction, _ack, tWall) => {
-          telemetry?.correction(tWall, correction.magnitudePx, correction.hard);
+        onCorrection: (correction, ack, tWall) => {
+          telemetry?.correction(tWall, correction.magnitudePx, correction.hard, ack);
           // a hard snap teleported the head: its body history starts over
           if (correction.hard && userId !== null) opts.renderer.resetPath(userId);
         },

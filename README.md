@@ -273,6 +273,9 @@ DB-driven tunables editable in the admin UI, and a Discord Activity entry at
   stream and events; rooms and the ordering contract; host mode; sim
   purity) and `.claude/rules/client-patterns.md` (the game client's three
   layers: the shared netcode, the shell, the renderer behind one interface).
+- **Another engine?** PixiJS is the default renderer; `docs/game-renderer.md`
+  tells a fork how to bring its own (three.js, raw WebGL, canvas2D) by
+  replacing one folder, and what it must keep.
 - Game commands are ordinary quickdraw methods — a React button and the
   bench's bots call them identically; only tick-rate traffic uses the
   realtime kit's channel and stream. The pre-game dialog is the showcase:

@@ -46,17 +46,20 @@ function partyLine({
   );
 }
 
-/** The browser tier's line: the frame-time tails, the stalls and the builds, the backend. */
+/** The browser tier's line: the frame-time tails, the stalls and the builds, the backend, the work per frame. */
 function tier2Line(tier2: NonNullable<Scorecard["tier2"]>): string {
   const frame = tier2.frameTimeMs;
   // a card made before a field existed holds no value for it
   const held = (value: number | undefined, digits = 2): string => measured(value ?? null, digits);
+  const work = tier2.frameWorkMs;
   return (
     `  Tier 2 (${tier2.backend ?? "unknown"}): frame time p50 ${num(frame.p50)} / p95 ${num(frame.p95)} / ` +
     `p99 ${held(frame.p99, 1)} ms, fps p50 ${num(tier2.fps.p50, 0)}, ` +
     `long tasks ${held(tier2.longTasksPerMin)}/min, geometry builds ${held(tier2.geometryBuildsPerMin)}/min, ` +
     `pauses ${held(tier2.pausesPerMin)}/min, ` +
-    `draw calls p50 ${tier2.drawCalls === undefined || tier2.drawCalls.n === 0 ? "n/a" : num(tier2.drawCalls.p50, 0)}`
+    `draw calls p50 ${tier2.drawCalls === undefined || tier2.drawCalls.n === 0 ? "n/a" : num(tier2.drawCalls.p50, 0)}, ` +
+    // each half second's p99: the median half second, and the worst
+    `frame work p99 ${work === undefined || work.n === 0 ? "n/a" : `${num(work.p50, 2)} ms (worst half second ${num(work.max, 2)})`}`
   );
 }
 

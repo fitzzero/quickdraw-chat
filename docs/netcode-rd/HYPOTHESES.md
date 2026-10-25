@@ -1,5 +1,12 @@
 # Netcode R&D — Hypothesis Backlog
 
+> Entries written before PR #70 (2026-10-25) name the GDScript files of the
+> Godot client it deleted (`game.gd`, `remote_snake.gd`, `local_snake.gd`,
+> `snapshot_decoder.gd`). The same netcode is
+> `packages/shared/src/game/client/` (`world-clock.ts`, `interpolation.ts`,
+> `prediction.ts`, `food.ts`) and `packages/shared/src/game/snapshotDecoder.ts`,
+> which the page and the bots both run; `LEDGER.md`'s preface maps each file.
+
 Prioritized by suspected impact on the observed rubberbanding/jitter between
 real devices. Each entry names the change, where it lives, what scorecard
 movement would confirm it, and its wire-format impact. Work top-down; the
@@ -121,9 +128,43 @@ Resolved 2026-10-23 (the netcode pack's G4) and recorded KEPT in
 The full player array went every tick as JSON: about 110 B a player.
 Each snapshot is now packed (`game/snapshotCodec.ts`): 23 B a player, a
 player named by an index into the stream's id table, base64 in the stream
-item (`{ b }`), since the Godot client reads text frames only. A binary
-attachment would save the base64's third; it needs the Socket.IO binary
-format in GDScript.
+item (`{ b }`), since the Godot client of the time read text frames only.
+Every client left decodes bytes, so a binary attachment that saves the
+base64's third is open: #7b.
+
+## 7b. Binary stream items
+
+The packed snapshot travels as base64 in the stream item (`{ b }`, #7), a
+third larger than its bytes. Nothing needs the text any more: the page's
+transport (`wire/pageTransport.ts`), the bots' (`socket-transport.ts`) and
+`bench:play`'s report hand `SnapshotDecoder.decode` the item's `b` as it
+arrives, and the decoder takes a `Uint8Array` as well as a base64 string.
+Send the packed snapshot as a Socket.IO binary attachment instead.
+
+- Change: the `world` stream item carries the encoder's bytes
+  (`PackedWorldItem.b` and the contract's item schema), never base64; the
+  loop counts `snapshotBytes` as their `byteLength`
+  (`JSON.stringify(item).length` would count a byte array's JSON).
+  quickdraw's Socket.IO parser is JSON-only by default (an emit with binary
+  throws), so every server the game runs in (the API, the test app, the
+  bench) takes `createServer({ binary: true })`, and every client
+  connection `binary: true` (the page's provider, the bots'). A browser
+  receives the attachment as an `ArrayBuffer` (wrap it in a `Uint8Array`),
+  Node as a `Buffer`. `bench:play`'s page hooks (`probe-live.ts`) parse
+  text frames only, and must take the binary event (`451-`, then the
+  attachment's message).
+- Confirm: `server.snapshotBytes` about 25 % down and nothing else moving
+  (`server.tickDurMs` included: the stock parser searches every packet
+  for binary, the JSON-only one does not). Then count the bytes on the
+  wire, which `snapshotBytes` does not see: Socket.IO sends the attachment
+  as a second WebSocket message and leaves a placeholder of about 30 B in
+  the first, so a 3-player world (about 115 B of bytes a snapshot, 160 B as
+  JSON) saves only a few bytes a frame, and the gain grows with the world.
+  `bun run check:web` proves the page decodes it.
+- Wire: the stream item's shape, and each `qd:stream` frame as two
+  WebSocket messages. The JSON-only parser also measures each socket
+  reply's size (a call's `bytes`, which `expectBudget` reads): check the
+  budgets after the switch.
 
 ## 8. Lag compensation (server-side rewind)
 

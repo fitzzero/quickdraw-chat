@@ -6,16 +6,21 @@
  *   bun run --cwd apps/bench-web bench                               # the default list, both GPU backends
  *   bun run --cwd apps/bench-web bench -- --scenario render-stress-8p --gpu webgl
  *   bun run --cwd apps/bench-web bench -- --all --label desk
+ *   bun run --cwd apps/bench-web bench -- --scenario baseline-3p-100ms --gpu webgl --runs 3
  *
  * Requires the web dev server (bun run dev). For each scenario and backend
  * it spawns the standalone bench server (which owns the latency proxies),
  * opens one browser context per scenario client at /game?bench=1&gpu=…,
  * drains window.QuickdrawBench telemetry every second, and emits the same
  * scorecard format as Tier 1 (tier: 2) with the browser tier's own block:
- * frame-time tails, long tasks, geometry builds, draw calls, the backend.
- * Each card is judged against the absolute acceptance of the display rate
- * it ran at (TIER2_ACCEPTANCE, docs/netcode-bench.md); the process exits 1
- * when a card fails it, so a desk check gates.
+ * frame-time tails, long tasks, geometry builds, draw calls, the backend,
+ * the main thread's work per frame. Each input is paired with the first of
+ * the page's own snapshots whose ack covers it, as the bots pair them, for
+ * the input round trip. `--runs N` runs each scenario N times per backend
+ * and aggregates the cards as Tier 1 does (medians, the run spread, each
+ * metric's worst run). Each card is judged against the absolute acceptance
+ * of the display rate it ran at (TIER2_ACCEPTANCE, docs/netcode-bench.md);
+ * the process exits 1 when a card fails it, so a desk check gates.
  *
  * Headed by default: headless SwiftShader WebGL tanks FPS and would poison
  * the smoothness metrics. Pass --headless knowingly. --window-position x,y
@@ -28,10 +33,19 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
-import type { ClientTrace, RunTraces, Scenario, Scorecard, ServerTrace } from "@project/bench";
+import type {
+  AckArrival,
+  ClientTrace,
+  RunTraces,
+  Scenario,
+  Scorecard,
+  ServerTrace,
+} from "@project/bench";
 import { sleep, startMouseWander } from "./wander.js";
 import {
   SCENARIOS,
+  ackInputs,
+  aggregateScorecards,
   computeScorecard,
   getScenario,
   judgeTier2,
@@ -53,12 +67,17 @@ interface BenchClient {
   port: number;
 }
 
-/** What the page's BenchTelemetry flushes (apps/web/src/game/bench.ts). */
+/**
+ * What the page's BenchTelemetry flushes (apps/web/src/game/bench.ts). A
+ * page from before a field existed leaves it out: a correction's ack `a`,
+ * a renderer sample's `frameWorkMs`.
+ */
 interface TelemetryBatch {
   frames?: { t: number; e: Record<string, [number, number]> }[];
   snapshots?: { t: number; tick: number }[];
   inputs?: { seq: number; t: number }[];
-  corrections?: { t: number; m: number; h: boolean }[];
+  /** `a`: the ack of the own snapshot the local snake reconciled against */
+  corrections?: { t: number; m: number; h: boolean; a?: number }[];
   fps?: { t: number; v: number }[];
   longTasks?: { t: number; d: number }[];
   renderer?: {
@@ -66,7 +85,15 @@ interface TelemetryBatch {
     backend: string | null;
     drawCalls: number | null;
     geometryBuilds: number;
+    /** the main thread's work per frame over the half second before the sample */
+    frameWorkMs?: { p99: number; mean: number };
   }[];
+}
+
+/** One page's trace as the runner builds it, and its own snapshots' acks, paired with its inputs after the run. */
+interface PageRecord {
+  trace: ClientTrace;
+  arrivals: AckArrival[];
 }
 
 interface CliArgs {
@@ -78,6 +105,8 @@ interface CliArgs {
   windowPosition?: string;
   /** the display's rate, declared: the judge cannot read it from a page at half rate */
   hz?: number;
+  /** each scenario's runs on each backend, aggregated into one card */
+  runs: number;
 }
 
 /** The display's rate as declared on the command line. */
@@ -87,12 +116,22 @@ function parseHz(value: string): number {
   return hz;
 }
 
+/** How many runs one card aggregates. */
+function parseRuns(value: string): number {
+  const runs = Number(value);
+  if (!Number.isInteger(runs) || runs < 1) {
+    throw new Error("--runs takes a whole number of runs, e.g. 3");
+  }
+  return runs;
+}
+
 function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     scenarios: DEFAULT_SCENARIOS,
     webUrl: "http://localhost:3000",
     headless: false,
     gpus: ["webgl", "webgpu"],
+    runs: 1,
   };
   const next = (i: number): string => {
     const value = argv[i + 1];
@@ -117,9 +156,10 @@ function parseArgs(argv: string[]): CliArgs {
       else throw new Error(`--gpu takes webgl, webgpu or both, not ${JSON.stringify(gpu)}`);
     } else if (arg === "--window-position") args.windowPosition = next(i++);
     else if (arg === "--hz") args.hz = parseHz(next(i++));
+    else if (arg === "--runs") args.runs = parseRuns(next(i++));
     else if (arg === "--help") {
       console.log(
-        "usage: bench [--scenario <name> | --all] [--gpu webgl|webgpu|both] [--hz 144] [--web-url url] [--headless] [--label text] [--window-position x,y]",
+        "usage: bench [--scenario <name> | --all] [--gpu webgl|webgpu|both] [--runs N] [--hz 144] [--web-url url] [--headless] [--label text] [--window-position x,y]",
       );
       console.log(`default scenarios: ${DEFAULT_SCENARIOS.join(", ")}`);
       process.exit(0);
@@ -187,8 +227,12 @@ function emptyTrace(client: BenchClient): ClientTrace {
   };
 }
 
-/** The netcode half of a batch: frames, arrivals, sends and corrections, as Tier 1 records them. */
-function ingestNetcode(trace: ClientTrace, batch: TelemetryBatch): void {
+/**
+ * The netcode half of a batch: frames, arrivals, sends and corrections, as
+ * Tier 1 records them, and each correction's ack (the core reconciles
+ * against every own snapshot, so these are the own snapshots' arrivals).
+ */
+function ingestNetcode({ trace, arrivals }: PageRecord, batch: TelemetryBatch): void {
   for (const frame of batch.frames ?? []) {
     const entities: Record<string, { x: number; y: number }> = {};
     for (const [id, pos] of Object.entries(frame.e)) {
@@ -208,11 +252,12 @@ function ingestNetcode(trace: ClientTrace, batch: TelemetryBatch): void {
       magnitudePx: correction.m,
       hard: correction.h,
     });
+    if (correction.a !== undefined) arrivals.push({ tWall: correction.t, ack: correction.a });
   }
 }
 
-/** The page's half of a batch: fps samples, the main thread's long tasks and the renderer's stats. */
-function ingestPage(trace: ClientTrace, batch: TelemetryBatch): void {
+/** The page's half of a batch: fps samples, the main thread's long tasks, the renderer's stats and the work per frame. */
+function ingestPage({ trace }: PageRecord, batch: TelemetryBatch): void {
   for (const sample of batch.fps ?? []) {
     trace.fpsSamples?.push({ tWall: sample.t, fps: sample.v });
   }
@@ -227,14 +272,15 @@ function ingestPage(trace: ClientTrace, batch: TelemetryBatch): void {
       tWall: sample.t,
       drawCalls: sample.drawCalls,
       geometryBuilds: sample.geometryBuilds,
+      ...(sample.frameWorkMs === undefined ? {} : { frameWorkP99Ms: sample.frameWorkMs.p99 }),
     });
   }
 }
 
-function ingestBatches(trace: ClientTrace, batches: TelemetryBatch[]): void {
+function ingestBatches(record: PageRecord, batches: TelemetryBatch[]): void {
   for (const batch of batches) {
-    ingestNetcode(trace, batch);
-    ingestPage(trace, batch);
+    ingestNetcode(record, batch);
+    ingestPage(record, batch);
   }
 }
 
@@ -273,7 +319,7 @@ async function runOnce(scenario: Scenario, gpu: Gpu, args: CliArgs): Promise<Sco
   const { child, clients } = await startStandalone(scenario, traceOut);
 
   let browser: Browser | undefined;
-  const traces = new Map<string, ClientTrace>();
+  const records = new Map<string, PageRecord>();
   const pages: { client: BenchClient; page: Page }[] = [];
 
   // The server stops in `finally`, whatever failed: a browser that would not
@@ -292,7 +338,7 @@ async function runOnce(scenario: Scenario, gpu: Gpu, args: CliArgs): Promise<Sco
         `&benchUser=${encodeURIComponent(client.userId)}`;
       log(`opening ${client.name} → ${url}`);
       await page.goto(url, { waitUntil: "domcontentloaded" });
-      traces.set(client.name, emptyTrace(client));
+      records.set(client.name, { trace: emptyTrace(client), arrivals: [] });
       pages.push({ client, page });
     }
 
@@ -316,15 +362,15 @@ async function runOnce(scenario: Scenario, gpu: Gpu, args: CliArgs): Promise<Sco
     while (Date.now() < endAt) {
       await sleep(1000);
       for (const { client, page } of pages) {
-        const trace = traces.get(client.name);
-        if (trace) ingestBatches(trace, await drainPage(page));
+        const record = records.get(client.name);
+        if (record) ingestBatches(record, await drainPage(page));
       }
     }
     wanderSignal.stopped = true;
     await sleep(150);
     for (const { client, page } of pages) {
-      const trace = traces.get(client.name);
-      if (trace) ingestBatches(trace, await drainPage(page));
+      const record = records.get(client.name);
+      if (record) ingestBatches(record, await drainPage(page));
     }
   } finally {
     await browser?.close();
@@ -338,7 +384,12 @@ async function runOnce(scenario: Scenario, gpu: Gpu, args: CliArgs): Promise<Sco
   }
 
   const server = JSON.parse(readFileSync(traceOut, "utf8")) as ServerTrace;
-  const runTraces: RunTraces = { server, clients: Array.from(traces.values()) };
+  const pageTraces = Array.from(records.values(), ({ trace, arrivals }) => {
+    // the input round trip: each send against the acks of the page's own snapshots
+    ackInputs(trace.inputs, arrivals);
+    return trace;
+  });
+  const runTraces: RunTraces = { server, clients: pageTraces };
   const card = computeScorecard(runTraces, scenario, {
     tier: 2,
     ...gitMeta(),
@@ -371,7 +422,13 @@ await assertWebServer(args.webUrl);
 let failed = false;
 for (const scenario of scenarios) {
   for (const gpu of args.gpus) {
-    const card = await runOnce(scenario, gpu, args);
+    const cards: Scorecard[] = [];
+    for (let run = 1; run <= args.runs; run++) {
+      if (args.runs > 1) log(`${scenario.name} on ${gpu}: run ${run}/${args.runs}`);
+      cards.push(await runOnce(scenario, gpu, args));
+    }
+    // one run is its own card; several are medians, with the run spread and each metric's worst run
+    const card = aggregateScorecards(cards);
     const file = saveScorecard(card, RESULTS_DIR);
     const verdict = judgeTier2(card);
     if (!verdict.passed) failed = true;

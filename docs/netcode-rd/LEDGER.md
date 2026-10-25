@@ -1,5 +1,14 @@
 # Netcode R&D — Ledger
 
+> Entries written before PR #70 (2026-10-25) name the Godot client it
+> deleted: its GDScript files and `check:godot`, now `check:web`. The same
+> netcode is the shared package's, which the page and the bots both run:
+> `game.gd`'s world clock and playback delay are `world-clock.ts` and
+> `playback-delay.ts`, `remote_snake.gd` is `interpolation.ts`,
+> `local_snake.gd` is `prediction.ts` and the food is `food.ts`, all in
+> `packages/shared/src/game/client/`; `snapshot_decoder.gd` is
+> `packages/shared/src/game/snapshotDecoder.ts`.
+
 One entry per tested hypothesis, newest first. The loop appends here after
 every benchmark verdict; keep entries even for losses — they are the map of
 dead ends.
