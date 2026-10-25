@@ -183,7 +183,14 @@ describe("computeInputQueue", () => {
     let ack = 0;
     const ticks = ticksOf((i) => ({ stepped: stepped(i), depth: 0 })).map((tick, i) => {
       ack += ackDelta(i);
-      return { ...tick, players: [{ id: "p1", x: 0, y: 0, ack }] };
+      // p2 is in every snapshot without an ack, as a trace from before the check
+      return {
+        ...tick,
+        players: [
+          { id: "p1", x: 0, y: 0, ack },
+          { id: "p2", x: 0, y: 0 },
+        ],
+      };
     });
     // a tick p1 was not fed on breaks the chain: the next tick's delta (two,
     // over the gap) is not judged
@@ -191,6 +198,13 @@ describe("computeInputQueue", () => {
       i === 50 ? { ...tick, inputs: tick.inputs.filter((e) => e.id !== "p1") } : tick,
     );
     expect(computeInputQueue(unfed, "p1")?.stepAckMismatchPerMin).toBeCloseTo(
+      2 / ((1199 * 50) / 60_000),
+      5,
+    );
+    // a tick the snapshot left p1 out of (it died stepping) breaks the chain
+    // the same way, and keeps the metric
+    const died = unfed.map((tick, i) => (i === 70 ? { ...tick, players: [] } : tick));
+    expect(computeInputQueue(died, "p1")?.stepAckMismatchPerMin).toBeCloseTo(
       2 / ((1199 * 50) / 60_000),
       5,
     );

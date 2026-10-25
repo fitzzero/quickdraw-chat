@@ -25,16 +25,26 @@ class MismatchCounter {
   public known = true;
   private readonly last = new Map<string, { tick: number; ack: number }>();
 
-  public note(id: string, tick: number, stepped: number, ack: number | undefined): void {
-    if (ack === undefined) {
+  /**
+   * A fed snake's tick: `player` is its entry in the tick's snapshot, or
+   * undefined when the snapshot left it out (it died on that tick).
+   */
+  public note(
+    id: string,
+    tick: number,
+    stepped: number,
+    player: { ack?: number } | undefined,
+  ): void {
+    if (player === undefined) return;
+    if (player.ack === undefined) {
       this.known = false;
       return;
     }
     const previous = this.last.get(id);
-    this.last.set(id, { tick, ack });
+    this.last.set(id, { tick, ack: player.ack });
     // the tick before counts only when the snake was fed on it too
     if (previous === undefined || previous.tick !== tick - 1) return;
-    if (ack - previous.ack !== (stepped === 0 ? 1 : stepped)) this.count++;
+    if (player.ack - previous.ack !== (stepped === 0 ? 1 : stepped)) this.count++;
   }
 }
 
@@ -59,7 +69,7 @@ export function computeInputQueue(
   const head = { sum: 0, n: 0 };
   const tail = { sum: 0, n: 0 };
   for (const tick of ticks) {
-    const acks = new Map(tick.players.map((p) => [p.id, p.ack]));
+    const players = new Map(tick.players.map((p) => [p.id, p]));
     for (const entry of tick.inputs) {
       if (playerId !== undefined && entry.id !== playerId) continue;
       depths.push(entry.depth);
@@ -73,7 +83,7 @@ export function computeInputQueue(
         tail.sum += entry.depth;
         tail.n++;
       }
-      mismatch.note(entry.id, tick.tick, entry.stepped, acks.get(entry.id));
+      mismatch.note(entry.id, tick.tick, entry.stepped, players.get(entry.id));
     }
   }
   if (depths.length === 0) return undefined;
