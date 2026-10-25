@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { GameInput } from "../types/game.js";
+import { stepMovement } from "./movement.js";
 import { COUNT_TUNABLE_MAX, GameWorldSim, DEFAULT_TUNABLES, type SnakeState } from "./world.js";
 
 function makeSim(overrides?: Partial<typeof DEFAULT_TUNABLES>): GameWorldSim {
@@ -85,6 +86,36 @@ describe("GameWorldSim", () => {
     const len = must(sim.getLength("p1"));
     expect(len).toBeLessThan(startLen);
     expect(len).toBeGreaterThanOrEqual(DEFAULT_TUNABLES.minLength);
+  });
+
+  it("sends the length with its fraction: a replay from the snapshot boosts as the server does", () => {
+    // one boosted tick burns 0.075: 10.475 → 10.4, within a segment of minLength
+    const sim = makeSim({ minLength: 10, startLength: 10.475 });
+    sim.addPlayer("p1", null);
+    const first = must(sim.step().snapshot.players[0]);
+    sim.queueInputs("p1", [input(1, first.dx, first.dy, true)]);
+    const start = must(sim.getHead("p1"));
+    const snap = must(sim.step().snapshot.players[0]);
+    const head = must(sim.getHead("p1"));
+    expect(snap.len).toBe(10.4);
+    expect(snap.boost).toBe(true);
+    expect(Math.hypot(head.x - start.x, head.y - start.y)).toBeCloseTo(
+      DEFAULT_TUNABLES.boostSpeed * sim.dt,
+      5,
+    );
+
+    // the client replays its next frame from the snapshot: a boosted step, as the server's
+    const next = input(2, snap.dx, snap.dy, true);
+    const replayed = stepMovement(
+      { x: snap.x, y: snap.y, dirX: snap.dx, dirY: snap.dy, len: snap.len },
+      { targetDx: next.dx, targetDy: next.dy, boost: next.boost },
+      { ...DEFAULT_TUNABLES, minLength: 10 },
+      sim.dt,
+    );
+    sim.queueInputs("p1", [next]);
+    const after = must(sim.step().snapshot.players[0]);
+    expect(Math.hypot(replayed.x - after.x, replayed.y - after.y)).toBeLessThan(0.2);
+    expect(replayed.len).toBeCloseTo(after.len, 1);
   });
 
   it("acknowledges the last frame its state holds, and ignores a frame at or below it", () => {

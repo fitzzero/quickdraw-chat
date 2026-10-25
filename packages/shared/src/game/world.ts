@@ -591,7 +591,7 @@ export class GameWorldSim {
         y: Math.round(snake.head.y * 10) / 10,
         dx: Math.round(snake.dir.x * 1000) / 1000,
         dy: Math.round(snake.dir.y * 1000) / 1000,
-        len: Math.floor(snake.len),
+        len: Math.round(snake.len * 10) / 10,
         boost: snake.boost && snake.len > this.tunables.minLength,
         ack: snake.inputs.lastSeq,
       });

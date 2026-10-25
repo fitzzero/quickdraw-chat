@@ -12,7 +12,10 @@ import {
 import { SnapshotDecoder } from "./snapshotDecoder.js";
 import { SnapshotEncoder } from "./snapshotEncoder.js";
 
-/** A head as the sim sends it: tenths of a pixel, thousandths of a direction. */
+/**
+ * A head as the sim sends it: tenths of a pixel, thousandths of a direction,
+ * the length in tenths of a segment.
+ */
 function player(id: string, n: number, extra: Partial<PlayerSnap> = {}): PlayerSnap {
   return {
     id,
@@ -20,7 +23,7 @@ function player(id: string, n: number, extra: Partial<PlayerSnap> = {}): PlayerS
     y: Math.round((2300 - n * 77.7) * 10) / 10,
     dx: Math.round(Math.cos(n) * 1000) / 1000,
     dy: Math.round(Math.sin(n) * 1000) / 1000,
-    len: 10 + n,
+    len: 10 + n + ((n * 3) % 10) / 10,
     boost: n % 2 === 1,
     ack: 1000 + n,
     ...extra,
@@ -78,6 +81,18 @@ describe("snapshotCodec", () => {
     decoder.decode(seed(snapshot(9, ids)));
     const sent = snapshot(10, ids);
     expect(decoder.decode(tick(sent))).toEqual(sent);
+  });
+
+  it("carries the length in tenths of a segment, so a boost near the minimum decodes as sent", () => {
+    const { tick, seed } = stream();
+    const decoder = new SnapshotDecoder();
+    decoder.decode(seed(snapshot(1, ["a"])));
+    const lens = [10.4, 10.05, 9.96, 0, 6553.5, 7000];
+    const sent = snapshot(2, ["a", "b", "c", "d", "e", "f"]);
+    sent.players.forEach((p, i) => (p.len = lens[i] ?? 0));
+    const got = decoder.decode(tick(sent)).players.map((p) => p.len);
+    // rounded to the nearest tenth, and a length past u16 tenths held at 6553.5
+    expect(got).toEqual([10.4, 10.1, 10, 0, 6553.5, 6553.5]);
   });
 
   it("carries the food changes, positions in tenths of a pixel", () => {

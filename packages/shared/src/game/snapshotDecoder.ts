@@ -114,7 +114,7 @@ function readPlayer(input: ByteReader, id: string): PlayerSnap {
     y: input.u32() / 10,
     dx: input.i16() / 1000,
     dy: input.i16() / 1000,
-    len: input.u16(),
+    len: input.u16() / 10,
     boost: (input.u8() & 1) !== 0,
     ack: input.u32(),
   };

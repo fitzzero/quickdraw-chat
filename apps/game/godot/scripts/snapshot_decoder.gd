@@ -17,7 +17,7 @@ extends RefCounted
 ## across its subscriptions and reset when the clock follows another
 ## server's world (its ticks start over).
 
-const VERSION := 1
+const VERSION := 2
 const FLAG_T := 1
 const FLAG_KEYFRAME := 2
 ## GameConfig.FOOD_WINDOW: the ticks a snapshot repeats introductions over
@@ -102,7 +102,7 @@ func decode(packed: String) -> Dictionary:
 				"y": bytes.decode_u32(at + 6) / 10.0,
 				"dx": bytes.decode_s16(at + 10) / 1000.0,
 				"dy": bytes.decode_s16(at + 12) / 1000.0,
-				"len": bytes.decode_u16(at + 14),
+				"len": bytes.decode_u16(at + 14) / 10.0,
 				"boost": (bytes.decode_u8(at + 16) & 1) != 0,
 				"ack": bytes.decode_u32(at + 17),
 			})

@@ -5,7 +5,8 @@
  * so the bytes travel as a JSON string; a binary attachment would save the
  * base64's third (a follow-up). A head travels exactly as the sim rounds it
  * (tenths of a pixel, thousandths of a direction), so a decoded snapshot
- * holds the players that were encoded; food positions travel in tenths of a
+ * holds the players that were encoded, its length too (tenths of a
+ * segment, as the sim rounds it); food positions travel in tenths of a
  * pixel, 0.05 px at most from the server's.
  *
  * A player is named by an index into the stream's id table, not by its id.
@@ -37,7 +38,8 @@
  *   f64  t                                       (SNAPSHOT_FLAG_T)
  *   u16  introductions, each: u16 index, u32 tick given, u8 length, UTF-8 id
  *   u16  players, each: u16 index, u32 x, u32 y (tenths of a px),
- *        i16 dx, i16 dy (thousandths), u16 len, u8 flags (1: boost), u32 ack
+ *        i16 dx, i16 dy (thousandths), u16 len (tenths of a segment),
+ *        u8 flags (1: boost), u32 ack
  *   u8   food entries, each: u32 tick,
  *        u16 spawned, each: u32 id (the n of `f<n>`), u32 x, u32 y (tenths), u8 v
  *        u16 eaten, each: u32 id
@@ -47,7 +49,7 @@
  */
 
 /** The layout's version: its first byte. */
-export const SNAPSHOT_CODEC_VERSION = 1;
+export const SNAPSHOT_CODEC_VERSION = 2;
 /** The snapshot carries `t`. */
 export const SNAPSHOT_FLAG_T = 1;
 /** A keyframe: its introductions are the whole id table. */
