@@ -1,13 +1,13 @@
 /**
- * The player's input (local_snake.gd _step_once and _is_boosting): the
- * snake steers toward the pointer, and boosts while the primary button or
- * Space is held. Sampled by the core once per predicted step, never on the
- * event: a step reads the pointer where it is now.
+ * The player's input: the snake steers toward the pointer, and boosts
+ * while the primary button or Space is held. Sampled by the core once per
+ * predicted step, never on the event: a step reads the pointer where it is
+ * now.
  */
 
 import type { GameClientInput } from "@project/shared";
 
-/** Within this many px of the head, the pointer steers nowhere new (local_snake.gd). */
+/** Within this many px of the head, the pointer steers nowhere new. */
 const DEAD_ZONE_PX = 4;
 
 export class PointerInput {

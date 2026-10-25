@@ -44,7 +44,7 @@ class PixiRenderer implements GameRenderer {
   private builds = 0;
   private lastDrawCalls: number | null = null;
   private stamp = 0;
-  /** The local player: their own snake carries no name label (snake_body.gd's local setup). */
+  /** The local player: their own snake carries no name label. */
   private localId: string | null = null;
   /** `destroy()` ran: a mount still in flight tears its engine down instead of finishing. */
   private destroyed = false;

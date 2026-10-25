@@ -102,6 +102,13 @@ export interface BotSpec {
    * tick clock drifts (1.01 runs 1% fast), nothing else.
    */
   clockScale?: number;
+  /**
+   * Where the bot renders its remotes: on the playback timeline behind the
+   * world clock, or at the estimate of the present (the shared client's
+   * RemotesMode; its default when omitted). `bench:netcode --remotes <mode>`
+   * sets it on every bot a scenario leaves unset.
+   */
+  remotes?: "playback" | "present";
 }
 
 /** A loopback link's lag, both ways: each message `ms` plus up to `jitter` ms, `loss` of `fast` ones lost. */

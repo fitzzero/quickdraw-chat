@@ -17,7 +17,7 @@
 import type { ClientTrace, Scenario } from "@project/bench";
 import { deriveSeed, mulberry32 } from "@project/bench";
 import type { Correction, GameDeathEvent, GameInput, GameTransport } from "@project/shared";
-import { GameClientCore, type PredictionTunables } from "@project/shared";
+import { GameClientCore, type PredictionTunables, type RemotesMode } from "@project/shared";
 import { makeBehavior, type BehaviorFn } from "./behaviors.js";
 
 const RENDER_FRAME_MS = 1000 / 60;
@@ -32,6 +32,8 @@ export interface BotOptions {
   render?: { minFps: number; maxFps: number; periodS: number; phaseS?: number };
   /** the predictor's clock against wall time (BotSpec.clockScale); default 1 */
   clockScale?: number;
+  /** where the remotes render (BotSpec.remotes); the core's default when omitted */
+  remotes?: RemotesMode;
   scenario: Scenario;
   tunables: PredictionTunables;
   tickRate: number;
@@ -76,6 +78,7 @@ export class BotClient {
       tickRate: opts.tickRate,
       now,
       clockScale: opts.clockScale,
+      remotes: opts.remotes,
       hooks: {
         onSnapshotArrival: (tWall, tick) => {
           this.trace.snapshots.push({ tWall, tick });

@@ -14,6 +14,7 @@ import type {
   GamePlayerMeta,
   GameTransport,
   GameTunables,
+  RemotesMode,
   RenderedWorld,
 } from "@project/shared";
 import { GAME_TICK_RATE, GameClientCore } from "@project/shared";
@@ -39,6 +40,8 @@ export interface GameShellOptions {
   /** The players known at the start (the bootstrap's); the transport adds the rest. */
   players: Iterable<GamePlayerMeta>;
   preference?: RenderBackend;
+  /** Where the remotes render (`?remotes=`); the core's default when unset. */
+  remotes?: RemotesMode;
   /** Bench mode's telemetry sink. */
   telemetry?: BenchTelemetry;
   /** Bench mode: respawn this many ms after the local snake's death (no dialog). */
@@ -115,12 +118,13 @@ export class GameShell {
       tunables: opts.tunables,
       tickRate: GAME_TICK_RATE,
       now,
+      remotes: opts.remotes,
       hooks: {
         onSnapshotArrival: (tWall, tick) => telemetry?.snapshot(tWall, tick),
         onInputSent: (frames, tSent) => telemetry?.input(frames.at(-1)?.seq ?? -1, tSent),
         onCorrection: (correction, _ack, tWall) => {
           telemetry?.correction(tWall, correction.magnitudePx, correction.hard);
-          // local_snake.gd reset_path: a hard snap teleported the head
+          // a hard snap teleported the head: its body history starts over
           if (correction.hard && userId !== null) opts.renderer.resetPath(userId);
         },
         onLeft: (id) => {
@@ -220,7 +224,7 @@ export class GameShell {
     const { renderer, userId, onState } = this.opts;
     let camera: { x: number; y: number };
     if (rendered.local === null) {
-      // main.gd: before the player joins and after a death, the camera
+      // before the player joins and after a death, the camera
       // drifts toward the busiest part of the world
       this.spectate.retarget(rendered.remotes);
       this.spectate.advance(deltaS);

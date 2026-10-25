@@ -73,6 +73,8 @@ interface CliArgs {
   durationMs?: number;
   label?: string;
   saveTraces: boolean;
+  /** Where every bot a scenario leaves unset renders its remotes. */
+  remotes?: RemotesMode;
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -90,9 +92,15 @@ function parseArgs(argv: string[]): CliArgs {
     else if (arg === "--duration") args.durationMs = Number(next()) * 1000;
     else if (arg === "--label") args.label = next();
     else if (arg === "--save-traces") args.saveTraces = true;
-    else if (arg === "--help") {
+    else if (arg === "--remotes") {
+      const mode = next();
+      if (mode !== "playback" && mode !== "present") {
+        throw new Error(`--remotes takes playback or present, not ${JSON.stringify(mode)}`);
+      }
+      args.remotes = mode;
+    } else if (arg === "--help") {
       console.log(
-        "usage: bench:netcode [--scenario <name> | --all] [--runs N] [--duration seconds] [--label text] [--save-traces]",
+        "usage: bench:netcode [--scenario <name> | --all] [--runs N] [--duration seconds] [--label text] [--save-traces] [--remotes playback|present]",
       );
       console.log(`scenarios: ${Object.keys(SCENARIOS).join(", ")}`);
       process.exit(0);
@@ -155,6 +163,7 @@ async function executeServerRun(scenario: Scenario): Promise<RunTraces> {
           behaviorKind: spec.behavior.kind,
           ...(spec.render ? { render: spec.render } : {}),
           ...(spec.clockScale === undefined ? {} : { clockScale: spec.clockScale }),
+          ...(spec.remotes === undefined ? {} : { remotes: spec.remotes }),
           scenario,
           tunables: { ...DEFAULT_TUNABLES, ...scenario.tunables },
           tickRate: GAME_TICK_RATE,
@@ -185,7 +194,14 @@ async function executeServerRun(scenario: Scenario): Promise<RunTraces> {
 
 async function benchScenario(name: string, args: CliArgs): Promise<Scorecard> {
   const base = getScenario(name);
-  const scenario: Scenario = args.durationMs ? { ...base, durationMs: args.durationMs } : base;
+  const scenario: Scenario = {
+    ...base,
+    ...(args.durationMs ? { durationMs: args.durationMs } : {}),
+    // the sweep's mode, for the bots the scenario leaves unset
+    ...(args.remotes === undefined
+      ? {}
+      : { clients: base.clients.map((spec) => ({ remotes: args.remotes, ...spec })) }),
+  };
   const meta = { tier: 1 as const, ...gitMeta(), ...(args.label ? { label: args.label } : {}) };
 
   const cards: Scorecard[] = [];

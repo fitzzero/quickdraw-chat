@@ -12,6 +12,7 @@ import {
   PARTY_TUNABLES,
   type GameTransport,
   type GameTunables,
+  type RemotesMode,
   type WorldBootstrap,
 } from "@project/shared";
 import { qd } from "../lib/quickdraw";
@@ -88,7 +89,7 @@ export function GameCanvas({
   });
 
   // The movement tunables the server simulates with, so the prediction
-  // steps as the server does (game.gd loaded them the same way); bench mode
+  // steps as the server does; bench mode
   // and a party run the defaults, as the bench's scenarios and a host do
   const definition = qd.definitionService.getDefinition.useQuery(TUNABLES_KEY, {
     enabled: bench === undefined && partyWorldId === null,
@@ -280,6 +281,7 @@ function createClient(inputs: ClientInputs): { shell: GameShell; renderer: GameR
     tunables: inputs.tunables,
     players: inputs.bootstrap()?.players ?? [],
     ...(flags.preference === undefined ? {} : { preference: flags.preference }),
+    ...(flags.remotes === undefined ? {} : { remotes: flags.remotes }),
     ...(sink === undefined ? {} : { telemetry: new BenchTelemetry(sink) }),
     ...(own === null ? {} : { autoRespawnMs: BENCH_RESPAWN_MS }),
     ...(inputs.probe === null ? {} : { probe: inputs.probe }),
@@ -310,21 +312,26 @@ interface GameFlags {
   preference?: RenderBackend;
   debug: boolean;
   probe: boolean;
+  /** Where the remotes render (`?remotes=playback|present`); the core's default when unset. */
+  remotes?: RemotesMode;
 }
 
 /**
  * The page's flags: `?gpu=webgl|webgpu` picks the backend, `?debug=1` shows
  * the renderer's stats, `?probe=1` records what the client sees for
- * check:web (development and bench builds only).
+ * check:web (development and bench builds only), `?remotes=playback|present`
+ * picks where the remotes render (A/B play).
  */
 function readFlags(): GameFlags {
   if (typeof window === "undefined") return { debug: false, probe: false };
   const params = new URLSearchParams(window.location.search);
   const gpu = params.get("gpu");
+  const remotes = params.get("remotes");
   return {
     ...(gpu === "webgl" || gpu === "webgpu" ? { preference: gpu } : {}),
     debug: params.get("debug") === "1",
     probe: PROBE_ALLOWED && params.get("probe") === "1",
+    ...(remotes === "playback" || remotes === "present" ? { remotes } : {}),
   };
 }
 

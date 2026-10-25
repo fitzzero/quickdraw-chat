@@ -21,12 +21,12 @@ import type {
   WorldSnapshot,
 } from "../../types/game.js";
 import { FoodTracker } from "./food.js";
-import { RemoteInterpolator } from "./interpolation.js";
+import { RemoteInterpolator, DEFAULT_REMOTES_MODE, type RemotesMode } from "./interpolation.js";
 import { LocalPredictor, type Correction, type PredictionTunables } from "./prediction.js";
 import type { GameJoin, GameTransport, GameWire } from "./transport.js";
 import { WorldClock } from "./world-clock.js";
 
-/** remote_snake pruning: main.gd PRUNE_AFTER_TICKS */
+/** A remote no snapshot named for this many ticks is forgotten. */
 export const PRUNE_AFTER_TICKS = 60;
 
 /** What the shell samples each step for the local snake: an aim and the boost. */
@@ -67,6 +67,8 @@ export interface GameClientOptions {
    * (a client whose tick clock drifts; the bench's BotSpec.clockScale).
    */
   clockScale?: number;
+  /** Where the remotes render: on the playback timeline, or at the estimate of the present (DEFAULT_REMOTES_MODE). */
+  remotes?: RemotesMode;
   hooks?: GameClientHooks;
 }
 
@@ -93,7 +95,7 @@ export interface RenderedWorld {
 }
 
 export class GameClientCore {
-  /** The food this client holds (food.ts, the port of main.gd's). */
+  /** The food this client holds (food.ts). */
   public readonly food = new FoodTracker();
   public readonly worldClock: WorldClock;
   private predictor: LocalPredictor | null = null;
@@ -101,6 +103,7 @@ export class GameClientCore {
   private readonly transport: GameTransport;
   private readonly hooks: GameClientHooks;
   private readonly clockScale: number;
+  private readonly remotes: RemotesMode;
   private bounds = { w: 0, h: 0 };
   private alive = false;
   private spawnedAt = 0;
@@ -110,6 +113,7 @@ export class GameClientCore {
     this.transport = opts.transport;
     this.hooks = opts.hooks ?? {};
     this.clockScale = opts.clockScale ?? 1;
+    this.remotes = opts.remotes ?? DEFAULT_REMOTES_MODE;
     this.worldClock = new WorldClock(opts.tickRate);
   }
 
@@ -124,7 +128,7 @@ export class GameClientCore {
       snapshot: (snapshot) => this.onSnapshot(snapshot),
       keyframe: (keyframe) => this.food.keyframe(keyframe),
       death: (death) => this.onDeath(death),
-      // Parity with main.gd _on_player_left
+      // a player that left is dropped at once
       left: (id) => {
         this.interpolators.delete(id);
         this.hooks.onLeft?.(id);
@@ -139,7 +143,7 @@ export class GameClientCore {
   /**
    * The local snake plays: with its snake when the join answered one, else
    * nothing steps or sends until the first own snapshot places it
-   * (onOwnSnap: main.gd spawns the local snake when its id appears in a
+   * (onOwnSnap: the local snake spawns when its id appears in a
    * snapshot).
    */
   public spawnLocal(own: PlayerSnap | null): void {
@@ -246,7 +250,8 @@ export class GameClientCore {
     }
 
     this.worldClock.advance(deltaS, tWall);
-    const renderTick = this.worldClock.renderTick();
+    const renderTick =
+      this.remotes === "present" ? this.worldClock.estimateTick() : this.worldClock.renderTick();
     const remotes = new Map<string, RenderedSnake>();
     for (const [id, interp] of this.interpolators) {
       if (this.latest - interp.lastSeenTick > PRUNE_AFTER_TICKS) {
@@ -274,7 +279,7 @@ export class GameClientCore {
     this.hooks.onSnapshotArrival?.(tWall, snapshot.tick);
     // An older snapshot after a newer one (a party's `fast` channel is
     // unordered) says nothing new: reconciling against it would move the
-    // snake a step back and forward again (main.gd _on_snapshot)
+    // snake a step back and forward again
     if (snapshot.tick < this.latest) return;
     this.latest = snapshot.tick;
     this.worldClock.observe(snapshot.tick, snapshot.t, tWall);
@@ -313,7 +318,7 @@ export class GameClientCore {
   }
 
   private onDeath(death: GameDeathEvent): void {
-    // Mirror main.gd _on_player_died: drop dead remotes immediately so no
+    // Drop dead remotes immediately so no
     // frozen ghost keeps rendering until the prune timeout
     if (death.id === this.opts.userId) {
       this.alive = false;

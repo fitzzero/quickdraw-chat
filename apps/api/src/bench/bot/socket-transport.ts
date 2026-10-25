@@ -66,7 +66,7 @@ async function callGame<T>(socket: Socket, id: number, method: string, input: un
 
 export class SocketTransport implements GameTransport {
   private socket: Socket | null = null;
-  /** Unpacks the world stream (game.gd's `_decoder`): kept across resubscribes, reset for another server's world. */
+  /** Unpacks the world stream: kept across resubscribes, reset for another server's world. */
   private readonly decoder = new SnapshotDecoder();
   /** The server whose world the decoder holds the table of (its hello's `serverId`). */
   private serverId: string | null = null;
@@ -127,7 +127,7 @@ export class SocketTransport implements GameTransport {
     socket.on("qd:event", ([service, event, payload]: EventFrame) => {
       if (service !== "gameService") return;
       if (event === "death") wire.death(payload as GameDeathEvent);
-      // Parity with main.gd _on_player_left
+      // a player that left is dropped at once
       if (event === "playerLeft") wire.left((payload as { id: string }).id);
     });
 

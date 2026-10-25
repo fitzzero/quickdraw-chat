@@ -103,7 +103,7 @@ connection:
    trip), number the next frame after it instead of stepping that frame;
    when a fifth of the snapshots say `late` (averaged over about a
    second), gain half a tick on the frame clock over a quarter second
-   (`local_snake.gd` `_nudge_phase`, `prediction.ts` `nudgePhase`), once
+   (`prediction.ts` `nudgePhase`), once
    per half second at most.
 
 The web page's game client (`apps/web/src/game/`, client-patterns.md) runs
@@ -119,6 +119,18 @@ the world's room; gameService's own `onRoomLeave` removes the player (and
 sends `playerLeft`) when the last one leaves or disconnects, in every
 server the service runs in (the API, the test app, the bench). A party is
 the same client over the host's link, on the same socket.
+
+What a client draws of the other snakes is the shared client's
+`RemotesMode` (`interpolation.ts`): `playback`, the default, renders them
+on the render timeline, 1.5–6 ticks behind the world clock's estimate as
+the link needs (the playback delay), interpolating between the snapshots
+that bracket the tick; `present` renders them at the estimate of the
+server's tick now, the newest snapshot extrapolated along its heading at
+its speed (dead reckoning), where the server has them, at the cost of the
+overshoot a turn brings. Either way every snapshot's arrival glides the
+drawn head onto the new path instead of popping. The page takes
+`?remotes=playback|present` (A/B play), the bots `BotSpec.remotes` and
+`bench:netcode --remotes <mode>`; the ledger has the measured trade.
 
 A server restart is a new world whose ticks start over: the clients (the
 page's, the bench bots') tell it from a network blip by the hello's

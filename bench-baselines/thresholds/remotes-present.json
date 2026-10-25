@@ -1,0 +1,18 @@
+{
+  "description": "The remotes at the present (card remote-snakes-at-the-present-dead-reckoning-to-the-world-clo, `--remotes present`) against the g1c-phase baselines, which playback made: the newest snapshot extrapolated to the estimate of the server's tick now, in place of the playback timeline 1.5-6 ticks behind it. A remote is drawn where the server has it (ownVsRemotePx p95 -33 to -80 %, renderLatencyMs -58 to -92 %, remoteVsRemotePx converging), at the cost of a glide per snapshot (jerkRms +42 to +744 %, the largest move 624 to 1309 on bursty-3p) and the overshoot a turn brings (shapeErrorPx p95 +31 to +152 %, the largest move 3.9 to 8.1 px on bursty-3p). Two floors are raised above the largest change the present sweep measured: jerkRms (700) and shapeErrorPx p95 (4.5). stepCorrectionsPerMin is the local predictor's, which the mode does not touch; the same day's playback sweep moved it as far in both directions (0 to 3.2, 2.1 to 4.3, 5.4 to 0, within its run spread), so its floor is 3.5 a minute. The others restate DEFAULT_THRESHOLDS, since this file replaces the whole absoluteFloor map. Use it for present-mode runs against playback baselines only; the mode is not the default, so no baseline is made of it.",
+  "absoluteFloor": {
+    "divergence.remoteVsRemotePx.p95": 0.5,
+    "divergence.remoteVsRemotePx.p50": 0.5,
+    "divergence.ownVsRemotePx.p95": 2,
+    "smoothness.teleportsPerMin": 0.2,
+    "smoothness.jerkRms": 700,
+    "smoothness.hardSnapsPerMin": 0.2,
+    "packet.gapRate": 0.005,
+    "packet.inputAckRttMs.p95": 3,
+    "fidelity.shapeErrorPx.p95": 4.5,
+    "fidelity.renderLatencyMs": 5,
+    "server.tickDurMs.p95": 0.05,
+    "server.inputQueue.depthP95": 1,
+    "smoothness.stepCorrectionsPerMin": 3.5
+  }
+}

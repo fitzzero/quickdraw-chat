@@ -156,3 +156,33 @@ too (`setLag({ ms, jitter })`, the jitter from each link's clock), so its
 playback delay matches theirs. Measure with `party-3p-lossy`: the host's
 own user's renderLatencyMs against the players', and remoteVsRemotePx p95
 (8.4 px, against 3.0 px when the host's own user has a player's link).
+
+## 10. Remotes at the present: dead reckoning to the world clock — MEASURED
+
+Remote snakes render on the playback timeline, 1.5–6 ticks behind the world
+clock's estimate (#3), while the local snake is predicted ahead of the
+server by the round trip: on the player's screen a remote head sits 2–5
+movement steps (20–45 px) from where the server has it relative to the
+player's own, and a cut-off the player sees by less than that never happens
+on the server. Snakes move at a constant speed with a bounded turn, so dead
+reckoning from the newest snapshot to the estimate is accurate until the
+snake turns.
+
+- Change: `RemotesMode` in `packages/shared/src/game/client/interpolation.ts`
+  (`playback` | `present`); the core's `remotes` option picks the tick each
+  interpolator renders at: the render timeline, or `WorldClock.estimateTick()`
+  (the newest snapshot extrapolated along its heading at its speed for the
+  extrapolation budget, held past it). Every snapshot then re-bases the
+  reckoning, so the interpolator folds the difference a snapshot's arrival
+  makes at the last rendered tick into its glide (both modes: a late
+  snapshot replacing an extrapolation on playback glides too). The page
+  takes `?remotes=playback|present`; the bots `BotSpec.remotes` and
+  `bench:netcode --remotes <mode>`.
+- Confirm: `fidelity.renderLatencyMs` for remotes ↓ (toward the one-way
+  trip), `divergence.ownVsRemotePx` p95 ↓ (toward the prediction error),
+  `remoteVsRemotePx` converging; the costs: `smoothness.jerkRms` ↑ (a glide
+  per snapshot) and `fidelity.shapeErrorPx` ↑ (the overshoot on turns),
+  `teleportsPerMin` 0.
+- Wire: none.
+- Verdict: see the LEDGER entry of 2026-10-25 (the default stays the
+  measured winner; the other mode stays behind the flag for A/B play).

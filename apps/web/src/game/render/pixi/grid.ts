@@ -1,12 +1,12 @@
 /**
- * The world's border and its grid (main.gd _draw), built once per change of
+ * The world's border and its grid, built once per change of
  * the bounds into one Graphics and never touched again: the one place in
  * the renderer that builds geometry after mount.
  */
 
 import { Graphics } from "pixi.js";
 
-/** main.gd's grid cell, px. */
+/** The grid cell, px. */
 export const GRID_CELL = 120;
 
 export class Grid {

@@ -1,15 +1,15 @@
 /**
  * The camera: a world container scaled and offset so a point of the world
- * lands on the screen (main.gd's Camera2D: zoom normalizes the apparent
+ * lands on the screen (zoom normalizes the apparent
  * world scale to a 720 px tall viewport; the position follows its target
  * with exponential smoothing, speed 8).
  */
 
 import { Container } from "pixi.js";
 
-/** main.gd position_smoothing_speed */
+/** The camera's smoothing speed. */
 export const CAMERA_SMOOTHING = 8;
-/** The viewport height the world is scaled against (main.gd _update_camera_zoom). */
+/** The viewport height the world is scaled against. */
 export const CAMERA_REFERENCE_HEIGHT = 720;
 
 export class Camera {

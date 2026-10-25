@@ -48,24 +48,24 @@ export function darken(rgb: number, amount: number): number {
   return (r << 16) | (g << 8) | b;
 }
 
-/** A food item's hue from its id (food_layer.gd hashes the id the same way, by intent): 0..359. */
+/** A food item's hue from its id: 0..359. */
 export function hashHue(id: string): number {
   let h = 5381;
   for (let i = 0; i < id.length; i++) h = ((h << 5) + h + id.charCodeAt(i)) | 0;
   return Math.abs(h) % 360;
 }
 
-/** A snake's body color (snake_body.gd): hue in degrees. */
+/** A snake's body color: hue in degrees. */
 export function bodyColor(hue: number): number {
   return hsv(hue / 360, 0.7, 0.9);
 }
 
-/** A snake's glow (snake_body.gd), drawn at alpha 0.35. */
+/** A snake's glow, drawn at alpha 0.35. */
 export function glowColor(hue: number): number {
   return hsv(hue / 360, 0.5, 1.0);
 }
 
-/** A food item's color (food_layer.gd), its glow at alpha 0.25. */
+/** A food item's color, its glow at alpha 0.25. */
 export function foodColor(id: string): number {
   return hsv(hashHue(id) / 360, 0.6, 1.0);
 }

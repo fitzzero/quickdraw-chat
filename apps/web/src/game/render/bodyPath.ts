@@ -1,8 +1,8 @@
 /**
- * A snake's body, derived from where its head has been (the port of
- * snake_body.gd): only heads travel on the wire, and the server derives the
- * body the same way. Engine-neutral: a renderer places a segment sprite at
- * each position this walk yields.
+ * A snake's body, derived from where its head has been: only heads travel
+ * on the wire, and the server derives the body the same way.
+ * Engine-neutral: a renderer places a segment sprite at each position this
+ * walk yields.
  */
 
 import type { RenderTunables } from "./renderer";
@@ -29,7 +29,7 @@ export class BodyPath {
   }
 
   /**
-   * snake_body.gd advance_path: a new sample every `sampleSpacing` px of head
+   * A new sample every `sampleSpacing` px of head
    * travel, keeping as much history as a body of `length` segments needs.
    */
   public advance(x: number, y: number, length: number, t: RenderTunables): void {
@@ -57,7 +57,7 @@ export class BodyPath {
   }
 
   /**
-   * snake_body.gd _draw's walk: from the head at (hx, hy) back along the
+   * The walk: from the head at (hx, hy) back along the
    * history, one segment every `segmentSpacing` px of arc length, `length`
    * of them at most. Fills `out` (reusing its objects) and returns the count.
    */

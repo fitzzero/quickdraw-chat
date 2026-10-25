@@ -79,8 +79,7 @@ export class WorldClock {
    * world that paused while its room was empty). Until the bootstrap
    * rebuilds the world, a snake held through the outage moves from its last
    * snapshot before it to the first after it, as with a fixed delay
-   * (remote_snake.gd snaps one that moved MAX_GLIDE_PX or more). Pinned to
-   * game.gd clock_follow_server.
+   * (the interpolator snaps one that moved MAX_GLIDE_PX or more).
    */
   public followServer(serverId: string): void {
     if (serverId === this.serverId) {
@@ -125,10 +124,15 @@ export class WorldClock {
     this.advanceEstimate(deltaS, nowMs);
   }
 
-  /** The tick remotes render at: the render timeline (null before a snapshot). */
+  /** The tick playback remotes render at: the render timeline (null before a snapshot). */
   public renderTick(): number | null {
     if (!this.hasEst) return null;
     return this.hasRender ? this.render : this.est - PLAYBACK_START_TICKS;
+  }
+
+  /** The server's tick now, as estimated (null before a snapshot): where remotes at the present render. */
+  public estimateTick(): number | null {
+    return this.hasEst ? this.est : null;
   }
 
   /** How far the render timeline is behind the estimate, in ticks (null before a snapshot). */

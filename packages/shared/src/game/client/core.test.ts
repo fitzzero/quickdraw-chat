@@ -256,7 +256,7 @@ describe("GameClientCore", () => {
     expect(core.renderFrame(0.016, aim).local).toBeNull();
     expect(heard.acks).toEqual([]);
 
-    // the page joined the game: the next own snapshot spawns the snake (main.gd)
+    // the page joined the game: the next own snapshot spawns the snake
     core.spawnLocal(null);
     expect(core.isAlive).toBe(false);
     expect(core.localPredictor).not.toBeNull();
