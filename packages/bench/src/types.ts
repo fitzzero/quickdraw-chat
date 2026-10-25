@@ -168,9 +168,9 @@ export interface SmoothnessReport {
   hardSnapsPerMin: number;
   correctionPx: Stats;
   /**
-   * corrections of at least STEP_CORRECTION_PX a minute: a whole movement
-   * step the prediction missed, which a player sees as a surge or a stall
-   * (absent from scorecards made before it)
+   * corrections of at least STEP_CORRECTION_PX (8 px) a minute: a whole
+   * movement step the prediction missed, which a player sees as a surge or
+   * a stall (absent from scorecards made before it)
    */
   stepCorrectionsPerMin?: number;
 }

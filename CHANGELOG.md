@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **The snake no longer surges and stalls once a second in live play.**
+  The netcode pack's input queue (5.1.3's release) let a coast be "owed"
+  when the frame it had stood in for came alone: that frame was stepped
+  anyway and a later one skipped to pay for it, so a player whose input
+  frames land within jitter of the server's tick (a third of real sessions,
+  by Godot's 60 Hz physics loop) got a whole-step correction each way about
+  once a second, 9 px folded in over 80 ms. Every coast now stands in for
+  the client's next frame, which is never stepped when it arrives but
+  steers the next tick (`InputQueue`, `GameWorldSim.queueInputs`). The ack
+  always counts the steps, which the queue's tests assert through every
+  arrival phase, jitter and clock drift, and the bench gates
+  (`server.inputQueue.stepAckMismatchPerMin`, must be 0;
+  `smoothness.stepCorrectionsPerMin`). The ledger has the live-game
+  evidence and the browser-tier numbers.
+- **The bench's latency proxy kept its FIFO promise only by luck.** A timer
+  per chunk let two chunks due at the same millisecond fire in either
+  order, which reordered WebSocket frames on the jittery scenarios; one
+  queue and one timer per direction now. The bots and the Godot client
+  also ignore a snapshot older than the newest they saw (a party's
+  unordered `fast` channel can deliver one; TCP never does), instead of
+  reconciling the local snake a step back and forward again. The web's
+  `index.pck` is exported again (Godot 4.7.2).
+
 ## quickdraw 5.1.3 (2026-10-23)
 
 The template on quickdraw 5.1.3 (`@fitzzero/quickdraw-core`, `-lint` and

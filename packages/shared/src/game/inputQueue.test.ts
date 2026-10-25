@@ -237,7 +237,7 @@ describe("InputQueue", () => {
     expect(late / 200).toBeCloseTo(1 + 3 * DT, 1);
   });
 
-  it("holds a client 1% fast near an empty queue, and coasts for a 1% slow one, refusing its late frames", () => {
+  it("holds a client 1% fast near an empty queue, and coasts for each frame a 1% slow one misses, which numbers past the coast", () => {
     const run = (
       scale: number,
     ): { coasted: number; deepest: number; refused: number; apart: number } => {
@@ -253,9 +253,9 @@ describe("InputQueue", () => {
         due += scale;
         while (due >= 1) {
           due -= 1;
-          // the client numbers its next frame after an ack that ran more than
-          // a message's frames ahead of it (local_snake.gd, prediction.ts)
-          if (queue.lastSeq > next + 4) next = queue.lastSeq;
+          // the client numbers its next frame after an ack that ran past its
+          // newest (local_snake.gd, prediction.ts)
+          if (queue.lastSeq > next) next = queue.lastSeq;
           if (!queue.push(frame(++next))) refused++;
         }
         const taken = tick(queue);
@@ -269,11 +269,13 @@ describe("InputQueue", () => {
     // fast: an extra frame waits, then steps with the next one
     expect(run(1.01)).toEqual({ coasted: 0, deepest: 1, refused: 0, apart: 0 });
     // slow: a tick now and then has no frame and coasts, standing in for the
-    // frame that comes alone on the next, which is refused (it steers the
-    // next step instead: world.ts); the ack never parts from the steps
+    // client's next frame; the client, seeing the ack past its newest,
+    // numbers its next frame after it, so no frame of its is late or
+    // refused, and the ack never parts from the steps
     const slow = run(0.99);
     expect(slow.coasted).toBeGreaterThanOrEqual(20);
-    expect(slow.refused).toBeGreaterThanOrEqual(20);
+    expect(slow.coasted).toBeLessThanOrEqual(25);
+    expect(slow.refused).toBe(0);
     expect(slow.deepest).toBe(0);
     expect(slow.apart).toBe(0);
   });

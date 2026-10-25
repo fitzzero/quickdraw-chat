@@ -50,9 +50,10 @@ export const GAME_INPUT_FRAMES = 4;
  * a tick, in seq order, and echoes the last seq its state holds in
  * PlayerSnap.ack, so the client drops acknowledged frames and replays the
  * rest (reconciliation). The server coasts a snake through a client's
- * stall, and the ack runs on: a client whose newest frame falls more than
- * GAME_INPUT_FRAMES behind the ack numbers its next frame after the ack, or
- * the server ignores its frames until they catch up.
+ * stall, and the ack runs on, standing in for the frames to come: a client
+ * whose newest frame falls behind the ack numbers its next frame after it
+ * (the server refuses the seqs it stood in for, and stepping them would
+ * count their movement twice).
  */
 export interface GameInput {
   seq: number;

@@ -88,9 +88,10 @@ connection:
    reconnect);
 2. call `watchWorld` or `joinGame` over the same socket (bootstrap);
 3. send input frames (each message with the unacknowledged ones before its
-   newest); reconcile against `PlayerSnap.ack`, and when the ack ran more
-   than four frames past the newest (the server coasted through a stall),
-   number the next frame after it.
+   newest); reconcile against `PlayerSnap.ack`, and when the ack ran past
+   the newest (a coast stood in for a frame not yet stepped: a stall, a
+   slow clock, or a frame landing just after the tick at a short round
+   trip), number the next frame after it instead of stepping that frame.
 
 The web boots Godot into SPECTATE (`watchWorld`: full bootstrap, no spawn);
 the React pre-game dialog then joins the game on the page's own socket and

@@ -62,7 +62,7 @@ real render pipeline, including WASM frame pacing.
 | `smoothness.teleportsPerMin`             | Frame-to-frame displacement beyond any legal speed (deaths masked).                                                      | 0. Any value is user-visible popping.                                      |
 | `smoothness.jerkRms`                     | RMS frame-to-frame acceleration of rendered motion.                                                                      | Relative metric — compare across runs, not absolutely.                     |
 | `hardSnapsPerMin` / `correctionPx`       | Reconciliation events on the local snake.                                                                                | Rare / small.                                                              |
-| `smoothness.stepCorrectionsPerMin`       | Per client: corrections of a whole movement step (≥ 7 px), a surge or a stall the player sees; the worst client gates.   | 0; at most one a minute from a stood-in frame's change of intent.          |
+| `smoothness.stepCorrectionsPerMin`       | Per client: corrections of a whole movement step (≥ 8 px), a surge or a stall the player sees; the worst client gates.   | 0; at most one a minute from a stood-in frame's change of intent.          |
 | `packet.gapRate`                         | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted).   | ~0 except bursty scenarios.                                                |
 | `packet.inputAckRttMs`                   | Input send → first snapshot acking it.                                                                                   | RTT + up-to-one-tick alignment.                                            |
 | `server.tickDurMs` / `effectiveTickRate` | Sim cost and loop health.                                                                                                | ≪ 50ms / 20Hz.                                                             |
@@ -95,15 +95,18 @@ client's own interpolation delay costs the others (`remoteVsRemotePx`). `drift-f
 `drift-slow-client` (120 s each) give one bot a tick clock 1% fast or slow
 (`BotSpec.clockScale`, which scales only its predictor's clock): the input
 queue must hold the fast one's depth (`depthTrend` ~0, no ratchet toward the
-cap) and coast the slow one about two ticks in a hundred.
+cap) and coast the slow one for every frame it misses, refusing the late
+frame and steering by it on the next tick.
 
 A coasted tick (`starvedRate`) is cheap: the coast stands in for the late
 frame, so the snake still moves once a tick, the ack counts the coast as
 that frame, and the frame, when it arrives, steers the next tick instead of
 stepping; the client corrects only that frame's change of intent. A client
 whose frames land within a render frame (about 17 ms) of the server's tick
-coasts often, by design; which bot that is in a run is the chance of its
-connect time. What is never cheap is the ack parting from the steps
+coasts often, by design (14–28 % of its ticks in a real browser), and is
+steered by those frames one tick later; which client that is in a run is
+the chance of its connect time, until the client re-phases its frames (the
+card `input-phase-a-client-whose-frames-land-just-after-the-tick-m`). What is never cheap is the ack parting from the steps
 (`stepAckMismatchPerMin`): the queue's first version let a coast be "owed"
 when the stood-in frame came alone, stepped that frame anyway and skipped a
 later one to pay for it, and a player on the tick boundary got a whole-step

@@ -16,6 +16,82 @@ Template:
 
 ---
 
+## 2026-10-24 — H5b: Every coast stands in; a late frame steers the next tick [KEPT]
+
+- Branch: fix/input-queue-coast-stands-in (9257796 the queue, dd2caeb the
+  proxy and the out-of-order guard), the Conveyor card
+  `input-queue-every-coast-stands-in-for-the-late-frame-which-s`.
+- Why: the live game (Cloud Run and reaper1, deployed from PR #60) surged
+  and stalled about once a second. Decoding the packed snapshots of a 90 s
+  guest session: the player's own `ack` stood still on 16–29 ticks a
+  minute, moved by two with one step on 4–9, and by two with two steps on
+  7–19. Each ack that does not count the steps is a whole movement step
+  the client's replay did not predict: 9 px, 50 ms of motion, folded in
+  over 80 ms as a surge or a stall. Snapshot delivery (p95 53–55 ms, no
+  bunching), the tick grid (p99 52 ms) and the page's frame pacing were
+  clean.
+- Cause: H5's "owed" coast. A coast with nothing arrived stood in for the
+  client's next frame (ack and floor up); a coast after a refused late
+  frame (`arrived`) raised the ack alone, so the frame it stood for was
+  queued and stepped later (ack still for a tick: +1 step) and a later
+  frame skipped to pay (ack +2 for one step: −1), or the debt expired and
+  the +1 stayed. A client whose frames land within jitter of the tick flips
+  between the two branches; Godot's 60 Hz physics loop puts a third of real
+  sessions there. `correctionPx` p95 never saw it: the events are 1–3 % of
+  ticks. Driving the real `InputQueue` with synthetic arrivals (the card's
+  `queue-sim.mts`): 42–44 changes of steps − ack a minute at a phase 45–49
+  ms into the tick with ±3–25 ms of jitter, 8–23 a minute for a clock 0.1 %
+  slow at any phase.
+- Change: the ack counts the steps. `coast()` always `passed(taken + 1)`;
+  `owed`, `arrived`, `payOwed` and `OWED_TICKS` are gone; `push` says
+  whether it queued the frame, and `GameWorldSim.queueInputs` adopts the
+  intent of a refused frame newer than the one the snake last steered by
+  (`steeredSeq`), so a consistently late client is steered one tick
+  behind its prediction, never a step behind it (H5's dead ends C and D
+  skipped the late frame's intent too, and a slow clock lost its steering).
+  The queue is driven through phases 5–49 ms, jitter 0–25 ms and drift 0
+  and ±1000 ppm in its tests, asserting steps == ack after every tick: the
+  H5 queue fails it 1942 times at phase 49 ms, jitter 3 ms.
+- Gates added: `server.inputQueue.stepAckMismatchPerMin` from the ground
+  truth (each player's ack is recorded now), must be zero;
+  `smoothness.stepCorrectionsPerMin` (corrections of 8 px or more, the
+  worst client), a headline metric with a floor of one a minute. The
+  threshold is 8 px, not half a step: a boosted step is 16 px; a stood-in
+  frame's change of intent at a sharp turn reaches a few px; and a snake
+  boosting within one segment of the minimum length corrects exactly 7 px
+  a step (the server decides boost from its fractional length, the client
+  from the integer on the wire: a seam of its own, the card
+  `boost-near-the-minimum-length-the-client-predicts-a-base-step-wher`),
+  so the client count is not must-be-zero; the server metric is the exact
+  gate.
+- Browser tier (Chromium on the 144 Hz display of the desktop, 60 s each,
+  the order-preserving proxy; the shipped code from a worktree at
+  b32ef82): step/ack mismatches 0 in every run of the fix (3659–3706 fed
+  ticks a run; the shipped code records no acks). Corrections of 7 px or
+  more a minute, worst client: baseline-3p-100ms 1.0 against 3.0,
+  jitter-heavy-3p 1.0 against 5.2; `correctionPx` p99 1.1–2.3 px against
+  1.0–1.5; jerkRms equal within noise (11.5–17.6k against 12.4–15.9k).
+  `starvedRate` 14–28 % on one client in three: the late regime (below).
+- Found on the way, fixed on the branch: the latency proxy promised FIFO
+  delivery but scheduled a timer per chunk, and two chunks due at the same
+  millisecond fired in either order, which reordered whole WebSocket
+  frames under spikes (7–44 out-of-order snapshots a minute per client on
+  jitter-heavy-3p) and gave both code versions 17–109 whole-step
+  corrections a minute there; one queue drained by one timer now. And the
+  clients reconciled against an out-of-order snapshot (impossible over
+  TCP, real on a party's unordered `fast` channel): the bots and `main.gd`
+  ignore one now.
+- Cost, accepted: a client whose frames land just after the tick stays
+  there (the server consumes one seq a tick from its first frame on, so the
+  phase is the luck of the first arrival), is refused a quarter to a third
+  of its frames and steered by them one tick later: the pre-pack design's
+  latency, without its constant one-step correction. The client-side
+  re-phasing is the follow-up card
+  `input-phase-a-client-whose-frames-land-just-after-the-tick-m`.
+- Scenarios (the sweep, `--all --runs 3`, label `g1b-stand-in`, against the
+  committed baselines): SWEEP_RESULTS
+- Baselines: all thirteen scenarios are this sweep's (label `g1b-stand-in`).
+
 ## 2026-10-23 — Party worlds over peer links (the pack's G6) [KEPT]
 
 - Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at
