@@ -3,9 +3,9 @@
  * stream decoded in arrival order, the player's own ack deltas, the frame
  * and send gaps, the long tasks and the renderer's stats line, and the
  * shapes a stall takes, each a failure of the deploy check. Everything is
- * judged from `since`: the moment the player was in the world plus a settle
- * second, so the page's load, the sign-in and the renderer's first builds
- * are not the deploy's stalls.
+ * judged from `since`: the first snapshot that held the player's snake plus
+ * a settle second, so the page's load, the sign-in, the client's remount and
+ * the renderer's first builds are not the deploy's stalls.
  */
 
 import {
@@ -28,6 +28,8 @@ export interface CliArgs {
   name: string;
   gpu?: "webgl" | "webgpu";
   windowPosition?: string;
+  /** the display's rate, declared; read from the frames otherwise */
+  hz?: number;
   headless: boolean;
 }
 
@@ -76,7 +78,15 @@ interface Decoded {
 interface WireAnalysis {
   userId: string | null;
   serverIds: string[];
+  /** epoch ms the measurement starts: the player's entry plus the settle, or the anchor's */
+  since: number;
+  /** how long after the anchor (the sign-in) the player's snake first appeared, seconds; null never */
+  enteredAfterS: number | null;
   arrivals: Decoded[];
+  /** arrivals since `since` that held the player's snake */
+  withOwn: number;
+  /** the player's deaths since `since` */
+  deaths: number;
   undecodable: number;
   arrivalGaps: Stats;
   over100: number;
@@ -166,9 +176,11 @@ function ackBucket(delta: number): string {
 }
 
 /**
- * Consecutive snapshots that both hold the player's snake, once a frame of
- * its was stepped (the ack stays 0 from the spawn to the first frame): how
- * far the ack moved.
+ * Consecutive snapshots that both hold the player's snake: how far the ack
+ * moved. Counted only once the ack has moved after each spawn: from a spawn
+ * (the first, or one after a death) to the first frame the server steps, the
+ * ack holds still (at 0, or at the value it had before the death), and that
+ * stillness is the round trip, not a stall.
  */
 function ackDeltas(snapshots: Decoded[]): Map<string, number> {
   const histogram = new Map<string, number>([
@@ -179,24 +191,34 @@ function ackDeltas(snapshots: Decoded[]): Map<string, number> {
     ["backwards", 0],
   ]);
   let previous: number | null = null;
+  let moved = false;
   for (const snapshot of snapshots) {
     if (snapshot.seed) continue;
     if (snapshot.ownAck === null) {
+      // the snake is gone (a death): the next appearance is a spawn
       previous = null;
+      moved = false;
       continue;
     }
-    if (previous !== null && previous > 0) {
-      const key = ackBucket(snapshot.ownAck - previous);
-      histogram.set(key, (histogram.get(key) ?? 0) + 1);
+    if (previous !== null) {
+      const delta = snapshot.ownAck - previous;
+      if (moved) histogram.set(ackBucket(delta), (histogram.get(ackBucket(delta)) ?? 0) + 1);
+      else if (delta > 0) moved = true;
     }
     previous = snapshot.ownAck;
   }
   return histogram;
 }
 
-function analyzeWire(samples: PageSamples, since: number): WireAnalysis {
+function analyzeWire(samples: PageSamples, anchor: number): WireAnalysis {
   const { userId, serverIds, snapshots, undecodable } = decodeWire(samples.wire);
+  // the player's entry: the first snapshot that holds the snake
+  const entry = snapshots.find((s) => !s.seed && s.ownAck !== null)?.t;
+  const since = (entry ?? anchor) + SETTLE_MS;
   const arrivals = snapshots.filter((s) => !s.seed && s.t >= since);
+  const deaths = samples.wire.filter(
+    (r) => r.event === "death" && r.id !== null && r.id === userId && r.t >= since,
+  ).length;
   const times = arrivals.map((s) => s.t);
   const arrivalGaps = gaps(times);
   const first = times[0];
@@ -205,7 +227,11 @@ function analyzeWire(samples: PageSamples, since: number): WireAnalysis {
   return {
     userId,
     serverIds,
+    since,
+    enteredAfterS: entry === undefined ? null : (entry - anchor) / 1000,
     arrivals,
+    withOwn: arrivals.filter((s) => s.ownAck !== null).length,
+    deaths,
     undecodable,
     arrivalGaps: computeStats(arrivalGaps),
     over100: arrivalGaps.filter((g) => g > 100).length,
@@ -220,7 +246,12 @@ function gameSockets(samples: PageSamples): PageSamples["sockets"] {
   return samples.sockets.filter((s) => !s.url.includes("/_next/"));
 }
 
-function analyzePage(samples: PageSamples, stats: StatsSample[], since: number): PageAnalysis {
+function analyzePage(
+  samples: PageSamples,
+  stats: StatsSample[],
+  since: number,
+  declaredHz: number | undefined,
+): PageAnalysis {
   const raf = computeStats(samples.raf.filter((r) => r.t >= since).map((r) => r.gap));
   const hz = raf.n > 0 && raf.p50 > 0 ? Math.round(1000 / raf.p50) : null;
   const settled = stats.filter((s) => s.t >= since);
@@ -231,7 +262,7 @@ function analyzePage(samples: PageSamples, stats: StatsSample[], since: number):
   return {
     raf,
     hz,
-    acceptance: acceptanceFor(displayRateOf(hz ?? 60)),
+    acceptance: acceptanceFor(declaredHz ?? displayRateOf(hz ?? 60)),
     rafStalls: samples.raf.filter((r) => r.t >= since && r.gap >= LONG_TASK_MS).length,
     sends: sends.length,
     sendGaps: computeStats(gaps(sends.map((s) => s.t))),
@@ -257,14 +288,19 @@ function wireLines(wire: WireAnalysis, page: PageAnalysis): string[] {
   return [
     `  sockets: ${page.opened} opened over the session (the guest sign-in connects again), ${page.closed} closed while playing; servers seen: ${wire.serverIds.length}; player ${wire.userId ?? "unknown"}`,
     `  snapshots: ${wire.arrivals.length} (${wire.perSecond.toFixed(1)}/s), arrival gap ${fmt(wire.arrivalGaps)}, over 100 ms: ${wire.over100}, ticks missed: ${wire.missedTicks}, undecodable: ${wire.undecodable}`,
-    `  own ack deltas: ${[...wire.acks.entries()].map(([k, v]) => `${k} ×${v}`).join(", ")} (healthy: all +1, the odd +2)`,
+    `  own ack deltas: ${[...wire.acks.entries()].map(([k, v]) => `${k} ×${v}`).join(", ")} (healthy: all +1, the odd +2); own snake in ${wire.withOwn} of ${wire.arrivals.length} snapshots, deaths: ${wire.deaths}`,
   ];
+}
+
+/** The frame-time tails within the display rate's acceptance, as the browser tier judges them. */
+function pacingOk(page: PageAnalysis): boolean {
+  const { acceptance, raf } = page;
+  return raf.n > 0 && raf.p95 <= acceptance.frameTimeP95Ms && raf.p99 <= acceptance.frameTimeP99Ms;
 }
 
 function pageLines(page: PageAnalysis): string[] {
   const { acceptance, raf } = page;
-  const pacing =
-    raf.p95 <= acceptance.frameTimeP95Ms && raf.p99 <= acceptance.frameTimeP99Ms ? "✓" : "✗";
+  const pacing = pacingOk(page) ? "✓" : "✗";
   const tasks = page.longTasks.map((t) => `${t.d.toFixed(0)} ms`).join(", ");
   return [
     `  rAF gaps: ${fmt(raf)} (acceptance at ${acceptance.hz} Hz: p95 ${acceptance.frameTimeP95Ms}, p99 ${acceptance.frameTimeP99Ms}) ${pacing}; gaps of ${LONG_TASK_MS} ms or more: ${page.rafStalls}`,
@@ -283,23 +319,42 @@ function failuresOf(wire: WireAnalysis, page: PageAnalysis): string[] {
   }
   const zeros = wire.acks.get("0") ?? 0;
   if (zeros > 0) failures.push(`${zeros} ack delta(s) of 0`);
+  if (!pacingOk(page)) {
+    failures.push(
+      `frame time p95 ${page.raf.p95.toFixed(1)} / p99 ${page.raf.p99.toFixed(1)} ms over the acceptance at ${page.acceptance.hz} Hz`,
+    );
+  }
   if (wire.arrivals.length === 0) failures.push("no snapshot decoded");
+  else if (wire.withOwn === 0) failures.push("the player's snake was in no snapshot");
   return failures;
 }
 
-/** Prints the report, judged from `since` (epoch ms); true when the deploy check passed. */
+/**
+ * Prints the report, judged from the player's entry (`anchor`, the sign-in,
+ * when the snake never appeared); the deploy check's verdict and the moment
+ * the measurement started.
+ */
 export function report(
   args: CliArgs,
   samples: PageSamples,
   stats: StatsSample[],
-  since: number,
-): boolean {
-  const wire = analyzeWire(samples, since);
-  const page = analyzePage(samples, stats, since);
+  anchor: number,
+  respawns: number,
+): { passed: boolean; since: number } {
+  const wire = analyzeWire(samples, anchor);
+  const page = analyzePage(samples, stats, wire.since, args.hz);
   const failures = failuresOf(wire, page);
-  const title = `bench:play — ${args.url} as "${args.name}", ${args.seconds} s, ${page.backend}${page.hz === null ? "" : ` at ~${page.hz} Hz`}`;
+  const rate =
+    args.hz === undefined
+      ? `${page.hz === null ? "" : `~${page.hz} Hz, `}judged at ${page.acceptance.hz} Hz from the frames (--hz declares the display)`
+      : `judged at the declared ${args.hz} Hz`;
+  const title = `bench:play — ${args.url} as "${args.name}", ${args.seconds} s, ${page.backend}, ${rate}`;
+  const entry =
+    wire.enteredAfterS === null
+      ? "  the player's snake never appeared; measured from the sign-in"
+      : `  in the world ${wire.enteredAfterS.toFixed(1)} s after the sign-in; measured from ${(SETTLE_MS / 1000).toFixed(0)} s later; respawned ${respawns} time(s)`;
   const verdict =
     failures.length === 0 ? "  RESULT: PASS" : `  RESULT: FAIL (${failures.join("; ")})`;
-  console.log([title, ...wireLines(wire, page), ...pageLines(page), verdict].join("\n"));
-  return failures.length === 0;
+  console.log([title, entry, ...wireLines(wire, page), ...pageLines(page), verdict].join("\n"));
+  return { passed: failures.length === 0, since: wire.since };
 }

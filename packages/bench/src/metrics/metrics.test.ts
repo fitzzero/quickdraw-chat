@@ -15,7 +15,7 @@ import {
 import { computeInputQueue, computeOwnQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
 import { STEP_CORRECTION_PX, computeSmoothness } from "./smoothness.js";
-import { judgeTier2 } from "../tier2.js";
+import { TIER2_ACCEPTANCE, acceptanceFor, judgeTier2 } from "../tier2.js";
 
 function makeServerTrace(): ServerTrace {
   // Entity "e1" moves +10px/tick along x for 100 ticks at 50ms
@@ -625,6 +625,88 @@ describe("the browser tier", () => {
     expect(judged.passed).toBe(false);
     expect(judged.lines.some((line) => line.includes("✗ frame time p99"))).toBe(true);
     expect(judgeTier2({ ...smooth, tier2: undefined }).passed).toBe(false);
+  });
+  it("judges against the declared display rate: a 144 Hz display at half rate is not a 75 Hz one", () => {
+    // 72 fps: 13.9 ms frames
+    const half = browserTrace({ stalls: 0, longTasks: [], builds: [1, 1], backend: "webgl" });
+    let t = 1000;
+    half.frames = half.frames.map(() => {
+      const frame = { tWall: t, entities: { e1: { x: 0, y: 0 } } };
+      t += 1000 / 72;
+      return frame;
+    });
+    const card = computeScorecard({ server: makeServerTrace(), clients: [half] }, scenario, meta);
+    // from the frames alone the judge takes the nearest common rate, 75 Hz, and passes
+    expect(judgeTier2(card).acceptance.hz).toBe(75);
+    expect(judgeTier2(card).passed).toBe(true);
+    // the desk declared its display: 144 Hz limits, and the half-rate page fails
+    const declared = { ...card, tier2: card.tier2 && { ...card.tier2, displayHz: 144 } };
+    const verdict = judgeTier2(declared);
+    expect(verdict.acceptance.hz).toBe(144);
+    expect(verdict.passed).toBe(false);
+  });
+
+  it("fails a card without a rendered frame, and headlines no frame-time tail for it", () => {
+    const blank = browserTrace({ stalls: 0, longTasks: [], builds: [1, 1], backend: "webgl" });
+    blank.frames = [];
+    const card = computeScorecard({ server: makeServerTrace(), clients: [blank] }, scenario, meta);
+    expect(card.tier2?.frameTimeMs.n).toBe(0);
+    const verdict = judgeTier2(card);
+    expect(verdict.passed).toBe(false);
+    expect(verdict.lines[0]).toContain("no frame rendered");
+    const metrics = headlineMetrics(card);
+    expect(metrics).not.toHaveProperty(["tier2.frameTimeMs.p95"]);
+    expect(metrics).toHaveProperty(["tier2.longTasksPerMin"]);
+  });
+
+  it("counts a second without a frame as a pause, which must be 0", () => {
+    const paused = browserTrace({ stalls: 0, longTasks: [], builds: [1, 1], backend: "webgl" });
+    // a 1.5 s hole in the middle of the frames
+    paused.frames = paused.frames.map((frame, i) =>
+      i >= 300 ? { ...frame, tWall: frame.tWall + 1500 } : frame,
+    );
+    const card = computeScorecard({ server: makeServerTrace(), clients: [paused] }, scenario, meta);
+    expect(card.tier2?.pausesPerMin).toBeCloseTo(1 / (card.durationMs / 60_000), 6);
+    // the hole is not in the tails
+    expect(card.tier2?.frameTimeMs.max).toBeLessThan(100);
+    expect(judgeTier2(card).passed).toBe(false);
+    const clean = computeScorecard(
+      {
+        server: makeServerTrace(),
+        clients: [browserTrace({ stalls: 0, longTasks: [], builds: [1, 1], backend: "webgl" })],
+      },
+      scenario,
+      meta,
+    );
+    expect(
+      compareScorecards(clean, card).comparisons.find((c) => c.metric === "tier2.pausesPerMin")
+        ?.verdict,
+    ).toBe("fail");
+  });
+
+  it("refuses to compare cards of different tiers", () => {
+    const browser = computeScorecard(
+      {
+        server: makeServerTrace(),
+        clients: [browserTrace({ stalls: 0, longTasks: [], builds: [1, 1], backend: "webgl" })],
+      },
+      scenario,
+      meta,
+    );
+    const bot = computeScorecard(
+      { server: makeServerTrace(), clients: [makeClientTrace("c1", 0)] },
+      scenario,
+      { ...meta, tier: 1 },
+    );
+    expect(() => compareScorecards(browser, bot)).toThrow(/tier mismatch/);
+    expect(() => compareScorecards(bot, browser)).toThrow(/tier mismatch/);
+  });
+
+  it("states the acceptance the docs show: the display period plus 15 % (p95) and 1.75 periods (p99)", () => {
+    expect(acceptanceFor(144)).toEqual({ hz: 144, frameTimeP95Ms: 8, frameTimeP99Ms: 12.2 });
+    expect(acceptanceFor(120)).toEqual({ hz: 120, frameTimeP95Ms: 9.6, frameTimeP99Ms: 14.6 });
+    expect(acceptanceFor(60)).toEqual({ hz: 60, frameTimeP95Ms: 19.2, frameTimeP99Ms: 29.2 });
+    expect(TIER2_ACCEPTANCE.map((row) => row.hz)).toEqual([60, 75, 90, 120, 144, 165, 240]);
   });
 });
 

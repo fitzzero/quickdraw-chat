@@ -51,34 +51,39 @@ running the real web app's game client (`apps/web/src/game`: the shared
 netcode core under a PixiJS renderer) with `?bench=1&gpu=webgl|webgpu`; the
 client streams rendered positions, FPS, corrections, the page's long tasks
 and the renderer's draw calls, geometry builds and main-thread work per
-frame to the page (`window.QuickdrawBench`), the same latency proxy sits in
-front of each browser, and the same scorecard comes out (`apps/bench-web`,
-`bun run bench:web`), with a block of its own: `tier2.frameTimeMs` (the
-tails, p95 and p99, are the headline: a stall of 200 ms every fifteen
-seconds leaves the mean and the fps untouched and is the whole bug),
-`tier2.longTasksPerMin` and `tier2.geometryBuildsPerMin` (both must be 0:
-a long task is a main-thread stall the player felt, a geometry build within
-the window is per-frame geometry, the renderer rule broken),
-`tier2.drawCalls` and `tier2.backend`. `bench:web` runs its default list
+frame to the page (`window.QuickdrawBench`; the work per frame is not yet
+scored), the same latency proxy sits in front of each browser, and the same
+scorecard comes out (`apps/bench-web`, `bun run bench:web`), with a block of
+its own: `tier2.frameTimeMs` (the tails, p95 and p99, are the headline: a
+stall of 200 ms every fifteen seconds leaves the mean and the fps untouched
+and is the whole bug), `tier2.longTasksPerMin`, `tier2.geometryBuildsPerMin`
+and `tier2.pausesPerMin` (all three must be 0: a long task is a main-thread
+stall the player felt, a geometry build within the window is per-frame
+geometry, the renderer rule broken, and a pause is a second without a
+frame, which the frame times leave out), `tier2.drawCalls` and
+`tier2.backend`. `bench:web` runs its default list
 (`baseline-3p-100ms`, `jitter-heavy-3p` and `render-stress-8p`, the
 renderer's load test) on both backends (`--gpu webgl|webgpu|both`, WebGL
 the floor: embedded webviews and older mobile land there), `--all` every
 scenario the tier runs, `--scenario` one. A Tier-2 number is not a
 cross-machine baseline (a 144 Hz desktop and a 60 Hz laptop render
 different frames), so each card is judged where it ran against an absolute
-acceptance per display rate (`acceptanceFor` in `packages/bench/src/tier2.ts`;
-the rate is read from the frame time p50 and snapped to the nearest common
-one) and the run exits 1 on a miss; `bench:compare` still works between two
-runs on the same desk. The limits follow the display period, which a rAF
+acceptance per display rate (`acceptanceFor` in `packages/bench/src/tier2.ts`)
+and the run exits 1 on a miss; `bench:compare` still works between two
+runs on the same desk (and refuses cards of different tiers). Declare the
+display with `--hz 144`: read from the frame time p50 alone, a 144 Hz
+display rendering at half rate looks like a 75 Hz one and passes its
+limits, so without `--hz` the judge snaps the measured rate to the nearest
+common one and says so. The limits follow the display period, which a rAF
 loop locked to vsync cannot beat: p95 at most the period plus 15 % (jitter),
 p99 at most 1.75 periods (fewer than one frame in a hundred dropped: a
 dropped frame is two periods).
 
-| display rate | frame time p95  | frame time p99  | long tasks | geometry builds |
-| ------------ | --------------- | --------------- | ---------- | --------------- |
-| 144 Hz       | at most 8.0 ms  | at most 12.2 ms | 0 a minute | 0 a minute      |
-| 120 Hz       | at most 9.6 ms  | at most 14.6 ms | 0 a minute | 0 a minute      |
-| 60 Hz        | at most 19.2 ms | at most 29.2 ms | 0 a minute | 0 a minute      |
+| display rate | frame time p95  | frame time p99  | long tasks | geometry builds | pauses     |
+| ------------ | --------------- | --------------- | ---------- | --------------- | ---------- |
+| 144 Hz       | at most 8.0 ms  | at most 12.2 ms | 0 a minute | 0 a minute      | 0 a minute |
+| 120 Hz       | at most 9.6 ms  | at most 14.6 ms | 0 a minute | 0 a minute      | 0 a minute |
+| 60 Hz        | at most 19.2 ms | at most 29.2 ms | 0 a minute | 0 a minute      | 0 a minute |
 
 Headed by default (headless SwiftShader's frame pacing is not a display's;
 `--headless` is for plumbing checks); `--window-position x,y` puts the
@@ -90,26 +95,26 @@ runner notes it under the verdict: that card gates the backend it ran on.
 
 ## Reading a scorecard
 
-| Metric                                           | Meaning                                                                                                                  | Healthy shape                                                              |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| `divergence.remoteVsRemotePx`                    | Same entity, same instant, two clients that BOTH see it remotely. The purest desync signal.                              | ~0–1px on equal links; unequal ones: speed × the delays' gap (10–20px).    |
-| `divergence.ownVsRemotePx`                       | Owner's predicted-now view vs another client's delayed view.                                                             | ≈ (RTT + interp delay) × speed. Dropping it means cutting perceived delay. |
-| `perEntity.renderLatencyMs`                      | Lag that best aligns a client's render with the server track (staleness incl. the intentional interp delay).             | ~transport + the playback delay (75–300ms) for remotes; ~0 for the local.  |
-| `perEntity.shapeErrorPx`                         | Residual error after removing that lag — trajectory fidelity.                                                            | Low single digits. Spikes = warping/snapping.                              |
-| `predictionErrorPx`                              | Local snake raw error vs server (lag 0) — prediction accuracy.                                                           | < ~15px under 100ms RTT.                                                   |
-| `smoothness.teleportsPerMin`                     | Frame-to-frame displacement beyond any legal speed (deaths masked).                                                      | 0. Any value is user-visible popping.                                      |
-| `smoothness.jerkRms`                             | RMS frame-to-frame acceleration of rendered motion.                                                                      | Relative metric — compare across runs, not absolutely.                     |
-| `hardSnapsPerMin` / `correctionPx`               | Reconciliation events on the local snake.                                                                                | Rare / small.                                                              |
-| `smoothness.stepCorrectionsPerMin`               | Per client: corrections of a whole movement step (≥ 8 px), a surge or a stall the player sees; the worst client gates.   | 0; at most one a minute from a stood-in frame's change of intent.          |
-| `packet.gapRate`                                 | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted).   | ~0 except bursty scenarios.                                                |
-| `packet.inputAckRttMs`                           | Input send → first snapshot acking it.                                                                                   | RTT + up-to-one-tick alignment.                                            |
-| `server.tickDurMs` / `effectiveTickRate`         | Sim cost and loop health.                                                                                                | ≪ 50ms / 20Hz.                                                             |
-| `server.snapshotBytes`                           | The stream item's JSON: the packed snapshot, base64 in `{ b }`. On the wire each `qd:stream` frame adds 59 bytes.        | 23 B a player (31 in base64); add fields consciously.                      |
-| `server.inputQueue`                              | Server's view of client clocks: depth p95, coasted and multi-step tick rates, depth trend, step/ack mismatches a minute. | depth 0–1, multi-step < 5%, trend ~0, mismatches 0 (must be; see below).   |
-| `foodMismatchAtEnd` / `foodResyncs`              | Per client: food ids held at the end that differ from the server's at that tick (the worst gates); keyframes asked.      | 0 / 0. Tier 1 only; check:web checks the page's.                           |
-| `tier2.frameTimeMs` (p95, p99)                   | Tier 2: the time between the page's rendered frames; the tails are the headline, never the mean or the fps.              | Within the display rate's acceptance (the table above).                    |
-| `tier2.longTasksPerMin` / `geometryBuildsPerMin` | Tier 2: the pages' main-thread stalls of 50 ms or more, and geometry the renderers built within the window, a minute.    | 0 and 0 (must be).                                                         |
-| `tier2.drawCalls` / `tier2.backend`              | Tier 2: draw calls per frame where the backend reports them (WebGL), and the GPU API the pages ran on.                   | Reported, not gated.                                                       |
+| Metric                                                            | Meaning                                                                                                                                        | Healthy shape                                                              |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `divergence.remoteVsRemotePx`                                     | Same entity, same instant, two clients that BOTH see it remotely. The purest desync signal.                                                    | ~0–1px on equal links; unequal ones: speed × the delays' gap (10–20px).    |
+| `divergence.ownVsRemotePx`                                        | Owner's predicted-now view vs another client's delayed view.                                                                                   | ≈ (RTT + interp delay) × speed. Dropping it means cutting perceived delay. |
+| `perEntity.renderLatencyMs`                                       | Lag that best aligns a client's render with the server track (staleness incl. the intentional interp delay).                                   | ~transport + the playback delay (75–300ms) for remotes; ~0 for the local.  |
+| `perEntity.shapeErrorPx`                                          | Residual error after removing that lag — trajectory fidelity.                                                                                  | Low single digits. Spikes = warping/snapping.                              |
+| `predictionErrorPx`                                               | Local snake raw error vs server (lag 0) — prediction accuracy.                                                                                 | < ~15px under 100ms RTT.                                                   |
+| `smoothness.teleportsPerMin`                                      | Frame-to-frame displacement beyond any legal speed (deaths masked).                                                                            | 0. Any value is user-visible popping.                                      |
+| `smoothness.jerkRms`                                              | RMS frame-to-frame acceleration of rendered motion.                                                                                            | Relative metric — compare across runs, not absolutely.                     |
+| `hardSnapsPerMin` / `correctionPx`                                | Reconciliation events on the local snake.                                                                                                      | Rare / small.                                                              |
+| `smoothness.stepCorrectionsPerMin`                                | Per client: corrections of a whole movement step (≥ 8 px), a surge or a stall the player sees; the worst client gates.                         | 0; at most one a minute from a stood-in frame's change of intent.          |
+| `packet.gapRate`                                                  | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted).                         | ~0 except bursty scenarios.                                                |
+| `packet.inputAckRttMs`                                            | Input send → first snapshot acking it.                                                                                                         | RTT + up-to-one-tick alignment.                                            |
+| `server.tickDurMs` / `effectiveTickRate`                          | Sim cost and loop health.                                                                                                                      | ≪ 50ms / 20Hz.                                                             |
+| `server.snapshotBytes`                                            | The stream item's JSON: the packed snapshot, base64 in `{ b }`. On the wire each `qd:stream` frame adds 59 bytes.                              | 23 B a player (31 in base64); add fields consciously.                      |
+| `server.inputQueue`                                               | Server's view of client clocks: depth p95, coasted and multi-step tick rates, depth trend, step/ack mismatches a minute.                       | depth 0–1, multi-step < 5%, trend ~0, mismatches 0 (must be; see below).   |
+| `foodMismatchAtEnd` / `foodResyncs`                               | Per client: food ids held at the end that differ from the server's at that tick (the worst gates); keyframes asked.                            | 0 / 0. Tier 1 only; check:web checks the page's.                           |
+| `tier2.frameTimeMs` (p95, p99)                                    | Tier 2: the time between the page's rendered frames; the tails are the headline, never the mean or the fps.                                    | Within the display rate's acceptance (the table above).                    |
+| `tier2.longTasksPerMin` / `geometryBuildsPerMin` / `pausesPerMin` | Tier 2: the pages' main-thread stalls of 50 ms or more, geometry the renderers built within the window, and seconds without a frame, a minute. | 0, 0 and 0 (must be).                                                      |
+| `tier2.drawCalls` / `tier2.backend`                               | Tier 2: draw calls per frame where the backend reports them (WebGL), and the GPU API the pages ran on.                                         | Reported, not gated.                                                       |
 
 Aggregated runs (`--runs 3`) report element-wise medians plus `runVariance`
 (max−min of headline metrics across runs). `bench:compare` treats deltas
@@ -137,24 +142,33 @@ The bench plays against a bench server; a deploy is judged by playing it.
 `bun run bench:play -- --url https://quickdraw-dev.techtree.gg/game`
 (`apps/bench-web/src/probe-live.ts`) opens the page in a headed Chromium,
 signs in as a guest through the real dialog, plays a human-like wander for
-`--seconds` (60), and measures from inside the page: the world stream's
-arrival gaps (p50/p95/p99/max, the count over 100 ms, the ticks missed) and
+`--seconds` (60), respawning through the dialog when it dies, and measures
+from inside the page: the world stream's arrival gaps (p50/p95/p99/max, the
+count over 100 ms, the ticks missed) and
 the ack deltas of the player's own snake, decoded from the packed stream
 with the shared `SnapshotDecoder` (healthy: every delta +1, the odd +2 when
-a tick drained two frames; a 0 is a tick that stepped none, a stall); the
+a tick drained two frames; a 0 is a tick that stepped none, a stall; the
+stillness between a spawn and the first frame the server steps is not
+counted); the
 rAF gaps against the display rate's acceptance and the long tasks; the
 input send gaps; the renderer's backend, draw calls and geometry builds
 from the page's own stats line (`?debug=1`, which the probe adds); and
-every socket open or close (the guest sign-in connects again once). It
-exits 1 on a long task, a geometry build after the first second, or an ack
-delta of 0, so it gates a deploy by hand, and saves the raw samples under
-`bench-results/play/`. `--gpu webgl|webgpu` picks the backend,
+every socket open or close (the guest sign-in connects again once).
+Everything is judged from the first snapshot that holds the player's snake
+plus a settle second (the load, the sign-in and the client's remount are not
+the deploy's stalls). It exits 1 on a long task, a geometry build after the
+first second, an ack delta of 0, or frame-time tails over the display
+rate's acceptance (the browser tier's own gate), so it gates a deploy by
+hand, and saves the raw samples under `bench-results/play/`. `--gpu
+webgl|webgpu` picks the backend, `--hz 144` declares the display's rate
+(read from the frames otherwise, with the half-rate blind spot above),
 `--window-position x,y` the display, `--name` the guest's name.
 
 The healthy shape on a clean link: arrival gap p99 under 80 ms and none
-over 100, ticks missed 0, ack deltas all +1 with a handful of +2, rAF p99
-within the display rate's acceptance, long tasks 0, builds 0 after the
-first second, one socket closed (the sign-in's).
+over 100, ticks missed 0, ack deltas all +1 with a handful of +2, the
+player's snake in every snapshot, rAF p99 within the display rate's
+acceptance, long tasks 0, builds 0 after the first second, two sockets
+opened over the session and none closed while playing.
 
 ## Scenarios
 
@@ -265,7 +279,9 @@ against `len-tenths`; `remotes-present.json`, the remotes at the present
 - Tier-1 bots run the web client's netcode, not its renderer. The page's
   frame pacing and draw cost only show up in Tier 2, whose numbers are a
   desk's (its display rate, its GPU): judged against the acceptance per
-  display rate, never as a cross-machine baseline.
+  display rate, never as a cross-machine baseline. The rate itself comes
+  from the desk (`--hz`): read from the frames, a display at half rate is
+  a slower display, and the judge cannot tell them apart.
 - The remote interpolator's convergence is frame-rate dependent (per-frame
   nudge); bots must hold ~60fps — `effectiveFps` in the scorecard guards this.
 

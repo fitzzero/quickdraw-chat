@@ -35,7 +35,8 @@ export const DEFAULT_THRESHOLDS: CompareThresholds = {
     "fidelity.shapeErrorPx.p95": 0.5,
     "fidelity.renderLatencyMs": 5,
     "server.tickDurMs.p95": 0.05,
-    // The browser tier's frame-time tails: a millisecond is the timer's grain
+    // The browser tier's frame-time tails: a millisecond is the noise floor
+    // (rAF stamps are finer, the pacing is not)
     "tier2.frameTimeMs.p95": 1,
     "tier2.frameTimeMs.p99": 1,
     // A client's queue holds 0 or 1 frames by the phase it connected at; a
@@ -54,15 +55,17 @@ export type Verdict = "ok" | "improved" | "within-noise" | "warn" | "fail";
  * any other value fails, whatever the baseline and the run spread. A food
  * mismatch is a change a client lost; a step/ack mismatch is a movement step
  * the client's replay did not predict (a 9 px jolt on its snake). In the
- * browser tier, a long task is a main-thread stall the player felt, and a
+ * browser tier, a long task is a main-thread stall the player felt, a
  * geometry build within the window is per-frame geometry (the renderer
- * rule: per-frame work is transform updates only).
+ * rule: per-frame work is transform updates only), and a pause is a second
+ * without a frame.
  */
 export const MUST_BE_ZERO: readonly string[] = [
   "food.mismatchAtEnd",
   "server.inputQueue.stepAckMismatchPerMin",
   "tier2.longTasksPerMin",
   "tier2.geometryBuildsPerMin",
+  "tier2.pausesPerMin",
 ];
 
 export interface MetricComparison {
@@ -139,6 +142,13 @@ export function compareScorecards(
   if (baseline.scenario !== candidate.scenario) {
     throw new Error(
       `scenario mismatch: baseline is "${baseline.scenario}", candidate is "${candidate.scenario}"`,
+    );
+  }
+  // The tiers measure different things (a browser card carries metrics a
+  // bot card cannot, which the zero gate would then fail as lost)
+  if (baseline.tier !== candidate.tier) {
+    throw new Error(
+      `tier mismatch: baseline is tier ${baseline.tier}, candidate is tier ${candidate.tier}; compare cards of one tier`,
     );
   }
 

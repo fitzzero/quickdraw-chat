@@ -306,6 +306,10 @@ export interface Scorecard {
     longTasksPerMin: number;
     /** geometry the renderers built within the window a minute, all clients: must be 0 (per-frame geometry is the renderer rule broken) */
     geometryBuildsPerMin: number;
+    /** gaps of a second or more between rendered frames a minute, all clients: must be 0 (the frame times leave them out) */
+    pausesPerMin: number;
+    /** the display rate the runner was told (`--hz`); without it the judge reads the rate from the frames, which cannot tell a 144 Hz display at half rate from a 72 Hz one */
+    displayHz?: number;
     /** draw calls per frame, where the backend reports them (WebGL; WebGPU says nothing) */
     drawCalls: Stats;
     /** the GPU API the pages ran on: "webgl" or "webgpu", several joined with "+", "unknown" when none said */

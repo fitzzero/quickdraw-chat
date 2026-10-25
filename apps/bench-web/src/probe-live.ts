@@ -10,14 +10,18 @@
  *
  *   bun run bench:play -- --url https://quickdraw-dev.techtree.gg/game --seconds 60
  *
- * Measured from the moment the player is in the world plus a settle second
- * (the page's load and the sign-in are not the deploy's stalls). Exit code 1
- * when a long task (50 ms or more on the main thread), a geometry build
- * after the first second, or an ack delta of 0 (a tick that stepped none of
- * the player's frames) appears: the shapes a stall takes. Headed, since
- * frame pacing is the point; --window-position puts the window on the
- * display meant (the 144 Hz one). The raw samples are saved beside the
- * bench results for a later look (play-report.ts does the arithmetic).
+ * Measured from the first snapshot that holds the player's snake plus a
+ * settle second (the page's load, the sign-in and the client's remount are
+ * not the deploy's stalls). Exit code 1 when a long task (50 ms or more on
+ * the main thread), a geometry build after the first second, an ack delta
+ * of 0 (a tick that stepped none of the player's frames), or a frame-time
+ * tail over the display rate's acceptance appears: the shapes a stall
+ * takes, judged as the browser tier judges them. Headed, since frame pacing
+ * is the point; --window-position puts the window on the display meant and
+ * --hz declares its rate (the judge cannot read a display's rate from a
+ * page at half rate). A death respawns through the dialog, as a player
+ * would. The raw samples are saved beside the bench results for a later
+ * look (play-report.ts does the arithmetic).
  */
 
 import { execSync } from "node:child_process";
@@ -27,7 +31,6 @@ import { join, resolve } from "node:path";
 import { chromium, type Page } from "playwright";
 import {
   LONG_TASK_MS,
-  SETTLE_MS,
   report,
   type CliArgs,
   type PageSamples,
@@ -36,6 +39,13 @@ import {
 import { sleep, startMouseWander } from "./wander.js";
 
 const RESULTS_DIR = resolve(process.cwd(), "../../bench-results/play");
+
+/** The display's rate as declared on the command line. */
+function parseHz(value: string): number {
+  const hz = Number(value);
+  if (!Number.isFinite(hz) || hz <= 0) throw new Error("--hz takes the display's rate, e.g. 144");
+  return hz;
+}
 
 function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
@@ -59,10 +69,11 @@ function parseArgs(argv: string[]): CliArgs {
       if (gpu !== "webgl" && gpu !== "webgpu") throw new Error(`--gpu takes webgl or webgpu`);
       args.gpu = gpu;
     } else if (arg === "--window-position") args.windowPosition = next(i++);
+    else if (arg === "--hz") args.hz = parseHz(next(i++));
     else if (arg === "--headless") args.headless = true;
     else if (arg === "--help") {
       console.log(
-        "usage: bench:play [--url <game url>] [--seconds N] [--name text] [--gpu webgl|webgpu] [--window-position x,y] [--headless]",
+        "usage: bench:play [--url <game url>] [--seconds N] [--name text] [--gpu webgl|webgpu] [--hz 144] [--window-position x,y] [--headless]",
       );
       process.exit(0);
     } else throw new Error(`unknown argument ${arg}`);
@@ -198,8 +209,21 @@ function merge(into: PageSamples, more: PageSamples): void {
 interface Session {
   samples: PageSamples;
   stats: StatsSample[];
-  /** epoch ms: the player in the world, settled */
-  since: number;
+  /** epoch ms: the sign-in done, the page alive (the report's fallback anchor) */
+  anchor: number;
+  /** the deaths the probe respawned from */
+  respawns: number;
+}
+
+/** Clicks the dialog's Respawn when a death shows it; true when it did. */
+async function respawnIfDead(page: Page): Promise<boolean> {
+  const respawn = page
+    .getByRole("button", { name: /respawn/i })
+    .filter({ visible: true })
+    .first();
+  if (!(await respawn.isVisible().catch(() => false))) return false;
+  await respawn.click({ timeout: 2000 }).catch(() => undefined);
+  return true;
 }
 
 async function play(args: CliArgs): Promise<Session> {
@@ -209,7 +233,8 @@ async function play(args: CliArgs): Promise<Session> {
   });
   const samples: PageSamples = { wire: [], sends: [], raf: [], longTasks: [], sockets: [] };
   const stats: StatsSample[] = [];
-  let since = 0;
+  let anchor = 0;
+  let respawns = 0;
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
     await context.addInitScript(PAGE_HOOKS);
@@ -220,19 +245,27 @@ async function play(args: CliArgs): Promise<Session> {
     console.log(`[bench:play] opening ${url.toString()} as "${args.name}" for ${args.seconds} s`);
     await page.goto(url.toString(), { waitUntil: "domcontentloaded" });
 
-    // The guest sign-in, as a player does it
-    const nameInput = page.getByPlaceholder(/snake name/i).first();
+    // The guest sign-in, as a player does it (the dialog's visible controls:
+    // a hot-reloaded dev page may hold a stale copy)
+    const nameInput = page
+      .getByPlaceholder(/snake name/i)
+      .filter({ visible: true })
+      .first();
     await nameInput.waitFor({ timeout: 90_000 });
     await nameInput.fill(args.name);
     await page
       .getByRole("button", { name: /play as guest/i })
+      .filter({ visible: true })
       .first()
       .click({ timeout: 30_000 });
-    // the page's own snake: the stats line shows once the client renders
+    // The canvas renders behind the dialog already (a spectator's), so the
+    // stats line only says the page is alive; the report anchors the
+    // measurement on the first snapshot that holds the player's snake, and
+    // this moment is its fallback
     await page.getByTestId("game-stats").waitFor({ timeout: 60_000 });
-    since = Date.now() + SETTLE_MS;
+    anchor = Date.now();
     merge(samples, await drain(page));
-    console.log(`[bench:play] in the world — playing (measured after ${SETTLE_MS} ms)…`);
+    console.log("[bench:play] signed in — playing…");
 
     const signal = { stopped: false };
     startMouseWander(page, 0x9e3779b9, signal);
@@ -242,6 +275,8 @@ async function play(args: CliArgs): Promise<Session> {
       await sleep(500);
       const sample = await readStats(page);
       if (sample) stats.push(sample);
+      // a death shows the dialog again: respawn, as a player would, and keep playing
+      if (await respawnIfDead(page)) respawns += 1;
       if (Date.now() >= nextDrain) {
         merge(samples, await drain(page));
         nextDrain = Date.now() + 2000;
@@ -253,7 +288,7 @@ async function play(args: CliArgs): Promise<Session> {
   } finally {
     await browser.close();
   }
-  return { samples, stats, since };
+  return { samples, stats, anchor, respawns };
 }
 
 function gitCommit(): string {
@@ -270,8 +305,8 @@ if (args.headless) {
     "[bench:play] headless: SwiftShader's frame pacing is not a display's; read the rAF line knowingly",
   );
 }
-const { samples, stats, since } = await play(args);
-const passed = report(args, samples, stats, since);
+const { samples, stats, anchor, respawns } = await play(args);
+const { passed, since } = report(args, samples, stats, anchor, respawns);
 mkdirSync(RESULTS_DIR, { recursive: true });
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const file = join(RESULTS_DIR, `${stamp}-${new URL(args.url).hostname}-${gitCommit()}.json`);
@@ -282,6 +317,7 @@ const saved = {
   gpu: args.gpu ?? null,
   host: hostname(),
   since,
+  respawns,
   longTaskMs: LONG_TASK_MS,
   stats,
   ...samples,

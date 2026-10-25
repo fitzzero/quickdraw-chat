@@ -55,6 +55,7 @@ function tier2Line(tier2: NonNullable<Scorecard["tier2"]>): string {
     `  Tier 2 (${tier2.backend ?? "unknown"}): frame time p50 ${num(frame.p50)} / p95 ${num(frame.p95)} / ` +
     `p99 ${held(frame.p99, 1)} ms, fps p50 ${num(tier2.fps.p50, 0)}, ` +
     `long tasks ${held(tier2.longTasksPerMin)}/min, geometry builds ${held(tier2.geometryBuildsPerMin)}/min, ` +
+    `pauses ${held(tier2.pausesPerMin)}/min, ` +
     `draw calls p50 ${tier2.drawCalls === undefined || tier2.drawCalls.n === 0 ? "n/a" : num(tier2.drawCalls.p50, 0)}`
   );
 }

@@ -18,9 +18,11 @@ Flags: `--scenario <name>` or `--all` (default: `baseline-3p-100ms`,
 both: one card per backend, the backend in its label), `--web-url` (default
 http://localhost:3000), `--headless` (SwiftShader WebGL runs ~30fps — fine
 for plumbing checks, misleading for smoothness numbers; default is headed),
-`--label <text>`, `--window-position x,y` (the display meant). Each card is
-judged against the absolute acceptance of the display rate it ran at
-(`TIER2_ACCEPTANCE`), and the run exits 1 on a miss.
+`--label <text>`, `--window-position x,y` (the display meant), `--hz 144`
+(the display's rate, declared: read from the frames, a display at half rate
+looks like a slower display). Each card is judged against the absolute
+acceptance of its display rate (`acceptanceFor`), and the run exits 1 on a
+miss.
 
 How it works: spawns `apps/api/src/bench/standalone.ts` (bench server +
 proxies, prints READY with per-client proxy ports), opens
@@ -43,10 +45,12 @@ inside the page: the world stream's arrival gaps and the player's own ack
 deltas (the packed stream decoded with the shared `SnapshotDecoder`), the
 rAF gaps and long tasks, the input send gaps, the renderer's backend, draw
 calls and geometry builds from the page's stats line (`?debug=1`), and
-every socket open or close. Exit 1 on a long task, a geometry build after
-the first second, or an ack delta of 0. The raw samples land in
-`bench-results/play/`. Flags: `--url`, `--seconds`, `--name`, `--gpu`,
-`--window-position`, `--headless`.
+every socket open or close; it respawns through the dialog when it dies,
+and judges from the first snapshot that holds the player's snake. Exit 1 on
+a long task, a geometry build after the first second, an ack delta of 0, or
+frame-time tails over the display rate's acceptance. The raw samples land
+in `bench-results/play/`. Flags: `--url`, `--seconds`, `--name`, `--gpu`,
+`--hz`, `--window-position`, `--headless`.
 
 Known gaps vs Tier 1: no input→ack RTT (the page's telemetry doesn't
 correlate acks yet) and single-run only (no `--runs` median aggregation).

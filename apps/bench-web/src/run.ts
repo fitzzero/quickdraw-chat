@@ -76,6 +76,15 @@ interface CliArgs {
   label?: string;
   gpus: Gpu[];
   windowPosition?: string;
+  /** the display's rate, declared: the judge cannot read it from a page at half rate */
+  hz?: number;
+}
+
+/** The display's rate as declared on the command line. */
+function parseHz(value: string): number {
+  const hz = Number(value);
+  if (!Number.isFinite(hz) || hz <= 0) throw new Error("--hz takes the display's rate, e.g. 144");
+  return hz;
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -107,9 +116,10 @@ function parseArgs(argv: string[]): CliArgs {
       else if (gpu === "webgl" || gpu === "webgpu") args.gpus = [gpu];
       else throw new Error(`--gpu takes webgl, webgpu or both, not ${JSON.stringify(gpu)}`);
     } else if (arg === "--window-position") args.windowPosition = next(i++);
+    else if (arg === "--hz") args.hz = parseHz(next(i++));
     else if (arg === "--help") {
       console.log(
-        "usage: bench [--scenario <name> | --all] [--gpu webgl|webgpu|both] [--web-url url] [--headless] [--label text] [--window-position x,y]",
+        "usage: bench [--scenario <name> | --all] [--gpu webgl|webgpu|both] [--hz 144] [--web-url url] [--headless] [--label text] [--window-position x,y]",
       );
       console.log(`default scenarios: ${DEFAULT_SCENARIOS.join(", ")}`);
       process.exit(0);
@@ -319,20 +329,25 @@ async function runOnce(scenario: Scenario, gpu: Gpu, args: CliArgs): Promise<Sco
   } finally {
     await browser?.close();
     child.stdin?.write("stop\n");
-    await new Promise<void>((r) => {
-      child.once("exit", () => r());
-      setTimeout(r, 10_000);
-    });
+    if (child.exitCode === null) {
+      await new Promise<void>((r) => {
+        child.once("exit", () => r());
+        setTimeout(r, 10_000);
+      });
+    }
   }
 
   const server = JSON.parse(readFileSync(traceOut, "utf8")) as ServerTrace;
   const runTraces: RunTraces = { server, clients: Array.from(traces.values()) };
-  return computeScorecard(runTraces, scenario, {
+  const card = computeScorecard(runTraces, scenario, {
     tier: 2,
     ...gitMeta(),
     // the backend in every card's label, beside tier2.backend
     label: args.label === undefined ? gpu : `${args.label}-${gpu}`,
   });
+  // the desk's display, as declared: the judge reads the frames otherwise
+  if (card.tier2 !== undefined && args.hz !== undefined) card.tier2.displayHz = args.hz;
+  return card;
 }
 
 const args = parseArgs(process.argv.slice(2));

@@ -52,30 +52,44 @@ export function displayRateOf(measuredHz: number): number {
 export interface Tier2Verdict {
   /** the display rate the run looks to have had (from its frame time p50), null without frames */
   measuredHz: number | null;
-  /** the acceptance judged against: the common rate nearest the measured one */
+  /** the acceptance judged against: the rate the runner declared, else the common rate nearest the measured one */
   acceptance: Tier2Acceptance;
   lines: string[];
   passed: boolean;
 }
 
+/** A number an older card may lack: NaN then, which no limit admits. */
+const held = (value: number | undefined): number => value ?? Number.NaN;
+
 /**
- * Judges a Tier-2 card against the acceptance of the display rate it ran
- * at: the frame-time tails against the rate's limits, long tasks and
- * geometry builds against zero. A card without a Tier-2 block fails (it is
- * not the browser tier's).
+ * Judges a Tier-2 card against the acceptance of its display rate: the one
+ * the runner declared (`tier2.displayHz`, from `--hz`), else the common
+ * rate nearest the one its frames show, which cannot tell a display at
+ * half rate from a slower display, so a desk declares its rate. The
+ * frame-time tails against the rate's limits; long tasks, geometry builds
+ * and pauses against zero. A card without a Tier-2 block, or without a
+ * rendered frame, fails: there is nothing to pass.
  */
 export function judgeTier2(card: Scorecard): Tier2Verdict {
   const tier2 = card.tier2;
+  const frames = tier2?.frameTimeMs;
   const measuredHz =
-    tier2 && tier2.frameTimeMs.n > 0 && tier2.frameTimeMs.p50 > 0
-      ? Math.round(1000 / tier2.frameTimeMs.p50)
-      : null;
-  const acceptance = acceptanceFor(displayRateOf(measuredHz ?? 60));
+    frames !== undefined && frames.n > 0 && frames.p50 > 0 ? Math.round(1000 / frames.p50) : null;
+  const declared = tier2?.displayHz;
+  const acceptance = acceptanceFor(declared ?? displayRateOf(measuredHz ?? 60));
   if (!tier2) {
     return {
       measuredHz,
       acceptance,
       lines: ["  Tier 2: no browser client in this card"],
+      passed: false,
+    };
+  }
+  if (tier2.frameTimeMs.n === 0) {
+    return {
+      measuredHz,
+      acceptance,
+      lines: [`  Tier 2 on ${tier2.backend}: no frame rendered`],
       passed: false,
     };
   }
@@ -88,15 +102,20 @@ export function judgeTier2(card: Scorecard): Tier2Verdict {
     },
     {
       label: "frame time p99",
-      value: tier2.frameTimeMs.p99,
+      value: held(tier2.frameTimeMs.p99),
       limit: acceptance.frameTimeP99Ms,
       unit: "ms",
     },
-    { label: "long tasks", value: tier2.longTasksPerMin, limit: 0, unit: "/min" },
-    { label: "geometry builds", value: tier2.geometryBuildsPerMin, limit: 0, unit: "/min" },
+    { label: "long tasks", value: held(tier2.longTasksPerMin), limit: 0, unit: "/min" },
+    { label: "geometry builds", value: held(tier2.geometryBuildsPerMin), limit: 0, unit: "/min" },
+    { label: "pauses", value: held(tier2.pausesPerMin), limit: 0, unit: "/min" },
   ];
+  const rate =
+    declared === undefined
+      ? `judged at ${acceptance.hz} Hz (from the frames; --hz declares the display)`
+      : `judged at the declared ${acceptance.hz} Hz`;
   const lines = [
-    `  Tier 2 at ~${measuredHz ?? "?"} Hz on ${tier2.backend}, judged at ${acceptance.hz} Hz:`,
+    `  Tier 2 at ~${measuredHz ?? "?"} Hz on ${tier2.backend}, ${rate}:`,
     ...checks.map(
       (c) =>
         `    ${c.value <= c.limit ? "✓" : "✗"} ${c.label} ${c.value.toFixed(c.unit === "ms" ? 1 : 2)} ${c.unit}` +
