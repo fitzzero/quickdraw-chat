@@ -183,6 +183,8 @@ async function seedDefinitions(): Promise<void> {
         startLength: 10,
         minLength: 5,
         boostBurnPerSecond: 1.5,
+        // degrees of the head's front arc another snake kills it in (360: the whole head)
+        killArcDeg: 180,
         foodRadius: 14,
         maxFood: 150,
       },

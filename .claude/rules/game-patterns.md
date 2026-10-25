@@ -240,7 +240,20 @@ place of them: one member is served by the server or by a host, never both.
   triggered by loop callbacks; the tracked write changes the service topic
   the score queries watch.
 - A tick that steps a snake several times (its client's backlog) checks
-  collisions at every head the snake passed, not only the last.
+  collisions at every head the snake passed, not only the last, each with
+  the heading it had there.
+- **Who dies** (`world.ts` `resolveCollisions`, the geometry in
+  `collision.ts`): a snake dies only when another snake's path sample or
+  true head lies within reach (`headRadius + bodyRadius`) in the front arc
+  of its head, `killArcDeg` degrees centred on its heading (a tunable, 180
+  by default: the half of the head that faces forward; 360 is the whole
+  head). A head that meets the back of another's head, or its neck, kills
+  only itself; a head-on kills both. Each death names the snake it met
+  (`by`: its id and name) and what of it (`contact`: `"head"` or
+  `"body"`, the nearest killing sample's), on the world's `death` event
+  and a party's `partyEvents` alike, and the death dialog shows it.
+  Self-collision stays off; collisions resolve at the tick's positions (no
+  rewind for a player's lag).
 - Only snake heads go on the wire — bodies are derived from head-path history
   on both sides. Keep snapshots small; add fields consciously (each stream
   frame also carries its `[service, stream, scope]` envelope).

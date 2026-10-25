@@ -19,6 +19,33 @@ function input(seq: number, dx: number, dy: number, boost = false): GameInput {
   return { seq, dx, dy, boost };
 }
 
+/** No food: the collision tests count deaths only. */
+const NO_FOOD = { initialFood: 0, foodSpawnIntervalTicks: 100000 };
+
+/** The sim's own snakes, whose geometry the collision tests set by hand. */
+function snakesOf(sim: GameWorldSim): Map<string, SnakeState> {
+  return (sim as unknown as { players: Map<string, SnakeState> }).players;
+}
+
+/**
+ * Puts a snake's head at (x, y), heading along (dirX, dirY), its body laid
+ * straight behind it, a path sample every 9 px (a step at base speed). Its
+ * client has sent no frame, so it holds still: a tick judges this geometry.
+ */
+function lay(
+  sim: GameWorldSim,
+  id: string,
+  head: { x: number; y: number; dirX: number; dirY: number },
+): void {
+  const snake = must(snakesOf(sim).get(id));
+  snake.head = { x: head.x, y: head.y };
+  snake.dir = { x: head.dirX, y: head.dirY };
+  snake.path = Array.from({ length: 12 }, (_, i) => ({
+    x: head.x - head.dirX * 9 * (11 - i),
+    y: head.y - head.dirY * 9 * (11 - i),
+  }));
+}
+
 describe("GameWorldSim", () => {
   it("is deterministic: same seed + same inputs → identical state", () => {
     const a = makeSim();
@@ -390,8 +417,12 @@ describe("GameWorldSim", () => {
       sim.queueInputs("hunter", [input(i, target.x - hunterHead.x, target.y - hunterHead.y, true)]);
       sim.queueInputs("wall", [input(i, 1, 0)]);
       const result = sim.step();
-      if (result.deaths.some((d) => d.id === "hunter")) {
+      const death = result.deaths.find((d) => d.id === "hunter");
+      if (death) {
         died = true;
+        // the death names the snake whose body it ran into
+        expect(death.by).toEqual({ id: "wall", name: null });
+        expect(death.contact).toBe("body");
         // Death converts body to food
         expect(result.food?.spawned?.length ?? 0).toBeGreaterThan(0);
       }
@@ -410,12 +441,12 @@ describe("GameWorldSim", () => {
   });
 
   it("checks every head a tick of several steps passed: a burst cannot step over a body", () => {
-    const sim = makeSim({ initialFood: 0, foodSpawnIntervalTicks: 100000 });
-    sim.addPlayer("wall", null);
+    const sim = makeSim(NO_FOOD);
+    sim.addPlayer("wall", "Wall");
     sim.addPlayer("runner", null);
     // Lay the wall's body along y = 500 and put the runner 25 px below it,
     // facing it (the geometry is set on the sim's own snakes)
-    const { players } = sim as unknown as { players: Map<string, SnakeState> };
+    const players = snakesOf(sim);
     const wall = must(players.get("wall"));
     wall.path = Array.from({ length: 30 }, (_, i) => ({
       x: 300 + i * 8,
@@ -437,7 +468,137 @@ describe("GameWorldSim", () => {
     );
     const result = sim.step();
     expect(result.inputs.runner?.stepped).toBe(3);
-    expect(result.deaths.map((d) => d.id)).toEqual(["runner"]);
+    expect(result.deaths).toEqual([
+      { id: "runner", len: 9, by: { id: "wall", name: "Wall" }, contact: "body" },
+    ]);
+  });
+
+  it("judges each head a burst passed with the heading it had there, not the tick's last", () => {
+    // A runner heading +x steps three frames this tick, each turning it
+    // toward +y (0.2 rad a step); a post (one sample, its own head) sits
+    // 15 px from the first head it passes, in front of the heading it had
+    // there or behind it, and out of reach of the heads after it
+    const burst = (angle: number): { runner: boolean; deaths: unknown[] } => {
+      const sim = makeSim(NO_FOOD);
+      sim.addPlayer("runner", "Runner");
+      sim.addPlayer("post", "Post");
+      const players = snakesOf(sim);
+      const runner = must(players.get("runner"));
+      runner.head = { x: 500, y: 500 };
+      runner.dir = { x: 1, y: 0 };
+      runner.path = [{ x: 500, y: 500 }];
+      const first = stepMovement(
+        { x: 500, y: 500, dirX: 1, dirY: 0, len: runner.len },
+        { targetDx: 0, targetDy: 1, boost: false },
+        DEFAULT_TUNABLES,
+        sim.dt,
+      );
+      const post = must(players.get("post"));
+      post.head = { x: first.x + 15 * Math.cos(angle), y: first.y + 15 * Math.sin(angle) };
+      // facing away from the runner, which it never kills
+      post.dir = { x: 0, y: Math.sin(angle) > 0 ? 1 : -1 };
+      post.path = [{ ...post.head }];
+      sim.queueInputs(
+        "runner",
+        [1, 2, 3, 4].map((seq) => input(seq, 0, 1)),
+      );
+      const result = sim.step();
+      expect(result.inputs.runner?.stepped).toBe(3);
+      return { runner: sim.isAlive("runner"), deaths: result.deaths };
+    };
+
+    // 1.37 rad to the left of the first head's heading (0.2 rad): inside its
+    // front arc, though behind the tick's last heading (0.6 rad)
+    expect(burst(0.2 - 1.37)).toEqual({
+      runner: false,
+      deaths: [{ id: "runner", len: 10, by: { id: "post", name: "Post" }, contact: "head" }],
+    });
+    // 1.77 rad to its right: behind it, though inside the last heading's arc
+    expect(burst(0.2 + 1.77)).toEqual({ runner: true, deaths: [] });
+  });
+
+  it("a rear-end kills the chaser: its head met the back of the other's head", () => {
+    const sim = makeSim(NO_FOOD);
+    sim.addPlayer("lead", "Lead");
+    sim.addPlayer("chaser", "Chaser");
+    lay(sim, "lead", { x: 500, y: 500, dirX: 1, dirY: 0 });
+    // from behind the lead, up and to the right: the lead's head lies in
+    // front of the chaser's, the chaser's behind the lead's centre
+    lay(sim, "chaser", { x: 496, y: 512, dirX: 0.6, dirY: -0.8 });
+
+    expect(sim.step().deaths).toEqual([
+      { id: "chaser", len: 10, by: { id: "lead", name: "Lead" }, contact: "head" },
+    ]);
+    expect(sim.isAlive("lead")).toBe(true);
+  });
+
+  it("a side hit behind the other's centre kills only the snake that made it", () => {
+    const sim = makeSim(NO_FOOD);
+    sim.addPlayer("victim", "Victim");
+    sim.addPlayer("attacker", "Attacker");
+    lay(sim, "victim", { x: 500, y: 500, dirX: 1, dirY: 0 });
+    // straight up into the victim's head, 3 px behind its centre
+    lay(sim, "attacker", { x: 497, y: 513, dirX: 0, dirY: -1 });
+
+    expect(sim.step().deaths).toEqual([
+      { id: "attacker", len: 10, by: { id: "victim", name: "Victim" }, contact: "head" },
+    ]);
+    expect(sim.isAlive("victim")).toBe(true);
+  });
+
+  it("with a 360-degree kill arc, the same side hit kills both, as a whole-head rule does", () => {
+    const sim = makeSim({ ...NO_FOOD, killArcDeg: 360 });
+    sim.addPlayer("victim", "Victim");
+    sim.addPlayer("attacker", "Attacker");
+    lay(sim, "victim", { x: 500, y: 500, dirX: 1, dirY: 0 });
+    lay(sim, "attacker", { x: 497, y: 513, dirX: 0, dirY: -1 });
+
+    expect(sim.step().deaths).toEqual([
+      { id: "victim", len: 10, by: { id: "attacker", name: "Attacker" }, contact: "head" },
+      { id: "attacker", len: 10, by: { id: "victim", name: "Victim" }, contact: "head" },
+    ]);
+  });
+
+  it("a head-on kills both, each by the other", () => {
+    const sim = makeSim(NO_FOOD);
+    sim.addPlayer("east", "East");
+    sim.addPlayer("west", "West");
+    lay(sim, "east", { x: 491, y: 500, dirX: 1, dirY: 0 });
+    lay(sim, "west", { x: 509, y: 500, dirX: -1, dirY: 0 });
+
+    expect(sim.step().deaths).toEqual([
+      { id: "east", len: 10, by: { id: "west", name: "West" }, contact: "head" },
+      { id: "west", len: 10, by: { id: "east", name: "East" }, contact: "head" },
+    ]);
+  });
+
+  it("a T-bone into a body kills the rammer, by the body", () => {
+    const sim = makeSim(NO_FOOD);
+    sim.addPlayer("wall", "Wall");
+    sim.addPlayer("rammer", "Rammer");
+    // the wall's body along y = 500, from x 481 to its head at 580
+    lay(sim, "wall", { x: 580, y: 500, dirX: 1, dirY: 0 });
+    lay(sim, "rammer", { x: 500, y: 514, dirX: 0, dirY: -1 });
+
+    expect(sim.step().deaths).toEqual([
+      { id: "rammer", len: 10, by: { id: "wall", name: "Wall" }, contact: "body" },
+    ]);
+    expect(sim.isAlive("wall")).toBe(true);
+  });
+
+  it("a cut-off kills the snake cut off: its head met the cutter's neck, behind the cutter's head", () => {
+    const sim = makeSim(NO_FOOD);
+    sim.addPlayer("cutter", "Cutter");
+    sim.addPlayer("cut", "Cut");
+    // the cutter crossed in front of the other: its head 12 px past it,
+    // within reach of its head, behind the cutter's centre
+    lay(sim, "cutter", { x: 512, y: 500, dirX: 1, dirY: 0 });
+    lay(sim, "cut", { x: 500, y: 510, dirX: 0, dirY: -1 });
+
+    expect(sim.step().deaths).toEqual([
+      { id: "cut", len: 10, by: { id: "cutter", name: "Cutter" }, contact: "body" },
+    ]);
+    expect(sim.isAlive("cutter")).toBe(true);
   });
 
   it("does not die from crossing its own body (self-collision off)", () => {
@@ -520,6 +681,15 @@ describe("tunables", () => {
     expect(sim.tunables.npcCount).toBe(COUNT_TUNABLE_MAX);
     // positions travel in 32 bits: the world's size is the admin's
     expect(sim.tunables.worldWidth).toBe(1e5);
+  });
+
+  it("keeps the kill arc within the whole head", () => {
+    const sim = new GameWorldSim({ seed: 1, tunables: { initialFood: 0 } });
+    expect(sim.tunables.killArcDeg).toBe(180);
+    sim.applyTunables({ killArcDeg: 720 });
+    expect(sim.tunables.killArcDeg).toBe(360);
+    sim.applyTunables({ killArcDeg: -90 });
+    expect(sim.tunables.killArcDeg).toBe(360);
   });
 });
 

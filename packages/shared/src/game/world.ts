@@ -21,6 +21,10 @@
  * stepped but steers the next step (the ack always counts the steps). A
  * tick of several steps checks collisions at every head it passed. NPCs
  * steer in place and step once a tick.
+ *
+ * A snake dies when another snake's head or body meets the front of its
+ * head (the arc `killArcDeg` centred on its heading), and the death names
+ * that snake and what of it the head met.
  */
 
 import type {
@@ -34,6 +38,15 @@ import type {
   WorldSnapshot,
 } from "../types/game.js";
 import { GAME_TICK_RATE, NPC_ID_PREFIX } from "../types/game.js";
+import {
+  buildBodyHash,
+  foreignSampleWithin,
+  headOf,
+  killingSample,
+  type BodyHash,
+  type BodySample,
+  type PassedHead,
+} from "./collision.js";
 import { stepMovement } from "./movement.js";
 import { InputQueue } from "./inputQueue.js";
 import { NpcController } from "./npc.js";
@@ -57,6 +70,11 @@ export interface GameTunables {
   sampleSpacing: number;
   headRadius: number;
   bodyRadius: number;
+  /**
+   * degrees of the head's front arc, centred on its heading, that another
+   * snake's head or body kills it in; 360 is the whole head
+   */
+  killArcDeg: number;
   /** pickup radius around food */
   foodRadius: number;
   maxFood: number;
@@ -73,11 +91,13 @@ export interface GameTunables {
 
 /** The most food (maxFood, initialFood) and NPCs a world holds: a packed snapshot's 16-bit counts. */
 export const COUNT_TUNABLE_MAX = 0xffff;
-const COUNT_TUNABLES: ReadonlySet<keyof GameTunables> = new Set([
-  "maxFood",
-  "initialFood",
-  "npcCount",
-]);
+/** The tunables with a most: the counts, and the kill arc (the whole head). */
+const TUNABLE_MAX: Partial<Record<keyof GameTunables, number>> = {
+  maxFood: COUNT_TUNABLE_MAX,
+  initialFood: COUNT_TUNABLE_MAX,
+  npcCount: COUNT_TUNABLE_MAX,
+  killArcDeg: 360,
+};
 
 export const DEFAULT_TUNABLES: GameTunables = {
   worldWidth: 2400,
@@ -92,6 +112,7 @@ export const DEFAULT_TUNABLES: GameTunables = {
   sampleSpacing: 8,
   headRadius: 10,
   bodyRadius: 9,
+  killArcDeg: 180,
   foodRadius: 14,
   maxFood: 150,
   initialFood: 60,
@@ -134,17 +155,14 @@ export interface SnakeState {
   standIn: number;
   /** stepped a frame since it spawned: until then no client has stepped it either */
   fed: boolean;
-  /** heads it passed this tick before its last step (a tick of several): collisions check them too */
-  swept: Vec[];
+  /**
+   * heads it passed this tick before its last step (a tick of several), each
+   * with the heading it had there: collisions check them too
+   */
+  swept: PassedHead[];
 }
 
 interface FoodState extends FoodDTO {}
-
-export interface BodySample {
-  owner: string;
-  x: number;
-  y: number;
-}
 
 /** One human snake's input accounting for a tick. */
 export interface TickInputs {
@@ -180,8 +198,6 @@ function mulberry32(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-
-const SPATIAL_CELL = 64;
 
 const f32 = new Float32Array(1);
 const f32Bits = new Uint32Array(f32.buffer);
@@ -237,6 +253,7 @@ export class GameWorldSim {
    * are admin-edited JSON, so treat them as untrusted. The counts of food
    * and NPCs stay within COUNT_TUNABLE_MAX: a packed snapshot counts food
    * and players in 16 bits, and a seed carries all the food in one entry.
+   * The kill arc stays within the whole head (360 degrees).
    *
    * Note for live edits: connected clients keep predicting with the
    * values they fetched at load, so movement tunables cause reconciliation
@@ -247,7 +264,7 @@ export class GameWorldSim {
       const value = partial[key];
       // Non-negative finite numbers only (zero is legitimate, e.g. initialFood)
       if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
-        this.tunables[key] = COUNT_TUNABLES.has(key) ? Math.min(value, COUNT_TUNABLE_MAX) : value;
+        this.tunables[key] = Math.min(value, TUNABLE_MAX[key] ?? Infinity);
       }
     }
   }
@@ -411,7 +428,7 @@ export class GameWorldSim {
       const frames = snake.inputs.take(this.dt);
       snake.swept.length = 0;
       for (const [i, frame] of frames.entries()) {
-        if (i > 0) snake.swept.push({ ...snake.head });
+        if (i > 0) snake.swept.push(headOf(snake));
         this.steer(snake, frame);
         snake.steeredSeq = Math.max(snake.steeredSeq, frame.seq);
         this.moveSnake(snake);
@@ -458,9 +475,16 @@ export class GameWorldSim {
       removePlayer: (id): void => void this.players.delete(id),
       respawn: (id): void => void this.respawn(id),
       nearestFood: (from): FoodDTO | null => this.nearestFood(from),
-      buildBodyHash: (): Map<string, BodySample[]> => this.buildBodyHash(),
+      buildBodyHash: (): BodyHash => buildBodyHash(this.players.values()),
+      // any other snake within reach, with a 6 px margin
       probeHitsForeignBody: (selfId, x, y, hash): boolean =>
-        this.probeHitsForeignBody(selfId, x, y, hash),
+        foreignSampleWithin(
+          hash,
+          selfId,
+          x,
+          y,
+          this.tunables.headRadius + this.tunables.bodyRadius + 6,
+        ),
     });
     return this.npcController;
   }
@@ -476,27 +500,6 @@ export class GameWorldSim {
       }
     }
     return best;
-  }
-
-  private probeHitsForeignBody(
-    selfId: string,
-    x: number,
-    y: number,
-    hash: Map<string, BodySample[]>,
-  ): boolean {
-    const reach = this.tunables.headRadius + this.tunables.bodyRadius + 6;
-    const cx = Math.floor(x / SPATIAL_CELL);
-    const cy = Math.floor(y / SPATIAL_CELL);
-    for (let ix = cx - 1; ix <= cx + 1; ix++) {
-      for (let iy = cy - 1; iy <= cy + 1; iy++) {
-        const cell = hash.get(`${ix},${iy}`);
-        if (!cell) continue;
-        if (cell.some((s) => s.owner !== selfId && Math.hypot(s.x - x, s.y - y) <= reach)) {
-          return true;
-        }
-      }
-    }
-    return false;
   }
 
   private moveSnake(snake: SnakeState): void {
@@ -534,61 +537,45 @@ export class GameWorldSim {
   }
 
   /**
-   * Head-vs-foreign-body collision via a spatial hash of path samples, at the
-   * head and at every head a tick of several steps passed (so a catch-up
-   * cannot step over a body), against the bodies as they stand at the end
-   * of the tick. Self-collision is intentionally off (slither.io rules —
-   * crossing your own body is allowed; only foreign bodies kill).
+   * Head-vs-foreign-snake collision via a spatial hash of path samples and
+   * true heads (./collision.ts), at every head a tick of several steps
+   * passed (so a catch-up cannot step over a body) and at the head, each
+   * with the heading it had there, against the snakes as they stand at the
+   * end of the tick. A snake dies only when the contact lies in its head's
+   * front arc (`killArcDeg`): a head that meets the back of another's head,
+   * or its neck, kills only itself, and a head-on kills both. Each death
+   * names the snake it met (`by`) and what of it (`contact`), from its
+   * first passed head with a contact. Self-collision is intentionally off
+   * (slither.io rules — crossing your own body is allowed; only foreign
+   * snakes kill).
    */
   private resolveCollisions(deaths: GameDeathEvent[], foodSpawned: FoodDTO[]): void {
-    const hash = this.buildBodyHash();
-    const dying: SnakeState[] = [];
+    const hash = buildBodyHash(this.players.values());
+    const reach = this.tunables.headRadius + this.tunables.bodyRadius;
+    // cos of half the front arc, once a tick (-1 at 360: every direction)
+    const cosHalfArc = Math.cos((this.tunables.killArcDeg * Math.PI) / 360);
+    const dying: { snake: SnakeState; killer: BodySample }[] = [];
 
     for (const snake of this.players.values()) {
       if (!snake.alive) continue;
-      const hit =
-        this.hitsForeignBody(snake, snake.head, hash) ||
-        snake.swept.some((head) => this.hitsForeignBody(snake, head, hash));
-      if (hit) dying.push(snake);
+      let killer: BodySample | null = null;
+      for (const at of [...snake.swept, headOf(snake)]) {
+        killer = killingSample(hash, snake.meta.id, at, reach, cosHalfArc);
+        if (killer) break;
+      }
+      if (killer) dying.push({ snake, killer });
     }
 
-    for (const snake of dying) {
+    for (const { snake, killer } of dying) {
       snake.alive = false;
-      deaths.push({ id: snake.meta.id, len: Math.floor(snake.len) });
+      deaths.push({
+        id: snake.meta.id,
+        len: Math.floor(snake.len),
+        by: { id: killer.owner, name: this.players.get(killer.owner)?.meta.name ?? null },
+        contact: killer.head ? "head" : "body",
+      });
       this.dropDeathFood(snake, foodSpawned);
     }
-  }
-
-  private buildBodyHash(): Map<string, BodySample[]> {
-    const hash = new Map<string, BodySample[]>();
-    for (const snake of this.players.values()) {
-      if (!snake.alive) continue;
-      for (const p of snake.path) {
-        const key = `${Math.floor(p.x / SPATIAL_CELL)},${Math.floor(p.y / SPATIAL_CELL)}`;
-        let cell = hash.get(key);
-        if (!cell) hash.set(key, (cell = []));
-        cell.push({ owner: snake.meta.id, x: p.x, y: p.y });
-      }
-    }
-    return hash;
-  }
-
-  private hitsForeignBody(snake: SnakeState, head: Vec, hash: Map<string, BodySample[]>): boolean {
-    const killDist = this.tunables.headRadius + this.tunables.bodyRadius;
-    const cx = Math.floor(head.x / SPATIAL_CELL);
-    const cy = Math.floor(head.y / SPATIAL_CELL);
-
-    for (let ix = cx - 1; ix <= cx + 1; ix++) {
-      for (let iy = cy - 1; iy <= cy + 1; iy++) {
-        const cell = hash.get(`${ix},${iy}`);
-        if (!cell) continue;
-        const hit = cell.some(
-          (s) => s.owner !== snake.meta.id && Math.hypot(s.x - head.x, s.y - head.y) <= killDist,
-        );
-        if (hit) return true;
-      }
-    }
-    return false;
   }
 
   /** Body converts to food (capped so a huge snake doesn't flood the world). */

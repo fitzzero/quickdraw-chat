@@ -10,7 +10,8 @@
 
 import type { FoodDTO } from "../types/game.js";
 import { NPC_ID_PREFIX } from "../types/game.js";
-import type { BodySample, GameTunables, SnakeState } from "./world.js";
+import type { BodySample } from "./collision.js";
+import type { GameTunables, SnakeState } from "./world.js";
 
 const NPC_NAMES = ["Wormy", "Noodle", "Slinky", "Zigzag", "Doodle", "Wiggles", "Pretzel", "Loops"];
 

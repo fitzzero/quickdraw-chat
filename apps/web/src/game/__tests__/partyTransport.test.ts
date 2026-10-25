@@ -80,11 +80,20 @@ describe("PartyTransport", () => {
     const players: GamePlayerMeta[] = [];
     const { transport, wire } = await started((meta) => players.push(meta));
     transport.event({ kind: "joined", id: "p2", name: "Bo", hue: 120 });
-    transport.event({ kind: "death", id: "p2", len: 7 });
+    transport.event({
+      kind: "death",
+      id: "p2",
+      len: 7,
+      by: { id: "npc-0", name: "Wormy" },
+      contact: "head",
+    });
     transport.event({ kind: "left", id: "p2" });
     transport.event({ kind: "leaderboard", entries: [], rttMs: {}, fairLinkMs: null });
     expect(players).toEqual([{ id: "p2", name: "Bo", hue: 120 }]);
-    expect(wire.deaths).toEqual([{ id: "p2", len: 7 }]);
+    // the death names its killer, as the world's does
+    expect(wire.deaths).toStrictEqual([
+      { id: "p2", len: 7, by: { id: "npc-0", name: "Wormy" }, contact: "head" },
+    ]);
     expect(wire.gone).toEqual(["p2"]);
   });
 
