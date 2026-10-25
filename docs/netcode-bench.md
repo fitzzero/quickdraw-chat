@@ -35,10 +35,12 @@ when a netcode improvement lands on main).
   quickdraw protocol v5, the way the Godot client does: `qd:stream:sub` of
   the `world` stream, then `joinGame`/`watchWorld` (`qd:call`, which puts the
   socket in the world's room), input as `qd:ch` (volatile, never answered),
-  snapshots as `qd:stream` frames and deaths as `qd:event` — and running 1:1
-  TS ports of the Godot netcode: `prediction.ts` ≡ `local_snake.gd`,
-  `interpolation.ts` ≡ `remote_snake.gd`, `world-clock.ts` ≡ `game.gd`'s
-  clock, `food.ts` ≡ `main.gd`'s food (`_apply_food`, `_on_keyframe`). Bots
+  snapshots as `qd:stream` frames and deaths as `qd:event` — and running the
+  shared package's client netcode (`packages/shared/src/game/client/`:
+  `GameClientCore` over 1:1 TS ports of the Godot netcode, `prediction.ts`
+  ≡ `local_snake.gd`, `interpolation.ts` ≡ `remote_snake.gd`,
+  `world-clock.ts` ≡ `game.gd`'s clock, `food.ts` ≡ `main.gd`'s food
+  (`_apply_food`, `_on_keyframe`)), which the web page's client shares. Bots
   render at ~60Hz and record every rendered frame.
 
 Everything shares one machine clock, so cross-client comparisons are exact.
@@ -204,8 +206,10 @@ includes them.
 - New metric: compute it in `packages/bench/src/metrics/`, add to the
   scorecard type (bump `schemaVersion` if the shape changes), and register
   it in `headlineMetrics()` if it should gate comparisons.
-- New netcode variant: implement in `apps/api/src/bench/bot/prediction.ts` /
-  `interpolation.ts` (server changes in `packages/shared/src/game/`, the sim
-  and its loop, or `apps/api/src/services/game/`), benchmark, and
-  only port winners to GDScript. Keep the ports and `local_snake.gd` /
+- New netcode variant: implement in
+  `packages/shared/src/game/client/prediction.ts` / `interpolation.ts` (the
+  bots and the web page run them; server changes in
+  `packages/shared/src/game/`, the sim and its loop, or
+  `apps/api/src/services/game/`), benchmark, and only port winners to
+  GDScript. Keep the ports and `local_snake.gd` /
   `remote_snake.gd` in lockstep otherwise.

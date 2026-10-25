@@ -13,8 +13,10 @@
  * GDScript.
  */
 
-import type { GameInput, MovementTunables, PlayerSnap } from "@project/shared";
-import { GAME_INPUT_FRAMES, GAME_TICK_RATE, stepMovement } from "@project/shared";
+import type { GameInput, PlayerSnap } from "../../types/game.js";
+import { GAME_INPUT_FRAMES, GAME_TICK_RATE } from "../../types/game.js";
+import type { MovementTunables } from "../movement.js";
+import { stepMovement } from "../movement.js";
 
 // Constants pinned to local_snake.gd
 const HARD_SNAP_DIST = 64.0;

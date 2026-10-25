@@ -249,10 +249,11 @@ place of them: one member is served by the server or by a host, never both.
 ## Netcode benchmarking
 
 Netcode changes are judged by scorecards, not eyeballs: `bun run
-bench:netcode` runs headless bot clients (TS ports of the Godot netcode in
-`apps/api/src/bench/bot/` — keep them in lockstep with `local_snake.gd` /
-`remote_snake.gd` / `game.gd`'s world clock / `main.gd`'s food) over
-protocol v5 through a
+bench:netcode` runs headless bot clients (`apps/api/src/bench/bot/`: a
+behavior and a trace around the shared package's `GameClientCore`,
+`packages/shared/src/game/client/`, the TS ports of the Godot netcode —
+keep them in lockstep with `local_snake.gd` / `remote_snake.gd` /
+`game.gd`'s world clock / `main.gd`'s food) over protocol v5 through a
 latency proxy against a live-loop server; a party scenario runs them over
 loopback links to a host in process. See `docs/netcode-bench.md`,
 baselines in `bench-baselines/`, and the `/netcode-rd` skill for the

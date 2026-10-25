@@ -13,8 +13,8 @@
  * `_on_world_ready` applies as a keyframe.
  */
 
-import type { FoodDTO, WorldSnapshot } from "@project/shared";
-import { GAME_FOOD_WINDOW } from "@project/shared";
+import type { FoodDTO, WorldSnapshot } from "../../types/game.js";
+import { GAME_FOOD_WINDOW } from "../../types/game.js";
 
 export class FoodTracker {
   private readonly food = new Map<string, FoodDTO>();

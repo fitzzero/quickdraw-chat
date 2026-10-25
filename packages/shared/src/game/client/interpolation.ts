@@ -9,7 +9,7 @@
  * screen show the same moment of the world.
  */
 
-import type { PlayerSnap } from "@project/shared";
+import type { PlayerSnap } from "../../types/game.js";
 
 // Pinned to remote_snake.gd's MAX_EXTRAPOLATION_TICKS, SOFT_STOP_TICKS and
 // BUFFER_LIMIT; the render clock runs at most MAX_EXTRAPOLATION_TICKS past the

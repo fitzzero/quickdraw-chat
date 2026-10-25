@@ -4,8 +4,9 @@
  * predicted costs no correction.
  */
 
-import type { PlayerSnap } from "@project/shared";
-import { DEFAULT_TUNABLES, GAME_TICK_RATE, GameWorldSim } from "@project/shared";
+import type { PlayerSnap } from "../../types/game.js";
+import { GAME_TICK_RATE } from "../../types/game.js";
+import { DEFAULT_TUNABLES, GameWorldSim } from "../world.js";
 import { describe, expect, it } from "vitest";
 import { LocalPredictor } from "./prediction.js";
 
@@ -44,12 +45,16 @@ describe("LocalPredictor", () => {
     const predictor = new LocalPredictor(tunables, dt);
     const snap = { id: "p1", x: 500, y: 500, dx: 1, dy: 0, len: 10, boost: false, ack: 100 };
     predictor.initFromSnap(snap);
-    const aim = () => ({ dx: 1, dy: 0, boost: false });
+    const aim = (): { dx: number; dy: number; boost: boolean } => ({ dx: 1, dy: 0, boost: false });
     // one frame out (the snake moves), then 10 ms into the next tick
     expect(predictor.renderFrame(dt, aim)).toHaveLength(1);
     predictor.renderFrame(0.01, aim);
     const seen = predictor.getRenderedPos();
-    const at = (s: PlayerSnap) => ({ ...s, x: predictor.simPos.x, y: predictor.simPos.y });
+    const at = (s: PlayerSnap): PlayerSnap => ({
+      ...s,
+      x: predictor.simPos.x,
+      y: predictor.simPos.y,
+    });
 
     // one late now and then is no nudge
     expect(predictor.onServerSnap(at({ ...snap, ack: 102 })).nudged).toBe(false);
