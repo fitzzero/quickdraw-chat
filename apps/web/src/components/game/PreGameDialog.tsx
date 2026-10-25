@@ -25,6 +25,8 @@ export interface PreGameDialogProps {
   mode: "start" | "dead";
   /** Final length of the run that just ended (dead mode). */
   lastRunLength?: number;
+  /** What ended the run (dead mode): the snake it ran into, and what of it the head met. */
+  killedBy?: { name: string | null; contact?: "head" | "body" };
   /** Personal best (signed-in players; undefined hides the line). */
   bestLength?: number;
   /** All-time top runs, shown at the bottom of the dialog. */
@@ -119,10 +121,8 @@ export function PreGameDialog(props: PreGameDialogProps): React.ReactElement {
           {props.mode === "dead" ? t("deathTitle") : t("title")}
         </Typography>
 
-        {props.mode === "dead" && props.lastRunLength !== undefined && (
-          <Typography color="text.secondary" sx={{ mb: 1 }}>
-            {t("lastRun", { length: props.lastRunLength })}
-          </Typography>
+        {props.mode === "dead" && (
+          <RunSummary killedBy={props.killedBy} lastRunLength={props.lastRunLength} />
         )}
 
         {props.bestLength !== undefined && props.bestLength > 0 && (
@@ -205,6 +205,37 @@ export function PreGameDialog(props: PreGameDialogProps): React.ReactElement {
         </Typography>
       </Paper>
     </Box>
+  );
+}
+
+/** The line that names what ended the run: the other snake, and what of it the head met. */
+function killedByLine(
+  killedBy: NonNullable<PreGameDialogProps["killedBy"]>,
+  t: ReturnType<typeof useTranslations<"GameDialog">>,
+): string {
+  const name = killedBy.name ?? t("anonymous");
+  if (killedBy.contact === "head") return t("killedHeadOn", { name });
+  if (killedBy.contact === "body") return t("killedByBody", { name });
+  return t("killedBy", { name });
+}
+
+/** After a death: what ended the run, and the length it reached. */
+function RunSummary({
+  killedBy,
+  lastRunLength,
+}: Pick<PreGameDialogProps, "killedBy" | "lastRunLength">): React.ReactElement {
+  const t = useTranslations("GameDialog");
+  return (
+    <>
+      {killedBy !== undefined && (
+        <Typography sx={{ mb: 0.5 }}>{killedByLine(killedBy, t)}</Typography>
+      )}
+      {lastRunLength !== undefined && (
+        <Typography color="text.secondary" sx={{ mb: 1 }}>
+          {t("lastRun", { length: lastRunLength })}
+        </Typography>
+      )}
+    </>
   );
 }
 

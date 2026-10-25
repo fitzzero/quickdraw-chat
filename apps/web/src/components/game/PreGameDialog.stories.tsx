@@ -45,8 +45,14 @@ export const GuestFlow: Story = {
   args: { needsGuest: true, bestLength: undefined },
 };
 
+/** The run ended in another snake's body: the dialog names it. */
 export const AfterDeath: Story = {
-  args: { mode: "dead", lastRunLength: 87 },
+  args: { mode: "dead", lastRunLength: 87, killedBy: { name: "Wormy", contact: "body" } },
+};
+
+/** Two heads met: the front of this one's head touched the other's head. */
+export const AfterHeadOn: Story = {
+  args: { mode: "dead", lastRunLength: 42, killedBy: { name: "Grace", contact: "head" } },
 };
 
 export const EngineLoading: Story = {

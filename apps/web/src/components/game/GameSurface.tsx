@@ -18,7 +18,7 @@ import { GameHud } from "./GameHud";
 import { GameChatOverlay } from "./GameChatOverlay";
 import { qd } from "../../lib/quickdraw";
 import { useErrorText } from "../../hooks/useErrorText";
-import { PreGameDialog } from "./PreGameDialog";
+import { PreGameDialog, type PreGameDialogProps } from "./PreGameDialog";
 import { useParty, type PartySession, type PartyState } from "./useParty";
 
 /** Survives the socket cycle (AuthGate remounts the page) and full reloads. */
@@ -395,6 +395,7 @@ function buildDialog(inputs: DialogInputs): React.ReactElement | null {
       {...(inputs.party.ended === null ? {} : { partyEnded: inputs.party.ended })}
       mode={dead ? "dead" : "start"}
       lastRunLength={inputs.death?.len}
+      killedBy={killedByOf(inputs.death)}
       bestLength={inputs.userId ? (inputs.bestLength ?? 0) : undefined}
       topScores={inputs.topScores ?? []}
       canStart={inputs.needsGuest ? true : inputs.ready}
@@ -405,6 +406,11 @@ function buildDialog(inputs: DialogInputs): React.ReactElement | null {
       onLogin={inputs.onLogin}
     />
   );
+}
+
+/** What ended the run, for the dialog: the snake the death names, and what of it the head met. */
+function killedByOf(death: GameDeathEvent | null): PreGameDialogProps["killedBy"] {
+  return death?.by === undefined ? undefined : { name: death.by.name, contact: death.contact };
 }
 
 function focusCanvas(): void {

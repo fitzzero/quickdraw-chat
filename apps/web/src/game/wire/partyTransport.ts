@@ -103,7 +103,12 @@ export class PartyTransport implements GameTransport {
     } else if (event.kind === "left") {
       this.wire?.left(event.id);
     } else if (event.kind === "death") {
-      const death: GameDeathEvent = { id: event.id, len: event.len };
+      const death: GameDeathEvent = {
+        id: event.id,
+        len: event.len,
+        ...(event.by === undefined ? {} : { by: event.by }),
+        ...(event.contact === undefined ? {} : { contact: event.contact }),
+      };
       this.wire?.death(death);
     }
     // the leaderboard is the HUD's (useParty reads it)

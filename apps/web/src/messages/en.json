@@ -286,6 +286,9 @@
   "GameDialog": {
     "title": "Quickdraw Snake",
     "deathTitle": "You died!",
+    "killedBy": "Killed by {name}",
+    "killedHeadOn": "Killed by {name}, head-on",
+    "killedByBody": "You ran into {name}'s body",
     "lastRun": "That run: {length} segments",
     "bestRun": "Best run: {length} segments",
     "guestNamePlaceholder": "Pick a snake name…",

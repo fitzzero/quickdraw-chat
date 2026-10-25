@@ -176,6 +176,13 @@ export interface GameDeathEvent {
   id: string;
   /** Final length, for kill-feed style UI. */
   len: number;
+  /** The snake it ran into, with its name (an NPC's too). */
+  by?: { id: string; name: string | null };
+  /**
+   * What of `by` its head met in its front arc: `by`'s head (a head-on, or
+   * the back of `by`'s head), or its body.
+   */
+  contact?: "head" | "body";
 }
 
 export interface LeaderboardEntry {

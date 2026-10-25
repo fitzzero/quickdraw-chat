@@ -112,9 +112,12 @@ const packedWorldItemSchema = z.object({
   b: z.string().min(1),
 }) satisfies z.ZodType<PackedWorldItem>;
 
+/** A snake's death: its final length, the snake it ran into, and what of that snake its head met. */
 const gameDeathSchema = z.object({
   id: z.string(),
   len: z.number(),
+  by: z.object({ id: z.string(), name: z.string().nullable() }).optional(),
+  contact: z.enum(["head", "body"]).optional(),
 }) satisfies z.ZodType<GameDeathEvent>;
 
 const leaderboardEntrySchema = z.object({
@@ -396,7 +399,8 @@ export const gameContract = defineContract("gameService", {
       payload: z.object({ id: z.string() }),
     },
     death: {
-      describe: "A snake died, with the length it reached.",
+      describe:
+        "A snake died, with the length it reached, the snake whose head or body met the front of its head (`by`, with its name), and what of that snake it met (`contact`: its head or its body).",
       payload: gameDeathSchema,
     },
     leaderboard: {

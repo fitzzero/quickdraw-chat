@@ -421,15 +421,15 @@ Every tick of a party's world, from its host: a snapshot as the world stream unp
 
 A party's joins, leaves, deaths and leaderboard, from its host, reliable and in order: what the world's events are to the server's world. The seed names every player.
 
-| Option    | Value                                                                                                                                                                                                                                                                                                 |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Served by | the room's host (`serve: "host"`), over peer links: the server never handles it                                                                                                                                                                                                                       |
-| Item      | `{ id: string; name: string \| null; hue: number; kind: "joined" } \| { kind: "left"; id: string } \| { id: string; len: number; kind: "death" } \| { kind: "leaderboard"; entries: { id: string; name: string \| null; len: number }[]; rttMs: Record<string, number>; fairLinkMs: number \| null }` |
-| Scope     | one feed per `worldId`                                                                                                                                                                                                                                                                                |
-| Seed      | none kept by the host; the host may compute one                                                                                                                                                                                                                                                       |
-| Volatile  | no                                                                                                                                                                                                                                                                                                    |
-| Access    | `{ room: (scope) => ... }`                                                                                                                                                                                                                                                                            |
-| Checked   | always                                                                                                                                                                                                                                                                                                |
+| Option    | Value                                                                                                                                                                                                                                                                                                                                                                        |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Served by | the room's host (`serve: "host"`), over peer links: the server never handles it                                                                                                                                                                                                                                                                                              |
+| Item      | `{ id: string; name: string \| null; hue: number; kind: "joined" } \| { kind: "left"; id: string } \| { id: string; len: number; by?: { id: string; name: string \| null }; contact?: "head" \| "body"; kind: "death" } \| { kind: "leaderboard"; entries: { id: string; name: string \| null; len: number }[]; rttMs: Record<string, number>; fairLinkMs: number \| null }` |
+| Scope     | one feed per `worldId`                                                                                                                                                                                                                                                                                                                                                       |
+| Seed      | none kept by the host; the host may compute one                                                                                                                                                                                                                                                                                                                              |
+| Volatile  | no                                                                                                                                                                                                                                                                                                                                                                           |
+| Access    | `{ room: (scope) => ... }`                                                                                                                                                                                                                                                                                                                                                   |
+| Checked   | always                                                                                                                                                                                                                                                                                                                                                                       |
 
 ## Channels
 
@@ -481,11 +481,11 @@ A player left the world.
 
 ### `death`
 
-A snake died, with the length it reached.
+A snake died, with the length it reached, the snake whose head or body met the front of its head (`by`, with its name), and what of that snake it met (`contact`: its head or its body).
 
-| Option  | Value                         |
-| ------- | ----------------------------- |
-| Payload | `{ id: string; len: number }` |
+| Option  | Value                                                                                                |
+| ------- | ---------------------------------------------------------------------------------------------------- |
+| Payload | `{ id: string; len: number; by?: { id: string; name: string \| null }; contact?: "head" \| "body" }` |
 
 ### `leaderboard`
 
