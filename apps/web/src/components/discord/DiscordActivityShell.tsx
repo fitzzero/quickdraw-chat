@@ -4,7 +4,6 @@ import * as React from "react";
 import { Box, CircularProgress, Typography } from "@mui/material";
 import { useTranslations } from "next-intl";
 import { QuickdrawProvider } from "@fitzzero/quickdraw-core/client";
-import { GLOBAL_WORLD_SLUG, type QuickdrawHostConfig } from "@project/shared";
 import { GameSurface } from "../game";
 import { qd } from "../../lib/quickdraw";
 
@@ -118,27 +117,18 @@ export function DiscordActivityShell(): React.ReactElement {
       auth={state.token}
       socketOptions={{ path: PROXY_SOCKET_PATH }}
     >
-      <ActivityGame token={state.token} />
+      <ActivityGame />
     </QuickdrawProvider>
   );
 }
 
-function ActivityGame({ token }: { token: string }): React.ReactElement {
-  const hostConfig = React.useMemo<QuickdrawHostConfig>(
-    () => ({
-      apiUrl: window.location.origin,
-      socketPath: PROXY_SOCKET_PATH,
-      authToken: token,
-      worldSlug: GLOBAL_WORLD_SLUG,
-    }),
-    [token],
-  );
-
+function ActivityGame(): React.ReactElement {
   // Discord users are always authenticated (token flow) — no guest flow;
-  // the shared GameSurface provides the same dialog/HUD/chat as /game.
+  // the shared GameSurface provides the same dialog/HUD/chat as /game, on
+  // the provider's token-authenticated socket.
   return (
     <Box sx={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      <GameSurface hostConfig={hostConfig} guestFlow={false} />
+      <GameSurface guestFlow={false} />
     </Box>
   );
 }
