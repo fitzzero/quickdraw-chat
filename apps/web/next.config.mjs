@@ -67,8 +67,8 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Next allows one dev server per dist dir: check:web runs the app beside a
-  // developer's with NEXT_DIST_DIR=.next-check
+  // Next allows one dev server per dist dir: a second instance (a browser
+  // session check) runs beside a developer's with NEXT_DIST_DIR=.next-check
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   transpilePackages: ["@project/shared"],
   output: "standalone",
