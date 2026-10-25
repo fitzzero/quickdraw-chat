@@ -24,7 +24,7 @@ Everything outside `render/pixi/` is engine-neutral:
   `requestAnimationFrame` loop. Each display frame it steps the core, aims
   the camera (the local head, or the spectate target) and hands the
   renderer a `RenderFrame`. Every half second it reads `stats()` for the
-  debug overlay (`?debug=1`) and the bench.
+  debug overlay (`?debug=1`, which `bench:play` reads too) and the bench.
 - **The input** (`input.ts`): the pointer, aimed through the renderer's
   `worldPointAt`.
 - **The wire and the page**: `wire/`, `GameCanvas.tsx`, `PartyWire.tsx`,
@@ -41,17 +41,17 @@ Everything outside `render/pixi/` is engine-neutral:
 `RenderFrame`, `RenderTunables`, `RendererStats` and `RenderBackend`
 beside it.
 
-| Method                          | Who calls it, and when                                                 | What it does                                                                                                                      |
-| ------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `mount(canvas, { preference })` | The shell, first                                                       | Takes over the canvas (sized to its parent) and resolves once a frame can be drawn. `preference` is the backend `?gpu=` names.    |
-| `setPlayers(players)`           | The shell, after the mount, for each join's answer and each new player | Keeps each player's name and hue, and updates a snake already drawn. Data only: a join's answer can arrive before the mount ends. |
-| `setBounds(w, h)`               | The shell, once the client joined                                      | Builds the world's border and grid, once per change of the bounds.                                                                |
-| `draw(frame)`                   | The shell, once per display frame                                      | Draws the frame and renders it. The engine runs no ticker or loop of its own.                                                     |
-| `resetPath(id)`                 | The shell, when a hard snap teleported the local snake                 | Starts that snake's body history over at its next head.                                                                           |
-| `worldPointAt(x, y)`            | The pointer input                                                      | Returns the world point under a viewport point, through the camera of the last `draw`.                                            |
-| `resize()`                      | `GameCanvas`'s `ResizeObserver`                                        | Fits the drawing buffer to the canvas's new size.                                                                                 |
-| `stats()`                       | The shell, every half second                                           | Returns `backend` (the GPU API the engine ended up on), `drawCalls` (null where the backend hides them) and `geometryBuilds`.     |
-| `destroy()`                     | The shell, when the client stops                                       | Frees everything the renderer made. It can arrive while `mount` is in flight (React's StrictMode mounts twice in development).    |
+| Method                          | Who calls it, and when                                                  | What it does                                                                                                                      |
+| ------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `mount(canvas, { preference })` | The shell, first                                                        | Takes over the canvas (sized to its parent) and resolves once a frame can be drawn. `preference` is the backend `?gpu=` names.    |
+| `setPlayers(players)`           | The shell, when the mount ends, for each join's answer, each new player | Keeps each player's name and hue, and updates a snake already drawn. Data only: a join's answer can arrive before the mount ends. |
+| `setBounds(w, h)`               | The shell, once the client joined                                       | Builds the world's border and grid, once per change of the bounds.                                                                |
+| `draw(frame)`                   | The shell, once per display frame                                       | Draws the frame and renders it. The engine runs no ticker or loop of its own.                                                     |
+| `resetPath(id)`                 | The shell, when a hard snap teleported the local snake                  | Starts that snake's body history over at its next head.                                                                           |
+| `worldPointAt(x, y)`            | The pointer input                                                       | Returns the world point under a viewport point, through the camera of the last `draw`.                                            |
+| `resize()`                      | `GameCanvas`'s `ResizeObserver`                                         | Fits the drawing buffer to the canvas's new size.                                                                                 |
+| `stats()`                       | The shell, every half second                                            | Returns `backend` (the GPU API the engine ended up on), `drawCalls` (null where the backend hides them) and `geometryBuilds`.     |
+| `destroy()`                     | The shell, when the client stops                                        | Frees everything the renderer made. It can arrive while `mount` is in flight (React's StrictMode mounts twice in development).    |
 
 A `RenderFrame` holds the local snake (`local`, null while spectating or
 dead) and its player's id (`localId`), every remote snake by player id
