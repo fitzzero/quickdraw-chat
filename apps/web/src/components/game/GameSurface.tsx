@@ -172,8 +172,9 @@ function useGameSession(
   const [creatingGuest, setCreatingGuest] = React.useState(false);
 
   const ready = loadState.phase === "ready";
-  // Guests get the engine only once their session exists (the cookie must
-  // ride Godot's websocket handshake) — bootCanvas below keys on userId.
+  // Guests get the client only once their session exists (the canvas is
+  // keyed by user, so the game starts over as them) — bootCanvas below
+  // keys on userId.
   const needsGuest = guestFlow && !userId;
 
   // A party the page hosts or joined: its own world, deaths and leaderboard
@@ -214,8 +215,8 @@ function useGameSession(
     worldId: partyWorldId,
   });
 
-  // Death detection: the same reliable world events Godot consumes (a
-  // party's come from its host, useParty)
+  // Death detection: the same reliable world events the game client hears
+  // (a party's come from its host, useParty)
   qd.gameService.death.useEvent((event) => {
     if (event.id === userId && !inParty) setDeath(event);
   });
@@ -349,8 +350,8 @@ function usePlayer({
 
 /**
  * The chat the overlay shows: a party's (hostParty and joinParty put the
- * user in it), or the world's (watchWorld does, on Godot's spectate boot,
- * so it works behind the pre-game dialog).
+ * user in it), or the world's (watchWorld does, on the page's spectate
+ * join, so it works behind the pre-game dialog).
  */
 function chatOf(party: PartyState | null, worldChatId: string | null | undefined): string | null {
   return (party === null ? worldChatId : party.chatId) ?? null;

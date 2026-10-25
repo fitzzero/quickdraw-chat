@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Box, Typography } from "@mui/material";
+import { Box } from "@mui/material";
 import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
 import {
   createQuickdrawConnection,
@@ -10,6 +10,7 @@ import {
 import { DEFAULT_TUNABLES, type GameTunables, type WorldBootstrap } from "@project/shared";
 import { qd } from "../lib/quickdraw";
 import { BenchTelemetry } from "./bench";
+import { GAME_BACKGROUND_CSS } from "./render/palette";
 import { createPixiRenderer } from "./render/pixi";
 import type { GameRenderer, RenderBackend } from "./render/renderer";
 import { GameShell, type GameStats } from "./shell";
@@ -40,8 +41,8 @@ const BENCH_RESPAWN_MS = 750;
 /**
  * The game, drawn in the page: the shared netcode core and a PixiJS
  * renderer under one frame loop (shell.ts), on the page's own socket. React
- * owns the canvas element and the loading state; the shell owns everything
- * that moves. Keyed by GameSurface per user and world, so a sign-in or a
+ * owns the box and the loading state; each client run gets a canvas of its
+ * own, and the shell owns everything that moves. Keyed by GameSurface per user and world, so a sign-in or a
  * party starts a new client.
  */
 export function GameCanvas({
@@ -49,7 +50,8 @@ export function GameCanvas({
   onStateChange,
   bench,
 }: GameCanvasProps): React.ReactElement {
-  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const hostRef = React.useRef<HTMLDivElement>(null);
+  const shellRef = React.useRef<GameShell | null>(null);
   const { connection, userId } = useQuickdraw();
   const [stats, setStats] = React.useState<GameStats | null>(null);
   const flags = React.useMemo(readFlags, []);
@@ -72,8 +74,13 @@ export function GameCanvas({
   const benchUser = bench?.userId;
 
   React.useEffect(() => {
-    const canvas = canvasRef.current;
-    if (canvas === null || !settled || (benchApi === undefined && !hasBootstrap)) return undefined;
+    const host = hostRef.current;
+    if (host === null || !settled || (benchApi === undefined && !hasBootstrap)) return undefined;
+    // A canvas of this run's own: destroying a renderer loses its canvas's
+    // GL context, so the next client (a tunables change; StrictMode's second
+    // mount in development) must not inherit the element
+    const canvas = makeCanvas();
+    host.appendChild(canvas);
     const client = createClient({
       canvas,
       connection,
@@ -88,47 +95,53 @@ export function GameCanvas({
       onState: (state) => stateChangeRef.current?.(state),
       onStats: setStats,
     });
-    const parent = canvas.parentElement;
-    const observer = parent === null ? null : new ResizeObserver(() => client.renderer.resize());
-    if (parent !== null) observer?.observe(parent);
+    shellRef.current = client.shell;
+    const observer = new ResizeObserver(() => client.renderer.resize());
+    observer.observe(host);
     return () => {
-      observer?.disconnect();
+      observer.disconnect();
+      shellRef.current = null;
       client.shell.stop();
+      canvas.remove();
     };
   }, [connection, userId, benchApi, benchUser, hasBootstrap, settled, tunables, flags]);
 
+  // The players every join answers (a reconnect; a new world after a server
+  // restart draws new hues, and the snapshots name players by id alone)
+  React.useEffect(() => {
+    if (bootstrap !== null) shellRef.current?.addPlayers(bootstrap.players);
+  }, [bootstrap]);
+
   return (
-    <Box sx={{ position: "absolute", inset: 0, bgcolor: "#14171e" }}>
-      <Box
-        component="canvas"
-        ref={canvasRef}
-        id="game-canvas"
-        tabIndex={0}
-        sx={{
-          width: "100%",
-          height: "100%",
-          display: "block",
-          outline: "none",
-          touchAction: "none",
-        }}
-      />
+    <Box ref={hostRef} sx={{ position: "absolute", inset: 0, bgcolor: GAME_BACKGROUND_CSS }}>
       {stats !== null && (
-        <Typography
-          variant="caption"
+        <Box
+          component="pre"
           sx={{
             position: "absolute",
             left: 12,
             bottom: 8,
+            m: 0,
             fontFamily: "monospace",
+            fontSize: 12,
             color: "grey.500",
             pointerEvents: "none",
           }}
         >
           {formatStats(stats)}
-        </Typography>
+        </Box>
       )}
     </Box>
   );
+}
+
+/** The canvas the engine draws to: the chat overlay and the dialog hand keyboard focus back to it by id. */
+function makeCanvas(): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.id = "game-canvas";
+  canvas.tabIndex = 0;
+  canvas.style.cssText = "width:100%;height:100%;display:block;outline:none;touch-action:none";
+  return canvas;
 }
 
 interface ClientInputs {

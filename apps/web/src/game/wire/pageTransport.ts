@@ -117,6 +117,10 @@ export class PageTransport implements GameTransport {
       await waitForHello(connection);
     }
 
+    // Bench mode opens a connection of its own, so its first hello (and the
+    // subscription it brings) lands before the join below, as the bots order
+    // them; on a connection already up the subscription follows a microtask
+    // later, and the seed is a keyframe the next snapshots supersede anyway
     if (join.kind === "self") return await this.joinSelf(connection, spectator);
 
     const bootstrap = join.bootstrap();
@@ -177,7 +181,10 @@ export class PageTransport implements GameTransport {
 
   public sendInput(frames: GameInput[]): void {
     // `qd:ch`: fire and forget, dropped rather than queued when backed up;
-    // the next message repeats a dropped one's frames
+    // the next message repeats a dropped one's frames. Nothing goes out
+    // while the connection is down (a closing socket logs each write as an
+    // error): the next message after the hello carries the frames
+    if (this.opts.connection.getState().status !== "connected") return;
     this.opts.connection.socket.volatile.emit("qd:ch", ["gameService", "input", { frames }]);
   }
 

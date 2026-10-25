@@ -22,9 +22,7 @@ import { FoodLayer } from "./food";
 import { Grid } from "./grid";
 import { SnakeView } from "./snakes";
 import { makeCircleTexture } from "./textures";
-
-/** The page's background behind the world (GameSurface's). */
-const BACKGROUND = 0x14171e;
+import { GAME_BACKGROUND } from "../palette";
 
 export function createPixiRenderer(tunables: RenderTunables): GameRenderer {
   return new PixiRenderer(tunables);
@@ -48,6 +46,8 @@ class PixiRenderer implements GameRenderer {
   private stamp = 0;
   /** The local player: their own snake carries no name label (snake_body.gd's local setup). */
   private localId: string | null = null;
+  /** `destroy()` ran: a mount still in flight tears its engine down instead of finishing. */
+  private destroyed = false;
 
   constructor(private readonly tunables: RenderTunables) {
     this.grid = new Grid(() => this.countBuild());
@@ -64,12 +64,18 @@ class PixiRenderer implements GameRenderer {
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
       antialias: true,
-      backgroundColor: BACKGROUND,
+      backgroundColor: GAME_BACKGROUND,
       // the shell's frame loop renders; no ticker of the engine's
       autoStart: false,
       sharedTicker: false,
       ...(options.preference === undefined ? {} : { preference: options.preference }),
     });
+    if (this.destroyed) {
+      // stopped while the engine was starting (React's StrictMode mounts
+      // twice in development): nothing of this run may stay alive
+      app.destroy({ removeView: true }, { children: true, texture: true, textureSource: true });
+      return;
+    }
     this.app = app;
     this.canvas = canvas;
     this.counter = installDrawCallCounter(app.renderer);
@@ -142,6 +148,10 @@ class PixiRenderer implements GameRenderer {
     return view;
   }
 
+  public resetPath(id: string): void {
+    this.snakes.get(id)?.resetPath();
+  }
+
   public worldPointAt(clientX: number, clientY: number): { x: number; y: number } {
     const rect = this.canvas?.getBoundingClientRect();
     if (rect === undefined) return { x: 0, y: 0 };
@@ -161,15 +171,14 @@ class PixiRenderer implements GameRenderer {
   }
 
   public destroy(): void {
+    this.destroyed = true;
     for (const view of this.snakes.values()) view.destroy();
     this.snakes.clear();
     this.food?.destroy();
     this.food = null;
-    // the canvas is React's: leave it in the page
-    this.app?.destroy(
-      { removeView: false },
-      { children: true, texture: true, textureSource: true },
-    );
+    // The canvas is this run's own (GameCanvas makes one per client), and
+    // destroying the engine loses its GL context: it leaves the page with it
+    this.app?.destroy({ removeView: true }, { children: true, texture: true, textureSource: true });
     this.app = null;
     this.texture = null;
   }

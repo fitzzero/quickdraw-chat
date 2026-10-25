@@ -209,6 +209,8 @@ editJson("apps/web/public/site.webmanifest", (data) => {
 
 editJson("apps/web/package.json", (data) => {
   delete data.dependencies?.["@discord/embedded-app-sdk"];
+  // the game client's renderer
+  delete data.dependencies?.["pixi.js"];
 });
 
 editJson("package.json", (data) => {

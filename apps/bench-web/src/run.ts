@@ -1,10 +1,11 @@
 /**
- * Tier-2 netcode benchmark runner — real Chromium + Godot WASM clients.
+ * Tier-2 netcode benchmark runner — real Chromium running the web app's
+ * game client (apps/web/src/game: the shared netcode core under a PixiJS
+ * renderer).
  *
  *   bun run --cwd apps/bench-web bench -- --scenario baseline-3p-100ms
  *
- * Requires the web dev server (bun run dev) and a WASM export that includes
- * the Bench autoload (apps/game/export-web.sh). Spawns the standalone bench
+ * Requires the web dev server (bun run dev). Spawns the standalone bench
  * server (which owns the latency proxies), opens one browser context per
  * scenario client at /game?bench=1, drains window.QuickdrawBench telemetry
  * every second, and emits the same scorecard format as Tier 1 (tier: 2).
@@ -148,7 +149,7 @@ async function drainPage(page: Page): Promise<TelemetryBatch[]> {
 /**
  * The local snake aims at the mouse — in a bench browser nobody moves it, so
  * we drive a seeded wander through the REAL input path (Playwright mouse →
- * canvas → Godot). Mirrors the Tier-1 wander behavior in spirit: heading
+ * canvas → the client's pointer input). Mirrors the Tier-1 wander behavior in spirit: heading
  * random-walk around the viewport center, occasional boost via left button.
  */
 function startMouseWander(page: Page, seed: number, signal: { stopped: boolean }): void {
@@ -239,7 +240,7 @@ try {
     pages.push({ client, page });
   }
 
-  // WASM load + world join can take a while on first (cold) load
+  // The page's first compile and the world join can take a while on a cold load
   log("waiting for telemetry from all clients…");
   await Promise.all(
     pages.map(({ page }) =>

@@ -48,13 +48,14 @@ Everything shares one machine clock, so cross-client comparisons are exact.
 **Tier 2 (real browsers, the truth lane)** — Playwright drives Chromium
 running the real web app's game client (`apps/web/src/game`: the shared
 netcode core under a PixiJS renderer) with `?bench=1` (and `&gpu=webgl` or
-`&gpu=webgpu` to pick the backend: both are gated, WebGL the floor); the
+`&gpu=webgpu` to pick the backend, WebGL the floor; the runner's own flag
+and the gates on the renderer's numbers come with the pack's last child); the
 client streams rendered positions, FPS, corrections, the page's long tasks
 and the renderer's draw calls, geometry builds and main-thread work per
 frame to the page (`window.QuickdrawBench`), the same
 latency proxy sits in front of each browser, and the same scorecard comes
 out (`apps/bench-web`). Use it to validate Tier-1 winners — it measures the
-real render pipeline, including WASM frame pacing.
+real render pipeline, including the engine's frame pacing.
 
 ## Reading a scorecard
 

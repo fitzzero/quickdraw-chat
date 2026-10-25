@@ -36,7 +36,7 @@ describe("the renderer boundary", () => {
 
   it("imports pixi.js only under render/pixi/", () => {
     const outside = files.filter(
-      (f) => !f.path.startsWith(`${PIXI_DIR}/`) && /from\s+["']pixi\.js["']/.test(f.text),
+      (f) => !f.path.startsWith(`${PIXI_DIR}/`) && /["']pixi\.js(\/[^"']*)?["']/.test(f.text),
     );
     expect(outside.map((f) => f.path)).toEqual([]);
   });

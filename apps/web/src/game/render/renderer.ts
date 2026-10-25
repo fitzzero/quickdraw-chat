@@ -14,8 +14,9 @@
  * string changed. The Godot client this replaces rebuilt about a thousand
  * circle polygons a frame in immediate-mode `_draw` calls; a port that does
  * the same in another engine gives the same stalls. `stats().geometryBuilds`
- * counts the builds, and the browser tier of the bench asserts it sits
- * still after the first second.
+ * counts the builds; the client sends it in its bench telemetry, and the
+ * browser tier's scorecard gates it (it must sit still after the first
+ * second) once the pack's gates child lands.
  */
 
 import type { FoodDTO, GamePlayerMeta, RenderedSnake } from "@project/shared";
@@ -73,6 +74,8 @@ export interface GameRenderer {
   setPlayers(players: Iterable<GamePlayerMeta>): void;
   /** One display frame. */
   draw(frame: RenderFrame): void;
+  /** A snake's body history starts over at its head (local_snake.gd reset_path: a hard snap teleported it). */
+  resetPath(id: string): void;
   /** The world point under a client (viewport) point: what input aims at. */
   worldPointAt(clientX: number, clientY: number): { x: number; y: number };
   stats(): RendererStats;

@@ -98,6 +98,11 @@ export class SnakeView {
     if (this.label.text !== name) this.label.text = name;
   }
 
+  /** The body history starts over at the next frame's head (a hard snap). */
+  public resetPath(): void {
+    this.placed = false;
+  }
+
   /** One frame: the head where the core rendered it, the body walked back from it. */
   public update(snake: RenderedSnake): void {
     if (!this.placed) {

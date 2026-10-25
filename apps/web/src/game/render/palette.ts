@@ -3,6 +3,10 @@
  * 0xRRGGBB numbers an engine tints a white texture with.
  */
 
+/** The page's background behind the world: the surface's box and the engine's clear color. */
+export const GAME_BACKGROUND = 0x14171e;
+export const GAME_BACKGROUND_CSS = "#14171e";
+
 /** HSV to a packed RGB number; `h` in [0, 1), `s` and `v` in [0, 1]. */
 export function hsv(h: number, s: number, v: number): number {
   const i = Math.floor(h * 6);

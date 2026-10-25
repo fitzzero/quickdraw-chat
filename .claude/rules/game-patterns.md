@@ -1,6 +1,6 @@
 # Game Patterns
 
-The game foundation (gameService + the Godot client) extends the service
+The game foundation (gameService + the web's game client) extends the service
 architecture with quickdraw 5.0's realtime kit. Everything here can be carved
 out of a fork with `./scripts/init-fork.sh <name> --without-game`.
 

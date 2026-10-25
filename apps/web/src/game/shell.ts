@@ -102,8 +102,14 @@ export class GameShell {
       hooks: {
         onSnapshotArrival: (tWall, tick) => telemetry?.snapshot(tWall, tick),
         onInputSent: (frames, tSent) => telemetry?.input(frames.at(-1)?.seq ?? -1, tSent),
-        onCorrection: (correction, _ack, tWall) =>
-          telemetry?.correction(tWall, correction.magnitudePx, correction.hard),
+        onCorrection: (correction, _ack, tWall) => {
+          telemetry?.correction(tWall, correction.magnitudePx, correction.hard);
+          // local_snake.gd reset_path: a hard snap teleported the head
+          if (correction.hard && userId !== null) opts.renderer.resetPath(userId);
+        },
+        onLeft: (id) => {
+          this.players.delete(id);
+        },
         onSpawn: () => {
           // open on the snake, wherever the spectate camera was
           this.snapCamera = true;
@@ -118,10 +124,20 @@ export class GameShell {
     });
   }
 
-  /** A player's name and hue, from the bootstrap or a playerJoined event. */
+  /** A player's name and hue, from a playerJoined event. */
   public addPlayer(meta: GamePlayerMeta): void {
-    this.players.set(meta.id, meta);
-    this.opts.renderer.setPlayers([meta]);
+    this.addPlayers([meta]);
+  }
+
+  /**
+   * The players a join answered: the first one's, and every later one's
+   * (a reconnect; after a server restart a new world draws new hues, and
+   * the packed snapshots name players by id alone).
+   */
+  public addPlayers(metas: Iterable<GamePlayerMeta>): void {
+    const list = [...metas];
+    for (const meta of list) this.players.set(meta.id, meta);
+    this.opts.renderer.setPlayers(list);
   }
 
   public async start(): Promise<void> {

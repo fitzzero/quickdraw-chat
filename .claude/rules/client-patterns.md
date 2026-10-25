@@ -134,8 +134,9 @@ not an engine embed, in three layers:
   transform updates only; nothing geometry-shaped is built in `draw` (one
   circle texture, particles for the food and the body segments, the grid
   built once per change of the bounds, a label laid out only when its name
-  changes). `stats().geometryBuilds` counts the builds, and the browser
-  tier of the bench gates it.
+  changes). `stats().geometryBuilds` counts the builds; the client sends it
+  in its bench telemetry, and the browser tier's scorecard gates it once
+  its gates land (`browser-tier-gates-on-frame-time-and-long-tasks-and-a-bench`).
 
 One socket per user: the page's. `GameSurface` joins the world's room
 (`useJoin(watchWorld)`, and `joinGame` while the user plays), and the
@@ -146,7 +147,7 @@ override scoped to that folder: the typed client has no React-free stream,
 channel or event API yet. The local snake is placed by the first own
 snapshot after the page's join, never from the bootstrap, which may be
 ticks old. `?gpu=webgl|webgpu` picks the backend (Pixi's default is WebGL;
-both are gated), `?debug=1` shows the renderer's stats (the backend, fps, the main thread's
+both are measured), `?debug=1` shows the renderer's stats (the backend, fps, the main thread's
 work per frame as mean/p99 ms, draw calls, builds, the newest tick), and
 `?bench=1` is
 the bench's mode: a connection of the client's own to the bench server,
