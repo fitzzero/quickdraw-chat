@@ -3,9 +3,9 @@
  * head/direction/length integration.
  *
  * Extracted verbatim from GameWorldSim.moveSnake (./world.ts) so the server
- * sim, headless bench bots, and any TS client prediction all run identical
- * math. The Godot client mirrors this in game_config.gd `sim_step()` — keep
- * all three in lockstep when tuning movement.
+ * sim, the bench bots and the web client's prediction all run identical
+ * math: one implementation, imported by each, so tuning movement here tunes
+ * every client.
  *
  * Pure: no I/O, no randomness, returns a new state.
  */

@@ -21,7 +21,8 @@ export interface ServerTick {
   tWall: number;
   tickDurMs: number;
   snapshotBytes: number;
-  players: { id: string; x: number; y: number }[];
+  /** each player's head, and its `PlayerSnap.ack` (absent from traces recorded before the step/ack check) */
+  players: { id: string; x: number; y: number; ack?: number }[];
   /**
    * Per human snake alive and fed that tick (the sim's TickResult.inputs):
    * the frames it stepped, and the frames still queued after the take.
@@ -43,8 +44,19 @@ export interface ClientTrace {
   corrections: { tWall: number; magnitudePx: number; hard: boolean }[];
   /** input frames sent; tAcked = arrival of first snapshot with ack >= seq */
   inputs: { seq: number; tSent: number; tAcked?: number }[];
+  /** the half-tick nudges of the frame clock a snapshot's `late` set off (absent from older traces) */
+  nudges?: { tWall: number }[];
   /** Tier 2 only */
   fpsSamples?: { tWall: number; fps: number }[];
+  /** Tier 2 only: the page's long tasks (PerformanceObserver `longtask` entries, 50 ms or more) */
+  longTasks?: { tWall: number; durationMs: number }[];
+  /** Tier 2 only: the renderer's stats, as the page samples them (every half second) */
+  renderer?: {
+    /** the GPU API the engine ended up on, the last the page reported (null before it said) */
+    backend: string | null;
+    /** `geometryBuilds` is the renderer's running count since mount; `drawCalls` is null where the backend does not expose them */
+    samples: { tWall: number; drawCalls: number | null; geometryBuilds: number }[];
+  };
   /**
    * the food the client held at the end, as of `tick` (its changes up to that
    * tick), its latest snapshot's tick, and the keyframes it asked for after gaps
@@ -99,6 +111,13 @@ export interface BotSpec {
    * tick clock drifts (1.01 runs 1% fast), nothing else.
    */
   clockScale?: number;
+  /**
+   * Where the bot renders its remotes: on the playback timeline behind the
+   * world clock, or at the estimate of the present (the shared client's
+   * RemotesMode; its default when omitted). `bench:netcode --remotes <mode>`
+   * sets it on every bot a scenario leaves unset.
+   */
+  remotes?: "playback" | "present";
 }
 
 /** A loopback link's lag, both ways: each message `ms` plus up to `jitter` ms, `loss` of `fast` ones lost. */
@@ -135,6 +154,12 @@ export interface Scenario {
   respawnDelayMs: number;
   /** GameTunables overrides (npcCount etc.) — validated server-side */
   tunables?: Record<string, number>;
+  /**
+   * The tiers that run it (default both). A render-stress scenario is the
+   * browser tier's alone: the headless sweep (`--all`) skips it, and it
+   * needs no baseline.
+   */
+  tiers?: readonly (1 | 2)[];
   clients: BotSpec[];
   /** A party instead of the server's world: its bots play over its links, and take no `net`. */
   party?: PartySpec;
@@ -147,6 +172,8 @@ export interface Stats {
   mean: number;
   p50: number;
   p95: number;
+  /** the tail a stall shows in (scorecards made before it lack it) */
+  p99: number;
   max: number;
 }
 
@@ -166,6 +193,12 @@ export interface SmoothnessReport {
   jerkRms: number;
   hardSnapsPerMin: number;
   correctionPx: Stats;
+  /**
+   * corrections of at least STEP_CORRECTION_PX (8 px) a minute: a whole
+   * movement step the prediction missed, which a player sees as a surge or
+   * a stall (absent from scorecards made before it)
+   */
+  stepCorrectionsPerMin?: number;
 }
 
 export interface EntityFidelity {
@@ -189,6 +222,17 @@ export interface InputQueueReport {
   multiStepRate: number;
   /** mean depth over the window's last 10 s minus its first 10 s: a queue ratcheting toward its cap grows it */
   depthTrend: number;
+  /**
+   * ticks a minute where the ack moved by other than the steps the snake
+   * took (one for a coast): each is a whole-step correction on its client.
+   * Must be 0; absent when the trace recorded no acks.
+   */
+  stepAckMismatchPerMin?: number;
+  /**
+   * one client's half-tick nudges of its frame clock a minute (its snapshot
+   * said `late`); absent from the server's report and from older traces
+   */
+  nudgesPerMin?: number;
 }
 
 export interface ClientReport {
@@ -253,9 +297,23 @@ export interface Scorecard {
    * without the metric makes it NaN, which a saved card holds as null
    */
   runWorst?: Record<string, number | null>;
+  /** The browser tier's own numbers (absent from Tier-1 cards). */
   tier2?: {
     fps: Stats;
+    /** between rendered frames: the tails (p95, p99) are the headline, never the mean */
     frameTimeMs: Stats;
+    /** the pages' long tasks (a main-thread stall of 50 ms or more) a minute, all clients: must be 0 */
+    longTasksPerMin: number;
+    /** geometry the renderers built within the window a minute, all clients: must be 0 (per-frame geometry is the renderer rule broken) */
+    geometryBuildsPerMin: number;
+    /** gaps of a second or more between rendered frames a minute, all clients: must be 0 (the frame times leave them out) */
+    pausesPerMin: number;
+    /** the display rate the runner was told (`--hz`); without it the judge reads the rate from the frames, which cannot tell a 144 Hz display at half rate from a 72 Hz one */
+    displayHz?: number;
+    /** draw calls per frame, where the backend reports them (WebGL; WebGPU says nothing) */
+    drawCalls: Stats;
+    /** the GPU API the pages ran on: "webgl" or "webgpu", several joined with "+", "unknown" when none said */
+    backend: string;
   };
   /** A party scenario's fairness (reported, not compared) */
   party?: PartyFairness;

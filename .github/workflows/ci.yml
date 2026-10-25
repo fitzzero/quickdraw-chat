@@ -272,3 +272,56 @@ jobs:
         if: matrix.shard == 2
         run: cd packages/shared && bun run test
       # ── quickdraw-game:end ──
+
+  # ── quickdraw-game:start ──
+  # The game client in two real browser pages against the bench server: a
+  # whole session through an API restart, then a party (check:web,
+  # apps/api/src/bench/web-session.ts). PGlite, no database service.
+  check-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache workspace dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            packages/shared/dist
+            packages/db/dist
+            packages/db/prisma/generated
+          key: workspace-${{ hashFiles('bun.lock', 'packages/db/prisma/schema.prisma', 'packages/shared/src/**', 'packages/db/src/index.ts') }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Generate Prisma client
+        run: bun run db:generate
+
+      - name: Cache Playwright's Chromium
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+
+      # Through the API package's own script: `bunx playwright` at the root
+      # fetches another playwright from npm and installs the browsers of a
+      # revision the session's playwright does not look for
+      - run: bun run --cwd apps/api playwright:install -- --with-deps
+
+      - run: bun run check:web
+        env:
+          # the sign-in routes refuse a secret under 32 characters
+          JWT_SECRET: test-jwt-secret-of-at-least-32-characters
+  # ── quickdraw-game:end ──

@@ -1,6 +1,7 @@
 // ============================================================================
-// Game Service — types shared by the API, the web wrapper, and (as the
-// documented wire contract) the Godot client. The contract is
+// Game Service — types shared by the API, the web app, the bench's bots
+// and (as the documented wire contract) a client of another language. The
+// contract is
 // contracts/game.ts; on quickdraw protocol v5 (docs/protocol-v5.md in
 // @fitzzero/quickdraw-core) the game's traffic is:
 //
@@ -24,7 +25,7 @@
 
 /**
  * The single global world. A deterministic id (not a cuid) so the API, seed,
- * tests, and the Godot client can all reference it without a lookup, and so
+ * tests, and the clients can all reference it without a lookup, and so
  * the row can be recreated idempotently (e.g. after test-database resets).
  */
 export const GLOBAL_WORLD_ID = "gameworld_global";
@@ -50,9 +51,10 @@ export const GAME_INPUT_FRAMES = 4;
  * a tick, in seq order, and echoes the last seq its state holds in
  * PlayerSnap.ack, so the client drops acknowledged frames and replays the
  * rest (reconciliation). The server coasts a snake through a client's
- * stall, and the ack runs on: a client whose newest frame falls more than
- * GAME_INPUT_FRAMES behind the ack numbers its next frame after the ack, or
- * the server ignores its frames until they catch up.
+ * stall, and the ack runs on, standing in for the frames to come: a client
+ * whose newest frame falls behind the ack numbers its next frame after it
+ * (the server refuses the seqs it stood in for, and stepping them would
+ * count their movement twice).
  */
 export interface GameInput {
   seq: number;
@@ -68,7 +70,8 @@ export interface GameInput {
  * lost or late message arrive with the next one. The server queues each
  * frame once by seq and steps one a tick, up to three while a backlog drains;
  * a tick with none queued coasts on the last intent, and `PlayerSnap.ack`
- * covers the coast.
+ * covers the coast as the next frame, which then steers the next tick
+ * instead of stepping: the ack always counts the steps.
  */
 export interface GameInputs {
   frames: GameInput[];
@@ -81,7 +84,11 @@ export interface PlayerSnap {
   y: number;
   dx: number;
   dy: number;
-  /** Length in segments. */
+  /**
+   * Length in segments, with its fraction (a float32 in the packed
+   * snapshot): the client's prediction decides boost from it as the server
+   * does.
+   */
   len: number;
   boost: boolean;
   /**
@@ -90,6 +97,16 @@ export interface PlayerSnap {
    * client that stalled.
    */
   ack: number;
+  /**
+   * The server adopted the intent of a frame of this player's that arrived
+   * after a coast stood in for it (a frame that landed just after the tick),
+   * or the next frame to arrive was past such a frame (the client numbered
+   * past it at a round trip under a tick, or the messages carrying it were
+   * lost), since the last tick's snapshot. A client that hears it on a fifth of
+   * its snapshots moves its frame clock half a tick earlier, off the tick
+   * boundary (at most once per half second). Absent when not.
+   */
+  late?: boolean;
 }
 
 export interface FoodDTO {
@@ -138,8 +155,8 @@ export interface WorldSnapshot {
 
 /**
  * The world stream's item: a WorldSnapshot packed into bytes, base64
- * (`b`). Decode it with a SnapshotDecoder (game/snapshotDecoder.ts; the
- * Godot client's port is snapshot_decoder.gd), one per client, kept across
+ * (`b`). Decode it with a SnapshotDecoder (game/snapshotDecoder.ts), one
+ * per client, kept across
  * its subscriptions and reset for another server's world: the players are
  * named by the stream's id table, which each snapshot and keyframe
  * introduces.
@@ -168,9 +185,9 @@ export interface LeaderboardEntry {
 }
 
 /**
- * Spectate bootstrap: full world state without spawning. Godot boots into
- * this on the web; joinGame (called by the wrapper's pre-game dialog) is
- * what actually spawns the player.
+ * Spectate bootstrap: full world state without spawning. The page's game
+ * client boots into this (watchWorld); joinGame (called by the pre-game
+ * dialog) is what actually spawns the player.
  */
 export interface WorldBootstrap {
   worldId: string;
@@ -197,27 +214,6 @@ export interface HighScoreEntry {
   image: string | null;
   isGuest: boolean;
   bestLength: number;
-}
-
-/**
- * The contract between the web wrapper and the Godot build. The page sets
- * `window.QuickdrawHost` to this shape BEFORE starting the engine; Godot
- * reads it via JavaScriptBridge (see apps/game/godot/scripts/autoload/net.gd).
- */
-export interface QuickdrawHostConfig {
-  /** API origin, e.g. "http://localhost:4000". */
-  apiUrl: string;
-  /** Socket.io path override (Discord Activities: "/.proxy/api/socket.io"). */
-  socketPath?: string;
-  /** JWT for token auth; null/absent = cookie auth rides the WS handshake. */
-  authToken?: string | null;
-  /** World to join (slug). */
-  worldSlug: string;
-  /**
-   * A party to join instead of the world, by its code: the page sets it
-   * once it hosts a party or joined one, and boots the engine again.
-   */
-  party?: { code: string } | null;
 }
 
 // ============================================================================

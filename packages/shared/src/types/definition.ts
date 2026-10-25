@@ -4,7 +4,7 @@ import type { definitionContract } from "../contracts/definition.js";
 // ============================================================================
 // Definition Service — data-driven game content (the furnace .tres insight,
 // moved server-side: items/spells/tunables live in the database, edited via
-// the admin UI, fetched by the server sim AND the Godot client at load).
+// the admin UI, fetched by the server sim AND the game client at load).
 // ============================================================================
 
 /** Wire shape of a definition: the contract's entity (contracts/definition.ts). */

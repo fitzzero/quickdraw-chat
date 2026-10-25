@@ -1,10 +1,10 @@
 /**
- * The server's wire for a bot: quickdraw protocol v5 as the Godot client
+ * The server's wire for a bot: quickdraw protocol v5 as the web client
  * speaks it (handshake → `qd:hello` → `qd:stream:sub` of the world stream →
  * joinGame/watchWorld, which puts the socket in the world's room → `qd:ch`
  * input → volatile `qd:stream` snapshots, packed, and `qd:event` world
  * events), through an optional latency proxy. Snapshots are unpacked with
- * one SnapshotDecoder (game.gd's `_decoder`): kept across resubscribes,
+ * one SnapshotDecoder: kept across resubscribes,
  * reset for another server's world.
  */
 
@@ -21,11 +21,13 @@ import type {
   GameBootstrap,
   GameDeathEvent,
   GameInput,
+  GameJoin,
+  GameTransport,
+  GameWire,
   PackedWorldItem,
   WorldBootstrap,
 } from "@project/shared";
 import { GLOBAL_WORLD_ID, SnapshotDecoder } from "@project/shared";
-import type { BotJoin, BotTransport, BotWire } from "./transport.js";
 
 const JOIN_TIMEOUT_MS = 15_000;
 /** `auth.qd`: the protocol the bots speak, and who they are in the server's logs. */
@@ -62,13 +64,13 @@ async function callGame<T>(socket: Socket, id: number, method: string, input: un
   );
 }
 
-export class SocketTransport implements BotTransport {
+export class SocketTransport implements GameTransport {
   private socket: Socket | null = null;
-  /** Unpacks the world stream (game.gd's `_decoder`): kept across resubscribes, reset for another server's world. */
+  /** Unpacks the world stream: kept across resubscribes, reset for another server's world. */
   private readonly decoder = new SnapshotDecoder();
   /** The server whose world the decoder holds the table of (its hello's `serverId`). */
   private serverId: string | null = null;
-  private wire: BotWire | null = null;
+  private wire: GameWire | null = null;
   private nextCallId = 0;
 
   constructor(
@@ -82,9 +84,9 @@ export class SocketTransport implements BotTransport {
     return this.decoder.needsKeyframe;
   }
 
-  public async start(wire: BotWire, spectator: boolean): Promise<BotJoin> {
+  public async start(wire: GameWire, spectator: boolean): Promise<GameJoin> {
     this.wire = wire;
-    // Development credentials (`auth.userId`), as the Godot editor signs in
+    // Development credentials (`auth.userId`): the bench server's sign-in
     const socket = ioClient(`http://127.0.0.1:${this.port}`, {
       auth: { userId: this.userId, qd: HANDSHAKE },
       transports: ["websocket"],
@@ -125,7 +127,7 @@ export class SocketTransport implements BotTransport {
     socket.on("qd:event", ([service, event, payload]: EventFrame) => {
       if (service !== "gameService") return;
       if (event === "death") wire.death(payload as GameDeathEvent);
-      // Parity with main.gd _on_player_left
+      // a player that left is dropped at once
       if (event === "playerLeft") wire.left((payload as { id: string }).id);
     });
 

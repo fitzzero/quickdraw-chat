@@ -46,7 +46,7 @@ export function createGroundTruthRecorder(): GroundTruthRecorder {
         tWall: stats.tWall,
         tickDurMs: stats.tickDurMs,
         snapshotBytes: stats.snapshotBytes,
-        players: result.snapshot.players.map((p) => ({ id: p.id, x: p.x, y: p.y })),
+        players: result.snapshot.players.map((p) => ({ id: p.id, x: p.x, y: p.y, ack: p.ack })),
         inputs: Object.entries(result.inputs).map(([id, entry]) => ({
           id,
           stepped: entry.stepped,

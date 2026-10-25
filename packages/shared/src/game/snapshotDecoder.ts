@@ -2,8 +2,8 @@
  * Unpacks the world stream's snapshots (snapshotCodec.ts has the layout),
  * learning the stream's id table: one decoder per client, kept across its
  * subscriptions to the stream and reset when the client follows another
- * server's world. Ported to GDScript as
- * apps/game/godot/scripts/snapshot_decoder.gd: keep the two in lockstep.
+ * server's world. The web page, the bench's bots and the test app's clients
+ * all decode with this one class.
  */
 
 import type { FoodDelta, FoodDTO, PlayerSnap, WorldSnapshot } from "../types/game.js";
@@ -13,6 +13,8 @@ import {
   SNAPSHOT_CODEC_VERSION,
   SNAPSHOT_FLAG_KEYFRAME,
   SNAPSHOT_FLAG_T,
+  SNAPSHOT_PLAYER_BOOST,
+  SNAPSHOT_PLAYER_LATE,
   base64ToBytes,
 } from "./snapshotCodec.js";
 
@@ -67,8 +69,8 @@ export class SnapshotDecoder {
     // An index first introduced after the newest snapshot this decoder saw,
     // and no longer introduced: a name it holds may stand for another player
     if (this.lastTick >= 0 && unrepeated > this.lastTick) this.names.clear();
-    // A seed older than the newest snapshot's window (Godot hands a seed
-    // over after the items that came with it) may name an index by an owner
+    // A seed older than the newest snapshot's window (a client may hand a
+    // seed over after the items that came with it) may name an index by an owner
     // whose newer give no snapshot introduces any more: it names nobody
     this.readIntroductions(input, keyframe && snapshot.tick < this.lastTick - GAME_FOOD_WINDOW);
     this.unnamedCount = this.readPlayers(input, snapshot.players);
@@ -108,16 +110,17 @@ export class SnapshotDecoder {
 }
 
 function readPlayer(input: ByteReader, id: string): PlayerSnap {
-  return {
-    id,
-    x: input.u32() / 10,
-    y: input.u32() / 10,
-    dx: input.i16() / 1000,
-    dy: input.i16() / 1000,
-    len: input.u16(),
-    boost: (input.u8() & 1) !== 0,
-    ack: input.u32(),
-  };
+  const x = input.u32() / 10;
+  const y = input.u32() / 10;
+  const dx = input.i16() / 1000;
+  const dy = input.i16() / 1000;
+  const len = input.f32();
+  const flags = input.u8();
+  const ack = input.u32();
+  const boost = (flags & SNAPSHOT_PLAYER_BOOST) !== 0;
+  // `late` only when set, as the sim's snapshot says it
+  if ((flags & SNAPSHOT_PLAYER_LATE) === 0) return { id, x, y, dx, dy, len, boost, ack };
+  return { id, x, y, dx, dy, len, boost, ack, late: true };
 }
 
 /** The food entries; a keyframe's one keeps `spawned` though it is empty. */

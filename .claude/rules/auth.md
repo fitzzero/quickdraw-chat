@@ -85,7 +85,7 @@ ends that session's sockets (`server.access.disconnectUser`).
 The Discord Activity (`discord-activity.ts`) is the one sign-in outside the
 kit's providers: its page POSTs the Embedded App SDK's code, and the route
 starts a session with `issueSession` and answers its token, which the page
-and its Godot client send as `auth.token`. It sets no cookie: the page never
+sends as `auth.token`. It sets no cookie: the page never
 uses one (the iframe drops third-party cookies).
 
 <!-- ── quickdraw-game:end ── -->

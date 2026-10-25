@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { GameInput } from "../types/game.js";
+import { stepMovement } from "./movement.js";
 import { COUNT_TUNABLE_MAX, GameWorldSim, DEFAULT_TUNABLES, type SnakeState } from "./world.js";
 
 function makeSim(overrides?: Partial<typeof DEFAULT_TUNABLES>): GameWorldSim {
@@ -85,6 +86,49 @@ describe("GameWorldSim", () => {
     const len = must(sim.getLength("p1"));
     expect(len).toBeLessThan(startLen);
     expect(len).toBeGreaterThanOrEqual(DEFAULT_TUNABLES.minLength);
+  });
+
+  it("sends the length with its fraction: a replay from the snapshot boosts as the server does", () => {
+    // one boosted tick burns 0.075: 10.475 → 10.4, within a segment of minLength
+    const sim = makeSim({ minLength: 10, startLength: 10.475 });
+    sim.addPlayer("p1", null);
+    const first = must(sim.step().snapshot.players[0]);
+    sim.queueInputs("p1", [input(1, first.dx, first.dy, true)]);
+    const start = must(sim.getHead("p1"));
+    const snap = must(sim.step().snapshot.players[0]);
+    const head = must(sim.getHead("p1"));
+    expect(snap.len).toBe(Math.fround(10.4));
+    expect(snap.boost).toBe(true);
+    expect(Math.hypot(head.x - start.x, head.y - start.y)).toBeCloseTo(
+      DEFAULT_TUNABLES.boostSpeed * sim.dt,
+      5,
+    );
+
+    // the client replays its next frame from the snapshot: a boosted step, as the server's
+    const next = input(2, snap.dx, snap.dy, true);
+    const replayed = stepMovement(
+      { x: snap.x, y: snap.y, dirX: snap.dx, dirY: snap.dy, len: snap.len },
+      { targetDx: next.dx, targetDy: next.dy, boost: next.boost },
+      { ...DEFAULT_TUNABLES, minLength: 10 },
+      sim.dt,
+    );
+    sim.queueInputs("p1", [next]);
+    const after = must(sim.step().snapshot.players[0]);
+    expect(Math.hypot(replayed.x - after.x, replayed.y - after.y)).toBeLessThan(0.2);
+    expect(replayed.len).toBeCloseTo(after.len, 1);
+  });
+
+  it("sends a length on the sim's side of the minimum, which float32 rounding alone could flip", () => {
+    // float32 holds no 5.3: Math.fround(5.3) is above it, which would say a snake at the minimum boosts
+    const atMin = makeSim({ minLength: 5.3, startLength: 5.3 });
+    atMin.addPlayer("p1", null);
+    expect(must(atMin.step().snapshot.players[0]).len).toBeLessThanOrEqual(5.3);
+    // a float error just above the minimum: the server boosts once more, and so must the replay
+    const above = makeSim({ minLength: 5, startLength: 5 + 1e-12 });
+    above.addPlayer("p1", null);
+    const snap = must(above.step().snapshot.players[0]);
+    expect(snap.len).toBeGreaterThan(5);
+    expect(snap.len).toBe(Math.fround(snap.len));
   });
 
   it("acknowledges the last frame its state holds, and ignores a frame at or below it", () => {
@@ -184,6 +228,108 @@ describe("GameWorldSim", () => {
     expect(lossy.getLength("p1")).toEqual(lossless.getLength("p1"));
   });
 
+  it("a late frame steers the next tick instead of stepping: the ack counts the steps", () => {
+    const sim = makeSim();
+    sim.addPlayer("p1", null);
+    const heading = (): number => {
+      const snap = must(sim.getBootstrapState().snaps[0]);
+      return Math.atan2(snap.dy, snap.dx);
+    };
+    const turn = (from: number, to: number): number =>
+      Math.atan2(Math.sin(to - from), Math.cos(to - from));
+    const start = heading();
+    const stepPx = DEFAULT_TUNABLES.baseSpeed * sim.dt;
+    const maxTurn = DEFAULT_TUNABLES.turnRate * sim.dt;
+
+    // frame 1 along the heading steps; tick 2 has no frame: the snake coasts,
+    // standing in for frame 2
+    sim.queueInputs("p1", [input(1, Math.cos(start), Math.sin(start))]);
+    sim.step();
+    let result = sim.step();
+    expect(must(result.snapshot.players[0]).ack).toBe(2);
+    expect(result.inputs).toEqual({ p1: { stepped: 0, depth: 0 } });
+    expect(heading()).toBeCloseTo(start, 6);
+
+    // frame 2 arrives late and alone, aiming a quarter turn to the left: it is
+    // not stepped (the ack moves on by the coast, one step), but the coast
+    // turns toward it
+    let head = must(sim.getHead("p1"));
+    sim.queueInputs("p1", [input(2, Math.cos(start + Math.PI / 2), Math.sin(start + Math.PI / 2))]);
+    result = sim.step();
+    expect(must(result.snapshot.players[0]).ack).toBe(3);
+    expect(result.inputs).toEqual({ p1: { stepped: 0, depth: 0 } });
+    expect(turn(start, heading())).toBeCloseTo(maxTurn, 2);
+    let moved = must(sim.getHead("p1"));
+    expect(Math.hypot(moved.x - head.x, moved.y - head.y)).toBeCloseTo(stepPx, 5);
+
+    // an older frame does not steer: frame 1 again, aiming back, leaves the
+    // turn toward frame 2's aim
+    head = moved;
+    sim.queueInputs("p1", [input(1, -Math.cos(start), -Math.sin(start))]);
+    result = sim.step();
+    expect(must(result.snapshot.players[0]).ack).toBe(4);
+    expect(turn(start, heading())).toBeCloseTo(2 * maxTurn, 2);
+    moved = must(sim.getHead("p1"));
+    expect(Math.hypot(moved.x - head.x, moved.y - head.y)).toBeCloseTo(stepPx, 5);
+
+    // frame 5, in before its tick, steps as usual and the ack follows it
+    sim.queueInputs("p1", [input(5, Math.cos(start), Math.sin(start))]);
+    result = sim.step();
+    expect(must(result.snapshot.players[0]).ack).toBe(5);
+    expect(result.inputs).toEqual({ p1: { stepped: 1, depth: 0 } });
+  });
+
+  it("says late when the client numbered past the frame a coast stood in for, and for the late frame itself by its own rule", () => {
+    const sim = makeSim();
+    sim.addPlayer("p1", null);
+    sim.queueInputs("p1", [input(1, 1, 0)]);
+    sim.step();
+    // tick 2 coasts for frame 2; the snapshot reached the client before it
+    // stepped frame 2 (a round trip under a tick), so it numbers the next 3
+    expect(must(sim.step().snapshot.players[0]).ack).toBe(2);
+    sim.queueInputs("p1", [input(1, 1, 0), input(3, 1, 0)]);
+    expect(must(sim.step().snapshot.players[0]).late).toBe(true);
+    // in time again: frame 4 before its tick
+    sim.queueInputs("p1", [input(3, 1, 0), input(4, 1, 0)]);
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+    // a coast whose frame comes in time for the next tick, in a message with
+    // the one after it: the late frame's own rule, not a skip
+    expect(must(sim.step().snapshot.players[0]).ack).toBe(5);
+    sim.queueInputs("p1", [input(5, 1, 0), input(6, 1, 0)]);
+    const snap = must(sim.step().snapshot.players[0]);
+    expect(snap.ack).toBe(6);
+    expect(snap.late).toBe(true);
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+  });
+
+  it("says late on the tick's snapshot after a late frame steered, once, and never for a redundant frame", () => {
+    const sim = makeSim();
+    sim.addPlayer("p1", null);
+    sim.queueInputs("p1", [input(1, 1, 0)]);
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+    // tick 2 coasts, standing in for frame 2
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+
+    // frame 2 lands after the coast: its intent is adopted, and the next
+    // tick's snapshot says so; a keyframe between ticks leaves it to the tick's
+    sim.queueInputs("p1", [input(1, 1, 0), input(2, 0, 1)]);
+    expect(must(sim.keyframe().players[0]).late).toBeUndefined();
+    expect(must(sim.getBootstrapState().snaps[0]).late).toBeUndefined();
+    expect(must(sim.step().snapshot.players[0]).late).toBe(true);
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+
+    // the coasts stood in for frames 3 and 4, and the client numbered past
+    // them (late once more); frames in time from then on, each message
+    // repeating the ones before it, are never late
+    sim.queueInputs("p1", [input(5, 1, 0), input(6, 1, 0)]);
+    expect(must(sim.step().snapshot.players[0]).late).toBe(true);
+    sim.queueInputs("p1", [input(5, 1, 0), input(6, 1, 0), input(7, 1, 0)]);
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+    sim.queueInputs("p1", [input(6, 1, 0), input(7, 1, 0), input(8, 1, 0)]);
+    expect(must(sim.step().snapshot.players[0]).late).toBeUndefined();
+    expect(must(sim.step().snapshot.players[0]).ack).toBe(8);
+  });
+
   it("accounts for human snakes that stepped since they spawned, never NPCs", () => {
     const sim = makeSim({ npcCount: 2 });
     sim.addPlayer("p1", null);
@@ -271,7 +417,10 @@ describe("GameWorldSim", () => {
     // facing it (the geometry is set on the sim's own snakes)
     const { players } = sim as unknown as { players: Map<string, SnakeState> };
     const wall = must(players.get("wall"));
-    wall.path = Array.from({ length: 30 }, (_, i) => ({ x: 300 + i * 8, y: 500 }));
+    wall.path = Array.from({ length: 30 }, (_, i) => ({
+      x: 300 + i * 8,
+      y: 500,
+    }));
     wall.head = { x: 532, y: 500 };
     wall.dir = { x: 1, y: 0 };
     const runner = must(players.get("runner"));
@@ -325,7 +474,11 @@ describe("GameWorldSim", () => {
   });
 
   it("respawns food up to maxFood and reports spawns as the tick's food change", () => {
-    const sim = makeSim({ initialFood: 0, maxFood: 3, foodSpawnIntervalTicks: 2 });
+    const sim = makeSim({
+      initialFood: 0,
+      maxFood: 3,
+      foodSpawnIntervalTicks: 2,
+    });
     sim.addPlayer("p1", null);
 
     const spawned: number[] = [];
@@ -356,7 +509,12 @@ describe("GameWorldSim", () => {
 describe("tunables", () => {
   it("keeps the counts of food and NPCs within a packed snapshot's 16 bits", () => {
     const sim = new GameWorldSim({ seed: 1, tunables: { initialFood: 0 } });
-    sim.applyTunables({ maxFood: 1e9, initialFood: 70_000, npcCount: 1e6, worldWidth: 1e5 });
+    sim.applyTunables({
+      maxFood: 1e9,
+      initialFood: 70_000,
+      npcCount: 1e6,
+      worldWidth: 1e5,
+    });
     expect(sim.tunables.maxFood).toBe(COUNT_TUNABLE_MAX);
     expect(sim.tunables.initialFood).toBe(COUNT_TUNABLE_MAX);
     expect(sim.tunables.npcCount).toBe(COUNT_TUNABLE_MAX);
@@ -367,7 +525,10 @@ describe("tunables", () => {
 
 describe("NPC snakes", () => {
   function npcSim(count = 3): GameWorldSim {
-    return new GameWorldSim({ seed: 11, tunables: { npcCount: count, npcRespawnTicks: 5 } });
+    return new GameWorldSim({
+      seed: 11,
+      tunables: { npcCount: count, npcRespawnTicks: 5 },
+    });
   }
 
   it("syncs the population to npcCount, including live lowering", () => {

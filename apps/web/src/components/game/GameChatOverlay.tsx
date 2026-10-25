@@ -20,8 +20,8 @@ interface GameChatOverlayProps {
  * minimizable DOM overlay in the bottom-right of the game.
  *
  * Membership in this chat is granted server-side by gameService.watchWorld
- * (Godot's spectate boot) and joinGame, so this overlay mounts as soon as
- * the engine reports ready — spectators can chat from behind the pre-game
+ * (the page's spectate join) and joinGame, so this overlay mounts as soon as
+ * the client reports ready — spectators can chat from behind the pre-game
  * dialog. ChatWindow is reused as-is — this wrapper adds the unread badge
  * and expand/minimize with canvas focus handoff.
  */
@@ -47,7 +47,7 @@ export function GameChatOverlay({ chatId, partyCode }: GameChatOverlayProps): Re
   const handleMinimize = (): void => {
     setOpen(false);
     // Hand keyboard focus back to the game
-    document.getElementById("godot-canvas")?.focus();
+    document.getElementById("game-canvas")?.focus();
   };
 
   if (!open) {

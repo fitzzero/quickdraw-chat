@@ -96,8 +96,8 @@ input: (payload, ctx) => {
 // ...and each subscriber starts from the world now (every snake, all the food)
 streams: { world: { seed: () => [runtime.keyframe()], validate: "development" } },
 
-// The Godot client speaks the same wire (quickdraw protocol v5, GDScript):
-// Net.client.send_channel("gameService", "input", {...})`,
+// The page's game client speaks the same wire (quickdraw protocol v5):
+// connection.socket.volatile.emit("qd:ch", ["gameService", "input", { frames }])`,
   },
   // ── quickdraw-game:end ──
 

@@ -16,6 +16,313 @@ Template:
 
 ---
 
+## 2026-10-25 — Remotes at the present: dead reckoning to the world clock [KEPT BEHIND THE FLAG; playback stays the default]
+
+- Branch: feat/remotes-at-the-present (child 5 of the pack
+  `a-typescript-game-client-for-the-web-the-bots-netcode-in-the`), the
+  Conveyor card `remote-snakes-at-the-present-dead-reckoning-to-the-world-clo`;
+  HYPOTHESES.md #10.
+- Why: remotes render on the playback timeline, 1.5–6 ticks behind the
+  world clock's estimate, while the local snake is predicted ahead of the
+  server by the round trip: a remote head sits 20–45 px from where the
+  server has it relative to the player's own (ownVsRemotePx p95 27–75 px
+  in `g1c-phase`), and a cut-off the player sees by less never happens on
+  the server.
+- Change: `RemotesMode` (`packages/shared/src/game/client/interpolation.ts`).
+  `present` renders every remote at `WorldClock.estimateTick()`: the
+  interpolator's underrun branch run on purpose (the newest snapshot along
+  its heading at its speed for the 2-tick budget, the coast past it);
+  `playback` is the render timeline as before. The core's `remotes` option,
+  `?remotes=playback|present` on the page, `BotSpec.remotes` and
+  `bench:netcode --remotes <mode>`.
+- The glide, three cuts (single runs of baseline-3p-100ms against
+  `g1c-phase`; the cards are in `bench-results/baseline-3p-100ms/` under
+  the labels `remotes-*-smoke`, `-glide` and `-arrival`). (1) As it was, a fold only for a jump no motion explains:
+  at the present every snapshot re-bases the reckoning under that
+  threshold and pops, jerkRms 417 → 1423 (+242 %), for ownVsRemotePx p95
+  54 → 27 px and renderLatencyMs 87 → 33. (2) A continuity glide, folding
+  the difference from where the previous frame's velocity would have put
+  the head: present jerk +56 % and shapeErrorPx +66 %, but playback jerk
+  +18 %, since on the playback timeline every bracket boundary is such a
+  difference: it changed the default. (3) Kept: fold what a snapshot's
+  arrival changes at the last rendered tick (`pushSnap` renders that tick
+  before and after the push), however small; a jump of MAX_GLIDE_PX (200)
+  or more snaps as before, and between frames the stall-recovery fold
+  stays. Playback within noise (jerk −3 %); present jerk +64 %,
+  shapeErrorPx +57 %.
+- Scenarios, present (the sweep `--all --runs 3 --remotes present --label
+remotes-present` against `g1c-phase`, judged with
+  `bench-baselines/thresholds/remotes-present.json`): all thirteen pass
+  with it, none with the defaults. Where the hypothesis said: ownVsRemotePx
+  p95 −33 to −80 % (baseline-3p-100ms 54 → 33 px, bursty-3p 71 → 26,
+  jitter-heavy-3p 75 → 28, control-0ms 28 → 6, the parties 65 → 33–36),
+  renderLatencyMs −58 to −92 % (69–122 → 27–39 ms; control-0ms 52 → 4),
+  remoteVsRemotePx p50 down where it was apart (bursty-3p 16.9 → 0.3,
+  mixed-3p 9.8 → 5.4, jitter-heavy-3p 0.68 → 0.15; party-3p-unfair 4.0 →
+  7.8, within noise). The costs: jerkRms +42 to +744 %
+  (asym-2p 39 → 302, encounter-3p-100ms 42 → 356, bursty-3p 624 → 1309,
+  the rest 366–544 → 612–800; control-0ms +7 %, within noise) and
+  shapeErrorPx p95 +31 to +152 % (control-0ms 1.2 → 3.1 px, bursty-3p 3.9
+  → 8.1, drift-slow-client 3.3 → 7.2, the rest 3.6–5.5 → 6.2–7.8), except
+  jitter-heavy-3p, where it fell (8.5 → 6.2). No teleport and no hard snap
+  in any run of either mode; stepAckMismatchPerMin 0.
+- Scenarios, playback (`--label remotes-playback`): ten of thirteen pass
+  against `g1c-phase` with the defaults; drift-slow-client shapeErrorPx p95
+  3.26 → 3.87 px, fps-varying-3p 3.97 → 5.17 and spectator-plus-2p
+  ownVsRemotePx p95 48.9 → 57.7 fail.
+- Machine: `g1c-phase` was made on reaper1, this sweep on reaper0. The code
+  before this card (b81c0a3) run three times on reaper0 the same hour
+  measures 4.07, 4.65 and 56.2 px there; its compares against this card's
+  playback (the sweep's run, and a rerun interleaved with it) pass on all
+  three scenarios with every delta within the run spread; and the baseline
+  against it fails spectator-plus-2p the same way (56.2 px). The machine's
+  move, not the fold: `bench-baselines/thresholds/remotes-playback.json`
+  raises those two floors (ownVsRemotePx p95 10 px, shapeErrorPx p95
+  1.5 px) for that verdict.
+- Verdict: `playback` stays the default. Present draws a remote within the
+  prediction error of where the server has it, at the one-way trip instead
+  of the delay, as the hypothesis said, and pays a glide per snapshot and
+  the overshoot of every turn, over the thresholds on every scenario. The
+  bench cannot weigh a kill seen against that, so the deciding test is a
+  person's: two browsers, `?remotes=present` against `?remotes=playback`,
+  ten crossings at close range in each, kills seen against deaths the
+  server made (`present` must not lose a kill the player saw land). If it
+  wins there, the follow-ups are second-order dead reckoning (a turn rate
+  from the last two headings, against the overshoot) and the card's hybrid
+  (present on a clean link, playback past a jitter threshold the playback
+  delay already measures), not a mode kept for its own sake.
+- Baselines: all thirteen scenarios re-made from the default mode on
+  reaper0 (the sweep `--all --runs 3 --label remotes-playback` at d404f87;
+  the review's follow-up commit changed comments and tests, no
+  arithmetic), and they pass against `g1c-phase` with
+  `remotes-playback.json`.
+
+## 2026-10-25 — Input phase: the server says late, the client moves its frames [KEPT]
+
+- Branch: conveyor/netcode-seams-after-the-input-queue-fix-tbvgb1 (0f13cdc
+  the late bit, f41de9f the rate and the warp, 2bcf633 the skipped
+  stand-in), the Conveyor card
+  `input-phase-a-client-whose-frames-land-just-after-the-tick-m`.
+- Why: the server consumes one seq a tick from a client's first frame on,
+  so a client whose frames land just after the tick stays there, refused a
+  quarter to a third of its frames and steered by them one tick late
+  (starvedRate 22–41 % on one bot of bursty-3p, encounter-3p-100ms,
+  fps-varying-3p and jitter-heavy-3p in `len-tenths`).
+- Change: the tick's snapshot after the sim adopted a late frame's intent,
+  or after the client numbered past a frame a coast stood in for, says
+  `PlayerSnap.late` (bit 1 of the packed player's flags, codec version 2;
+  optional in the contract). A client averages the bit over about a second
+  (gain 1/20) and, when a fifth of its snapshots say it, gains half a tick
+  on its frame clock over a quarter second (10 % fast), at most once per
+  half second, never later (`local_snake.gd` `_nudge_phase`, `prediction.ts`
+  `nudgePhase`). The bench reports `inputQueue.nudgesPerMin` per client.
+- Dead end 1, the card's rule (nudge on every late, once per half second):
+  the boundary clients left the boundary (starvedRate under 2 % on the
+  clean links), but a mid-tick client on a jittery or lossy link is late on
+  3–9 % of its snapshots anyway, nudged 27–40 times a minute, and walked its
+  phase around the tick into queues the server drained in double steps:
+  jerkRms 460 → 1889 on jitter-heavy-3p, about 3x on mixed-3p and both
+  parties. And the half tick added at once moved what the player sees half
+  a step in one frame (drift-slow-client's slow bot, jerkRms 688 against
+  395). The late rate keeps jitter under the bar (0–2 nudges a minute
+  there); the warp keeps the slow bot's 24 nudges a minute smooth (382).
+- Dead end 2: at a round trip under a tick (control-0ms) the snapshot
+  reaches the client before it steps the frame a coast stood in for, the
+  client numbers past it and the late frame never leaves, so the server
+  never said late: every one of a bot's 9 px corrections within 120 ms of
+  such a skip. The sim now says late for the skip too (`standIn`). It
+  halves control-0ms's step corrections (10.8 → 5.4 a minute, the worst
+  client); the 0 ms bots do not reach the nudge's rate (the skips come once
+  per regime entry), so the 0 ms surge stays in part.
+- Scenarios (the sweep at 2bcf633, `--all --runs 3`, label `g1c-phase`,
+  against `len-tenths`, judged with `bench-baselines/thresholds/g1c-phase.json`):
+  all thirteen pass. `stepAckMismatchPerMin` 0 in every run. starvedRate on
+  the boundary bots: bursty-3p 21.8 → 0.0 %, encounter-3p-100ms 31.9 → 0.0,
+  fps-varying-3p 40.7 → 0.5, spectator-plus-2p 35.8 → 0.0, jitter-heavy-3p
+  39.5 → 7.6, drift-slow-client's slow bot 92.3 → 15.0 (it nudges 24 a
+  minute, as a 1 % slow clock needs); every client of control-0ms,
+  baseline-3p-100ms, asym-2p and encounter-3p-100ms at 0.7 % or under.
+  drift-fast-client depthTrend 0.03–0.06 (flat). Improved:
+  drift-slow-client stepCorrectionsPerMin 8.3 → 0.5 and shapeErrorPx p95
+  −34 %, encounter-3p-100ms jerkRms −71 % and stepCorrectionsPerMin 10.6 →
+  0, fps-varying-3p jerkRms −13 % and stepCorrectionsPerMin 4.3 → 0.
+  `inputAckRttMs` p95 did not fall measurably on the clients that were late
+  (within the run spread, ±10–30 ms on the proxied links).
+- Machine: jitter-heavy-3p ownVsRemotePx (61.3 → 75.2 px) and shapeErrorPx
+  (5.9 → 8.5 px) fail against `len-tenths` but pass against the
+  `len-tenths` code (c745e21) run on the machine the same hour (73.6 px,
+  9.0 px worst run); party-3p-unfair stepCorrectionsPerMin 2.1 → 4.3 with
+  no party bot nudging (its clients ran as before). The thresholds file
+  raises those three floors for this verdict only.
+- Threshold: `STEP_CORRECTION_PX` stays 8 px. At 4.5 px (traced) the
+  proxied scenarios show 2–6 a minute, worst client, median of three runs:
+  7 px and its multiples, stood-in frames on jittery and lossy links that
+  toggled boost, which neither card removes.
+- Baselines: all thirteen scenarios are this sweep's (label `g1c-phase`,
+  at 2bcf633).
+
+## 2026-10-25 — Length on the wire: the client decides boost from the server's length [KEPT]
+
+- Branch: conveyor/netcode-seams-after-the-input-queue-fix-tbvgb1 (89d2f3b
+  tenths, 4321d07 float32), the Conveyor card
+  `boost-near-the-minimum-length-the-client-predicts-a-base-ste`.
+- Why: `stepMovement` decides `boosting` from `len > minLength` on the
+  server's fractional length, and the client replayed from `PlayerSnap.len`,
+  floored on the wire. A snake boosting within one segment of the minimum
+  moved 16 px a tick on the server and 9 px in its own prediction: a 7 px
+  correction every tick (`correctionPx` p95 7.0 px on fps-varying-3p and
+  both party scenarios in `g1b-stand-in`).
+- First cut, tenths of a segment (u16): the every-tick surge went, but not
+  all of it. A burn tick is 0.075 segments, so a snake boosting down to the
+  minimum can hold 5.025 while the wire says 5.0, and the client predicts a
+  base step where the server boosts once more: two 7 px corrections in
+  about two of three boosts down to the minimum (control-0ms bot-b, 0.84
+  min traced: 19 corrections of 7 px). Driving the sim and LocalPredictor
+  through 200 boosts down to the minimum with a two-tick round trip: 174 to
+  225 corrections of 4.5 px or more with tenths, 0 to 14 with float32 (the
+  rest from lengths a float error leaves 1e-15 above the minimum).
+- Change, as Logan chose on the card: `PlayerSnap.len` is the sim's length
+  as a float32 (`Math.fround` in `buildSnaps`), and the packed player
+  carries it as an f32 (23 bytes a player, from 21; codec version 2,
+  `snapshot_decoder.gd` refuses version 1 with a warning). Deaths and the
+  leaderboard stay floored.
+- Scenarios (the sweep, `--all --runs 3`, label `len-tenths`, against
+  `g1b-stand-in`, judged with `bench-baselines/thresholds/len-tenths.json`):
+  all thirteen pass. `server.inputQueue.stepAckMismatchPerMin` 0 in every
+  run. `correctionPx` p95, worst client: control-0ms 0.11 → 0.10,
+  baseline-3p-100ms 0.68 → 0.12, fps-varying-3p 6.94 → 0.57,
+  party-3p-lossy 7.00 → 0.67, party-3p-unfair 6.99 → 0.10.
+  `stepCorrectionsPerMin` (8 px or more, worst client) falls in 10 of 13
+  scenarios (control-0ms 10.8 → 2.2, party-3p-lossy 19.3 → 3.2); it rises
+  on encounter-3p-100ms (5.3 → 10.6, within noise: one bot on the tick
+  boundary, starved 31.9 %) and bursty-3p (0 → 1.1). `snapshotBytes` mean
+  +8 B on three players (+5 %); the party's JSON snapshots +6–9 %, a
+  float32 printing with many digits.
+- Machine: this sweep ran on reaper1, where the tick p95 is about twice
+  the baselines' (0.17–0.24 ms against 0.08–0.11); the shipped code
+  (6495269) measures 0.19 ms there too. Against the shipped code on the
+  same machine, control-0ms `ownVsRemotePx` p95 23.6 → 26.9 px is within
+  noise (its spread 4.1), and jitter-heavy-3p `shapeErrorPx` p95 8.3 →
+  7.3 px.
+- Threshold: `STEP_CORRECTION_PX` stays 8 px. At 4.5 px (traced on all
+  thirteen scenarios) the proxied ones show 2–15 a minute, nearly all 7 px
+  and its multiples on the clients in the late regime (baseline-3p-100ms
+  bot-b and bot-c, starved 15 and 28 % in the traces): a frame a coast
+  stood in for that toggled boost is a boosted step against a base one.
+  The input-phase card (`input-phase-a-client-whose-frames-land-just-after-the-tick-m`)
+  removes that regime and judges 4.5 px again.
+- Baselines: all thirteen scenarios are this sweep's (label `len-tenths`,
+  at 4321d07; the traces' scorecards computed again at 8 px).
+- Review fix after the sweep: `buildSnaps` sends the float32 on the sim's
+  side of the minimum (`wireLength`), since a plain rounding flips the
+  boost test for a minimum float32 cannot hold (5.3 rounds up: a snake at
+  the minimum looks boost-eligible) and for a length a float error leaves
+  just above it. With the default tunables (an integer minimum) it changes
+  only lengths within float32 precision of the minimum, so the sweep stands.
+
+## 2026-10-24 — H5b: Every coast stands in; a late frame steers the next tick [KEPT]
+
+- Branch: fix/input-queue-coast-stands-in (9257796 the queue, dd2caeb the
+  proxy and the out-of-order guard), the Conveyor card
+  `input-queue-every-coast-stands-in-for-the-late-frame-which-s`.
+- Why: the live game (Cloud Run and reaper1, deployed from PR #60) surged
+  and stalled about once a second. Decoding the packed snapshots of a 90 s
+  guest session: the player's own `ack` stood still on 16–29 ticks a
+  minute, moved by two with one step on 4–9, and by two with two steps on
+  7–19. Each ack that does not count the steps is a whole movement step
+  the client's replay did not predict: 9 px, 50 ms of motion, folded in
+  over 80 ms as a surge or a stall. Snapshot delivery (p95 53–55 ms, no
+  bunching), the tick grid (p99 52 ms) and the page's frame pacing were
+  clean.
+- Cause: H5's "owed" coast. A coast with nothing arrived stood in for the
+  client's next frame (ack and floor up); a coast after a refused late
+  frame (`arrived`) raised the ack alone, so the frame it stood for was
+  queued and stepped later (ack still for a tick: +1 step) and a later
+  frame skipped to pay (ack +2 for one step: −1), or the debt expired and
+  the +1 stayed. A client whose frames land within jitter of the tick flips
+  between the two branches; Godot's 60 Hz physics loop puts a third of real
+  sessions there. `correctionPx` p95 never saw it: the events are 1–3 % of
+  ticks. Driving the real `InputQueue` with synthetic arrivals (the card's
+  `queue-sim.mts`): 42–44 changes of steps − ack a minute at a phase 45–49
+  ms into the tick with ±3–25 ms of jitter, 8–23 a minute for a clock 0.1 %
+  slow at any phase.
+- Change: the ack counts the steps. `coast()` always `passed(taken + 1)`;
+  `owed`, `arrived`, `payOwed` and `OWED_TICKS` are gone; `push` says
+  whether it queued the frame, and `GameWorldSim.queueInputs` adopts the
+  intent of a refused frame newer than the one the snake last steered by
+  (`steeredSeq`), so a consistently late client is steered one tick
+  behind its prediction, never a step behind it (H5's dead ends C and D
+  skipped the late frame's intent too, and a slow clock lost its steering).
+  The queue is driven through phases 5–49 ms, jitter 0–25 ms and drift 0
+  and ±1000 ppm in its tests, asserting steps == ack after every tick: the
+  H5 queue fails it 1942 times at phase 49 ms, jitter 3 ms.
+- Gates added: `server.inputQueue.stepAckMismatchPerMin` from the ground
+  truth (each player's ack is recorded now), must be zero;
+  `smoothness.stepCorrectionsPerMin` (corrections of 8 px or more, the
+  worst client), a headline metric with a floor of one a minute. The
+  threshold is 8 px, not half a step: a boosted step is 16 px; a stood-in
+  frame's change of intent at a sharp turn reaches a few px; and a snake
+  boosting within one segment of the minimum length corrects exactly 7 px
+  a step (the server decides boost from its fractional length, the client
+  from the integer on the wire: a seam of its own, the card
+  `boost-near-the-minimum-length-the-client-predicts-a-base-ste`),
+  so the client count is not must-be-zero; the server metric is the exact
+  gate.
+- Browser tier (Chromium on the 144 Hz display of the desktop, 60 s each,
+  the order-preserving proxy; the shipped code from a worktree at
+  b32ef82): step/ack mismatches 0 in every run of the fix (3659–3706 fed
+  ticks a run; the shipped code records no acks). Corrections of 7 px or
+  more a minute, worst client: baseline-3p-100ms 1.0 against 3.0,
+  jitter-heavy-3p 1.0 against 5.2; `correctionPx` p99 1.1–2.3 px against
+  1.0–1.5; jerkRms equal within noise (11.5–17.6k against 12.4–15.9k).
+  `starvedRate` 14–28 % on one client in three: the late regime (below).
+- Found on the way, fixed on the branch: the latency proxy promised FIFO
+  delivery but scheduled a timer per chunk, and two chunks due at the same
+  millisecond fired in either order, which reordered whole WebSocket
+  frames under spikes (7–44 out-of-order snapshots a minute per client on
+  jitter-heavy-3p) and gave both code versions 17–109 whole-step
+  corrections a minute there; one queue drained by one timer now. And the
+  clients reconciled against an out-of-order snapshot (impossible over
+  TCP, real on a party's unordered `fast` channel): the bots and `main.gd`
+  ignore one now.
+- Cost, accepted: a client whose frames land just after the tick stays
+  there (the server consumes one seq a tick from its first frame on, so the
+  phase is the luck of the first arrival), is refused a quarter to a third
+  of its frames and steered by them one tick later: the pre-pack design's
+  latency, without its constant one-step correction. The client-side
+  re-phasing is the follow-up card
+  `input-phase-a-client-whose-frames-land-just-after-the-tick-m`.
+- Scenarios (the sweep, `--all --runs 3`, label `g1b-stand-in`, against the
+  committed baselines): against the committed baselines (`g4-final`, `g6-final` for the parties):
+  `server.inputQueue.stepAckMismatchPerMin` 0.00 in every scenario, worst
+  run 0 everywhere. Eleven scenarios pass; two fail `fidelity.shapeErrorPx`
+  p95 by 0.7–0.9 px, each on a client's OWN snake and nowhere else:
+  spectator-plus-2p 3.07 → 3.80 (bot-b→bot-b 12.6 → 16.0 px) and
+  party-3p-unfair 4.07 → 5.02 (host→host 0.4 → 9.7 px, on the in-process
+  link). Both are the trade: a client the server steers one tick late
+  (the late regime) turns one tick before the server's track does, and a
+  client at a round trip under a tick now predicts one step ahead of the
+  server (the stand-in consumed its next seq, it numbered past it) where
+  the H5 queue had it stepping the same frame twice. Remote entities and
+  the spectator hold at 0.4–0.8 px. drift-slow-client, which failed the
+  same metric in the first sweep (4.4 → 7.8 px) before the clients
+  numbered past a leading ack, passes (renderLatency +7.7 %, warn).
+  Improved: control-0ms ownVsRemotePx p95 26.5 → 20.5 px, bursty-3p
+  jerkRms −12 %, jitter-heavy-3p gapRate 0.01 → 0 and inputAckRtt p95
+  −7 % (the order-preserving proxy), party-3p-lossy remoteVsRemotePx p50
+  −16 %; tick p95 −44…−59 % everywhere (the machine). `starvedRate` per
+  scenario, now the only late-frame path: 0.1–4 % where no client sits on
+  the tick boundary, 9–31 % where one does (baseline-3p-100ms 12.7,
+  jitter-heavy-3p 12.5, mixed-3p 25.7, drift-slow-client 31.0,
+  party-3p-lossy 23.2). `stepCorrectionsPerMin` (8 px or more, worst
+  client) 0–5 a minute on the proxied scenarios, 10–11 on the two 0 ms
+  clients (control-0ms bot-a, drift-slow-client bot-a: the one surge per
+  regime entry when a stand-in runs ahead of a client at 0 ms, which the
+  phase card removes) and 11–19 on the party bots over their lossy,
+  unordered links. `bench-baselines/thresholds/g1b-stand-in.json` raises
+  the shape-error floor to 1 px for this verdict only.
+- Baselines: all thirteen scenarios are this sweep's (label `g1b-stand-in`).
+
 ## 2026-10-23 — Party worlds over peer links (the pack's G6) [KEPT]
 
 - Branch: conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt at

@@ -3,33 +3,34 @@
   "scenario": "jitter-heavy-3p",
   "seed": 1337,
   "tier": 1,
-  "gitCommit": "aed166918a522ba3f3006f725b18dc565c4ca7a5",
-  "branch": "conveyor/netcode-level-up-loss-tolerant-server-mo-k462dt",
-  "label": "g4-final",
-  "createdAt": "2026-10-23T19:58:26.535Z",
-  "durationMs": 56449.965087890625,
+  "gitCommit": "d404f87b8641c9032122da32c9a2e7f1fe09087f",
+  "branch": "feat/remotes-at-the-present",
+  "label": "remotes-playback",
+  "createdAt": "2026-10-25T16:05:23.998Z",
+  "durationMs": 56399.279052734375,
   "runs": 3,
   "server": {
     "tickDurMs": {
-      "n": 1130,
-      "mean": 0.14886037345050496,
-      "p50": 0.1452360000112094,
-      "p95": 0.19799900002544746,
-      "max": 0.2948750000214204
+      "n": 1128,
+      "mean": 0.031150862589542066,
+      "p50": 0.029075999977067113,
+      "p95": 0.045117000001482666,
+      "max": 0.14013999997405335
     },
     "snapshotBytes": {
-      "n": 1130,
-      "mean": 142.71150442477875,
-      "p50": 152,
-      "p95": 168,
-      "max": 184
+      "n": 1128,
+      "mean": 150.03546099290782,
+      "p50": 160,
+      "p95": 176,
+      "max": 208
     },
-    "effectiveTickRate": 20.01772717202977,
+    "effectiveTickRate": 20.00025565832675,
     "inputQueue": {
-      "depthP95": 1,
-      "starvedRate": 0.06989247311827956,
-      "multiStepRate": 0.0011947431302270011,
-      "depthTrend": -0.0024378109452736496
+      "depthP95": 0,
+      "starvedRate": 0.07879869164436515,
+      "multiStepRate": 0.0002973535533749628,
+      "depthTrend": 0,
+      "stepAckMismatchPerMin": 0
     }
   },
   "clients": {
@@ -37,80 +38,83 @@
       "kind": "bot",
       "packet": {
         "interArrivalMs": {
-          "n": 1128,
-          "mean": 50.00010388962766,
-          "p50": 50.024169921875,
-          "p95": 81.381591796875,
-          "max": 166.572509765625
+          "n": 1126,
+          "mean": 50.00051774276287,
+          "p50": 50.031982421875,
+          "p95": 82.537109375,
+          "max": 166.2607421875
         },
-        "effectiveRate": 20.000012369222663,
-        "gapRate": 0.015817223198594025,
-        "maxConsecutiveMissedTicks": 2,
+        "effectiveRate": 19.98286704917778,
+        "gapRate": 0,
+        "maxConsecutiveMissedTicks": 0,
         "inputAckRttMs": {
           "n": 1126,
-          "mean": 155.89785013148034,
-          "p50": 152.961181640625,
-          "p95": 201.915771484375,
-          "max": 272.309814453125
+          "mean": 120.69755703263766,
+          "p50": 116.276611328125,
+          "p95": 166.783935546875,
+          "max": 235.517333984375
         }
       },
       "smoothness": {
         "teleportsPerMin": 0,
-        "jerkRms": 545.1819770578768,
+        "jerkRms": 503.5933520070461,
         "hardSnapsPerMin": 0,
         "correctionPx": {
-          "n": 1129,
-          "mean": 0.4428819068688059,
-          "p50": 0.05454461195179112,
-          "p95": 0.7012782047148796,
-          "max": 18.015548839821797
-        }
+          "n": 1127,
+          "mean": 0.08486069004483508,
+          "p50": 0.05240148951139669,
+          "p95": 0.2600053891913113,
+          "max": 1.5581833343468066
+        },
+        "stepCorrectionsPerMin": 0
       },
       "perEntity": {
         "bot-a": {
           "renderLatencyMs": 0,
           "shapeErrorPx": {
-            "n": 3387,
-            "mean": 10.416513415660539,
-            "p50": 10.756643707469378,
-            "p95": 11.30810064608219,
-            "max": 19.54779599053602
+            "n": 3384,
+            "mean": 4.162111957465892,
+            "p50": 4.098418116691631,
+            "p95": 4.398585000071763,
+            "max": 7.4619096169547525
           }
         },
         "bot-b": {
           "renderLatencyMs": 175,
           "shapeErrorPx": {
-            "n": 3387,
-            "mean": 1.7529012620114566,
-            "p50": 1.144649457132482,
-            "p95": 5.556652704087637,
-            "max": 8.581747060792642
+            "n": 3384,
+            "mean": 1.87721927253477,
+            "p50": 1.1604536200102733,
+            "p95": 5.692399293156714,
+            "max": 12.014789520204548
           }
         },
         "bot-c": {
           "renderLatencyMs": 175,
           "shapeErrorPx": {
-            "n": 3387,
-            "mean": 1.6518649020782707,
-            "p50": 1.1261784842282558,
-            "p95": 4.043994281464732,
-            "max": 8.265909410618827
+            "n": 3274,
+            "mean": 1.8439939643439063,
+            "p50": 1.1703573070719977,
+            "p95": 4.775986183439273,
+            "max": 8.820966532100163
           }
         }
       },
       "predictionErrorPx": {
-        "n": 3387,
-        "mean": 10.416513415660539,
-        "p50": 10.756643707469378,
-        "p95": 11.30810064608219,
-        "max": 19.54779599053602
+        "n": 3384,
+        "mean": 4.162111957465892,
+        "p50": 4.098418116691631,
+        "p95": 4.398585000071763,
+        "max": 7.4619096169547525
       },
-      "effectiveFps": 61.57702020750281,
+      "effectiveFps": 61.84582100047214,
       "inputQueue": {
-        "depthP95": 1,
-        "starvedRate": 0.06637168141592921,
-        "multiStepRate": 0.0035398230088495575,
-        "depthTrend": -0.11221393034825872
+        "depthP95": 0,
+        "starvedRate": 0.08244680851063829,
+        "multiStepRate": 0,
+        "depthTrend": 0,
+        "stepAckMismatchPerMin": 0,
+        "nudgesPerMin": 0
       },
       "foodMismatchAtEnd": 0,
       "foodResyncs": 0
@@ -119,80 +123,83 @@
       "kind": "bot",
       "packet": {
         "interArrivalMs": {
-          "n": 1128,
-          "mean": 49.99965283549424,
-          "p50": 50.033935546875,
-          "p95": 81.11279296875,
-          "max": 164.79296875
+          "n": 1126,
+          "mean": 50.00053728283193,
+          "p50": 50.037353515625,
+          "p95": 82.735107421875,
+          "max": 165.711669921875
         },
-        "effectiveRate": 20.000012369222663,
-        "gapRate": 0.01145374449339207,
-        "maxConsecutiveMissedTicks": 2,
+        "effectiveRate": 19.98286704917778,
+        "gapRate": 0,
+        "maxConsecutiveMissedTicks": 0,
         "inputAckRttMs": {
           "n": 1127,
-          "mean": 124.07481166294643,
-          "p50": 119.453369140625,
-          "p95": 168.123779296875,
-          "max": 239.218994140625
+          "mean": 126.05913835473048,
+          "p50": 118.263671875,
+          "p95": 176.509765625,
+          "max": 255.49462890625
         }
       },
       "smoothness": {
         "teleportsPerMin": 0,
-        "jerkRms": 562.7539544214711,
+        "jerkRms": 445.0231257923789,
         "hardSnapsPerMin": 0,
         "correctionPx": {
-          "n": 1129,
-          "mean": 0.3101629732424426,
-          "p50": 0.05452051506599378,
-          "p95": 0.5088664437336714,
-          "max": 20.989411355586697
-        }
+          "n": 1127,
+          "mean": 0.0971663731135298,
+          "p50": 0.05207334640197932,
+          "p95": 0.31775370537829745,
+          "max": 7.160577952258152
+        },
+        "stepCorrectionsPerMin": 0
       },
       "perEntity": {
         "bot-b": {
           "renderLatencyMs": 0,
           "shapeErrorPx": {
-            "n": 3387,
-            "mean": 5.210902649365169,
-            "p50": 4.433791871910401,
-            "p95": 8.421403634176878,
-            "max": 13.872472069426589
+            "n": 3384,
+            "mean": 5.740923086067916,
+            "p50": 3.9749328361850704,
+            "p95": 10.209028746795582,
+            "max": 23.305722202478957
           }
         },
         "bot-a": {
           "renderLatencyMs": 175,
           "shapeErrorPx": {
-            "n": 3387,
-            "mean": 1.4888708336749135,
-            "p50": 1.0888114997914438,
-            "p95": 3.9064436141050076,
-            "max": 5.958450195008742
+            "n": 3384,
+            "mean": 1.4913975149848235,
+            "p50": 1.1335984552248093,
+            "p95": 4.179252446298074,
+            "max": 4.501054137911117
           }
         },
         "bot-c": {
           "renderLatencyMs": 175,
           "shapeErrorPx": {
-            "n": 3387,
-            "mean": 1.654678621155259,
-            "p50": 1.1293853042297275,
-            "p95": 4.115165572128858,
-            "max": 7.713063486678764
+            "n": 3274,
+            "mean": 1.7359600707869118,
+            "p50": 1.2277203964870638,
+            "p95": 4.744348280801651,
+            "max": 8.072241861030452
           }
         }
       },
       "predictionErrorPx": {
-        "n": 3387,
-        "mean": 5.210902649365169,
-        "p50": 4.433791871910401,
-        "p95": 8.421403634176878,
-        "max": 13.872472069426589
+        "n": 3384,
+        "mean": 5.740923086067916,
+        "p50": 3.9749328361850704,
+        "p95": 10.209028746795582,
+        "max": 23.305722202478957
       },
-      "effectiveFps": 61.593991089292665,
+      "effectiveFps": 61.82808997380916,
       "inputQueue": {
         "depthP95": 0,
-        "starvedRate": 0.07610619469026549,
-        "multiStepRate": 0,
-        "depthTrend": 0
+        "starvedRate": 0.07624113475177305,
+        "multiStepRate": 0.0008865248226950354,
+        "depthTrend": 0,
+        "stepAckMismatchPerMin": 0,
+        "nudgesPerMin": 1.0638166836593574
       },
       "foodMismatchAtEnd": 0,
       "foodResyncs": 0
@@ -201,80 +208,83 @@
       "kind": "bot",
       "packet": {
         "interArrivalMs": {
-          "n": 1128,
-          "mean": 49.999676859970634,
-          "p50": 50.03564453125,
-          "p95": 80.776123046875,
-          "max": 164.302001953125
+          "n": 1126,
+          "mean": 50.00056150177462,
+          "p50": 50.035400390625,
+          "p95": 82.18603515625,
+          "max": 165.551025390625
         },
-        "effectiveRate": 20.000131131838515,
-        "gapRate": 0.014951627088830254,
-        "maxConsecutiveMissedTicks": 2,
+        "effectiveRate": 19.98286704917778,
+        "gapRate": 0,
+        "maxConsecutiveMissedTicks": 0,
         "inputAckRttMs": {
-          "n": 1127,
-          "mean": 134.56388859042258,
-          "p50": 130.124755859375,
-          "p95": 181.7998046875,
-          "max": 251.272705078125
+          "n": 1105,
+          "mean": 134.9360088641827,
+          "p50": 124.709228515625,
+          "p95": 176.609130859375,
+          "max": 1214.45556640625
         }
       },
       "smoothness": {
         "teleportsPerMin": 0,
-        "jerkRms": 563.1588920392451,
+        "jerkRms": 513.7292724616757,
         "hardSnapsPerMin": 0,
         "correctionPx": {
-          "n": 1129,
-          "mean": 0.3868876225145758,
-          "p50": 0.054717753523582574,
-          "p95": 0.5912404666948751,
-          "max": 17.962739212046788
-        }
+          "n": 1109,
+          "mean": 0.0968418849683946,
+          "p50": 0.052530917493039314,
+          "p95": 0.16734201946282706,
+          "max": 13.946238131141216
+        },
+        "stepCorrectionsPerMin": 1.06384338608121
       },
       "perEntity": {
         "bot-c": {
           "renderLatencyMs": 0,
           "shapeErrorPx": {
-            "n": 3387,
-            "mean": 7.242653641629005,
-            "p50": 6.612503938810468,
-            "p95": 11.772132290824443,
-            "max": 25.45338748910587
+            "n": 3274,
+            "mean": 6.542368976619623,
+            "p50": 6.4507506161997465,
+            "p95": 11.516481079568832,
+            "max": 19.903439543663627
           }
         },
         "bot-a": {
           "renderLatencyMs": 175,
           "shapeErrorPx": {
-            "n": 3387,
-            "mean": 1.5833468694714665,
-            "p50": 1.0629276224399316,
-            "p95": 4.467472313968619,
-            "max": 6.749161373363239
+            "n": 3384,
+            "mean": 1.6937953375857784,
+            "p50": 1.1794633497701419,
+            "p95": 4.679983528477003,
+            "max": 5.090552781608939
           }
         },
         "bot-b": {
           "renderLatencyMs": 175,
           "shapeErrorPx": {
-            "n": 3387,
-            "mean": 1.8841733975168065,
-            "p50": 1.30256627109012,
-            "p95": 5.337614134445637,
-            "max": 8.853535433236512
+            "n": 3384,
+            "mean": 1.9246019568393236,
+            "p50": 1.2071577966209557,
+            "p95": 5.237050937308297,
+            "max": 13.428622447352572
           }
         }
       },
       "predictionErrorPx": {
-        "n": 3387,
-        "mean": 7.242653641629005,
-        "p50": 6.612503938810468,
-        "p95": 11.772132290824443,
-        "max": 25.45338748910587
+        "n": 3274,
+        "mean": 6.542368976619623,
+        "p50": 6.4507506161997465,
+        "p95": 11.516481079568832,
+        "max": 19.903439543663627
       },
-      "effectiveFps": 61.57702020750281,
+      "effectiveFps": 61.82808997380916,
       "inputQueue": {
         "depthP95": 0,
-        "starvedRate": 0.06814159292035399,
+        "starvedRate": 0.07768744354110207,
         "multiStepRate": 0,
-        "depthTrend": 0
+        "depthTrend": 0,
+        "stepAckMismatchPerMin": 0,
+        "nudgesPerMin": 0
       },
       "foodMismatchAtEnd": 0,
       "foodResyncs": 0
@@ -282,48 +292,52 @@
   },
   "divergence": {
     "ownVsRemotePx": {
-      "n": 20322,
-      "mean": 41.14440097290157,
-      "p50": 39.26929303007337,
-      "p95": 64.08461604399443,
-      "max": 78.22349305388911
+      "n": 20088,
+      "mean": 40.04023179834165,
+      "p50": 36.9920652643367,
+      "p95": 66.8815503174356,
+      "max": 85.41943933591337
     },
     "remoteVsRemotePx": {
-      "n": 10161,
-      "mean": 0.8125456965319954,
-      "p50": 0.6490847733191029,
-      "p95": 2.0955692808982107,
-      "max": 6.716145873253746
+      "n": 10044,
+      "mean": 0.7959357343098613,
+      "p50": 0.6276754612102283,
+      "p95": 2.13375446911855,
+      "max": 7.155097630244897
     }
   },
   "runVariance": {
-    "divergence.remoteVsRemotePx.p95": 0.1984551904737364,
-    "divergence.remoteVsRemotePx.p50": 0.04425819255988217,
-    "divergence.ownVsRemotePx.p95": 7.635506026166951,
+    "divergence.remoteVsRemotePx.p95": 0.1781329640025331,
+    "divergence.remoteVsRemotePx.p50": 0.07962498377044536,
+    "divergence.ownVsRemotePx.p95": 9.0269063227164,
     "smoothness.teleportsPerMin": 0,
-    "smoothness.jerkRms": 86.98013801407592,
+    "smoothness.jerkRms": 53.6619218889918,
     "smoothness.hardSnapsPerMin": 0,
-    "packet.gapRate": 0.0029001146831285404,
-    "packet.inputAckRttMs.p95": 8.843424479166686,
-    "fidelity.shapeErrorPx.p95": 1.4625608226815547,
+    "packet.gapRate": 0,
+    "packet.inputAckRttMs.p95": 6.7861328125,
+    "fidelity.shapeErrorPx.p95": 1.0794901091187077,
     "fidelity.renderLatencyMs": 0,
-    "server.tickDurMs.p95": 0.0060320000047795475,
+    "server.tickDurMs.p95": 0.006132000009529293,
     "server.inputQueue.depthP95": 0,
+    "server.inputQueue.stepAckMismatchPerMin": 0,
+    "smoothness.stepCorrectionsPerMin": 2.127612880420858,
     "food.mismatchAtEnd": 0
   },
   "runWorst": {
-    "divergence.remoteVsRemotePx.p95": 2.190405651493462,
-    "divergence.remoteVsRemotePx.p50": 0.6900886631824483,
-    "divergence.ownVsRemotePx.p95": 70.43690177545848,
+    "divergence.remoteVsRemotePx.p95": 2.1944585347614343,
+    "divergence.remoteVsRemotePx.p50": 0.6459803587376174,
+    "divergence.ownVsRemotePx.p95": 71.30277737584674,
     "smoothness.teleportsPerMin": 0,
-    "smoothness.jerkRms": 606.9341569935239,
+    "smoothness.jerkRms": 500.899549442103,
     "smoothness.hardSnapsPerMin": 0,
-    "packet.gapRate": 0.015808352078254595,
-    "packet.inputAckRttMs.p95": 185.70979817708334,
-    "fidelity.shapeErrorPx.p95": 7.8568853497371585,
+    "packet.gapRate": 0,
+    "packet.inputAckRttMs.p95": 174.82991536458334,
+    "fidelity.shapeErrorPx.p95": 6.6549934202031515,
     "fidelity.renderLatencyMs": 116.66666666666667,
-    "server.tickDurMs.p95": 0.1992910000262782,
-    "server.inputQueue.depthP95": 1,
+    "server.tickDurMs.p95": 0.04960599995683879,
+    "server.inputQueue.depthP95": 0,
+    "server.inputQueue.stepAckMismatchPerMin": 0,
+    "smoothness.stepCorrectionsPerMin": 2.127612880420858,
     "food.mismatchAtEnd": 0
   }
 }

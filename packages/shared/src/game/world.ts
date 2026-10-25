@@ -4,12 +4,12 @@
  * Pure and deterministic by construction: no I/O, no Date.now(), all
  * randomness through an injectable seeded RNG, fixed timestep. This is what
  * makes the netcode testable (identical inputs → identical state) and what
- * lets the Godot client run the same movement rules for prediction.
+ * lets every client run the same movement rules for prediction.
  *
  * Key design choice: only snake HEADS exist on the wire. Each side keeps a
  * per-snake path history of head positions and derives body segments at fixed
  * arc-length spacing along it — the server for collision, clients for
- * rendering. Each player adds 21 bytes to a packed snapshot (28 in its
+ * rendering. Each player adds 23 bytes to a packed snapshot (31 in its
  * base64, about 110 as JSON), whatever its snake's length.
  *
  * A human snake steps once for each input frame its client sent (InputQueue),
@@ -17,8 +17,10 @@
  * so the snapshot's `ack` names the last frame the server's state holds and
  * the client's replay reproduces its position. Once its first frame stepped,
  * a tick without a frame coasts on the last intent, and the ack covers the
- * coast. A tick of several steps checks collisions at every head it passed.
- * NPCs steer in place and step once a tick.
+ * coast as the client's next frame; that frame, when it arrives, is not
+ * stepped but steers the next step (the ack always counts the steps). A
+ * tick of several steps checks collisions at every head it passed. NPCs
+ * steer in place and step once a tick.
  */
 
 import type {
@@ -121,6 +123,15 @@ export interface SnakeState {
   path: Vec[];
   /** the client's frames waiting to be stepped (humans; NPCs steer in place) */
   inputs: InputQueue;
+  /** the seq of the newest frame whose intent steers the snake, stepped or adopted late */
+  steeredSeq: number;
+  /**
+   * since the last tick's snapshot, a late frame's intent was adopted, or the
+   * client numbered past the frame a coast stood in for: that snapshot says `late`
+   */
+  lateAdopted: boolean;
+  /** the seq the last coast stood in for, until a frame at or past it arrives (0: none) */
+  standIn: number;
   /** stepped a frame since it spawned: until then no client has stepped it either */
   fed: boolean;
   /** heads it passed this tick before its last step (a tick of several): collisions check them too */
@@ -137,7 +148,10 @@ export interface BodySample {
 
 /** One human snake's input accounting for a tick. */
 export interface TickInputs {
-  /** frames stepped this tick (0: none had arrived, the snake coasted on its last intent) */
+  /**
+   * frames stepped this tick (0: none had arrived, the snake coasted on its
+   * last intent, standing in for the client's next frame)
+   */
   stepped: number;
   /** frames still queued after the take */
   depth: number;
@@ -169,6 +183,32 @@ function mulberry32(seed: number): () => number {
 
 const SPATIAL_CELL = 64;
 
+const f32 = new Float32Array(1);
+const f32Bits = new Uint32Array(f32.buffer);
+
+/** The float32 next to a positive float32 `x`, above or below it. */
+function float32Beside(x: number, up: boolean): number {
+  f32[0] = x;
+  f32Bits[0] = (f32Bits[0] ?? 0) + (up ? 1 : -1);
+  return f32[0];
+}
+
+/**
+ * A snake's length as the packed snapshot carries it (a float32), on the
+ * same side of `minLength` as the sim's: the client's prediction decides
+ * boost by `len > minLength` from it as the server does, where a plain
+ * rounding could flip it (a length a float error leaves just above the
+ * minimum, or a minimum float32 cannot hold, such as 5.3).
+ */
+function wireLength(len: number, minLength: number): number {
+  const wire = Math.fround(len);
+  if (!(wire > 0)) return wire;
+  // the nearest float32 and the one beside it hold `len` between them
+  if (len > minLength && wire <= minLength) return float32Beside(wire, true);
+  if (len <= minLength && wire > minLength) return float32Beside(wire, false);
+  return wire;
+}
+
 export class GameWorldSim {
   public readonly tunables: GameTunables;
   public readonly dt = 1 / GAME_TICK_RATE;
@@ -198,7 +238,7 @@ export class GameWorldSim {
    * and NPCs stay within COUNT_TUNABLE_MAX: a packed snapshot counts food
    * and players in 16 bits, and a seed carries all the food in one entry.
    *
-   * Note for live edits: connected Godot clients keep predicting with the
+   * Note for live edits: connected clients keep predicting with the
    * values they fetched at load, so movement tunables cause reconciliation
    * drift until players reload. Server-authoritative correction absorbs it.
    */
@@ -235,6 +275,9 @@ export class GameWorldSim {
       len: this.tunables.startLength,
       path: [],
       inputs: new InputQueue(),
+      steeredSeq: 0,
+      lateAdopted: false,
+      standIn: 0,
       fed: false,
       swept: [],
     };
@@ -293,6 +336,8 @@ export class GameWorldSim {
     // again from the snapshot's ack, which the queue keeps
     snake.inputs.clear();
     snake.fed = false;
+    snake.lateAdopted = false;
+    snake.standIn = 0;
   }
 
   // ==========================================================================
@@ -302,13 +347,32 @@ export class GameWorldSim {
   /**
    * Queues a client's frames (a message carries its newest last and up to
    * three before it). The ticks that follow step them in seq order, one a
-   * tick; a frame stepped or queued already is ignored, as is everything for
-   * a dead snake.
+   * tick; a frame queued already is ignored, as is everything for a dead
+   * snake. A frame for a seq the snake's state already holds (a coast stood
+   * in for it) is not stepped, but when it is newer than the frame the
+   * snake last steered by, its intent is adopted now, so the next coast or
+   * step moves on it: a client whose frames keep landing just after the
+   * tick is steered one tick behind its prediction, never a step behind it,
+   * and the next tick's snapshot tells it so (`PlayerSnap.late`): its client
+   * moves its frames earlier. So does a client that numbered past the frame
+   * a coast stood in for (the snapshot reached it before it stepped that
+   * frame: at a round trip under a tick, a late frame never leaves).
    */
   public queueInputs(id: string, frames: readonly GameInput[]): void {
     const snake = this.players.get(id);
     if (!snake || !snake.alive || isNpcId(id)) return;
-    for (const frame of frames) snake.inputs.push(frame);
+    for (const frame of frames) {
+      if (snake.standIn > 0 && frame.seq >= snake.standIn) {
+        if (frame.seq > snake.standIn) snake.lateAdopted = true;
+        snake.standIn = 0;
+      }
+      if (snake.inputs.push(frame)) continue;
+      if (frame.seq > snake.steeredSeq && frame.seq <= snake.inputs.lastSeq) {
+        this.steer(snake, frame);
+        snake.steeredSeq = frame.seq;
+        snake.lateAdopted = true;
+      }
+    }
   }
 
   /** A frame's intent: its direction (when it has one) and its boost. */
@@ -343,12 +407,13 @@ export class GameWorldSim {
       }
       // One step per frame its client sent, one frame a tick; once it has
       // sent its first, a tick without one coasts on the last intent, and
-      // the queue counts the coast for the late frame
+      // the queue counts the coast as the client's next frame
       const frames = snake.inputs.take(this.dt);
       snake.swept.length = 0;
       for (const [i, frame] of frames.entries()) {
         if (i > 0) snake.swept.push({ ...snake.head });
         this.steer(snake, frame);
+        snake.steeredSeq = Math.max(snake.steeredSeq, frame.seq);
         this.moveSnake(snake);
         this.eatNearbyFood(snake, foodEaten);
       }
@@ -358,6 +423,7 @@ export class GameWorldSim {
         this.moveSnake(snake);
         this.eatNearbyFood(snake, foodEaten);
         snake.inputs.coast();
+        snake.standIn = snake.inputs.lastSeq;
       }
       if (snake.fed) {
         inputs[snake.meta.id] = { stepped: frames.length, depth: snake.inputs.depth() };
@@ -369,7 +435,7 @@ export class GameWorldSim {
 
     const changed = foodSpawned.length > 0 || foodEaten.length > 0;
     return {
-      snapshot: { tick: this.tick, players: this.buildSnaps() },
+      snapshot: { tick: this.tick, players: this.buildSnaps(true) },
       food: changed
         ? {
             tick: this.tick,
@@ -562,19 +628,27 @@ export class GameWorldSim {
   // Snapshots & bootstrap
   // ==========================================================================
 
-  private buildSnaps(): PlayerSnap[] {
+  /**
+   * Every live snake's head. A tick's snapshot (`tick`) also says `late` for
+   * a snake that adopted a late frame since the last one, and clears it; a
+   * keyframe or a bootstrap between ticks leaves it to the next tick's.
+   */
+  private buildSnaps(tick = false): PlayerSnap[] {
     const snaps: PlayerSnap[] = [];
     for (const snake of this.players.values()) {
       if (!snake.alive) continue;
+      const late = tick && snake.lateAdopted;
+      if (tick) snake.lateAdopted = false;
       snaps.push({
         id: snake.meta.id,
         x: Math.round(snake.head.x * 10) / 10,
         y: Math.round(snake.head.y * 10) / 10,
         dx: Math.round(snake.dir.x * 1000) / 1000,
         dy: Math.round(snake.dir.y * 1000) / 1000,
-        len: Math.floor(snake.len),
+        len: wireLength(snake.len, this.tunables.minLength),
         boost: snake.boost && snake.len > this.tunables.minLength,
         ack: snake.inputs.lastSeq,
+        ...(late ? { late: true } : {}),
       });
     }
     return snaps;

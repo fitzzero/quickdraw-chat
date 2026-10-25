@@ -22,7 +22,7 @@ import {
   gameContract,
   worldSnapshotSchema,
 } from "@project/shared";
-import { FoodTracker } from "../../bench/bot/food.js";
+import { FoodTracker } from "@project/shared";
 import { ensureGlobalWorld } from "../../services/game/bootstrap.js";
 import { gameService } from "../../services/game/index.js";
 import { gameRuntime, persistScore } from "../../services/game/runtime.js";
@@ -454,10 +454,10 @@ describe("what changes the game's topic and the world chat's lists", () => {
 
   it("joins the world chat once when two sockets of a user watch at the same time", async () => {
     const ada = await createTestUser({ name: "Ada" });
-    const [page, godot] = await Promise.all([connect(ada.id), connect(ada.id)]);
+    const [page, tab] = await Promise.all([connect(ada.id), connect(ada.id)]);
     const [first, second] = await Promise.all([
       page.call.gameService.watchWorld(WORLD),
-      godot.call.gameService.watchWorld(WORLD),
+      tab.call.gameService.watchWorld(WORLD),
     ]);
     expect(second.chatId).toBe(first.chatId);
     expect(
@@ -712,21 +712,21 @@ describe("GameService on the realtime kit", () => {
   });
 
   it("any socket of the user in the world's room anchors the player (dual-socket presence)", async () => {
-    // The Godot client spectates on its own socket; the web page joins on another
-    const godot = await connect(users.regular.id);
-    await godot.call.gameService.watchWorld(WORLD);
+    // A second tab spectates on its own socket; the page joins on another
+    const tab = await connect(users.regular.id);
+    await tab.call.gameService.watchWorld(WORLD);
     const { socket: page } = await joined(users.regular.id);
 
-    // The page reloads: the Godot socket keeps the player in the world
+    // The page reloads: the other socket keeps the player in the world
     page.close();
     await vi.waitFor(() => {
       expect(app.server.rooms.size(GLOBAL_WORLD_ROOM)).toBe(1);
     });
-    await settled(godot);
+    await settled(tab);
     expect(gameRuntime(testDb).sim.hasPlayer(users.regular.id)).toBe(true);
 
     // The last socket gone: the player leaves the sim
-    godot.close();
+    tab.close();
     await vi.waitFor(() => {
       expect(gameRuntime(testDb).sim.hasPlayer(users.regular.id)).toBe(false);
     });

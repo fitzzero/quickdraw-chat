@@ -11,6 +11,8 @@ import {
   SNAPSHOT_CODEC_VERSION,
   SNAPSHOT_FLAG_KEYFRAME,
   SNAPSHOT_FLAG_T,
+  SNAPSHOT_PLAYER_BOOST,
+  SNAPSHOT_PLAYER_LATE,
 } from "./snapshotCodec.js";
 
 const FOOD_ID = /^f(\d+)$/;
@@ -122,8 +124,8 @@ function writePlayer(out: ByteWriter, index: number, player: PlayerSnap): void {
   out.u32(tenths(player.y));
   out.i16(clamp(Math.round(player.dx * 1000), -0x8000, 0x7fff));
   out.i16(clamp(Math.round(player.dy * 1000), -0x8000, 0x7fff));
-  out.u16(clamp(player.len, 0, 0xffff));
-  out.u8(player.boost ? 1 : 0);
+  out.f32(player.len);
+  out.u8((player.boost ? SNAPSHOT_PLAYER_BOOST : 0) | (player.late ? SNAPSHOT_PLAYER_LATE : 0));
   out.u32(player.ack);
 }
 

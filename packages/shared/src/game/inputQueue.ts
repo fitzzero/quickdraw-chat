@@ -9,34 +9,39 @@
  * client's replay from it reproduces the client's own position, but for the
  * change of intent of a frame a coast stood in for.
  *
- * Frames reach the server with the jitter of the client's frame loop (up to
- * a render frame, about 17 ms) and of the network, so a client whose frames
- * land near the server's tick sees them flip between ticks. Stepping what
- * arrived would then move its snake twice in one tick and not at all in the
- * next, a stutter every other player sees. Instead the snake steps once a
- * tick, a backlog aside:
+ * The one invariant: the ack counts the steps. Every tick `lastSeq` advances
+ * by exactly the frames stepped, or by one for a coast. A client replaying
+ * its unacknowledged frames from the snapshot then never finds a step more
+ * or fewer than it predicted, which would be a correction of a whole
+ * movement step (9 px, 50 ms of motion) and is what a player sees as a
+ * jolt. Three rules keep it:
  *
  * - A tick without a frame coasts: the sim steps the snake on its last
- *   intent. When nothing arrived since the last tick (the frame is late, or
- *   the client stalled), the step stands in for the client's next frame,
- *   which is ignored when it arrives: the client corrects only that frame's
- *   difference in intent.
- * - When frames arrived but none can step (the client is behind: its clock
- *   runs slow, or it came back from a pause), the coast is owed instead. A
- *   frame that arrives with another after it pays an owed step and is
- *   skipped; a debt not paid within OWED_TICKS ticks expires, and the client
- *   corrects that one step.
+ *   intent, and the step stands in for the client's next frame, whose seq
+ *   is consumed. That frame is never stepped when it arrives (`push`
+ *   refuses it), but it steers the next step: the sim adopts its intent
+ *   (world.ts `queueInputs`), so a client whose frames keep landing just
+ *   after the tick is steered one tick behind its prediction, never a step
+ *   behind it.
  * - A frame that arrives early (two in one tick) waits for its own tick. A
  *   second frame steps in one tick only from a backlog (two or more queued
  *   after the first), or once a frame has waited HOLD_TICKS ticks without a
  *   tick needing it: a client whose clock runs fast drains its extra frames
  *   that way.
+ * - Every step is taken against a credit: each tick refills it by `1 + 3 * dt`
+ *   (1.15 at 20 Hz), capped at 15, and each frame stepped or coast spends one,
+ *   at most three steps a tick. A client sending frames faster than real time,
+ *   or holding them back to send in bursts, moves at most 15% faster on
+ *   average.
  *
- * Every step is taken against a credit: each tick refills it by `1 + 3 * dt`
- * (1.15 at 20 Hz), capped at 15, and each frame stepped or coast spends one,
- * at most three steps a tick. A client sending frames faster than real time,
- * or holding them back to send in bursts, moves at most 15% faster on
- * average.
+ * Frames reach the server with the jitter of the client's frame loop (up to
+ * a render frame, about 17 ms) and of the network, so a client whose frames
+ * land near the server's tick sees them flip between ticks. The queue's
+ * first version let a coast be "owed" in that case (the stood-in frame
+ * stepped when it came alone, and a later frame was skipped to pay for it):
+ * each such flip moved the ack and the steps apart by one, about once a
+ * second for a player on the boundary, which the live game showed as a
+ * surge and a stall on 2026-10-24. Every coast stands in now.
  */
 
 import type { GameInput } from "../types/game.js";
@@ -47,28 +52,18 @@ export const INPUT_QUEUE_CAP = 15;
 export const INPUT_CREDIT_CAP = 15;
 /** Frames a snake steps in one tick at most. */
 export const MAX_STEPS_PER_TICK = 3;
-/** Ticks after the last owed coast that its debt stays. */
-export const OWED_TICKS = 4;
 /** Ticks a frame waits without a tick needing it before it steps with the next one. */
 export const HOLD_TICKS = 10;
 
 export class InputQueue {
   private readonly frames: GameInput[] = [];
   private credit = INPUT_CREDIT_CAP;
-  /** The seq of the last frame the snake's state holds (stepped, skipped or coasted for): the ack. */
+  /** The seq of the last frame the snake's state holds (stepped or coasted for): the ack. */
   private taken: number;
-  /** Frames at or below this seq are ignored: taken ones, stood-in ones, and ones the cap pushed out. */
+  /** Frames at or below this seq are refused: taken ones, stood-in ones, and ones the cap pushed out. */
   private floor: number;
-  /** The newest seq the client sent (ignored frames included), and as of the last take. */
-  private newest = 0;
-  private newestTaken = 0;
-  /** A frame arrived between the last two takes. */
-  private arrived = false;
   /** Ticks in a row that ended with a frame still queued. */
   private held = 0;
-  /** Coasted steps not yet paid by a skipped frame, and ticks since the last one. */
-  private owed = 0;
-  private owedFor = 0;
 
   constructor(lastSeq = 0) {
     this.taken = lastSeq;
@@ -86,37 +81,36 @@ export class InputQueue {
   }
 
   /**
-   * Queues a frame in seq order. A frame at or below the floor (taken, stood
-   * in for, or pushed out), or one queued already, is ignored; at the cap
-   * the oldest queued frame gives way (it is never stepped, and the client's
-   * replay corrects for it).
+   * Queues a frame in seq order and says whether it was queued. A frame at or
+   * below the floor (taken, stood in for, or pushed out), or one queued
+   * already, is refused; at the cap the oldest queued frame gives way (it is
+   * never stepped, and the client's replay corrects for it). A refused frame
+   * for a seq the snake's state holds (`seq <= lastSeq`) is the one a coast
+   * stood in for: its intent is the client's newest word, and the sim
+   * steers by it (world.ts).
    */
-  public push(frame: GameInput): void {
-    this.newest = Math.max(this.newest, frame.seq);
-    if (frame.seq <= this.floor) return;
+  public push(frame: GameInput): boolean {
+    if (frame.seq <= this.floor) return false;
     let at = this.frames.length;
     while (at > 0 && (this.frames[at - 1]?.seq ?? 0) > frame.seq) at--;
-    if (at > 0 && this.frames[at - 1]?.seq === frame.seq) return;
+    if (at > 0 && this.frames[at - 1]?.seq === frame.seq) return false;
     this.frames.splice(at, 0, frame);
     if (this.frames.length > INPUT_QUEUE_CAP) {
       const dropped = this.frames.shift();
       if (dropped) this.floor = dropped.seq;
+      if (dropped === frame) return false;
     }
+    return true;
   }
 
   /**
-   * The frames to step this tick, oldest first. Owed steps are paid first,
-   * by skipping frames while two or more are queued. Then one frame, and a
-   * second only from a backlog or to drain a frame that waited HOLD_TICKS
-   * ticks: at most MAX_STEPS_PER_TICK, and one per whole credit (refilled by
-   * `1 + 3 * dt`). An empty queue gives none: the sim coasts and calls
-   * `coast()`.
+   * The frames to step this tick, oldest first: one frame, and a second only
+   * from a backlog or to drain a frame that waited HOLD_TICKS ticks, at most
+   * MAX_STEPS_PER_TICK and one per whole credit (refilled by `1 + 3 * dt`).
+   * An empty queue gives none: the sim coasts and calls `coast()`.
    */
   public take(dt: number): GameInput[] {
     this.credit = Math.min(INPUT_CREDIT_CAP, this.credit + 3 * dt + 1);
-    this.arrived = this.newest > this.newestTaken;
-    this.newestTaken = this.newest;
-    this.payOwed();
     const out: GameInput[] = [];
     const drain = this.held >= HOLD_TICKS;
     while (out.length < MAX_STEPS_PER_TICK && this.credit >= 1 && this.mayStep(out.length, drain)) {
@@ -127,47 +121,28 @@ export class InputQueue {
       out.push(frame);
     }
     this.held = this.frames.length > 0 && !drain ? this.held + 1 : 0;
-    if (this.owed > 0 && ++this.owedFor >= OWED_TICKS) this.owed = 0;
     return out;
   }
 
   /**
-   * The sim stepped the snake on its last intent: the step spends a credit,
-   * and stands in for the client's next frame or is owed (see the header).
-   * Either way the ack covers it.
+   * The sim stepped the snake on its last intent: the step spends a credit
+   * and stands in for the client's next frame, whose seq the ack now covers.
+   * A frame for that seq is never stepped (one queued meanwhile is dropped).
    */
   public coast(): void {
     this.credit = Math.max(0, this.credit - 1);
-    if (!this.arrived) {
-      this.passed(this.taken + 1);
-      return;
-    }
-    this.owed++;
-    this.owedFor = 0;
-    this.taken += 1;
+    this.passed(this.taken + 1);
+    while ((this.frames[0]?.seq ?? Infinity) <= this.floor) this.frames.shift();
   }
 
   /**
-   * Drops the queued frames and what is owed (the snake died or spawned
-   * again). The ack stays: the client starts again from it, so its frames
-   * after it are the ones that arrive.
+   * Drops the queued frames (the snake died or spawned again). The ack
+   * stays: the client starts again from it, so its frames after it are the
+   * ones that arrive.
    */
   public clear(): void {
     this.frames.length = 0;
     this.held = 0;
-    this.owed = 0;
-    this.newest = this.taken;
-    this.newestTaken = this.taken;
-  }
-
-  /** Pays owed steps by skipping frames while two or more are queued. */
-  private payOwed(): void {
-    while (this.owed > 0 && this.frames.length >= 2) {
-      const paid = this.frames.shift();
-      if (!paid) return;
-      this.owed--;
-      this.passed(paid.seq);
-    }
   }
 
   /** Past a tick's first frame, another steps only from a backlog, or to drain a held one. */

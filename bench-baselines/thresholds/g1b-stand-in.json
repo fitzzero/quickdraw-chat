@@ -1,0 +1,18 @@
+{
+  "description": "The input-queue fix (every coast stands in, a late frame steers the next tick, clients number past a leading ack), against the baselines made before it (g4-final, g6-final for the parties). A client the server steers one tick late turns one tick before the server's track does, and a client at a round trip under a tick predicts one step ahead of the server where the old queue stepped its frame twice: both leave more residual on the client's OWN snake after the best constant lag (shapeErrorPx), by under 1 px at p95 (spectator-plus-2p 3.07 to 3.80, party-3p-unfair 4.07 to 5.02); remotes hold. One floor is raised, shapeErrorPx p95 to 1 px; the others restate DEFAULT_THRESHOLDS, since this file replaces the whole absoluteFloor map. Use it for this fix's runs against the pre-fix baselines only, and the default thresholds against the g1b-stand-in baselines.",
+  "absoluteFloor": {
+    "divergence.remoteVsRemotePx.p95": 0.5,
+    "divergence.remoteVsRemotePx.p50": 0.5,
+    "divergence.ownVsRemotePx.p95": 2,
+    "smoothness.teleportsPerMin": 0.2,
+    "smoothness.jerkRms": 25,
+    "smoothness.hardSnapsPerMin": 0.2,
+    "packet.gapRate": 0.005,
+    "packet.inputAckRttMs.p95": 3,
+    "fidelity.shapeErrorPx.p95": 1,
+    "fidelity.renderLatencyMs": 5,
+    "server.tickDurMs.p95": 0.05,
+    "server.inputQueue.depthP95": 1,
+    "smoothness.stepCorrectionsPerMin": 1
+  }
+}

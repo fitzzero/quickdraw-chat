@@ -46,6 +46,20 @@ function partyLine({
   );
 }
 
+/** The browser tier's line: the frame-time tails, the stalls and the builds, the backend. */
+function tier2Line(tier2: NonNullable<Scorecard["tier2"]>): string {
+  const frame = tier2.frameTimeMs;
+  // a card made before a field existed holds no value for it
+  const held = (value: number | undefined, digits = 2): string => measured(value ?? null, digits);
+  return (
+    `  Tier 2 (${tier2.backend ?? "unknown"}): frame time p50 ${num(frame.p50)} / p95 ${num(frame.p95)} / ` +
+    `p99 ${held(frame.p99, 1)} ms, fps p50 ${num(tier2.fps.p50, 0)}, ` +
+    `long tasks ${held(tier2.longTasksPerMin)}/min, geometry builds ${held(tier2.geometryBuildsPerMin)}/min, ` +
+    `pauses ${held(tier2.pausesPerMin)}/min, ` +
+    `draw calls p50 ${tier2.drawCalls === undefined || tier2.drawCalls.n === 0 ? "n/a" : num(tier2.drawCalls.p50, 0)}`
+  );
+}
+
 export function printSummary(card: Scorecard): string {
   const lines: string[] = [];
   const push = (s: string) => lines.push(s);
@@ -65,14 +79,14 @@ export function printSummary(card: Scorecard): string {
   );
   push("");
   push(
-    "  Client                 tele/min  jerkRMS  snaps/min  gap%   ackRTT p95  interArr p95  fps",
+    "  Client                 tele/min  jerkRMS  snaps/min  gap%   ackRTT p95  interArr p95  fps  stepCorr/min",
   );
   for (const [id, c] of Object.entries(card.clients)) {
     push(
       `    ${id.padEnd(20)} ${pad(num(c.smoothness.teleportsPerMin))} ${pad(num(c.smoothness.jerkRms, 0))} ` +
         `${pad(num(c.smoothness.hardSnapsPerMin))} ${pad(num(c.packet.gapRate * 100, 2))} ` +
         `${pad(num(c.packet.inputAckRttMs.p95, 0))} ${pad(num(c.packet.interArrivalMs.p95, 0))} ` +
-        `${pad(num(c.effectiveFps, 0))}`,
+        `${pad(num(c.effectiveFps, 0))} ${pad(measured(c.smoothness.stepCorrectionsPerMin ?? null))}`,
     );
   }
   push("");
@@ -84,15 +98,7 @@ export function printSummary(card: Scorecard): string {
         `    ${id} → ${entityId.slice(0, 12).padEnd(12)}${own}  ${pad(num(e.renderLatencyMs, 0))} / ${num(e.shapeErrorPx.p95)}`,
       );
     }
-    if (c.predictionErrorPx) {
-      push(`    ${id} local prediction error p95: ${num(c.predictionErrorPx.p95)} px`);
-    }
-    if (c.foodMismatchAtEnd !== undefined) {
-      push(
-        `    ${id} food at the end: ${num(c.foodMismatchAtEnd, 0)} differing from the server's, ` +
-          `${num(c.foodResyncs ?? 0, 0)} keyframes asked for`,
-      );
-    }
+    for (const line of ownLines(id, c)) push(line);
   }
   push("");
   push(
@@ -104,9 +110,11 @@ export function printSummary(card: Scorecard): string {
   if (queue) {
     push(
       `  Input queue: depth p95 ${num(queue.depthP95, 0)}, starved ${num(queue.starvedRate * 100, 2)}%, ` +
-        `multi-step ${num(queue.multiStepRate * 100, 2)}%, depth trend ${num(queue.depthTrend, 2)}`,
+        `multi-step ${num(queue.multiStepRate * 100, 2)}%, depth trend ${num(queue.depthTrend, 2)}, ` +
+        `step/ack mismatch ${measured(queue.stepAckMismatchPerMin ?? null, 2)}/min`,
     );
   }
+  if (card.tier2) push(tier2Line(card.tier2));
   if (card.party) push(partyLine(card.party));
   if (card.runVariance) {
     const worst = Object.entries(card.runVariance)
@@ -118,6 +126,27 @@ export function printSummary(card: Scorecard): string {
     );
   }
   return lines.join("\n");
+}
+
+/** A client's lines about its own snake: prediction, input phase, food. */
+function ownLines(id: string, c: Scorecard["clients"][string]): string[] {
+  const lines: string[] = [];
+  if (c.predictionErrorPx) {
+    lines.push(`    ${id} local prediction error p95: ${num(c.predictionErrorPx.p95)} px`);
+  }
+  if (c.inputQueue) {
+    lines.push(
+      `    ${id} input phase: starved ${num(c.inputQueue.starvedRate * 100, 2)}%, ` +
+        `${measured(c.inputQueue.nudgesPerMin ?? null)} nudges/min`,
+    );
+  }
+  if (c.foodMismatchAtEnd !== undefined) {
+    lines.push(
+      `    ${id} food at the end: ${num(c.foodMismatchAtEnd, 0)} differing from the server's, ` +
+        `${num(c.foodResyncs ?? 0, 0)} keyframes asked for`,
+    );
+  }
+  return lines;
 }
 
 function pad(s: string, width = 8): string {

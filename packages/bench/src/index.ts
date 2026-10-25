@@ -8,6 +8,15 @@ export {
   type ScorecardMeta,
 } from "./metrics/index.js";
 export { computeStats } from "./metrics/tracks.js";
+export { computeTier2, tier2Metrics, type Tier2Report } from "./metrics/tier2.js";
+export {
+  TIER2_ACCEPTANCE,
+  acceptanceFor,
+  displayRateOf,
+  judgeTier2,
+  type Tier2Acceptance,
+  type Tier2Verdict,
+} from "./tier2.js";
 export { saveScorecard, loadScorecard, printSummary } from "./scorecard.js";
 export { SCENARIOS, getScenario } from "./scenarios.js";
 export {

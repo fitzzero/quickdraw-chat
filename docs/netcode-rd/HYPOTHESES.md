@@ -95,6 +95,13 @@ without a frame coasts and stands in for the late frame.
 - Result: `correctionPx` p95 at most 0.8 px on every client, from 9–16 px;
   `jerkRms` −17…−43% where it moved. See the 2026-10-23 LEDGER entry, with
   the dead ends.
+- Amended 2026-10-24: the queue's "owed" coast (a stood-in frame that came
+  alone was stepped anyway, a later frame skipped to pay for it) moved the
+  ack and the steps apart by one each way, about once a second for a
+  player on the tick boundary, which the live game showed as a surge and a
+  stall; p95 hid it. Every coast now stands in, and a late frame steers
+  the next tick instead of stepping. See the 2026-10-24 LEDGER entry and
+  the must-be-zero `stepAckMismatchPerMin`.
 
 ## 6. Correction tuning sweep
 
@@ -112,7 +119,7 @@ Resolved 2026-10-23 (the netcode pack's G4) and recorded KEPT in
 `LEDGER.md`. Kept here for the record; do not pick it up again.
 
 The full player array went every tick as JSON: about 110 B a player.
-Each snapshot is now packed (`game/snapshotCodec.ts`): 21 B a player, a
+Each snapshot is now packed (`game/snapshotCodec.ts`): 23 B a player, a
 player named by an index into the stream's id table, base64 in the stream
 item (`{ b }`), since the Godot client reads text frames only. A binary
 attachment would save the base64's third; it needs the Socket.IO binary
@@ -149,3 +156,34 @@ too (`setLag({ ms, jitter })`, the jitter from each link's clock), so its
 playback delay matches theirs. Measure with `party-3p-lossy`: the host's
 own user's renderLatencyMs against the players', and remoteVsRemotePx p95
 (8.4 px, against 3.0 px when the host's own user has a player's link).
+
+## 10. Remotes at the present: dead reckoning to the world clock — MEASURED
+
+Remote snakes render on the playback timeline, 1.5–6 ticks behind the world
+clock's estimate (#3), while the local snake is predicted ahead of the
+server by the round trip: on the player's screen a remote head sits 2–5
+movement steps (20–45 px) from where the server has it relative to the
+player's own, and a cut-off the player sees by less than that never happens
+on the server. Snakes move at a constant speed with a bounded turn, so dead
+reckoning from the newest snapshot to the estimate is accurate until the
+snake turns.
+
+- Change: `RemotesMode` in `packages/shared/src/game/client/interpolation.ts`
+  (`playback` | `present`); the core's `remotes` option picks the tick each
+  interpolator renders at: the render timeline, or `WorldClock.estimateTick()`
+  (the newest snapshot extrapolated along its heading at its speed for the
+  extrapolation budget, held past it). Every snapshot then re-bases the
+  reckoning, so the interpolator folds the difference a snapshot's arrival
+  makes at the last rendered tick into its glide (both modes: a late
+  snapshot replacing an extrapolation on playback glides too). The page
+  takes `?remotes=playback|present`; the bots `BotSpec.remotes` and
+  `bench:netcode --remotes <mode>`.
+- Confirm: `fidelity.renderLatencyMs` for remotes ↓ (toward the one-way
+  trip), `divergence.ownVsRemotePx` p95 ↓ (toward the prediction error),
+  `remoteVsRemotePx` converging; the costs: `smoothness.jerkRms` ↑ (a glide
+  per snapshot) and `fidelity.shapeErrorPx` ↑ (the overshoot on turns),
+  `teleportsPerMin` 0.
+- Wire: none.
+- Verdict: `playback` stays the default, `present` behind the flag; the
+  LEDGER entry "Remotes at the present: dead reckoning to the world clock"
+  (2026-10-25) has the numbers and the follow-ups.

@@ -3,18 +3,9 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { GameSurface } from "../../components/game";
-import { GodotCanvas } from "../../components/game/GodotCanvas";
-import { GLOBAL_WORLD_SLUG, type QuickdrawHostConfig } from "@project/shared";
+import { GameCanvas } from "../../game";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
-const HOST_CONFIG: QuickdrawHostConfig = {
-  apiUrl: API_URL,
-  worldSlug: GLOBAL_WORLD_SLUG,
-  // Cookie auth: the browser attaches the session cookie to Godot's
-  // websocket handshake — no token needed on the plain web route.
-  authToken: null,
-};
 
 const BENCH_ALLOWED =
   process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_ENABLE_BENCH === "1";
@@ -22,11 +13,7 @@ const BENCH_ALLOWED =
 export default function GamePage(): React.ReactElement {
   // useSearchParams requires a Suspense boundary for static generation
   return (
-    <React.Suspense
-      fallback={
-        <GameSurface hostConfig={HOST_CONFIG} guestFlow guestAuthUrl={`${API_URL}/auth/guest`} />
-      }
-    >
+    <React.Suspense fallback={<GameSurface guestFlow guestAuthUrl={`${API_URL}/auth/guest`} />}>
       <GamePageInner />
     </React.Suspense>
   );
@@ -42,7 +29,6 @@ function GamePageInner(): React.ReactElement {
   }
   return (
     <GameSurface
-      hostConfig={HOST_CONFIG}
       guestFlow
       guestAuthUrl={`${API_URL}/auth/guest`}
       // a party's host plays over an unlagged link with ?fairLink=off (A/B play)
@@ -53,10 +39,10 @@ function GamePageInner(): React.ReactElement {
 
 /**
  * Netcode-bench mode (dev-gated, driven by apps/bench-web via Playwright):
- * bare Godot canvas, no dialogs/HUD/React socket. The page defines the
- * telemetry sink + bench config BEFORE the engine boots; Godot connects
- * through the latency proxy (`benchApi`) with dev-credential auth and
- * spawns itself (autoSpawn), then streams telemetry into
+ * the bare game client, no dialogs, HUD or page socket. The page defines the
+ * telemetry sink BEFORE the client starts; the client opens a connection of
+ * its own through the latency proxy (`benchApi`) with dev-credential auth,
+ * joins and respawns itself, and streams telemetry into
  * window.QuickdrawBench for the runner to drain.
  */
 function BenchSurface({ apiUrl, userId }: { apiUrl: string; userId: string }): React.ReactElement {
@@ -72,12 +58,8 @@ function BenchSurface({ apiUrl, userId }: { apiUrl: string; userId: string }): R
         return drained;
       },
     };
-    window.QuickdrawBenchConfig = { autoSpawn: true, devUserId: userId };
   }
 
-  const hostConfig = React.useMemo<QuickdrawHostConfig>(
-    () => ({ apiUrl, worldSlug: GLOBAL_WORLD_SLUG, authToken: null }),
-    [apiUrl],
-  );
-  return <GodotCanvas hostConfig={hostConfig} />;
+  const bench = React.useMemo(() => ({ apiUrl, userId }), [apiUrl, userId]);
+  return <GameCanvas bootstrap={null} bench={bench} />;
 }

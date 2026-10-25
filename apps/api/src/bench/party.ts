@@ -159,6 +159,7 @@ export async function executePartyRun(scenario: Scenario): Promise<RunTraces> {
       behaviorKind: spec.behavior.kind,
       ...(spec.render ? { render: spec.render } : {}),
       ...(spec.clockScale === undefined ? {} : { clockScale: spec.clockScale }),
+      ...(spec.remotes === undefined ? {} : { remotes: spec.remotes }),
       scenario,
       tunables,
       tickRate: GAME_TICK_RATE,

@@ -33,7 +33,7 @@ scripts already run through the loader.
   through `socketAuth({ devCredentials })` and `auth/dev-credentials.ts`;
   an unknown user id is refused. The integration tests use it.
   <!-- ── quickdraw-game:start ── -->
-  So do the netcode bench's bots and the Godot editor.
+  So do the netcode bench's bots.
   <!-- ── quickdraw-game:end ── -->
 
 Both run **only under `NODE_ENV` `development` or `test`** (`.env.infra`

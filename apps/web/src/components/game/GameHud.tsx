@@ -18,11 +18,11 @@ export interface GameHudProps {
 }
 
 /**
- * DOM leaderboard overlay above the Godot canvas.
+ * DOM leaderboard overlay above the game's canvas.
  *
  * React deliberately consumes only the RELIABLE 1Hz world events
- * (leaderboard / death) — the 20Hz volatile world stream stays inside
- * Godot. The page's own socket is in the world's room through GameSurface's
+ * (leaderboard / death) — the 20Hz volatile world stream stays inside the
+ * game client. The page's own socket is in the world's room through GameSurface's
  * watchWorld (signed in or not); useEvent attaches the listener. In a party
  * the leaderboard comes from the party's host, on its partyEvents stream.
  */

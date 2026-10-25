@@ -6,9 +6,10 @@
 import type { ClientReport, PartyFairness, RunTraces, Scenario, Scorecard } from "../types.js";
 import { computeDivergence, computeFidelity } from "./divergence.js";
 import { computeFood } from "./food.js";
-import { computeInputQueue } from "./inputQueue.js";
+import { computeInputQueue, computeOwnQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
 import { computeSmoothness } from "./smoothness.js";
+import { computeTier2, tier2Metrics } from "./tier2.js";
 import { computeStats } from "./tracks.js";
 
 export interface ScorecardMeta {
@@ -45,7 +46,7 @@ export function computeScorecard(
       Object.entries(fidelity.perEntity).map(([id, v]) => [friendly(id), v]),
     );
     const frames = client.frames.filter((f) => f.tWall >= windowStart && f.tWall <= windowEnd);
-    const ownQueue = client.playerId ? computeInputQueue(windowed, client.playerId) : undefined;
+    const ownQueue = computeOwnQueue(windowed, client);
     clients[client.clientId] = {
       kind: client.kind,
       packet: computePacketHealth(client, windowStart, windowEnd),
@@ -60,23 +61,9 @@ export function computeScorecard(
   }
   const inputQueue = computeInputQueue(windowed);
 
-  // Tier 2: FPS samples + frame-time distribution from the real render loop
-  const fpsValues = traces.clients.flatMap((c) =>
-    (c.fpsSamples ?? [])
-      .filter((s) => s.tWall >= windowStart && s.tWall <= windowEnd)
-      .map((s) => s.fps),
-  );
-  const frameTimes = traces.clients.flatMap((c) => {
-    const times: number[] = [];
-    for (let i = 1; i < c.frames.length; i++) {
-      const cur = c.frames[i];
-      const prev = c.frames[i - 1];
-      if (!cur || !prev || cur.tWall < windowStart || cur.tWall > windowEnd) continue;
-      const dt = cur.tWall - prev.tWall;
-      if (dt > 0 && dt < 1000) times.push(dt);
-    }
-    return times;
-  });
+  // Tier 2: the real render loop's frame times and fps, the pages' long
+  // tasks and the renderers' stats; a browser trace carries fpsSamples
+  const tier2Clients = traces.clients.filter((c) => c.fpsSamples !== undefined);
 
   return {
     schemaVersion: 2,
@@ -98,8 +85,8 @@ export function computeScorecard(
     },
     clients,
     divergence: computeDivergence(traces.clients, traces.server, windowStart, windowEnd),
-    ...(fpsValues.length > 0
-      ? { tier2: { fps: computeStats(fpsValues), frameTimeMs: computeStats(frameTimes) } }
+    ...(tier2Clients.length > 0
+      ? { tier2: computeTier2(tier2Clients, windowStart, windowEnd) }
       : {}),
     ...partyOf(scenario, clients),
   };
@@ -181,8 +168,29 @@ export function headlineMetrics(card: Scorecard): Record<string, number> {
     ...(card.server.inputQueue
       ? { "server.inputQueue.depthP95": card.server.inputQueue.depthP95 }
       : {}),
+    // Must be zero, once a card carries them (traces from before the step/ack check do not)
+    ...(card.server.inputQueue?.stepAckMismatchPerMin === undefined
+      ? {}
+      : {
+          "server.inputQueue.stepAckMismatchPerMin": card.server.inputQueue.stepAckMismatchPerMin,
+        }),
+    ...stepCorrectionsMetric(clientReports),
     ...foodMetric(clientReports),
+    // The browser tier's tails and counts, on a card with a Tier-2 block
+    ...tier2Metrics(card),
   };
+}
+
+/**
+ * The most whole-step corrections a minute any client's local snake took:
+ * each is a surge or a stall the player saw. Compared once both cards carry
+ * it (scorecards made before it do not).
+ */
+function stepCorrectionsMetric(clients: ClientReport[]): Record<string, number> {
+  const rates = clients.flatMap((c) =>
+    c.smoothness.stepCorrectionsPerMin === undefined ? [] : [c.smoothness.stepCorrectionsPerMin],
+  );
+  return rates.length > 0 ? { "smoothness.stepCorrectionsPerMin": Math.max(...rates) } : {};
 }
 
 /**

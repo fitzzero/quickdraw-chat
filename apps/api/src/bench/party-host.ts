@@ -4,8 +4,8 @@
  * client's core (no React) that signs in with development credentials,
  * hosts a party (hostParty), runs its world (PartyWorld, the loop on its own
  * timers) and serves it to the party's players with defineHost, over the
- * server's relay (Node has no WebRTC). check:godot's party session hosts
- * with it; quickdraw's examples/godot/test/host.ts (core-v5.1.3) is the
+ * server's relay (Node has no WebRTC). check:web's party session hosts
+ * with it; the Node host in quickdraw's examples (core 5.1.3) is the
  * pattern.
  */
 
