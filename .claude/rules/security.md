@@ -133,10 +133,11 @@ report-only directives into the enforced `Content-Security-Policy` header
 <!-- ── quickdraw-game:start ── -->
 
 The Discord Activity is the route most likely to report violations (the
-game client itself needs nothing beyond the page's policy).
-`./scripts/init-fork.sh --without-game` already drops the Discord
-`frame-ancestors` entries, the game's only directives: they live in a
-marker-wrapped array in `apps/web/next.config.mjs`.
+game client itself needs one directive beyond the page's policy:
+`worker-src 'self' blob:`, for a party host's Blob worker timer).
+`./scripts/init-fork.sh --without-game` already drops it and the Discord
+`frame-ancestors` entries, the game's only directives: they live in
+marker-wrapped arrays in `apps/web/next.config.mjs`.
 
 <!-- ── quickdraw-game:end ── -->
 

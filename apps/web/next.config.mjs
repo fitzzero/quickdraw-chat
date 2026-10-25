@@ -12,12 +12,20 @@ const isDev = process.env.NODE_ENV !== "production";
 // Report-Only CSP: violations log to the browser devtools console without
 // blocking anything. Forks tighten it and move it to enforced — see
 // .claude/rules/security.md.
-// The game's one CSP piece (the game client itself needs nothing beyond
-// the page's policy: no wasm, no workers, no blobs). The array empties when
-// `init-fork.sh --without-game` strips its marker block, which drops those
-// tokens from the policy (see scripts/strip-game.mjs). The markers can only
-// DELETE lines, so the removable part lives in its own array rather than
-// in alternative versions of the directive.
+// The game's CSP pieces (the game client itself needs no wasm and no
+// blob: images). Each array empties when `init-fork.sh --without-game`
+// strips its marker block, which drops those tokens from the policy (see
+// scripts/strip-game.mjs). The markers can only DELETE lines, so the
+// removable parts live in their own arrays rather than in alternative
+// versions of each directive.
+const gameDirectives = [
+  // ── quickdraw-game:start ──
+  // A party's host ticks its world from a Blob worker
+  // (apps/web/src/components/game/partyHost.ts), which a hidden tab does
+  // not throttle; 'self' keeps the service worker
+  "worker-src 'self' blob:",
+  // ── quickdraw-game:end ──
+];
 const gameFrameAncestors = [
   // ── quickdraw-game:start ──
   // The app runs inside Discord's Activity iframe.
@@ -43,6 +51,7 @@ const cspReportOnly = [
   // https: to their actual avatar hosts
   "img-src 'self' data: https:",
   "font-src 'self' data:",
+  ...gameDirectives,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

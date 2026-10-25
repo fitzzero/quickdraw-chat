@@ -5,7 +5,7 @@
  * sends input the sim steps, asks for a keyframe again, hears a player
  * leave, follows the server the hello names; in bench mode it joins the
  * world itself, and in the page's mode it takes the bounds from the join the
- * page made.
+ * page made and leaves the stream when it closes.
  */
 
 import { createQuickdrawConnection, callData } from "@fitzzero/quickdraw-core/client/core";
@@ -217,7 +217,23 @@ describe("PageTransport in the page's mode (the page joined the world)", () => {
     const first = tick();
     await vi.waitFor(() => expect(wire.snapshots.map((s) => s.tick)).toContain(first));
     // a spectator's transport never joins: closing it leaves the page's connection open
+    let framesAfterClose = 0;
+    connection.socket.on("qd:stream", () => {
+      framesAfterClose += 1;
+    });
     transport.close();
     expect(connection.getState().status).not.toBe("disconnected");
+
+    // ...and leaves the world stream: the page's socket hears no more snapshots
+    const getWorld = (): Promise<unknown> =>
+      callData(connection, {
+        service: "gameService",
+        method: "getWorld",
+        input: { slug: "global" },
+      });
+    await getWorld();
+    tick();
+    await getWorld();
+    expect(framesAfterClose).toBe(0);
   });
 });

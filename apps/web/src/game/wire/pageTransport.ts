@@ -44,6 +44,7 @@ import type {
 import { GLOBAL_WORLD_ID, SnapshotDecoder } from "@project/shared";
 
 const WORLD = { worldId: GLOBAL_WORLD_ID };
+const WORLD_STREAM = { s: "gameService", stream: "world", scope: GLOBAL_WORLD_ID };
 const SUBSCRIBE_TIMEOUT_MS = 15_000;
 const CONNECT_TIMEOUT_MS = 30_000;
 
@@ -160,7 +161,7 @@ export class PageTransport implements GameTransport {
       const timeout = setTimeout(() => resolve(false), SUBSCRIBE_TIMEOUT_MS);
       this.opts.connection.socket.emit(
         "qd:stream:sub",
-        { s: "gameService", stream: "world", scope: GLOBAL_WORLD_ID },
+        WORLD_STREAM,
         (reply: StreamSubscribeReply) => {
           clearTimeout(timeout);
           if (reply.ok) {
@@ -204,7 +205,17 @@ export class PageTransport implements GameTransport {
   public close(): void {
     this.closed = true;
     for (const cleanup of this.cleanups.splice(0)) cleanup();
-    if (this.opts.join.kind === "self") this.opts.connection.close();
+    const { connection, join } = this.opts;
+    if (join.kind === "self") {
+      connection.close();
+      return;
+    }
+    // The page's socket outlives this client (a party, another route of the
+    // app): leave the world stream, or its snapshots keep arriving for
+    // nobody. A new socket holds no subscription, so a closed one needs none
+    if (connection.getState().status === "connected") {
+      connection.socket.emit("qd:stream:unsub", WORLD_STREAM);
+    }
   }
 }
 
