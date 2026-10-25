@@ -46,6 +46,19 @@ function partyLine({
   );
 }
 
+/** The browser tier's line: the frame-time tails, the stalls and the builds, the backend. */
+function tier2Line(tier2: NonNullable<Scorecard["tier2"]>): string {
+  const frame = tier2.frameTimeMs;
+  // a card made before a field existed holds no value for it
+  const held = (value: number | undefined, digits = 2): string => measured(value ?? null, digits);
+  return (
+    `  Tier 2 (${tier2.backend ?? "unknown"}): frame time p50 ${num(frame.p50)} / p95 ${num(frame.p95)} / ` +
+    `p99 ${held(frame.p99, 1)} ms, fps p50 ${num(tier2.fps.p50, 0)}, ` +
+    `long tasks ${held(tier2.longTasksPerMin)}/min, geometry builds ${held(tier2.geometryBuildsPerMin)}/min, ` +
+    `draw calls p50 ${tier2.drawCalls === undefined || tier2.drawCalls.n === 0 ? "n/a" : num(tier2.drawCalls.p50, 0)}`
+  );
+}
+
 export function printSummary(card: Scorecard): string {
   const lines: string[] = [];
   const push = (s: string) => lines.push(s);
@@ -100,6 +113,7 @@ export function printSummary(card: Scorecard): string {
         `step/ack mismatch ${measured(queue.stepAckMismatchPerMin ?? null, 2)}/min`,
     );
   }
+  if (card.tier2) push(tier2Line(card.tier2));
   if (card.party) push(partyLine(card.party));
   if (card.runVariance) {
     const worst = Object.entries(card.runVariance)

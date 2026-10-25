@@ -35,6 +35,9 @@ export const DEFAULT_THRESHOLDS: CompareThresholds = {
     "fidelity.shapeErrorPx.p95": 0.5,
     "fidelity.renderLatencyMs": 5,
     "server.tickDurMs.p95": 0.05,
+    // The browser tier's frame-time tails: a millisecond is the timer's grain
+    "tier2.frameTimeMs.p95": 1,
+    "tier2.frameTimeMs.p99": 1,
     // A client's queue holds 0 or 1 frames by the phase it connected at; a
     // ratchet toward the cap grows by more
     "server.inputQueue.depthP95": 1,
@@ -50,11 +53,16 @@ export type Verdict = "ok" | "improved" | "within-noise" | "warn" | "fail";
  * Headline metrics that must be 0 in every run (judged on the worst one):
  * any other value fails, whatever the baseline and the run spread. A food
  * mismatch is a change a client lost; a step/ack mismatch is a movement step
- * the client's replay did not predict (a 9 px jolt on its snake).
+ * the client's replay did not predict (a 9 px jolt on its snake). In the
+ * browser tier, a long task is a main-thread stall the player felt, and a
+ * geometry build within the window is per-frame geometry (the renderer
+ * rule: per-frame work is transform updates only).
  */
 export const MUST_BE_ZERO: readonly string[] = [
   "food.mismatchAtEnd",
   "server.inputQueue.stepAckMismatchPerMin",
+  "tier2.longTasksPerMin",
+  "tier2.geometryBuildsPerMin",
 ];
 
 export interface MetricComparison {

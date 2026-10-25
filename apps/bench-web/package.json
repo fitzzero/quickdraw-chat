@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "bench": "tsx src/run.ts",
+    "play": "tsx src/probe-live.ts",
     "lint": "oxlint -c ../../.oxlintrc.json src",
     "lint:fix": "oxlint --fix -c ../../.oxlintrc.json src",
     "typecheck": "tsgo --noEmit"

@@ -20,7 +20,7 @@ quickdraw-chat/
 ├── apps/
 │   ├── api/          # Express + quickdraw server (Socket.IO, HTTP, MCP)
 <!-- ── quickdraw-game:start ── -->
-│   ├── bench-web/    # Browser viewer for netcode benchmark runs
+│   ├── bench-web/    # The netcode bench's browser tier, and bench:play
 <!-- ── quickdraw-game:end ── -->
 │   └── web/          # Next.js frontend (MUI) on the typed client
 ├── packages/
@@ -71,6 +71,8 @@ bun run check && bun run test
 bun run bench:netcode                      # headless Tier-1 scorecard (default scenario)
 bun run bench:netcode -- --all --runs 3    # full sweep, median-of-3
 bun run bench:compare <baseline> <candidate>
+bun run bench:web                          # the browser tier on a desk: frame-time tails, long tasks, geometry builds, both GPU backends
+bun run bench:play -- --url <game url>     # a guest session on a deployed instance, judged the same way
 bun run check:web     # two browser pages of the game client in one world, through an API restart, then a party
 # ── quickdraw-game:end ──
 ```

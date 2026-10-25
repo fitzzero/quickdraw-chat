@@ -15,6 +15,7 @@ import {
 import { computeInputQueue, computeOwnQueue } from "./inputQueue.js";
 import { computePacketHealth } from "./packets.js";
 import { STEP_CORRECTION_PX, computeSmoothness } from "./smoothness.js";
+import { judgeTier2 } from "../tier2.js";
 
 function makeServerTrace(): ServerTrace {
   // Entity "e1" moves +10px/tick along x for 100 ticks at 50ms
@@ -53,6 +54,14 @@ describe("computeStats", () => {
     expect(stats.p50).toBe(51);
     expect(stats.p95).toBe(96);
     expect(stats.max).toBe(100);
+  });
+
+  it("reports the p99 tail, the one a stall shows in", () => {
+    const values = Array.from({ length: 200 }, (_, i) => i + 1);
+    const stats = computeStats(values);
+    expect(stats.p99).toBe(199);
+    expect(stats.p95).toBe(191);
+    expect(computeStats([]).p99).toBe(0);
   });
 
   it("handles empty input", () => {
@@ -415,7 +424,7 @@ describe("headlineMetrics", () => {
 
 /** Stats of `n` samples, all at `value`. */
 function flat(value: number, n = 10): Stats {
-  return { n, mean: value, p50: value, p95: value, max: value };
+  return { n, mean: value, p50: value, p95: value, p99: value, max: value };
 }
 
 /** A client report holding what a party's fairness reads: its ack times and its prediction error. */
@@ -441,6 +450,183 @@ function partyClient(ackMs: number, predictionPx: number | null, acks = 10): Cli
     effectiveFps: 60,
   };
 }
+
+describe("the browser tier", () => {
+  const scenario = { ...getScenario("control-0ms"), warmupMs: 0 };
+  const meta = { tier: 2 as const, gitCommit: "test", branch: "test" };
+
+  /** A browser client at 144 Hz with `stalls` frames of 40 ms, long tasks and renderer samples. */
+  function browserTrace(opts: {
+    stalls: number;
+    longTasks: number[];
+    builds: number[];
+    backend: string | null;
+  }): ClientTrace {
+    const frames: ClientTrace["frames"] = [];
+    let t = 1000;
+    for (let i = 0; i < 600; i++) {
+      frames.push({ tWall: t, entities: { e1: { x: 0, y: 0 } } });
+      t += i < opts.stalls ? 40 : 1000 / 144;
+    }
+    return {
+      clientId: "page",
+      kind: "browser",
+      playerId: "e1",
+      frames,
+      snapshots: [],
+      corrections: [],
+      inputs: [],
+      fpsSamples: [{ tWall: 2000, fps: 144 }],
+      longTasks: opts.longTasks.map((tWall) => ({ tWall, durationMs: 80 })),
+      renderer: {
+        backend: opts.backend,
+        samples: opts.builds.map((geometryBuilds, i) => ({
+          tWall: 1000 + i * 500,
+          drawCalls: opts.backend === "webgpu" ? null : 12,
+          geometryBuilds,
+        })),
+      },
+    };
+  }
+
+  it("counts the pages' long tasks and the renderers' builds a minute, within the window, and names the backend", () => {
+    const card = computeScorecard(
+      {
+        server: makeServerTrace(),
+        clients: [
+          // one long task before the window (the trace starts at 1000), two inside
+          browserTrace({
+            stalls: 0,
+            longTasks: [500, 2000, 3000],
+            builds: [5, 5, 7, 7, 7],
+            backend: "webgl",
+          }),
+        ],
+      },
+      scenario,
+      meta,
+    );
+    const tier2 = card.tier2;
+    expect(tier2).toBeDefined();
+    if (!tier2) return;
+    const minutes = card.durationMs / 60_000;
+    expect(tier2.longTasksPerMin).toBeCloseTo(2 / minutes, 6);
+    // 5 → 7: two builds inside the window; the count before it is not a build
+    expect(tier2.geometryBuildsPerMin).toBeCloseTo(2 / minutes, 6);
+    expect(tier2.drawCalls.p50).toBe(12);
+    expect(tier2.backend).toBe("webgl");
+    expect(tier2.frameTimeMs.p99).toBeCloseTo(1000 / 144, 1);
+  });
+
+  it("counts a renderer's builds as increases only, so a count that started over adds nothing but what it built", () => {
+    const card = computeScorecard(
+      {
+        server: makeServerTrace(),
+        // 9 → 2 (a new renderer) → 3: one build
+        clients: [browserTrace({ stalls: 0, longTasks: [], builds: [9, 2, 3], backend: "webgpu" })],
+      },
+      scenario,
+      meta,
+    );
+    expect(card.tier2?.geometryBuildsPerMin).toBeCloseTo(1 / (card.durationMs / 60_000), 6);
+    // WebGPU reports no draw calls
+    expect(card.tier2?.drawCalls.n).toBe(0);
+    expect(card.tier2?.backend).toBe("webgpu");
+  });
+
+  it("headlines the frame-time tails and the two counts on a browser card, nothing on a bot card", () => {
+    const browser = computeScorecard(
+      {
+        server: makeServerTrace(),
+        clients: [browserTrace({ stalls: 0, longTasks: [], builds: [1, 1], backend: "webgl" })],
+      },
+      scenario,
+      meta,
+    );
+    const metrics = headlineMetrics(browser);
+    expect(Object.keys(metrics)).toEqual(
+      expect.arrayContaining([
+        "tier2.frameTimeMs.p95",
+        "tier2.frameTimeMs.p99",
+        "tier2.longTasksPerMin",
+        "tier2.geometryBuildsPerMin",
+      ]),
+    );
+    expect(metrics["tier2.longTasksPerMin"]).toBe(0);
+    const bot = computeScorecard(
+      { server: makeServerTrace(), clients: [makeClientTrace("c1", 0)] },
+      scenario,
+      { ...meta, tier: 1 },
+    );
+    expect(bot.tier2).toBeUndefined();
+    expect(Object.keys(headlineMetrics(bot)).some((key) => key.startsWith("tier2."))).toBe(false);
+  });
+
+  it("fails a compare on one long task or one build, whatever the baseline had", () => {
+    const clean = computeScorecard(
+      {
+        server: makeServerTrace(),
+        clients: [browserTrace({ stalls: 0, longTasks: [], builds: [1, 1], backend: "webgl" })],
+      },
+      scenario,
+      meta,
+    );
+    const stalled = computeScorecard(
+      {
+        server: makeServerTrace(),
+        clients: [browserTrace({ stalls: 0, longTasks: [2500], builds: [1, 1], backend: "webgl" })],
+      },
+      scenario,
+      meta,
+    );
+    const building = computeScorecard(
+      {
+        server: makeServerTrace(),
+        clients: [browserTrace({ stalls: 0, longTasks: [], builds: [1, 2], backend: "webgl" })],
+      },
+      scenario,
+      meta,
+    );
+    expect(compareScorecards(clean, clean).failed).toBe(false);
+    const stall = compareScorecards(clean, stalled);
+    expect(stall.failed).toBe(true);
+    expect(stall.comparisons.find((c) => c.metric === "tier2.longTasksPerMin")?.verdict).toBe(
+      "fail",
+    );
+    const build = compareScorecards(clean, building);
+    expect(build.comparisons.find((c) => c.metric === "tier2.geometryBuildsPerMin")?.verdict).toBe(
+      "fail",
+    );
+  });
+
+  it("judges a card against the acceptance of the display rate it ran at", () => {
+    const smooth = computeScorecard(
+      {
+        server: makeServerTrace(),
+        clients: [browserTrace({ stalls: 0, longTasks: [], builds: [1, 1], backend: "webgl" })],
+      },
+      scenario,
+      meta,
+    );
+    const verdict = judgeTier2(smooth);
+    expect(verdict.measuredHz).toBe(144);
+    expect(verdict.acceptance.hz).toBe(144);
+    expect(verdict.passed).toBe(true);
+    // 40 frames of 40 ms among 600: the p95 tail passes, the p99 does not
+    const stalled = computeScorecard(
+      {
+        server: makeServerTrace(),
+        clients: [browserTrace({ stalls: 40, longTasks: [], builds: [1, 1], backend: "webgl" })],
+      },
+      scenario,
+      meta,
+    );
+    const judged = judgeTier2(stalled);
+    expect(judged.passed).toBe(false);
+    expect(judged.lines.some((line) => line.includes("✗ frame time p99"))).toBe(true);
+    expect(judgeTier2({ ...smooth, tier2: undefined }).passed).toBe(false);
+  });
+});
 
 describe("partyFairness", () => {
   it("sets the host's own user against the other players' median, the middle two's mean when even", () => {

@@ -198,7 +198,7 @@ vs configured, plus a minimal shape illustration of the workflow.
 │   │       ├── auth/         # The auth routes kit's wiring: providers, sessions, grants
 │   │       └── __tests__/    # Integration tests, factories, budgets
 <!-- ── quickdraw-game:start ── -->
-│   ├── bench-web/        # Browser viewer for netcode benchmark runs
+│   ├── bench-web/        # The netcode bench's browser tier, and bench:play
 <!-- ── quickdraw-game:end ── -->
 │   └── web/              # Next.js frontend (MUI, dark-tokyo theme)
 <!-- ── quickdraw-storybook:start ── -->

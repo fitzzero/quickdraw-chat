@@ -22,7 +22,7 @@ export const MASK_AFTER_MS = 700;
 export const GRID_HZ = 60;
 
 export function computeStats(values: number[]): Stats {
-  if (values.length === 0) return { n: 0, mean: 0, p50: 0, p95: 0, max: 0 };
+  if (values.length === 0) return { n: 0, mean: 0, p50: 0, p95: 0, p99: 0, max: 0 };
   const sorted = [...values].sort((a, b) => a - b);
   const at = (q: number) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0;
   const sum = sorted.reduce((a, b) => a + b, 0);
@@ -31,6 +31,7 @@ export function computeStats(values: number[]): Stats {
     mean: sum / sorted.length,
     p50: at(0.5),
     p95: at(0.95),
+    p99: at(0.99),
     max: sorted[sorted.length - 1] ?? 0,
   };
 }

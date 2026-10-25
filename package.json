@@ -32,6 +32,8 @@
     "bench:netcode": "turbo build --filter=@project/shared --filter=@project/bench && bun run --cwd apps/api bench:netcode",
     "bench:server": "turbo build --filter=@project/shared --filter=@project/bench && bun run --cwd apps/api bench:server",
     "bench:compare": "tsx packages/bench/src/cli/compare.ts",
+    "bench:play": "turbo build --filter=@project/shared --filter=@project/bench && bun run --cwd apps/bench-web play",
+    "bench:web": "turbo build --filter=@project/shared --filter=@project/bench && bun run --cwd apps/bench-web bench",
     "check:web": "turbo build --filter=@project/shared --filter=@project/bench --filter=@project/db && bun run --cwd apps/api check:web",
     "build:prod": "NODE_ENV=production turbo build",
     "db:migrate:deploy": "cd packages/db && bun run db:migrate:deploy",
