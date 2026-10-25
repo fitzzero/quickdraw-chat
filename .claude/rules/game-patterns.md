@@ -106,21 +106,24 @@ connection:
    (`local_snake.gd` `_nudge_phase`, `prediction.ts` `nudgePhase`), once
    per half second at most.
 
-The web boots Godot into SPECTATE (`watchWorld`: full bootstrap, no spawn);
-the React pre-game dialog then joins the game on the page's own socket and
-Godot spawns the local snake when its id appears in a snapshot. The page's
-socket joins with `useJoin` (`GameSurface.tsx`), which runs the call again
-on every connection: `watchWorld` always (its HUD hears the world), and
-`joinGame` while the user plays and is alive (Respawn lets it run again:
-joinGame spawns a dead player's snake). Presence is room-anchored: a player
-stays in the sim while ANY of their sockets is in the world's room (page +
-Godot are two sockets, one user); gameService's own `onRoomLeave` removes
-the player (and sends `playerLeft`) when the last one leaves or disconnects,
-in every server the service runs in (the API, the test app, the bench).
+The web page's game client (`apps/web/src/game/`, client-patterns.md) runs
+on the page's own socket. `GameSurface` joins with `useJoin`, which runs
+the call again on every connection: `watchWorld` always (spectate: full
+bootstrap, no spawn; its HUD hears the world), and `joinGame` while the
+user plays and is alive (Respawn lets it run again: joinGame spawns a dead
+player's snake). The client subscribes the world stream on every hello and
+spawns the local snake when its id appears in a snapshot
+(`GameClientCore.spawnLocal(null)`). One socket per user. Presence is
+room-anchored: a player stays in the sim while any socket of theirs is in
+the world's room; gameService's own `onRoomLeave` removes the player (and
+sends `playerLeft`) when the last one leaves or disconnects, in every
+server the service runs in (the API, the test app, the bench). A party
+still boots the Godot embed (a second socket, one user) until the client
+plays parties too.
 
-A server restart is a new world whose ticks start over: the Godot client
-tells it from a network blip by the hello's `server_id`, as the bench bots
-do with `serverId`. Every hello anchors the world clock again on the next
+A server restart is a new world whose ticks start over: the clients (the
+page's, the Godot embed's, the bench bots') tell it from a network blip by
+the hello's `serverId`. Every hello anchors the world clock again on the next
 snapshot; another server's also forgets what the playback delay learned of
 the link (a blip keeps it).
 

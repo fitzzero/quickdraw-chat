@@ -1,0 +1,209 @@
+/**
+ * The web game client's shell: the shared GameClientCore (the netcode the
+ * bench bots run too) driven by one requestAnimationFrame loop, with the
+ * page's input and a renderer behind the GameRenderer boundary. Per display
+ * frame: the core steps the local predictor on its own 20 Hz accumulator
+ * (sending each step's input), advances the clocks and renders every remote
+ * at the render tick; the shell points the camera (the local head, or the
+ * spectate target) and hands the frame to the renderer. No fixed-rate
+ * physics timer anywhere: the local snake moves at the display's rate.
+ */
+
+import type {
+  GameClientInput,
+  GamePlayerMeta,
+  GameTransport,
+  GameTunables,
+  RenderedWorld,
+} from "@project/shared";
+import { GAME_TICK_RATE, GameClientCore } from "@project/shared";
+import type { BenchTelemetry } from "./bench";
+import { PointerInput } from "./input";
+import type { GameRenderer, RenderBackend, RendererStats } from "./render/renderer";
+import { SpectateCamera } from "./render/spectate";
+import type { GameLoadState } from "./types";
+
+/** How often the renderer's stats are read (the debug overlay, the bench). */
+const STATS_EVERY_MS = 500;
+/** The longest a frame counts as (a hitch, a background tab), as the bots cap it. */
+const MAX_FRAME_S = 0.25;
+
+export interface GameShellOptions {
+  canvas: HTMLCanvasElement;
+  transport: GameTransport;
+  renderer: GameRenderer;
+  /** The user whose snake is the local one; null spectates. */
+  userId: string | null;
+  tunables: GameTunables;
+  /** The players known at the start (the bootstrap's); the transport adds the rest. */
+  players: Iterable<GamePlayerMeta>;
+  preference?: RenderBackend;
+  /** Bench mode's telemetry sink. */
+  telemetry?: BenchTelemetry;
+  /** Bench mode: respawn this many ms after the local snake's death (no dialog). */
+  autoRespawnMs?: number;
+  onState: (state: GameLoadState) => void;
+  /** The renderer's stats, the frame rate and the newest tick, every half second (the debug overlay). */
+  onStats?: (stats: GameStats) => void;
+}
+
+/** What the debug overlay shows: the renderer's stats, the frame rate, the newest snapshot's tick. */
+export interface GameStats extends RendererStats {
+  fps: number;
+  tick: number;
+}
+
+function now(): number {
+  return performance.timeOrigin + performance.now();
+}
+
+export class GameShell {
+  private readonly core: GameClientCore;
+  private readonly spectate = new SpectateCamera();
+  private readonly players = new Map<string, GamePlayerMeta>();
+  private input: PointerInput | null = null;
+  private raf = 0;
+  private lastFrameAt = 0;
+  private startedAt = 0;
+  private lastStatsAt = 0;
+  private framesSinceStats = 0;
+  private stopped = false;
+  private ready = false;
+  private snapCamera = true;
+
+  constructor(private readonly opts: GameShellOptions) {
+    for (const meta of opts.players) this.players.set(meta.id, meta);
+    const { telemetry, userId } = opts;
+    this.core = new GameClientCore({
+      transport: opts.transport,
+      userId: userId ?? "",
+      tunables: opts.tunables,
+      tickRate: GAME_TICK_RATE,
+      now,
+      hooks: {
+        onSnapshotArrival: (tWall, tick) => telemetry?.snapshot(tWall, tick),
+        onInputSent: (frames, tSent) => telemetry?.input(frames.at(-1)?.seq ?? -1, tSent),
+        onCorrection: (correction, _ack, tWall) =>
+          telemetry?.correction(tWall, correction.magnitudePx, correction.hard),
+        onSpawn: () => {
+          // open on the snake, wherever the spectate camera was
+          this.snapCamera = true;
+        },
+        onDeath: (death) => {
+          if (death.id !== userId || opts.autoRespawnMs === undefined) return;
+          setTimeout(() => {
+            if (!this.stopped) this.core.respawn();
+          }, opts.autoRespawnMs);
+        },
+      },
+    });
+  }
+
+  /** A player's name and hue, from the bootstrap or a playerJoined event. */
+  public addPlayer(meta: GamePlayerMeta): void {
+    this.players.set(meta.id, meta);
+    this.opts.renderer.setPlayers([meta]);
+  }
+
+  public async start(): Promise<void> {
+    const { renderer, canvas, onState } = this.opts;
+    onState({ phase: "loading", progress: null });
+    await renderer.mount(canvas, {
+      ...(this.opts.preference === undefined ? {} : { preference: this.opts.preference }),
+    });
+    if (this.stopped) return;
+    renderer.setPlayers(this.players.values());
+    onState({ phase: "connecting" });
+    // A signed-out visitor spectates; a player's snake is placed by the
+    // first own snapshot (the page's joinGame spawns it)
+    const joined = await this.core.start(this.opts.userId === null);
+    if (this.stopped) return;
+    renderer.setBounds(joined.bounds.w, joined.bounds.h);
+    this.spectate.setBounds(joined.bounds.w, joined.bounds.h);
+    this.spectate.snap();
+    this.input = new PointerInput(canvas, (x, y) => renderer.worldPointAt(x, y));
+    this.startedAt = now();
+    this.lastFrameAt = performance.now();
+    this.lastStatsAt = this.lastFrameAt;
+    this.raf = requestAnimationFrame(this.frame);
+  }
+
+  public stop(): void {
+    this.stopped = true;
+    cancelAnimationFrame(this.raf);
+    this.input?.destroy();
+    this.input = null;
+    this.core.stop();
+    this.opts.telemetry?.destroy();
+    this.opts.renderer.destroy();
+  }
+
+  private readonly frame = (tNow: number): void => {
+    if (this.stopped) return;
+    const deltaS = Math.min((tNow - this.lastFrameAt) / 1000, MAX_FRAME_S);
+    this.lastFrameAt = tNow;
+    const tWall = performance.timeOrigin + tNow;
+
+    const rendered = this.core.renderFrame(deltaS, this.sampleInput, tWall);
+    this.draw(rendered, deltaS, tWall);
+    this.record(rendered, tNow, tWall);
+    this.raf = requestAnimationFrame(this.frame);
+  };
+
+  /** One predicted step's input: toward the pointer from the head as drawn. */
+  private readonly sampleInput = (): GameClientInput => {
+    const predictor = this.core.localPredictor;
+    if (this.input === null || predictor === null) return { dx: 1, dy: 0, boost: false };
+    return this.input.sample(predictor.getRenderedPos(), {
+      dx: predictor.simDir.x,
+      dy: predictor.simDir.y,
+    });
+  };
+
+  private draw(rendered: RenderedWorld, deltaS: number, tWall: number): void {
+    const { renderer, userId, onState } = this.opts;
+    let camera: { x: number; y: number };
+    if (rendered.local === null) {
+      // main.gd: before the player joins and after a death, the camera
+      // drifts toward the busiest part of the world
+      this.spectate.retarget(rendered.remotes);
+      this.spectate.advance(deltaS);
+      camera = this.spectate.position;
+    } else {
+      camera = rendered.local;
+    }
+    if (!this.ready && this.core.latestTick > 0) {
+      // the first snapshot: the world is here, open on the action
+      this.ready = true;
+      this.spectate.snap();
+      this.snapCamera = true;
+      onState({ phase: "ready" });
+    }
+    renderer.draw({
+      local: rendered.local,
+      localId: userId,
+      remotes: rendered.remotes,
+      food: rendered.food,
+      camera,
+      snapCamera: this.snapCamera,
+      nowS: (tWall - this.startedAt) / 1000,
+      deltaS,
+    });
+    this.snapCamera = false;
+  }
+
+  private record(rendered: RenderedWorld, tNow: number, tWall: number): void {
+    const { telemetry, renderer, onStats, userId } = this.opts;
+    telemetry?.frame(tWall, rendered, userId);
+    this.framesSinceStats += 1;
+    if (tNow - this.lastStatsAt >= STATS_EVERY_MS) {
+      const stats = renderer.stats();
+      const fps = (this.framesSinceStats * 1000) / (tNow - this.lastStatsAt);
+      this.lastStatsAt = tNow;
+      this.framesSinceStats = 0;
+      telemetry?.rendererStats(tWall, stats);
+      onStats?.({ ...stats, fps, tick: this.core.latestTick });
+    }
+    telemetry?.flushIfDue(tWall);
+  }
+}

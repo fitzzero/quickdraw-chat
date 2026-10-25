@@ -1,0 +1,213 @@
+"use client";
+
+import * as React from "react";
+import { Box, Typography } from "@mui/material";
+import { useQuickdraw } from "@fitzzero/quickdraw-core/client";
+import {
+  createQuickdrawConnection,
+  type QuickdrawConnection,
+} from "@fitzzero/quickdraw-core/client/core";
+import { DEFAULT_TUNABLES, type GameTunables, type WorldBootstrap } from "@project/shared";
+import { qd } from "../lib/quickdraw";
+import { BenchTelemetry } from "./bench";
+import { createPixiRenderer } from "./render/pixi";
+import type { GameRenderer, RenderBackend } from "./render/renderer";
+import { GameShell, type GameStats } from "./shell";
+import type { GameLoadState } from "./types";
+import { PageTransport } from "./wire/pageTransport";
+
+/** Bench mode (`?bench=1`): a connection of the client's own, to the bench server, as this user. */
+export interface GameBenchMode {
+  apiUrl: string;
+  userId: string;
+}
+
+export interface GameCanvasProps {
+  /**
+   * The world the page's watchWorld join answered (bounds, players, snakes,
+   * food); null until it did. The page's socket is in the world's room
+   * through that join, and joins the game while the user plays.
+   */
+  bootstrap: WorldBootstrap | null;
+  onStateChange?: (state: GameLoadState) => void;
+  bench?: GameBenchMode;
+}
+
+const TUNABLES_KEY = { type: "tunables", key: "snake" };
+/** Bench mode respawns the snake itself this long after a death (the Godot Bench autoload did). */
+const BENCH_RESPAWN_MS = 750;
+
+/**
+ * The game, drawn in the page: the shared netcode core and a PixiJS
+ * renderer under one frame loop (shell.ts), on the page's own socket. React
+ * owns the canvas element and the loading state; the shell owns everything
+ * that moves. Keyed by GameSurface per user and world, so a sign-in or a
+ * party starts a new client.
+ */
+export function GameCanvas({
+  bootstrap,
+  onStateChange,
+  bench,
+}: GameCanvasProps): React.ReactElement {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const { connection, userId } = useQuickdraw();
+  const [stats, setStats] = React.useState<GameStats | null>(null);
+  const flags = React.useMemo(readFlags, []);
+
+  // The movement tunables the server simulates with, so the prediction
+  // steps as the server does (game.gd loaded them the same way); bench mode
+  // runs the defaults, as its scenarios do
+  const definition = qd.definitionService.getDefinition.useQuery(TUNABLES_KEY, {
+    enabled: bench === undefined,
+  });
+  const settled = bench !== undefined || !definition.isPending;
+  const tunables = React.useMemo(() => tunablesFrom(definition.data?.data), [definition.data]);
+
+  const stateChangeRef = React.useRef(onStateChange);
+  stateChangeRef.current = onStateChange;
+  const bootstrapRef = React.useRef(bootstrap);
+  bootstrapRef.current = bootstrap;
+  const hasBootstrap = bootstrap !== null;
+  const benchApi = bench?.apiUrl;
+  const benchUser = bench?.userId;
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas === null || !settled || (benchApi === undefined && !hasBootstrap)) return undefined;
+    const client = createClient({
+      canvas,
+      connection,
+      userId,
+      bench:
+        benchApi === undefined || benchUser === undefined
+          ? null
+          : { apiUrl: benchApi, userId: benchUser },
+      bootstrap: () => bootstrapRef.current,
+      tunables,
+      flags,
+      onState: (state) => stateChangeRef.current?.(state),
+      onStats: setStats,
+    });
+    const parent = canvas.parentElement;
+    const observer = parent === null ? null : new ResizeObserver(() => client.renderer.resize());
+    if (parent !== null) observer?.observe(parent);
+    return () => {
+      observer?.disconnect();
+      client.shell.stop();
+    };
+  }, [connection, userId, benchApi, benchUser, hasBootstrap, settled, tunables, flags]);
+
+  return (
+    <Box sx={{ position: "absolute", inset: 0, bgcolor: "#14171e" }}>
+      <Box
+        component="canvas"
+        ref={canvasRef}
+        id="game-canvas"
+        tabIndex={0}
+        sx={{
+          width: "100%",
+          height: "100%",
+          display: "block",
+          outline: "none",
+          touchAction: "none",
+        }}
+      />
+      {stats !== null && (
+        <Typography
+          variant="caption"
+          sx={{
+            position: "absolute",
+            left: 12,
+            bottom: 8,
+            fontFamily: "monospace",
+            color: "grey.500",
+            pointerEvents: "none",
+          }}
+        >
+          {formatStats(stats)}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+interface ClientInputs {
+  canvas: HTMLCanvasElement;
+  connection: QuickdrawConnection;
+  userId: string | null;
+  bench: GameBenchMode | null;
+  bootstrap: () => WorldBootstrap | null;
+  tunables: GameTunables;
+  flags: { preference?: RenderBackend; debug: boolean };
+  onState: (state: GameLoadState) => void;
+  onStats: (stats: GameStats) => void;
+}
+
+/**
+ * The client: the transport over the page's connection (or, in bench mode,
+ * one of its own to the bench server), the PixiJS renderer and the shell
+ * that drives them; started here, stopped by the effect's cleanup.
+ */
+function createClient(inputs: ClientInputs): { shell: GameShell; renderer: GameRenderer } {
+  const { bench, flags } = inputs;
+  const own =
+    bench === null
+      ? null
+      : createQuickdrawConnection({ url: bench.apiUrl, auth: { userId: bench.userId } });
+  const player = bench?.userId ?? inputs.userId;
+  const renderer = createPixiRenderer(inputs.tunables);
+  const sink = bench === null ? undefined : window.QuickdrawBench;
+  const shell: GameShell = new GameShell({
+    canvas: inputs.canvas,
+    transport: new PageTransport({
+      connection: own ?? inputs.connection,
+      join: own === null ? { kind: "page", bootstrap: inputs.bootstrap } : { kind: "self" },
+      userId: player,
+      onPlayer: (meta) => shell.addPlayer(meta),
+    }),
+    renderer,
+    userId: player,
+    tunables: inputs.tunables,
+    players: inputs.bootstrap()?.players ?? [],
+    ...(flags.preference === undefined ? {} : { preference: flags.preference }),
+    ...(sink === undefined ? {} : { telemetry: new BenchTelemetry(sink) }),
+    ...(own === null ? {} : { autoRespawnMs: BENCH_RESPAWN_MS }),
+    onState: inputs.onState,
+    ...(flags.debug ? { onStats: inputs.onStats } : {}),
+  });
+  shell.start().catch((error: unknown) => {
+    inputs.onState({
+      phase: "error",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  });
+  return { shell, renderer };
+}
+
+/** The page's flags: `?gpu=webgl|webgpu` picks the backend, `?debug=1` shows the renderer's stats. */
+function readFlags(): { preference?: RenderBackend; debug: boolean } {
+  if (typeof window === "undefined") return { debug: false };
+  const params = new URLSearchParams(window.location.search);
+  const gpu = params.get("gpu");
+  return {
+    ...(gpu === "webgl" || gpu === "webgpu" ? { preference: gpu } : {}),
+    debug: params.get("debug") === "1",
+  };
+}
+
+/** The definition's numbers over the defaults: a positive finite number per known key, nothing else. */
+function tunablesFrom(data: unknown): GameTunables {
+  const out: GameTunables = { ...DEFAULT_TUNABLES };
+  if (typeof data !== "object" || data === null) return out;
+  const record = data as Record<string, unknown>;
+  for (const key of Object.keys(out) as (keyof GameTunables)[]) {
+    const value = record[key];
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) out[key] = value;
+  }
+  return out;
+}
+
+function formatStats(stats: GameStats): string {
+  const draws = stats.drawCalls === null ? "–" : String(stats.drawCalls);
+  return `${stats.backend ?? "…"} · ${stats.fps.toFixed(0)} fps · ${draws} draws · ${stats.geometryBuilds} builds · tick ${stats.tick}`;
+}

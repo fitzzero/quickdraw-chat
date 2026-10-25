@@ -81,8 +81,12 @@ function parseArgs(argv: string[]): CliArgs {
     const arg = argv[i];
     const next = () => argv[++i] ?? "";
     if (arg === "--scenario") args.scenarios = [next()];
-    else if (arg === "--all") args.scenarios = Object.keys(SCENARIOS);
-    else if (arg === "--runs") args.runs = Math.max(1, Number(next()) || 1);
+    else if (arg === "--all") {
+      // the headless sweep: every scenario but the browser tier's own
+      args.scenarios = Object.values(SCENARIOS)
+        .filter((scenario) => scenario.tiers?.includes(1) ?? true)
+        .map((scenario) => scenario.name);
+    } else if (arg === "--runs") args.runs = Math.max(1, Number(next()) || 1);
     else if (arg === "--duration") args.durationMs = Number(next()) * 1000;
     else if (arg === "--label") args.label = next();
     else if (arg === "--save-traces") args.saveTraces = true;

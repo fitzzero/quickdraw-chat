@@ -38,6 +38,7 @@ const DELETE_PATHS = [
   "apps/web/src/app/discord",
   "apps/web/src/app/scores",
   "apps/web/src/components/game",
+  "apps/web/src/game",
   "apps/web/src/components/discord",
   "apps/web/src/lib/godot-engine.d.ts",
   "apps/api/src/services/game",
@@ -264,9 +265,10 @@ editJson(".oxlintrc.json", (data) => {
       delete rule[1].allowedModels.game;
     }
   }
-  // The bench override targets paths DELETE_PATHS removes.
+  // The bench and game-client overrides target paths DELETE_PATHS removes.
   data.overrides = (data.overrides ?? []).filter(
-    (override) => !override.files?.some((glob) => glob.includes("bench")),
+    (override) =>
+      !override.files?.some((glob) => glob.includes("bench") || glob.includes("apps/web/src/game")),
   );
 });
 

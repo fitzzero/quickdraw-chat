@@ -108,6 +108,50 @@ how the web app uses it.
 - **Errors** shown to people: `useErrorText()` maps a `QuickdrawError`'s
   code to a translated message.
 
+<!-- ── quickdraw-game:start ── -->
+
+## The game client
+
+The game is drawn in the page by a TypeScript client (`apps/web/src/game/`),
+not an engine embed, in three layers:
+
+- **The netcode** is the shared package's `GameClientCore`
+  (`packages/shared/src/game/client/`): prediction and reconciliation, the
+  remote interpolators on the world clock, the food window. The bench bots
+  run the same core, so what the bench measures is the client the page runs.
+- **The shell** (`shell.ts`, `input.ts`, `bench.ts`) owns one
+  `requestAnimationFrame` loop. Each display frame the core steps the local
+  predictor on its own 20 Hz accumulator (sending each step's input) and
+  renders every remote at the render tick; the shell points the camera (the
+  local head, or main.gd's spectate target) and hands the frame to the
+  renderer. No fixed-rate physics timer: the local snake moves at the
+  display's rate.
+- **The renderer** is one interface (`render/renderer.ts`) and one
+  implementation (`render/pixi/`, PixiJS 8). Only that folder imports the
+  engine (`__tests__/boundary.test.ts` pins it), so a fork swaps engines by
+  replacing it; the body-path walk, the palette and the spectate camera sit
+  beside the interface for the same reason. The one rule: per-frame work is
+  transform updates only; nothing geometry-shaped is built in `draw` (one
+  circle texture, particles for the food and the body segments, the grid
+  built once per change of the bounds, a label laid out only when its name
+  changes). `stats().geometryBuilds` counts the builds, and the browser
+  tier of the bench gates it.
+
+One socket per user: the page's. `GameSurface` joins the world's room
+(`useJoin(watchWorld)`, and `joinGame` while the user plays), and the
+client's transport (`wire/pageTransport.ts`) subscribes the world stream
+and sends input on the same connection, speaking the protocol's frames on
+`connection.socket` under a `quickdraw-5.0 finding` marker and a lint
+override scoped to that folder: the typed client has no React-free stream,
+channel or event API yet. The local snake is placed by the first own
+snapshot after the page's join, never from the bootstrap, which may be
+ticks old. `?gpu=webgl|webgpu` picks the backend (Pixi's default is WebGL;
+both are gated), `?debug=1` shows the renderer's stats, and `?bench=1` is
+the bench's mode: a connection of the client's own to the bench server,
+telemetry to `window.QuickdrawBench`.
+
+<!-- ── quickdraw-game:end ── -->
+
 ## UI text and styling
 
 - No raw strings in `Typography`, `Button` or a `Tooltip`'s `title`

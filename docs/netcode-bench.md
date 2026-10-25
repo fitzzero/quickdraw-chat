@@ -46,8 +46,12 @@ when a netcode improvement lands on main).
 Everything shares one machine clock, so cross-client comparisons are exact.
 
 **Tier 2 (real browsers, the truth lane)** — Playwright drives Chromium
-running the real web app + Godot WASM with `?bench=1`; a Godot telemetry
-autoload streams rendered positions/FPS/corrections to the page, the same
+running the real web app's game client (`apps/web/src/game`: the shared
+netcode core under a PixiJS renderer) with `?bench=1` (and `&gpu=webgl` or
+`&gpu=webgpu` to pick the backend: both are gated, WebGL the floor); the
+client streams rendered positions, FPS, corrections, the page's long tasks
+and the renderer's draw calls and geometry builds to the page
+(`window.QuickdrawBench`), the same
 latency proxy sits in front of each browser, and the same scorecard comes
 out (`apps/bench-web`). Use it to validate Tier-1 winners — it measures the
 real render pipeline, including WASM frame pacing.
@@ -202,7 +206,10 @@ includes them.
 ## Extending
 
 - New scenario: add to `SCENARIOS` (seed, duration, per-bot net profiles,
-  behaviors). Keep `npcCount: 0` unless NPC load is the point.
+  behaviors). Keep `npcCount: 0` unless NPC load is the point. A scenario
+  for one tier only says so with `tiers` (`render-stress-8p`, the
+  renderer's load test, is the browser tier's: the headless sweep skips it
+  and it needs no baseline).
 - New metric: compute it in `packages/bench/src/metrics/`, add to the
   scorecard type (bump `schemaVersion` if the shape changes), and register
   it in `headlineMetrics()` if it should gate comparisons.
