@@ -167,6 +167,20 @@ async function removeMember(
 }
 
 /**
+ * Deletes a chat's messages and memberships, for a delete of the chat that
+ * follows in the same transaction: the database would cascade them
+ * untracked, and a socket holding one of the messages would never hear it
+ * is gone. It leaves the chat's `memberCount`, which goes with the chat.
+ */
+export async function deleteChatRows(
+  tx: TrackedTransaction<PrismaClient>,
+  chatId: string,
+): Promise<void> {
+  await tx.message.deleteMany({ where: { chatId } });
+  await tx.chatMember.deleteMany({ where: { chatId } });
+}
+
+/**
  * Makes one change to a chat's members, under the sharing kit's rules
  * (`checkChange`), in a SERIALIZABLE transaction: two changes at once
  * cannot both pass the rules (two last Admins leaving together). Answers

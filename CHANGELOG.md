@@ -51,10 +51,22 @@ for the deploy.
   that moment has no subscribers) and the bootstrap admin's grants
   (`grants.ts`: every load answers a bootstrap admin those grants, so a
   reload of their sockets would change nothing).
+- **A chat's delete tells whoever holds its messages that they are gone.**
+  `deleteChat` and the admin screens' delete remove the chat's messages
+  and memberships through the tracked client first, in the delete's
+  transaction (`deleteChatRows`; on the admin screens, the kit's
+  `prepare`, with 5.1.4's `transaction: { timeoutMs }`). A socket
+  subscribed to one of its messages now hears it removed, where the
+  database's cascade told it only that it lost access. The transaction may
+  run 20 s (Prisma's default is 5 s), under the 30 s call limit;
+  chatService lists `message` in its `writes`, which the API reference
+  shows. With `prepare` set, every admin write of a chat runs in the
+  kit's transaction, so a rename reads the row once more first.
 
 Nothing else moved: `check`, the API reference (`docs:check` renders the
-same pages), every budget and the access snapshot hold as they were on
-5.1.3, and Storybook's `Disconnected` chat shows its messages as before.
+same pages but for chatService's new `writes` entry), every budget and
+the access snapshot hold as they were on 5.1.3, and Storybook's
+`Disconnected` chat shows its messages as before.
 The game bench measures 5.1.4 as it measured 5.1.3: a same-machine A/B of
 all thirteen headless scenarios finds nothing the core moved, so the
 baselines stay (`docs/netcode-rd/LEDGER.md`).
@@ -67,6 +79,13 @@ baselines stay (`docs/netcode-rd/LEDGER.md`).
   the client rule says `isReady`. Quickdraw's `channelOf` (card
   `client-core-streams-channels-and-events-without-react-host-s`) brings
   both when it replaces the wire.
+- A user's delete (`userService.adminDelete`) still leaves the user's
+  memberships, messages, documents, push subscriptions and game scores to
+  the database's cascade, untracked, and the `users_count_out_of_chats`
+  trigger lowers their chats' `memberCount` unseen: the same rule's next
+  case, which needs a `prepare` and `transaction.timeoutMs` on the user
+  admin kit, `writes` on four other services' models, and the chats'
+  `lastMessageAt` and `memberCount` kept right. It is its own change.
 
 ## Unreleased
 
@@ -135,10 +154,6 @@ same pages), every budget and the access snapshot hold as they were on
 The rules linked from `@fitzzero/quickdraw-skills` grew with 5.1.3. No
 check or test fails on these, so they are left for their own change:
 
-- Before deleting a row whose dependents the database deletes, delete them
-  through `db` first so their lists are told (for the admin kit, in its
-  `prepare`): `deleteChat` and the chat admin screen's delete leave a chat's
-  messages and memberships to the cascade.
 - After an admin screen's own write, put the row the write returned in the
   cache (`adminGet.setData`); `AdminEntitySidebar` invalidates it instead.
   The kit's row reads default to `staleTime: 0` now, so a screen reads its

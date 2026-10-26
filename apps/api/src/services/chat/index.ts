@@ -6,11 +6,14 @@ import {
   type Principal,
   type RoomLeaveHandler,
 } from "@fitzzero/quickdraw-core/server";
+import type { TrackedTransaction } from "@fitzzero/quickdraw-core/prisma";
+import type { PrismaClient } from "@project/db";
 import { chatContract } from "@project/shared";
 import type { db as appDb } from "../../db.js";
 import { qd } from "../../quickdraw.js";
 import {
   changeMembership,
+  deleteChatRows,
   isForeignKeyFailure,
   listMembers,
   type MembershipChange,
@@ -128,11 +131,25 @@ async function changeMembers(
   }
 }
 
+// The time limit of a chat delete's transaction, which first removes the
+// chat's messages and memberships (deleteChatRows): above Prisma's 5 s
+// default, for a long chat, and below `limits.callTimeoutMs` (30 s by
+// default) less the 2 s a transaction may wait to start, so a caller never
+// gets TIMEOUT for a delete that commits
+const CHAT_DELETE_TIMEOUT_MS = 20_000;
+
 /**
  * The admin screens: every chat, for holders of a service-wide Admin grant,
- * who may edit what the contract's `editable` names (its title).
+ * who may edit what the contract's `editable` names (its title). A delete
+ * removes the chat's messages and memberships first, in its transaction.
  */
-const chatAdmin = admin.handlers(chatContract, { displayName: "Chats" });
+const chatAdmin = admin.handlers(chatContract, {
+  displayName: "Chats",
+  prepare: async (call, _ctx, db: TrackedTransaction<PrismaClient>) => {
+    if (call.method === "adminDelete") await deleteChatRows(db, call.id);
+  },
+  transaction: { timeoutMs: CHAT_DELETE_TIMEOUT_MS },
+});
 
 /**
  * Chats: the membership-table access pattern. A chat's level comes from its
@@ -144,7 +161,8 @@ export const chatService = qd.defineService(chatContract, {
   model: "chat",
   // ChatMember.level holds the level names themselves: Read, Moderate, Admin
   access: members({ model: "chatMember", entry: "chatId", user: "userId", level: "level" }),
-  writes: ["chatMember"],
+  // a delete removes the chat's messages (messageService's) with it
+  writes: ["chatMember", "message"],
   // `listItem` is columns only (`memberCount` is a maintained column): the
   // framework selects it from the row, so a list reads no member
   collections: { myChats: { scopeAccess: "self" } },
@@ -190,13 +208,19 @@ export const chatService = qd.defineService(chatContract, {
       handler: ({ input, db }) =>
         db.chat.update({ where: { id: input.id }, data: { title: input.title } }),
     },
-    // quickdraw: hand-written because it answers { id, deleted } as the chat sidebar expects; the database cascade removes the memberships and messages, and the deleted anchor closes every byChat scope of the chat
+    // quickdraw: hand-written because it answers { id, deleted } as the chat sidebar expects; it deletes the chat's messages and memberships first, through the tracked client (so a socket holding a message hears it is gone), and the deleted anchor closes every byChat scope of the chat
     deleteChat: {
       access: { service: "Admin", entry: "Admin" },
       // users only: an agent acting for one is refused, whatever its grants
       kinds: ["user"],
       handler: async ({ input, db }) => {
-        await db.chat.delete({ where: { id: input.id }, select: { id: true } });
+        await db.$transaction(
+          async (tx) => {
+            await deleteChatRows(tx, input.id);
+            await tx.chat.delete({ where: { id: input.id }, select: { id: true } });
+          },
+          { timeout: CHAT_DELETE_TIMEOUT_MS },
+        );
         return { id: input.id, deleted: true as const };
       },
     },

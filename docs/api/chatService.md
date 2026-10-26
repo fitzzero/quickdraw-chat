@@ -20,9 +20,10 @@ Each method below says who may call it.
 
 The other services its declarations name: its row policy, `writes`, `affects`, `{ scope, of }` access forms and collection anchors. A handler's undeclared reads are not listed.
 
-| Service       | Declared by                             |
-| ------------- | --------------------------------------- |
-| `gameService` | method `joinWorldChat`: `{ scope, of }` |
+| Service          | Declared by                             |
+| ---------------- | --------------------------------------- |
+| `gameService`    | method `joinWorldChat`: `{ scope, of }` |
+| `messageService` | `writes`: its `message` model           |
 
 It also `writes` models no service's rows live in: `chatMember`.
 
