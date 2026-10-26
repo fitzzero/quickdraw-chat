@@ -5,7 +5,11 @@
 //   from the cached template dump — no PostgreSQL required.
 import { PrismaClient } from "@project/db";
 import { resetDatabase, setTestPrisma } from "@project/db/testing";
-import { openPgliteFromTemplate, workerDatabaseUrl } from "@fitzzero/quickdraw-core/testing/prisma";
+import {
+  openPgliteFromTemplate,
+  withSavepoints,
+  workerDatabaseUrl,
+} from "@fitzzero/quickdraw-core/testing/prisma";
 import { afterAll, beforeAll, beforeEach } from "vitest";
 import { TEST_TEMPLATE } from "./utils/test-template.js";
 
@@ -31,14 +35,17 @@ if (process.env.TEST_DATABASE_URL) {
   });
 } else {
   // PGlite mode: this worker's own database, from the template global-setup
-  // built (read through Node's Blob, so under the web's jsdom too)
+  // built (read through Node's Blob, so under the web's jsdom too).
+  // withSavepoints: a nested tx.$transaction(...) runs here as on PostgreSQL
+  // (pglite-prisma-adapter has no savepoints of its own, and Prisma refuses
+  // a nested transaction without them)
   const { PrismaPGlite } = await import("pglite-prisma-adapter");
 
   let pglite: Awaited<ReturnType<typeof openPgliteFromTemplate>>;
 
   beforeAll(async () => {
     pglite = await openPgliteFromTemplate(TEST_TEMPLATE);
-    setTestPrisma(new PrismaClient({ adapter: new PrismaPGlite(pglite), log: [] }));
+    setTestPrisma(new PrismaClient({ adapter: withSavepoints(new PrismaPGlite(pglite)), log: [] }));
   });
 
   afterAll(async () => {

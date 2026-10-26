@@ -12,7 +12,9 @@
  * the list.
  *
  * quickdraw-5.0 finding: the typed client has no React-free API for a
- * host-served stream or channel, so a 20 Hz feed crosses React state here
+ * host-served stream or channel on the page's socket (5.1.4's `holdStream`
+ * needs a live store of its own connection, and `liveStoreOf` throws on the
+ * provider's), so a 20 Hz feed crosses React state here
  * (about twenty re-renders a second of components that render nothing);
  * and a stream has no refresh, so the ask toggles the hook, and the pause
  * must outlast a macrotask: the client closes a released feed on a 0 ms

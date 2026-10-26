@@ -1,5 +1,52 @@
 # Changelog
 
+## quickdraw 5.1.4 (2026-10-26)
+
+The template on quickdraw 5.1.4 (`@fitzzero/quickdraw-core`, `-lint` and
+`-skills` at `^5.1.4`, quickdraw release 2026.10.11): a volatile stream and
+`useChannel` drop only on a real backlog, nested transactions on PGlite
+(`withSavepoints`), a React-free live store (`holdStream` among its
+holdings), and the admin kit's `transaction: { timeoutMs }`. Nothing to do
+for the deploy.
+
+### Changed
+
+- **The test databases run nested transactions as PostgreSQL does.** Both
+  PGlite clients (the tests' `setup.ts` and the bench's `server.ts`) wrap
+  their adapter in 5.1.4's `withSavepoints`, as its testing rule asks.
+  Prisma 7.4.2, which the lockfile holds, has no nested transactions on
+  either database (`tx.$transaction` is not a function; Prisma 7.5 adds
+  them), so nothing runs differently until Prisma moves.
+- **The notes on volatile drops say what 5.1.4 does.** A volatile stream
+  drops a frame for a socket only while 64 wait on its connection, where
+  5.1.3's Socket.IO flag dropped one whenever a write was in flight. The
+  web's transport test ticks the loop one tick at a time because the
+  game's loop does, not to dodge a drop. The bench's proxy, `bursty-3p` and
+  `docs/netcode-bench.md` say a stall bursts the snapshots and drops none
+  (`packet.gapRate` is 0 in every server scenario). The game's input wire
+  says what Socket.IO's volatile flag drops (a second send in the same
+  tick), where `useChannel` now drops only on a backlog.
+- **The `quickdraw-5.0 finding` markers say why each still stands.**
+  5.1.4's `holdStream` is React-free but needs a live store of its own
+  connection, which the page's one socket cannot give, and no channel or
+  event has a React-free member, so the game's wire and the party's bridge
+  stay. `qd.rooms` still has no `hostOf` or `clearHost` at run time, and a
+  host's own feed subscribed before `serve` still gets no seed: both are
+  filed upstream as quickdraw suggestions.
+
+Nothing else moved: `check`, the API reference (`docs:check` renders the
+same pages), every budget and the access snapshot hold as they were on
+5.1.3, and Storybook's `Disconnected` chat shows its messages as before.
+
+### What 5.1.4's rules say that the template does not do yet
+
+- The game's input wire (`pageTransport.ts`, and the bots'
+  `socket-transport.ts`) sends a hand-written `qd:ch` on Socket.IO's
+  volatile flag, and the page's gates on the connection's `status` where
+  the client rule says `isReady`. Quickdraw's `channelOf` (card
+  `client-core-streams-channels-and-events-without-react-host-s`) brings
+  both when it replaces the wire.
+
 ## Unreleased
 
 ### Fixed

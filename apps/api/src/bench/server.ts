@@ -20,6 +20,7 @@ import type { Scenario } from "@project/bench";
 import {
   createPrismaTestGlobalSetup,
   openPgliteFromTemplate,
+  withSavepoints,
 } from "@fitzzero/quickdraw-core/testing/prisma";
 import { TEST_TEMPLATE } from "../__tests__/utils/test-template.js";
 import { isAllowedOrigin } from "../auth/config.js";
@@ -56,7 +57,8 @@ async function ensureDatabase(): Promise<void> {
   if (!process.env.TEST_DATABASE_URL) {
     const { PrismaPGlite } = await import("pglite-prisma-adapter");
     const pglite = await openPgliteFromTemplate(TEST_TEMPLATE);
-    setTestPrisma(new PrismaClient({ adapter: new PrismaPGlite(pglite), log: [] }));
+    // withSavepoints: nested transactions run here as on PostgreSQL (setup.ts)
+    setTestPrisma(new PrismaClient({ adapter: withSavepoints(new PrismaPGlite(pglite)), log: [] }));
     pgliteClose = () => pglite.close();
   }
   dbReady = true;

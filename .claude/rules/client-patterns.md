@@ -146,15 +146,17 @@ hosts or joins on the page's socket, and `PartyWire.tsx` bridges the
 host-served feeds (`useStream` of `partyWorld` and `partyEvents`,
 `useChannel` of `partyInput`) into the client's `PartyTransport`, under a
 `quickdraw-5.0 finding` marker: the typed client has no React-free API for
-a host-served member yet. The game client itself never opens a link.
+a host-served member on the page's socket yet. The game client itself never
+opens a link.
 
 One socket per user: the page's. `GameSurface` joins the world's room
 (`useJoin(watchWorld)`, and `joinGame` while the user plays), and the
 client's transport (`wire/pageTransport.ts`) subscribes the world stream
 and sends input on the same connection, speaking the protocol's frames on
 `connection.socket` under a `quickdraw-5.0 finding` marker and a lint
-override scoped to that folder: the typed client has no React-free stream,
-channel or event API yet. The local snake is placed by the first own
+override scoped to that folder: the typed client has no React-free channel
+or event API yet, and its React-free stream (`holdStream`, 5.1.4) needs a
+connection of its own. The local snake is placed by the first own
 snapshot after the page's join, never from the bootstrap, which may be
 ticks old. `?gpu=webgl|webgpu` picks the backend (Pixi's default is WebGL;
 both are measured), `?debug=1` shows the renderer's stats (the backend, fps, the main thread's

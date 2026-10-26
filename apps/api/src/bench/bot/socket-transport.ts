@@ -166,8 +166,14 @@ export class SocketTransport implements GameTransport {
   }
 
   public sendInput(frames: GameInput[]): void {
-    // `qd:ch`: fire and forget, dropped rather than queued when backed up; the
-    // next message repeats a dropped one's frames
+    // `qd:ch`: fire and forget on Socket.IO's volatile flag, which drops a
+    // message while the transport is still writing (a second send in the
+    // same tick), backlog or not; the next message repeats a dropped one's
+    // frames. useChannel drops one only on a real backlog since quickdraw
+    // 5.1.4. channelOf (quickdraw card
+    // `client-core-streams-channels-and-events-without-react-host-s`) brings
+    // that rule here when it replaces the page's hand-written wire, which
+    // this one follows
     this.socket?.volatile.emit("qd:ch", ["gameService", "input", { frames }]);
   }
 

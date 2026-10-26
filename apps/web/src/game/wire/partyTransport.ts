@@ -14,10 +14,13 @@
  * carries none.
  *
  * quickdraw-5.0 finding: the typed client has no React-free way to
- * subscribe to a host-served stream or send on a host-served channel (the
- * React hooks alone speak host mode's link framing, which an app must never
- * hand-write), so the 20 Hz feed crosses a React component; and a stream
- * has no refresh, so a keyframe ask is the bridge's to serve (PartyWire).
+ * subscribe to a host-served stream or send on a host-served channel over
+ * the page's socket (the React hooks alone speak host mode's link framing,
+ * which an app must never hand-write; 5.1.4's `holdStream` needs a live
+ * store of its own connection, and `liveStoreOf` throws on the provider's,
+ * the socket the party's room holds; no channel has a React-free send), so
+ * the 20 Hz feed crosses a React component; and a stream has no refresh,
+ * so a keyframe ask is the bridge's to serve (PartyWire).
  * The quickdraw card
  * `client-core-streams-channels-and-events-without-react-host-s` asks for
  * the API; when it ships, this transport subscribes itself and the bridge

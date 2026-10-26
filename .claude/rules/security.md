@@ -60,7 +60,7 @@ closed) is the linked `quickdraw-access.md`.
   who plays (`partyPlayer`), and closing a party is its host's (the row
   policy's `owner("hostUserId")`) or a service-wide Admin's. A direct
   (WebRTC) link shows each side's public IP address to the other. And
-  `peers: true` is one switch for the whole server (core 5.1.3): any two
+  `peers: true` is one switch for the whole server (core 5.1.4): any two
   signed-in sockets that share an app room may link or relay through the
   server, the world's room and a chat's roster room included.
   <!-- ── quickdraw-game:end ── -->

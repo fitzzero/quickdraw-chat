@@ -11,13 +11,15 @@
  * world's bounds come from the join's bootstrap. In bench mode (`join:
  * "self"`) it joins and respawns itself on a connection of its own.
  *
- * quickdraw-5.0 finding: the typed client has no React-free way to
- * subscribe to a stream, send on a channel or hear an event
- * (`@fitzzero/quickdraw-core/client/core` gives calls, peer links and
- * defineHost; `useStream`, `useChannel` and `useEvent` are React hooks,
- * unfit for a 20 Hz game loop). So this module speaks the frames on
- * `connection.socket` itself, under a `no-raw-socket` lint override scoped
- * to this folder (`.oxlintrc.json`). The quickdraw card
+ * quickdraw-5.0 finding: the typed client has no React-free way to send on
+ * a channel or hear an event, and none to hold a stream on the page's
+ * socket (`@fitzzero/quickdraw-core/client/core` gives calls, peer links,
+ * defineHost and, since 5.1.4, `holdStream`, which needs a live store of
+ * its own connection: `liveStoreOf` throws on the provider's, which this
+ * transport runs on in the page; `useStream`, `useChannel` and `useEvent`
+ * are React hooks, unfit for a 20 Hz game loop). So this module speaks the
+ * frames on `connection.socket` itself, under a `no-raw-socket` lint
+ * override scoped to this folder (`.oxlintrc.json`). The quickdraw card
  * `client-core-streams-channels-and-events-without-react-host-s` asks for
  * the API; when it ships, this becomes `streamOf`, `channelOf` and
  * `eventsOf`, and the override goes.
@@ -181,10 +183,14 @@ export class PageTransport implements GameTransport {
   }
 
   public sendInput(frames: GameInput[]): void {
-    // `qd:ch`: fire and forget, dropped rather than queued when backed up;
-    // the next message repeats a dropped one's frames. Nothing goes out
-    // while the connection is down (a closing socket logs each write as an
-    // error): the next message after the hello carries the frames
+    // `qd:ch`: fire and forget on Socket.IO's volatile flag, which drops a
+    // message while the transport is still writing (a second send in the
+    // same tick), backlog or not; the next message repeats a dropped one's
+    // frames. useChannel drops one only on a real backlog since quickdraw
+    // 5.1.4, and channelOf brings that rule here when it replaces this wire
+    // (the finding above). Nothing goes out while the connection is down (a
+    // closing socket logs each write as an error): the next message after
+    // the hello carries the frames
     if (this.opts.connection.getState().status !== "connected") return;
     this.opts.connection.socket.volatile.emit("qd:ch", ["gameService", "input", { frames }]);
   }

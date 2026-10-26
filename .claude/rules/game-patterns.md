@@ -218,8 +218,8 @@ place of them: one member is served by the server or by a host, never both.
   from a snapshot by its send time (a seed has none); a keyframe ask holds
   the world feed off for a moment, so its next subscription answers a fresh
   seed (a `quickdraw-5.0 finding`, with the bridge itself: no React-free
-  API for a host-served member yet, so the 20 Hz feed crosses a React
-  component, and no refresh for a stream); the dialog respawns with
+  API for a host-served member on the page's socket yet, so the 20 Hz feed
+  crosses a React component, and no refresh for a stream); the dialog respawns with
   `playParty`. Never open a peer link or speak host mode's framing from app
   code.
 - **Limits**: a party runs the default tunables (`PARTY_TUNABLES`; admin

@@ -1,8 +1,9 @@
 /**
  * Packet-health metrics. Snapshot ticks are numbered by the server, so
  * volatile drops are exactly measurable from the tick deltas between
- * consecutive arrivals — regardless of whether the drop happened in
- * engine.io's write buffer (backpressure) or a snapshot was coalesced.
+ * consecutive arrivals — whether the server dropped a snapshot (only while
+ * 64 frames wait on a connection), a party's lossy `fast` link lost it, or
+ * a snapshot was coalesced.
  */
 
 import type { ClientTrace, PacketHealth } from "../types.js";
