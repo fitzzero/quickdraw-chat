@@ -288,8 +288,9 @@ against `len-tenths`; `remotes-present.json`, the remotes at the present
   Seeds fix the sampled delays/behaviors; median-of-3 + `runVariance` handle
   the rest. Compare against the noise band, not raw deltas.
 - The proxy cannot reorder or truly drop TCP data; jitter manifests as
-  clumping and `stall` as drop-inducing backpressure — which matches what
-  real WebSocket traffic experiences.
+  clumping and `stall` as a burst on release (nothing is dropped: the
+  server drops a volatile frame only while 64 wait on a connection) —
+  which matches what real WebSocket traffic experiences.
 - Tier-1 bots run the web client's netcode, not its renderer. The page's
   frame pacing and draw cost only show up in Tier 2, whose numbers are a
   desk's (its display rate, its GPU): judged against the acceptance per

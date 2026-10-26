@@ -122,8 +122,9 @@ describe("PageTransport in bench mode (it joins the world itself)", () => {
     expect(wire.keyframes[0]?.food?.[0]?.spawned?.length).toBeGreaterThan(0);
 
     // one tick at a time, as the game's loop runs them: one tick a timeout,
-    // and a loop that falls a tick behind starts its grid again from now
-    // (GameLoop.scheduleTick), so the world stream never pushes a burst
+    // and a loop that falls more than a tick behind starts its grid again
+    // from now (GameLoop.scheduleTick), so the world stream never pushes a
+    // burst
     const ticks: number[] = [];
     for (let i = 0; i < 3; i++) {
       const sent = tick();

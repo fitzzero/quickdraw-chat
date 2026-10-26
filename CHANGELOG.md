@@ -11,12 +11,13 @@ for the deploy.
 
 ### Changed
 
-- **The test databases run nested transactions as PostgreSQL does.** Both
-  PGlite clients (the tests' `setup.ts` and the bench's `server.ts`) wrap
-  their adapter in 5.1.4's `withSavepoints`, as its testing rule asks.
-  Prisma 7.4.2, which the lockfile holds, has no nested transactions on
-  either database (`tx.$transaction` is not a function; Prisma 7.5 adds
-  them), so nothing runs differently until Prisma moves.
+- **The test databases are ready for nested transactions.** Both PGlite
+  clients (the tests' `setup.ts` and the bench's `server.ts`) wrap their
+  adapter in 5.1.4's `withSavepoints`, as its testing rule asks, so a
+  nested `tx.$transaction(...)` will run there as on PostgreSQL. Prisma
+  7.4.2, which the lockfile holds, nests no transactions on either
+  database (`tx.$transaction` is not a function; Prisma 7.5 adds them),
+  so nothing runs differently until Prisma moves.
 - **The notes on volatile drops say what 5.1.4 does.** A volatile stream
   drops a frame for a socket only while 64 wait on its connection, where
   5.1.3's Socket.IO flag dropped one whenever a write was in flight. The
@@ -25,7 +26,8 @@ for the deploy.
   `docs/netcode-bench.md` say a stall bursts the snapshots and drops none
   (`packet.gapRate` is 0 in every server scenario). The game's input wire
   says what Socket.IO's volatile flag drops (a second send in the same
-  tick), where `useChannel` now drops only on a backlog.
+  task, never for a backlog), where `useChannel` now drops only on a
+  backlog.
 - **The `quickdraw-5.0 finding` markers say why each still stands.**
   5.1.4's `holdStream` is React-free but needs a live store of its own
   connection, which the page's one socket cannot give, and no channel or

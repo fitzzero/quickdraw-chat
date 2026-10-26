@@ -36,9 +36,9 @@ if (process.env.TEST_DATABASE_URL) {
 } else {
   // PGlite mode: this worker's own database, from the template global-setup
   // built (read through Node's Blob, so under the web's jsdom too).
-  // withSavepoints: a nested tx.$transaction(...) runs here as on PostgreSQL
-  // (pglite-prisma-adapter has no savepoints of its own, and Prisma refuses
-  // a nested transaction without them)
+  // withSavepoints: on a Prisma that nests transactions (7.5 and later), a
+  // nested tx.$transaction(...) runs here as on PostgreSQL, which
+  // pglite-prisma-adapter alone cannot (it has no savepoints)
   const { PrismaPGlite } = await import("pglite-prisma-adapter");
 
   let pglite: Awaited<ReturnType<typeof openPgliteFromTemplate>>;

@@ -57,7 +57,7 @@ async function ensureDatabase(): Promise<void> {
   if (!process.env.TEST_DATABASE_URL) {
     const { PrismaPGlite } = await import("pglite-prisma-adapter");
     const pglite = await openPgliteFromTemplate(TEST_TEMPLATE);
-    // withSavepoints: nested transactions run here as on PostgreSQL (setup.ts)
+    // withSavepoints, as the tests' client (setup.ts)
     setTestPrisma(new PrismaClient({ adapter: withSavepoints(new PrismaPGlite(pglite)), log: [] }));
     pgliteClose = () => pglite.close();
   }
