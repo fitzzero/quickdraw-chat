@@ -39,6 +39,9 @@ for the deploy.
 Nothing else moved: `check`, the API reference (`docs:check` renders the
 same pages), every budget and the access snapshot hold as they were on
 5.1.3, and Storybook's `Disconnected` chat shows its messages as before.
+The game bench measures 5.1.4 as it measured 5.1.3: a same-machine A/B of
+all thirteen headless scenarios finds nothing the core moved, so the
+baselines stay (`docs/netcode-rd/LEDGER.md`).
 
 ### What 5.1.4's rules say that the template does not do yet
 
