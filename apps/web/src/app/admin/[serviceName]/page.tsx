@@ -10,6 +10,7 @@ import {
   adminOf,
   useAdminServices,
   type AdminKeysOf,
+  type AdminRow,
   type AdminScreen,
   type AdminServiceInfo,
 } from "@fitzzero/quickdraw-core/client";
@@ -136,10 +137,17 @@ function AdminServiceScreen({
     setSelectedId((prev) => (prev === id ? null : id));
   }, []);
 
-  const handleCreateSuccess = React.useCallback(() => {
-    setCreateModalOpen(false);
-    refreshList();
-  }, [refreshList]);
+  const handleCreateSuccess = React.useCallback(
+    (row: AdminRow) => {
+      setCreateModalOpen(false);
+      // The created row from the write's answer, so opening it shows the row
+      // at once (the kit's reads still read it again on mount); the list
+      // reads its page again
+      admin.adminGet?.setData({ id: row.id }, row);
+      refreshList();
+    },
+    [admin, refreshList],
+  );
 
   if (metaError !== null) {
     return (

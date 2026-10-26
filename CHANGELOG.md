@@ -62,6 +62,11 @@ for the deploy.
   chatService lists `message` in its `writes`, which the API reference
   shows. With `prepare` set, every admin write of a chat runs in the
   kit's transaction, so a rename reads the row once more first.
+- **The admin screens show the row a save returned.** After `adminUpdate`
+  the sidebar puts the write's answer in `adminGet`'s cache
+  (`adminGet.setData`) instead of reading the row again, and the page
+  does the same with the row `adminCreate` returned; the list still reads
+  its page again.
 
 Nothing else moved: `check`, the API reference (`docs:check` renders the
 same pages but for chatService's new `writes` entry), every budget and
@@ -151,13 +156,11 @@ same pages), every budget and the access snapshot hold as they were on
 
 ### What 5.1.3's rules say that the template does not do yet
 
-The rules linked from `@fitzzero/quickdraw-skills` grew with 5.1.3. No
-check or test fails on these, so they are left for their own change:
-
-- After an admin screen's own write, put the row the write returned in the
-  cache (`adminGet.setData`); `AdminEntitySidebar` invalidates it instead.
-  The kit's row reads default to `staleTime: 0` now, so a screen reads its
-  row again on every mount.
+The rules linked from `@fitzzero/quickdraw-skills` grew with 5.1.3, with
+three the template did not follow yet. It follows all three since 5.1.4
+(above): a helper that writes takes the tracked client by its type, a
+chat's delete removes its messages and memberships through `db` first,
+and an admin screen puts the row its write returned in the cache.
 
 ## quickdraw 5.1.2 (2026-10-12)
 
