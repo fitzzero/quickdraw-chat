@@ -21,5 +21,6 @@ An arrow points from a service to another its declarations name: `inherit` (its 
 ```mermaid
 graph LR
   chatService -->|scope| gameService
+  chatService -->|writes| messageService
   messageService -->|inherit, writes, scope, anchor| chatService
 ```

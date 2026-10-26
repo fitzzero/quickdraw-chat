@@ -4,6 +4,7 @@ import { describeAccessMatrix } from "@fitzzero/quickdraw-core/testing";
 import { testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import { userService } from "../../services/user/index.js";
 import { agent, startTestApp, subscribeEntity, user, type ApiTestApp } from "../utils/app.js";
+import { signIn, signInProfile } from "../utils/auth.js";
 import { createTestUser } from "../factories/user-factory.js";
 
 type Users = Awaited<ReturnType<typeof seedTestUsers>>;
@@ -265,6 +266,37 @@ describe("UserService updateUser and grants", () => {
     ).toBe("FORBIDDEN");
     const stored = await testPrisma.user.findUniqueOrThrow({ where: { id: users.regular.id } });
     expect(stored.serviceAccess).toBeNull();
+  });
+});
+
+describe("UserService live sign-ins", () => {
+  it("tells a user's own socket the address a later sign-in verifies", async () => {
+    // a first sign-in without a verified address: the user gets the placeholder
+    const userId = await signIn(
+      signInProfile("discord-later", "later@example.com", false),
+      "discord",
+    );
+    if (userId === null) throw new Error("expected a user");
+    const socket = await app.connect(user(userId));
+    // their own row, where they hold Admin: the email is sent
+    expect(await subscribeEntity(socket, "userService", userId)).toMatchObject({
+      ok: true,
+      r: [{ ok: true, d: { id: userId, email: "discord-later@discord.local" } }],
+    });
+    app.frames.clear();
+
+    // the same account signs in again, its provider now verifying the address
+    expect(await signIn(signInProfile("discord-later", "later@example.com", true), "discord")).toBe(
+      userId,
+    );
+
+    const frame = await app.frames.waitFor({ event: "qd:e", userId });
+    expect(frame.data).toMatchObject({
+      s: "userService",
+      id: userId,
+      d: { email: "later@example.com" },
+    });
+    socket.close();
   });
 });
 

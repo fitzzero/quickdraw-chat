@@ -1,10 +1,10 @@
 import { PrismaClient } from "../prisma/generated/prisma/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { trackPrisma } from "@fitzzero/quickdraw-core/prisma";
+import { trackPrisma, type Tracked } from "@fitzzero/quickdraw-core/prisma";
 import { resetDatabase as coreResetDatabase } from "@fitzzero/quickdraw-core/testing/prisma";
 
 let _testPrisma: PrismaClient | undefined;
-let _testDb: PrismaClient | undefined;
+let _testDb: Tracked<PrismaClient> | undefined;
 
 /**
  * Inject a PrismaClient instance for the current worker.
@@ -41,10 +41,11 @@ export const testPrisma: PrismaClient = new Proxy({} as PrismaClient, {
 
 /**
  * The tracked test client, made exactly as the server's `db` is
- * (`trackPrisma` over the worker's database): pass it to `createTestApp`, so
- * the services' writes reach the test server's flush and its subscribers.
+ * (`trackPrisma` over the worker's database, typed `Tracked<PrismaClient>`):
+ * pass it to `createTestApp`, so the services' writes reach the test
+ * server's flush and its subscribers.
  */
-export const testDb: PrismaClient = new Proxy({} as PrismaClient, {
+export const testDb: Tracked<PrismaClient> = new Proxy({} as Tracked<PrismaClient>, {
   get(_target, prop) {
     _testDb ??= trackPrisma(getTestPrisma());
     return Reflect.get(_testDb, prop);

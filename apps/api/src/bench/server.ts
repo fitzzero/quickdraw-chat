@@ -20,6 +20,7 @@ import type { Scenario } from "@project/bench";
 import {
   createPrismaTestGlobalSetup,
   openPgliteFromTemplate,
+  withSavepoints,
 } from "@fitzzero/quickdraw-core/testing/prisma";
 import { TEST_TEMPLATE } from "../__tests__/utils/test-template.js";
 import { isAllowedOrigin } from "../auth/config.js";
@@ -56,7 +57,8 @@ async function ensureDatabase(): Promise<void> {
   if (!process.env.TEST_DATABASE_URL) {
     const { PrismaPGlite } = await import("pglite-prisma-adapter");
     const pglite = await openPgliteFromTemplate(TEST_TEMPLATE);
-    setTestPrisma(new PrismaClient({ adapter: new PrismaPGlite(pglite), log: [] }));
+    // withSavepoints, as the tests' client (setup.ts)
+    setTestPrisma(new PrismaClient({ adapter: withSavepoints(new PrismaPGlite(pglite)), log: [] }));
     pgliteClose = () => pglite.close();
   }
   dbReady = true;
@@ -115,7 +117,7 @@ export async function startBenchServer(
 
   // bots sign in with development credentials (auth.userId); check:web's
   // pages as guests, by cookie, through the routes
-  const auth = createAppAuth({ prisma: testPrisma, serviceNames });
+  const auth = createAppAuth({ prisma: testPrisma, db: testDb, serviceNames });
   // Real browsers connect (Tier 2's pages from the web dev server, check:web's
   // from its own): the auth's allowed origins, CLIENT_URL and localhost
   const origin: CorsOrigin = (from, callback) => {

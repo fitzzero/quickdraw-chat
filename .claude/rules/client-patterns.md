@@ -92,11 +92,13 @@ how the web app uses it.
   services come from `useAdminServices(qd)` (it asks only the services the
   hello's grants allow), and every table and form from the service's
   `adminMeta` through `adminOf(qd, key)` (one shape for every admin kit,
-  typed by field name). The kit's rows are not live: a screen reads its list
-  again after its own writes. The forms show the fields whose `showInForm`
-  is not `false`; a user's grants (`showInForm: false` on the server) have
-  their own editor (`UserServiceAccessEditor`, written through `adminUpdate`),
-  shown for the field the kit marks `kind: "grants"`.
+  typed by field name). The kit's rows are not live: after its own writes a
+  screen reads its list again and puts the row the write returned in
+  `adminGet`'s cache (`setData`), never in React state. The forms show the
+  fields whose `showInForm` is not `false`; a user's grants
+  (`showInForm: false` on the server) have their own editor
+  (`UserServiceAccessEditor`, written through `adminUpdate`), shown for the
+  field the kit marks `kind: "grants"`.
 - **Sign-in and sign-out** go through the auth routes kit with the client's
   `signInUrl(provider, AUTH_ROUTES)`, `signOut(AUTH_ROUTES)` and
   `signOutEverywhere(AUTH_ROUTES)` (`AUTH_ROUTES` in `apps/web/src/lib/auth.ts`
@@ -146,15 +148,17 @@ hosts or joins on the page's socket, and `PartyWire.tsx` bridges the
 host-served feeds (`useStream` of `partyWorld` and `partyEvents`,
 `useChannel` of `partyInput`) into the client's `PartyTransport`, under a
 `quickdraw-5.0 finding` marker: the typed client has no React-free API for
-a host-served member yet. The game client itself never opens a link.
+a host-served member on the page's socket yet. The game client itself never
+opens a link.
 
 One socket per user: the page's. `GameSurface` joins the world's room
 (`useJoin(watchWorld)`, and `joinGame` while the user plays), and the
 client's transport (`wire/pageTransport.ts`) subscribes the world stream
 and sends input on the same connection, speaking the protocol's frames on
 `connection.socket` under a `quickdraw-5.0 finding` marker and a lint
-override scoped to that folder: the typed client has no React-free stream,
-channel or event API yet. The local snake is placed by the first own
+override scoped to that folder: the typed client has no React-free channel
+or event API yet, and its React-free stream (`holdStream`, 5.1.4) needs a
+connection of its own. The local snake is placed by the first own
 snapshot after the page's join, never from the bootstrap, which may be
 ticks old. `?gpu=webgl|webgpu` picks the backend (Pixi's default is WebGL;
 both are measured), `?debug=1` shows the renderer's stats (the backend, fps, the main thread's

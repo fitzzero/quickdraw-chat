@@ -35,8 +35,12 @@ to this app.
   The netcode bench takes it too.
   <!-- ── quickdraw-game:end ── -->
 - **Clients**: `db` from `@project/db` is the tracked client every service
-  writes through (handlers receive it as `db`); `prisma` is the untracked
-  one, for seeds, sessions and sign-in only (`no-untracked-write` lints it).
+  writes through (handlers receive it as `db`), typed `Tracked<PrismaClient>`;
+  `prisma` is the untracked one, for seeds, sessions and the bootstrap
+  admin's grants only (`no-untracked-write` lints it).
+  <!-- ── quickdraw-game:start ── -->
+  The guest sign-in creates its users through it too.
+  <!-- ── quickdraw-game:end ── -->
 
 ## The services as examples
 

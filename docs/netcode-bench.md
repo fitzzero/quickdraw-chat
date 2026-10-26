@@ -33,8 +33,10 @@ when a netcode improvement lands on main).
   positions, tick duration, snapshot bytes per tick;
 - a seeded TCP latency proxy per bot (`packages/bench/src/proxy.ts`) — base
   delay + jitter per direction. "Loss" is modeled honestly for TCP as
-  `stall` (paused reads → real backpressure → the volatile world stream
-  genuinely drops snapshots);
+  `stall` (paused reads: the snapshots wait in the socket buffers and
+  arrive as a burst on release). The server drops a volatile frame for a
+  socket only while 64 wait on its connection, which no stall here
+  reaches, so `packet.gapRate` stays 0 in the server scenarios;
 - bot clients (`apps/api/src/bench/bot/`) speaking the production wire,
   quickdraw protocol v5, as the web client does: `qd:stream:sub` of
   the `world` stream, then `joinGame`/`watchWorld` (`qd:call`, which puts the
@@ -117,7 +119,7 @@ runner notes it under the verdict: that card gates the backend it ran on.
 | `smoothness.jerkRms`                                              | RMS frame-to-frame acceleration of rendered motion.                                                                                            | Relative metric — compare across runs, not absolutely.                     |
 | `hardSnapsPerMin` / `correctionPx`                                | Reconciliation events on the local snake.                                                                                                      | Rare / small.                                                              |
 | `smoothness.stepCorrectionsPerMin`                                | Per client: corrections of a whole movement step (≥ 8 px), a surge or a stall the player sees; the worst client gates.                         | 0; at most one a minute from a stood-in frame's change of intent.          |
-| `packet.gapRate`                                                  | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted).                         | ~0 except bursty scenarios.                                                |
+| `packet.gapRate`                                                  | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted).                         | 0 in the server scenarios; a few % over a party's lossy `fast` link.       |
 | `packet.inputAckRttMs`                                            | Input send → first snapshot acking it.                                                                                                         | RTT + up-to-one-tick alignment.                                            |
 | `server.tickDurMs` / `effectiveTickRate`                          | Sim cost and loop health.                                                                                                                      | ≪ 50ms / 20Hz.                                                             |
 | `server.snapshotBytes`                                            | The stream item's JSON: the packed snapshot, base64 in `{ b }`. On the wire each `qd:stream` frame adds 59 bytes.                              | 23 B a player (31 in base64); add fields consciously.                      |
@@ -286,8 +288,9 @@ against `len-tenths`; `remotes-present.json`, the remotes at the present
   Seeds fix the sampled delays/behaviors; median-of-3 + `runVariance` handle
   the rest. Compare against the noise band, not raw deltas.
 - The proxy cannot reorder or truly drop TCP data; jitter manifests as
-  clumping and `stall` as drop-inducing backpressure — which matches what
-  real WebSocket traffic experiences.
+  clumping and `stall` as a burst on release (nothing is dropped: the
+  server drops a volatile frame only while 64 wait on a connection) —
+  which matches what real WebSocket traffic experiences.
 - Tier-1 bots run the web client's netcode, not its renderer. The page's
   frame pacing and draw cost only show up in Tier 2, whose numbers are a
   desk's (its display rate, its GPU): judged against the acceptance per

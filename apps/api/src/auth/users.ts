@@ -1,9 +1,12 @@
 // The app's own user records for sign-in: `onLogin` finds or creates the user
 // a provider's profile stands for (and its Account row, tokens encrypted at
 // rest), and the mock provider's picker lists the seeded demo users. Written
-// through the untracked client: a user signing in has no subscribers yet.
+// through the tracked client, in the caller's unit of work (`qd.run`): a
+// returning user's sign-in may change their row (an address their provider
+// now verifies), and the screens showing that user hear it.
 
 import { encrypt } from "@fitzzero/quickdraw-core/server";
+import type { Tracked } from "@fitzzero/quickdraw-core/prisma";
 import type { AuthProfile, MockOAuthUser } from "@fitzzero/quickdraw-core/server/auth";
 import type { PrismaClient } from "@project/db";
 import { logger } from "../utils/logger.js";
@@ -51,14 +54,14 @@ interface KnownUser {
  * unless another user holds it. Never marks anything unverified.
  */
 async function recordVerifiedEmail(
-  prisma: PrismaClient,
+  client: Tracked<PrismaClient>,
   user: KnownUser,
   verified: string | null,
   placeholder: string,
 ): Promise<void> {
   if (verified === null || (user.emailVerified && user.email === verified)) return;
   if (user.email === verified) {
-    await prisma.user.update({
+    await client.user.update({
       where: { id: user.id },
       data: { emailVerified: true },
       select: { id: true },
@@ -67,7 +70,7 @@ async function recordVerifiedEmail(
   }
   if (user.email !== placeholder) return;
   try {
-    await prisma.user.update({
+    await client.user.update({
       where: { id: user.id },
       data: { email: verified, emailVerified: true },
       select: { id: true },
@@ -95,7 +98,7 @@ async function recordVerifiedEmail(
  *   the address, verified.
  */
 export async function upsertOAuthUser(
-  prisma: PrismaClient,
+  client: Tracked<PrismaClient>,
   profile: SignInProfile,
   provider: string,
 ): Promise<string | null> {
@@ -105,12 +108,12 @@ export async function upsertOAuthUser(
   const verified = profile.emailVerified && profile.email ? profile.email : null;
   const placeholder = placeholderEmail(providerAccountId, provider);
 
-  const existing = await prisma.user.findFirst({
+  const existing = await client.user.findFirst({
     where: { accounts: { some: { provider, providerAccountId } } },
     select: { id: true, email: true, emailVerified: true },
   });
   if (existing) {
-    await prisma.account.updateMany({
+    await client.account.updateMany({
       where: { userId: existing.id, provider },
       data: {
         accessToken: maybeEncrypt(tokens.access_token),
@@ -118,7 +121,7 @@ export async function upsertOAuthUser(
         expiresAt,
       },
     });
-    await recordVerifiedEmail(prisma, existing, verified, placeholder);
+    await recordVerifiedEmail(client, existing, verified, placeholder);
     logger.info(`Updated ${provider} tokens`, { userId: existing.id });
     return existing.id;
   }
@@ -132,26 +135,30 @@ export async function upsertOAuthUser(
     tokenType: tokens.token_type,
     scope: tokens.scope,
   };
-  // One statement with its account: users are written untracked here (no
-  // subscriber can exist before the first sign-in)
-  const newUser = {
-    name: profile.name,
-    image: safeImageUrl(profile.image),
-    accounts: { create: account },
-  };
+  // The user, then its account, in one transaction: each through its own
+  // delegate, since a nested create is not tracked. quickdraw reloads the
+  // grants of a user a tracked write creates when the unit of work flushes
+  // (the grants loader's read; an ADMIN_EMAILS user's bootstrap grants are
+  // stored then, not at their first connection)
+  const createUser = (email: string, emailVerified: boolean) =>
+    client.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: { name: profile.name, image: safeImageUrl(profile.image), email, emailVerified },
+        select: { id: true },
+      });
+      await tx.account.create({ data: { ...account, userId: created.id }, select: { id: true } });
+      return created;
+    });
 
   if (verified === null) {
-    const created = await prisma.user.create({
-      data: { ...newUser, email: placeholder },
-      select: { id: true },
-    });
+    const created = await createUser(placeholder, false);
     logger.info(`Created new user via ${provider} sign-in, without a verified email`, {
       userId: created.id,
     });
     return created.id;
   }
 
-  const byEmail = await prisma.user.findUnique({
+  const byEmail = await client.user.findUnique({
     where: { email: verified },
     select: { id: true, emailVerified: true, accounts: { select: { id: true }, take: 1 } },
   });
@@ -163,9 +170,9 @@ export async function upsertOAuthUser(
       );
       return null;
     }
-    await prisma.account.create({ data: { ...account, userId: byEmail.id }, select: { id: true } });
+    await client.account.create({ data: { ...account, userId: byEmail.id }, select: { id: true } });
     if (!byEmail.emailVerified) {
-      await prisma.user.update({
+      await client.user.update({
         where: { id: byEmail.id },
         data: { emailVerified: true },
         select: { id: true },
@@ -175,10 +182,7 @@ export async function upsertOAuthUser(
     return byEmail.id;
   }
 
-  const created = await prisma.user.create({
-    data: { ...newUser, email: verified, emailVerified: true },
-    select: { id: true },
-  });
+  const created = await createUser(verified, true);
   logger.info(`Created new user via ${provider} sign-in`, { userId: created.id });
   return created.id;
 }

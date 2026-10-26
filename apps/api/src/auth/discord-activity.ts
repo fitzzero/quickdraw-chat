@@ -29,7 +29,9 @@ import {
   type OAuthTokenResponse,
   type SessionKeys,
 } from "@fitzzero/quickdraw-core/server/auth";
+import type { Tracked } from "@fitzzero/quickdraw-core/prisma";
 import type { PrismaClient } from "@project/db";
+import { qd } from "../quickdraw.js";
 import { logger } from "../utils/logger.js";
 import { validateRequest, z } from "../utils/validate-request.js";
 import { upsertOAuthUser } from "./users.js";
@@ -53,8 +55,8 @@ interface DiscordUser {
 export interface DiscordActivityDeps {
   /** Where sessions are stored and the secret their JWTs are signed with: the auth routes'. */
   keys: SessionKeys;
-  /** The database users are found or created in. */
-  db: PrismaClient;
+  /** The tracked client users are found or created through, so the screens showing a user hear it. */
+  db: Tracked<PrismaClient>;
   /** Exchange the SDK's authorization code for tokens. Injectable for tests. */
   exchangeCode?: (code: string) => Promise<OAuthTokenResponse>;
   /** Fetch the Discord user for an access token. Injectable for tests. */
@@ -105,21 +107,23 @@ export function registerDiscordActivityRoutes(app: Express, deps: DiscordActivit
       try {
         const tokens = await exchangeCode(body.code);
         const discordUser = await fetchDiscordUser(tokens.access_token);
-        const userId = await upsertOAuthUser(
-          deps.db,
-          {
-            providerAccountId: discordUser.id,
-            // Activities grant `identify` only, so no email: the user gets the
-            // placeholder address, as for an email Discord did not verify
-            email: discordUser.email ?? null,
-            emailVerified: discordUser.verified === true,
-            name: discordUser.global_name ?? discordUser.username,
-            image: discordUser.avatar
-              ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
-              : null,
-            tokens,
-          },
-          "discord",
+        const userId = await qd.run(() =>
+          upsertOAuthUser(
+            deps.db,
+            {
+              providerAccountId: discordUser.id,
+              // Activities grant `identify` only, so no email: the user gets the
+              // placeholder address, as for an email Discord did not verify
+              email: discordUser.email ?? null,
+              emailVerified: discordUser.verified === true,
+              name: discordUser.global_name ?? discordUser.username,
+              image: discordUser.avatar
+                ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
+                : null,
+              tokens,
+            },
+            "discord",
+          ),
         );
         if (userId === null) {
           res.status(401).json({ error: "Discord Activity authentication failed" });

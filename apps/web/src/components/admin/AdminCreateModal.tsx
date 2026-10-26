@@ -19,7 +19,7 @@ import {
   Box,
 } from "@mui/material";
 import { useTranslations } from "next-intl";
-import type { AdminScreen } from "@fitzzero/quickdraw-core/client";
+import type { AdminRow, AdminScreen } from "@fitzzero/quickdraw-core/client";
 import type { AdminServiceMeta, AdminFieldConfig } from "@project/shared";
 import { useErrorText } from "../../hooks/useErrorText";
 
@@ -29,7 +29,8 @@ interface AdminCreateModalProps {
   /** The service's adminCreate (the admin kit's member, from `adminOf(qd, key)`). */
   adminCreate: NonNullable<AdminScreen["adminCreate"]>;
   meta: AdminServiceMeta;
-  onSuccess: () => void;
+  /** The create's answer: the row as adminCreate returned it. */
+  onSuccess: (row: AdminRow) => void;
 }
 
 /**

@@ -25,6 +25,47 @@ Template:
 
 ---
 
+## 2026-10-26 — Core 5.1.4: a same-machine A/B against 5.1.3 [BASELINE]
+
+- Branch: conveyor/upgrade-to-quickdraw-5-1-4-and-close-5-1-hyw03c at
+  4315c75 (the pack's first child: core, lint and skills 5.1.3 → 5.1.4).
+  No netcode change. What 5.1.4 changes under the game: a volatile stream
+  drops a frame for a socket only while 64 wait on its connection, where
+  5.1.3's Socket.IO flag dropped one whenever a write was in flight, and
+  `useChannel` follows the same rule (a party's `partyInput`, on the
+  link's `fast`). The game pushes one snapshot a tick, so neither rule
+  met it here.
+- Machine: reaper1. The committed baselines (`remotes-playback` at
+  d404f87) are reaper0's, so the verdict is a same-machine A/B: `dev` at
+  237e488 (5.1.3) against 4315c75 (5.1.4), all thirteen headless
+  scenarios, `--runs 3` per arm, interleaved per scenario, the arm that
+  runs first alternating from one scenario to the next.
+- A/B: all thirteen pass with the default thresholds. The largest
+  deltas, each within its run spread: spectator-plus-2p shapeErrorPx p95
+  4.07 → 4.86 px (5.1.3's own runs reach 5.20), asym-2p 4.47 → 5.11,
+  party-3p-unfair remoteVsRemotePx p50 4.46 → 11.17 (noisy there before:
+  4.0 → 7.8 in the 2026-10-25 entry), and stepCorrectionsPerMin, which
+  moves by a correction or two a minute but on control-0ms (14.07 → 3.25,
+  where one 5.1.4 run reaches 35.7). jitter-heavy-3p failed its
+  first block on `smoothness.jerkRms`, 433 → 499 (+15.2 %), with each
+  arm's run spread 56–65; a second block pair, 5.1.4 first, measures 481
+  → 473 (−1.6 %), and 5.1.3 alone moves 433 → 481 (+11.0 %) between its
+  blocks. Pooled, 457 against 486: noise.
+- Against the committed baselines both cores fail alike, on
+  `server.tickDurMs.p95`: 0.04–0.06 ms there, 0.14–0.25 ms here (this
+  machine's sim step, as in the 2026-10-23 entry; party-3p-lossy's
+  baseline runs spread wide enough to pass it). jitter-heavy-3p's
+  shapeErrorPx p95 fails in both too (6.16 → 7.27–8.38 px), and
+  spectator-plus-2p's on 5.1.4 alone (3.94 → 4.86), where 5.1.3's own
+  runs reach 5.20.
+- On reaper0 (the planner's runs, 2026-10-25), same-machine A/Bs pass
+  too: jitter-heavy-3p (jerk +1.9 %, shape error −4.0 %), and
+  party-3p-unfair in two block pairs (stepCorrectionsPerMin 3.21 against
+  3.21, then 2.14 against 2.14).
+- Verdict: the core moves nothing measurable. Baselines kept.
+
+---
+
 ## 2026-10-25 — Remotes at the present: dead reckoning to the world clock [KEPT BEHIND THE FLAG; playback stays the default]
 
 - Branch: feat/remotes-at-the-present (child 5 of the pack

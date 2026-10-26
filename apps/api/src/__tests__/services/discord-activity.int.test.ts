@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import express from "express";
 import { createServer, type Server } from "http";
 import { liveSession } from "@fitzzero/quickdraw-core/server/auth";
-import { testPrisma, resetDatabase } from "@project/db/testing";
+import { testDb, testPrisma, resetDatabase } from "@project/db/testing";
 import { registerDiscordActivityRoutes } from "../../auth/discord-activity.js";
 import { createTestAuth } from "../utils/auth.js";
 
@@ -25,7 +25,7 @@ describe("Discord Activity auth", () => {
     app.use(express.json());
     registerDiscordActivityRoutes(app, {
       keys,
-      db: testPrisma,
+      db: testDb,
       exchangeCode: async (code) => {
         if (code !== "good-code") throw new Error("bad code");
         return {

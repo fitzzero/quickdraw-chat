@@ -35,7 +35,9 @@ error codes) and the testing helpers (`createTestApp`, `describeAccessMatrix`,
   in-memory PGlite (`openPgliteFromTemplate(TEST_TEMPLATE)`, under jsdom
   too) from a template dump cached by a fingerprint of the migrations
   (`utils/test-template.ts`). No PostgreSQL needed; the API's suites run in
-  seconds.
+  seconds. Its adapter is wrapped in `withSavepoints`, so on a Prisma that
+  nests transactions (7.5 and later) a nested `tx.$transaction(...)` runs
+  there as on PostgreSQL.
 - **`TEST_DATABASE_URL` set** (CI): real PostgreSQL, a database per worker
   cloned from a migrated template.
 
