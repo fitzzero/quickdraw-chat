@@ -35,6 +35,22 @@ for the deploy.
   stay. `qd.rooms` still has no `hostOf` or `clearHost` at run time, and a
   host's own feed subscribed before `serve` still gets no seed: both are
   filed upstream as quickdraw suggestions.
+- **Sign-ins tell the screens that show a user, and the clients carry
+  quickdraw's mark.** `db` and `testDb` are typed `Tracked<PrismaClient>`,
+  and the helpers that write take `Tracked<PrismaClient>`, or
+  `TrackedTransaction<PrismaClient>` where they run inside a transaction,
+  so the untracked `prisma` handed to one is a type error.
+  `upsertOAuthUser` writes through the tracked client in `qd.run` (the
+  kit's `onLogin` and the Discord Activity route): an address a provider
+  now verifies reaches the user's subscribed sockets. A new user and its
+  account are two statements in one transaction, since a nested create is
+  not tracked, and quickdraw reloads a created user's grants at the flush:
+  one read more per new user, and an `ADMIN_EMAILS` user's bootstrap
+  grants are stored at the sign-in instead of their first connection. Two
+  writes stay untracked, each saying why: a guest's create (a user made
+  that moment has no subscribers) and the bootstrap admin's grants
+  (`grants.ts`: every load answers a bootstrap admin those grants, so a
+  reload of their sockets would change nothing).
 
 Nothing else moved: `check`, the API reference (`docs:check` renders the
 same pages), every budget and the access snapshot hold as they were on
@@ -119,11 +135,6 @@ same pages), every budget and the access snapshot hold as they were on
 The rules linked from `@fitzzero/quickdraw-skills` grew with 5.1.3. No
 check or test fails on these, so they are left for their own change:
 
-- A helper that writes takes the tracked client by its type
-  (`Tracked<PrismaClient>`). The sign-in helpers (`auth/users.ts`,
-  `guest.ts`, `grants.ts`) take `PrismaClient` and are given the untracked
-  `prisma`, so a sign-in's writes to a `User` row reach no subscriber;
-  `@project/db`'s `db` is declared `PrismaClient`, which carries no mark.
 - Before deleting a row whose dependents the database deletes, delete them
   through `db` first so their lists are told (for the admin kit, in its
   `prepare`): `deleteChat` and the chat admin screen's delete leave a chat's

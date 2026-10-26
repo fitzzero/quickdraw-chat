@@ -107,6 +107,7 @@ const app = express();
 // sockets of a signed-out session; it is called only once the server below exists.
 const auth = createAppAuth({
   prisma,
+  db,
   serviceNames,
   onRevoke: (userId, sessionId) =>
     server.access.disconnectUser(userId, sessionId === null ? {} : { sessionId }),
@@ -161,7 +162,7 @@ app.use(auth.routes);
 // (the kit serves the guest sign-in there too, POST /auth/guest)
 // Discord Activity (Embedded App SDK) code exchange, on the kit's sessions
 app.use("/auth/discord/activity", createAuthLimiter());
-registerDiscordActivityRoutes(app, { keys: auth.keys, db: prisma });
+registerDiscordActivityRoutes(app, { keys: auth.keys, db });
 // ── quickdraw-game:end ──
 
 // Push sends: web-push from the VAPID keys (none without them); chat pushes

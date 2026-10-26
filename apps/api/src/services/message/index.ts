@@ -1,5 +1,6 @@
 import { admin, anyOf, inherit, owner } from "@fitzzero/quickdraw-core/server";
-import type { Prisma } from "@project/db";
+import type { TrackedTransaction } from "@fitzzero/quickdraw-core/prisma";
+import type { PrismaClient } from "@project/db";
 import { chatContract, messageContract } from "@project/shared";
 import { qd } from "../../quickdraw.js";
 import { notifyNewMessage } from "../push-subscription/index.js";
@@ -11,7 +12,7 @@ import { notifyNewMessage } from "../push-subscription/index.js";
  * transaction, through its tracked client.
  */
 async function messageDeleted(
-  tx: Prisma.TransactionClient,
+  tx: TrackedTransaction<PrismaClient>,
   chatId: string,
   createdAt: Date,
 ): Promise<void> {
@@ -129,7 +130,7 @@ export const messageService = qd.defineService(messageContract, {
     ...admin.handlers(messageContract, {
       displayName: "Messages",
       // a message the admin screens delete moves its chat's activity back too
-      onWrite: async ({ method, before }, _ctx, tx: Prisma.TransactionClient) => {
+      onWrite: async ({ method, before }, _ctx, tx: TrackedTransaction<PrismaClient>) => {
         if (method === "adminDelete" && before !== undefined) {
           await messageDeleted(tx, before.chatId, new Date(before.createdAt));
         }

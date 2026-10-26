@@ -103,7 +103,7 @@ streams: { world: { seed: () => [runtime.keyframe()], validate: "development" } 
 
   featAuth: {
     path: "apps/api/src/auth/index.ts",
-    lines: [96, 136],
+    lines: [105, 145],
     language: "ts",
     code: `// quickdraw's auth routes kit, over the app's Session table:
 // /auth/{provider}/start and /callback, /auth/me, /auth/logout(-all)
@@ -115,7 +115,8 @@ const routes = createAuthRoutes({
     mock({ listUsers: () => listMockUsers(prisma) }), // dev sign-in, refused in production
   ],
   ...keys,
-  onLogin: (profile, provider) => upsertOAuthUser(prisma, profile, provider),
+  // users are written through the tracked client, so a screen showing one hears a sign-in
+  onLogin: (profile, provider) => qd.run(() => upsertOAuthUser(db, profile, provider)),
   allowedOrigins,
   publicUrl: apiUrl(),
 });

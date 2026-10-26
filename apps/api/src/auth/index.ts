@@ -7,6 +7,7 @@
 // function builds it for a database, so the server, the tests and the netcode
 // bench sign in the same way.
 
+import type { Tracked } from "@fitzzero/quickdraw-core/prisma";
 import type { ServerAuth } from "@fitzzero/quickdraw-core/server";
 import {
   createAuthRoutes,
@@ -20,7 +21,7 @@ import {
   type SessionKeys,
 } from "@fitzzero/quickdraw-core/server/auth";
 import type { PrismaClient } from "@project/db";
-import { userPrincipal, type AppPrincipal } from "../quickdraw.js";
+import { qd, userPrincipal, type AppPrincipal } from "../quickdraw.js";
 import { logger } from "../utils/logger.js";
 import { allowedOriginsFromEnv, apiUrl, jwtSecretFromEnv } from "./config.js";
 import { devCredentials } from "./dev-credentials.js";
@@ -32,8 +33,16 @@ import { guestProvider } from "./guest.js";
 // ── quickdraw-game:end ──
 
 export interface AppAuthOptions {
-  /** The untracked client sessions and signing-in users are written through. */
+  /**
+   * The untracked client: the sessions, the grants loader and the mock's
+   * user list.
+   * ── quickdraw-game:start ──
+   * The guest sign-in creates its users through it too.
+   * ── quickdraw-game:end ──
+   */
   readonly prisma: PrismaClient;
+  /** The tracked client sign-ins write users through, so the screens showing a user hear it. */
+  readonly db: Tracked<PrismaClient>;
   /** Every service name, for ADMIN_EMAILS' Admin on all of them. */
   readonly serviceNames: () => readonly string[];
   /**
@@ -106,7 +115,7 @@ export function createAppAuth(options: AppAuthOptions): AppAuth {
     // mounted (enabled as the routes are made) and still enabled
     providers: providersFor(prisma),
     ...keys,
-    onLogin: (profile, provider) => upsertOAuthUser(prisma, profile, provider),
+    onLogin: (profile, provider) => qd.run(() => upsertOAuthUser(options.db, profile, provider)),
     allowedOrigins,
     publicUrl: apiUrl(),
     successPath: "/auth/callback",

@@ -8,16 +8,21 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } 
 import express from "express";
 import { io, type Socket } from "socket.io-client";
 import { PROTOCOL_VERSION, type HelloFrame } from "@fitzzero/quickdraw-core";
-import { issueSession, type OAuthTokenResponse } from "@fitzzero/quickdraw-core/server/auth";
+import { issueSession } from "@fitzzero/quickdraw-core/server/auth";
 import { createTestApp, type TestApp } from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
 import type { AccessLevel } from "@project/shared";
 import { allowedOriginsFromEnv } from "../../auth/config.js";
 import { createGrantsLoader } from "../../auth/grants.js";
 import { createAppAuth } from "../../auth/index.js";
-import { upsertOAuthUser, type SignInProfile } from "../../auth/users.js";
 import { services, serviceNames } from "../../services/index.js";
-import { createTestAuth, TEST_JWT_SECRET, TEST_WEB_ORIGIN } from "../utils/auth.js";
+import {
+  createTestAuth,
+  signIn,
+  signInProfile,
+  TEST_JWT_SECRET,
+  TEST_WEB_ORIGIN,
+} from "../utils/auth.js";
 import { createTestUser } from "../factories/user-factory.js";
 
 type Users = Awaited<ReturnType<typeof seedTestUsers>>;
@@ -248,17 +253,7 @@ describe("grants", () => {
 });
 
 describe("sign-in accounts and verified emails", () => {
-  const tokens: OAuthTokenResponse = { access_token: "access", token_type: "Bearer" };
   const loadGrants = createGrantsLoader({ prisma: testPrisma, serviceNames });
-
-  /** A provider's profile for `upsertOAuthUser`. */
-  function profile(
-    providerAccountId: string,
-    email: string | null,
-    emailVerified: boolean,
-  ): SignInProfile {
-    return { providerAccountId, email, emailVerified, name: null, image: null, tokens };
-  }
 
   /** The providers a user can sign in with. */
   async function accountsOf(userId: string): Promise<string[]> {
@@ -273,9 +268,8 @@ describe("sign-in accounts and verified emails", () => {
   it("never makes an unverified ADMIN_EMAILS address an admin (ADMIN-SQUAT)", async () => {
     process.env.ADMIN_EMAILS = "boss@example.com";
     try {
-      const squatterId = await upsertOAuthUser(
-        testPrisma,
-        profile("discord-mallory", "boss@example.com", false),
+      const squatterId = await signIn(
+        signInProfile("discord-mallory", "boss@example.com", false),
         "discord",
       );
       if (squatterId === null) throw new Error("expected a user");
@@ -287,11 +281,7 @@ describe("sign-in accounts and verified emails", () => {
       expect(await loadGrants(squatterId)).toEqual({ userService: "Read" });
 
       // the real admin's verified sign-in gets the address, and Admin
-      const bossId = await upsertOAuthUser(
-        testPrisma,
-        profile("google-boss", "boss@example.com", true),
-        "google",
-      );
+      const bossId = await signIn(signInProfile("google-boss", "boss@example.com", true), "google");
       if (bossId === null) throw new Error("expected a user");
       expect(bossId).not.toBe(squatterId);
       const grants = await loadGrants(bossId);
@@ -302,14 +292,12 @@ describe("sign-in accounts and verified emails", () => {
   });
 
   it("never links a verified sign-in into a user an unverified email made (PRE-HIJACK)", async () => {
-    const attackerId = await upsertOAuthUser(
-      testPrisma,
-      profile("discord-mallory", "victim@example.com", false),
+    const attackerId = await signIn(
+      signInProfile("discord-mallory", "victim@example.com", false),
       "discord",
     );
-    const victimId = await upsertOAuthUser(
-      testPrisma,
-      profile("google-victim", "victim@example.com", true),
+    const victimId = await signIn(
+      signInProfile("google-victim", "victim@example.com", true),
       "google",
     );
     if (attackerId === null || victimId === null) throw new Error("expected two users");
@@ -322,9 +310,8 @@ describe("sign-in accounts and verified emails", () => {
 
   it("gives an unverified email of an existing user a placeholder user of its own", async () => {
     const existing = await createTestUser({ email: "taken@example.com" });
-    const signedIn = await upsertOAuthUser(
-      testPrisma,
-      profile("discord-42", "taken@example.com", false),
+    const signedIn = await signIn(
+      signInProfile("discord-42", "taken@example.com", false),
       "discord",
     );
     if (signedIn === null) throw new Error("expected a user");
@@ -345,20 +332,15 @@ describe("sign-in accounts and verified emails", () => {
       select: { id: true },
     });
     expect(
-      await upsertOAuthUser(
-        testPrisma,
-        profile("google-victim", "victim@example.com", true),
-        "google",
-      ),
+      await signIn(signInProfile("google-victim", "victim@example.com", true), "google"),
     ).toBeNull();
     expect(await accountsOf(preClaimed.id)).toEqual(["discord"]);
   });
 
   it("links a verified sign-in to a user without accounts (seeded or pre-provisioned)", async () => {
     const seeded = await createTestUser({ email: "seeded@example.com" });
-    const signedIn = await upsertOAuthUser(
-      testPrisma,
-      profile("google-seeded", "seeded@example.com", true),
+    const signedIn = await signIn(
+      signInProfile("google-seeded", "seeded@example.com", true),
       "google",
     );
     expect(signedIn).toBe(seeded.id);
@@ -378,35 +360,22 @@ describe("sign-in accounts and verified emails", () => {
     });
     const verifiedOf = async (userId: string): Promise<boolean> =>
       (await testPrisma.user.findUniqueOrThrow({ where: { id: userId } })).emailVerified;
-    await upsertOAuthUser(
-      testPrisma,
-      profile("google-known", "known@example.com", false),
-      "google",
-    );
+    await signIn(signInProfile("google-known", "known@example.com", false), "google");
     expect(await verifiedOf(known.id)).toBe(false);
-    expect(
-      await upsertOAuthUser(
-        testPrisma,
-        profile("google-known", "known@example.com", true),
-        "google",
-      ),
-    ).toBe(known.id);
+    expect(await signIn(signInProfile("google-known", "known@example.com", true), "google")).toBe(
+      known.id,
+    );
     expect(await verifiedOf(known.id)).toBe(true);
 
     // a placeholder becomes the address the provider verifies later
-    const placeheld = await upsertOAuthUser(
-      testPrisma,
-      profile("discord-later", "later@example.com", false),
+    const placeheld = await signIn(
+      signInProfile("discord-later", "later@example.com", false),
       "discord",
     );
     if (placeheld === null) throw new Error("expected a user");
-    expect(
-      await upsertOAuthUser(
-        testPrisma,
-        profile("discord-later", "later@example.com", true),
-        "discord",
-      ),
-    ).toBe(placeheld);
+    expect(await signIn(signInProfile("discord-later", "later@example.com", true), "discord")).toBe(
+      placeheld,
+    );
     expect(await testPrisma.user.findUniqueOrThrow({ where: { id: placeheld } })).toMatchObject({
       email: "later@example.com",
       emailVerified: true,
@@ -445,6 +414,7 @@ describe("the production allow-list on the sign-in routes and cookie sockets", (
     process.env.ENABLE_MOCK_OAUTH = "true";
     const productionAuth = createAppAuth({
       prisma: testPrisma,
+      db: testDb,
       serviceNames,
       jwtSecret: TEST_JWT_SECRET,
       allowedOrigins: productionOrigins(),

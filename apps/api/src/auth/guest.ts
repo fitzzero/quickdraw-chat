@@ -49,7 +49,8 @@ async function createGuestUser(prisma: PrismaClient, requestedName: string): Pro
 
 /**
  * The guest sign-in: `POST /auth/guest` with `{ name }` creates a guest user
- * (written untracked: a new user has no subscribers) and signs it in.
+ * (written untracked: a user made this moment has no subscribers to tell)
+ * and signs it in.
  * Answers `{ userId, name, token }` (the name it got, and the session's
  * token for clients without a cookie jar, such as a native app) with the
  * session cookie; an invalid name is `VALIDATION`, a name taken after three

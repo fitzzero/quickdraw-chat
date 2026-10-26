@@ -96,7 +96,8 @@ export function createGrantsLoader(
       names.map((name) => [name, "Admin"]),
     );
     logger.info("Bootstrap admin: granting Admin on every service", { userId, services: names });
-    // Untracked: this runs inside the handshake that returns these grants
+    // Untracked: every load answers a bootstrap admin these grants (this one
+    // returns them), so reloading the user's sockets would change nothing
     await prisma.user.update({ where: { id: userId }, data: { serviceAccess: fullAdmin } });
     return fullAdmin;
   };

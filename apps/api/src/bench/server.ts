@@ -117,7 +117,7 @@ export async function startBenchServer(
 
   // bots sign in with development credentials (auth.userId); check:web's
   // pages as guests, by cookie, through the routes
-  const auth = createAppAuth({ prisma: testPrisma, serviceNames });
+  const auth = createAppAuth({ prisma: testPrisma, db: testDb, serviceNames });
   // Real browsers connect (Tier 2's pages from the web dev server, check:web's
   // from its own): the auth's allowed origins, CLIENT_URL and localhost
   const origin: CorsOrigin = (from, callback) => {

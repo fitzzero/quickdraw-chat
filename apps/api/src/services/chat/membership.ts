@@ -4,7 +4,8 @@
 
 import { QuickdrawError } from "@fitzzero/quickdraw-core";
 import { meetsLevel, serviceGrant, type Principal } from "@fitzzero/quickdraw-core/server";
-import type { Prisma } from "@project/db";
+import type { TrackedTransaction } from "@fitzzero/quickdraw-core/prisma";
+import type { PrismaClient } from "@project/db";
 import type { AccessLevel, ChatMemberDTO } from "@project/shared";
 import type { db as appDb } from "../../db.js";
 
@@ -66,7 +67,7 @@ export interface MembershipChange {
  */
 async function checkChange(
   principal: Principal,
-  tx: Prisma.TransactionClient,
+  tx: TrackedTransaction<PrismaClient>,
   change: MembershipChange,
 ): Promise<AccessLevel | null> {
   const { chatId, userId, level } = change;
@@ -135,7 +136,7 @@ export function isForeignKeyFailure(error: unknown): boolean {
  * the chat get the new count.
  */
 async function addMember(
-  tx: Prisma.TransactionClient,
+  tx: TrackedTransaction<PrismaClient>,
   chatId: string,
   userId: string,
   level: AccessLevel,
@@ -150,7 +151,7 @@ async function addMember(
 
 /** Removes a member and counts them out of the chat, in the caller's transaction. */
 async function removeMember(
-  tx: Prisma.TransactionClient,
+  tx: TrackedTransaction<PrismaClient>,
   chatId: string,
   userId: string,
 ): Promise<void> {

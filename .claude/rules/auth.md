@@ -15,7 +15,7 @@ provider, development credentials, env layering) is in
 
 ## The pieces
 
-`createAppAuth({ prisma, serviceNames, onRevoke })` in
+`createAppAuth({ prisma, db, serviceNames, onRevoke })` in
 `apps/api/src/auth/index.ts` builds everything, once per database, so every
 server root (the API, the tests) signs in the same way:
 
@@ -39,7 +39,10 @@ server root (the API, the tests) signs in the same way:
   public and never cached; `auth.routes.providers()` answers the same in
   process. The login page reads it.
 - **Users** (`users.ts`): `onLogin` → `upsertOAuthUser` finds the user by
-  provider account, or creates one; provider tokens are stored `encrypt`ed
+  provider account, or creates one (the user, then its account, in one
+  transaction), through the tracked `db` inside `qd.run`, so a screen
+  showing the user hears what a sign-in changes on their row (an address
+  their provider now verifies); provider tokens are stored `encrypt`ed
   when `ENCRYPTION_KEY` is set; avatars go through `safeImageUrl`. A sign-in
   stores only an address the provider verified as a user's email
   (`User.emailVerified` records it): a profile without one gets the
