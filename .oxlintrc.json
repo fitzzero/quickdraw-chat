@@ -28,9 +28,10 @@
     {
       "files": ["**/apps/web/src/game/wire/**"],
       "rules": {
-        // quickdraw-5.0 finding: the typed client has no React-free stream, channel or
-        // event API, so the game client's wire speaks the protocol's frames on the
-        // connection's socket itself (apps/web/src/game/wire/pageTransport.ts)
+        // quickdraw-5.0 finding: the typed client has no React-free channel or event
+        // API, and its stream one (holdStream, 5.1.4) needs a connection of its own,
+        // so the game client's wire speaks the protocol's frames on the page's
+        // socket itself (apps/web/src/game/wire/pageTransport.ts)
         "quickdraw/no-raw-socket": "off"
       }
     }

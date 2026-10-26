@@ -187,8 +187,10 @@ export function useParty(options: {
     },
   );
   // quickdraw-5.0 finding: the host's own feed of a room it hosts reaches it
-  // over an in-process link, but one subscribed before `serve` (core 5.1.3)
-  // never gets its seed or items: the host's page subscribes once it serves
+  // over an in-process link, but one subscribed before `serve` (core 5.1.4)
+  // never gets its seed or items: the host's page subscribes once it serves.
+  // Filed upstream as the quickdraw suggestion "A host's own feed subscribed
+  // before serve never gets its seed"
   const serving = party?.role !== "host" || hosting.serving;
   const events = qd.gameService.partyEvents.useStream(party?.worldId ?? null, {
     max: 200,

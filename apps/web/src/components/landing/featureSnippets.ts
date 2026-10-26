@@ -19,7 +19,7 @@ export interface FeatureSnippet {
 export const FEATURE_SNIPPETS: Record<string, FeatureSnippet> = {
   featRealtime: {
     path: "apps/api/src/services/chat/index.ts",
-    lines: [120, 155],
+    lines: [171, 205],
     language: "ts",
     code: `// The contract (packages/shared): input, output, a sentence for agents
 createChat: mutation({
@@ -48,7 +48,7 @@ createChat.mutate({ title: "New chat" });`,
 
   featAcl: {
     path: "apps/api/src/services/chat/index.ts",
-    lines: [105, 118],
+    lines: [160, 210],
     language: "ts",
     code: `// The row policy: a user's level on a chat is their ChatMember row's.
 // It decides calls, live subscriptions, collections and lists alike
@@ -103,7 +103,7 @@ streams: { world: { seed: () => [runtime.keyframe()], validate: "development" } 
 
   featAuth: {
     path: "apps/api/src/auth/index.ts",
-    lines: [96, 136],
+    lines: [105, 145],
     language: "ts",
     code: `// quickdraw's auth routes kit, over the app's Session table:
 // /auth/{provider}/start and /callback, /auth/me, /auth/logout(-all)
@@ -115,7 +115,8 @@ const routes = createAuthRoutes({
     mock({ listUsers: () => listMockUsers(prisma) }), // dev sign-in, refused in production
   ],
   ...keys,
-  onLogin: (profile, provider) => upsertOAuthUser(prisma, profile, provider),
+  // users are written through the tracked client, so a screen showing one hears a sign-in
+  onLogin: (profile, provider) => qd.run(() => upsertOAuthUser(db, profile, provider)),
   allowedOrigins,
   publicUrl: apiUrl(),
 });
@@ -126,7 +127,7 @@ qd.createServer({ app, services, db, auth: { authenticate: socketAuth({ ...keys,
 
   featAdmin: {
     path: "apps/api/src/services/chat/index.ts",
-    lines: [99, 103],
+    lines: [146, 152],
     language: "ts",
     code: `// One spread per service = a full admin surface at /admin
 // (packages/shared: the contract half names the sortable fields, and the
@@ -138,8 +139,15 @@ qd.createServer({ app, services, db, auth: { authenticate: socketAuth({ ...keys,
 }),
 
 // apps/api: the server half, open to a service-wide Admin grant,
-// spread into the chat service's methods
-const chatAdmin = admin.handlers(chatContract, { displayName: "Chats" });
+// spread into the chat service's methods; a delete removes the chat's
+// messages and memberships first, tracked, in the delete's transaction
+const chatAdmin = admin.handlers(chatContract, {
+  displayName: "Chats",
+  prepare: async (call, _ctx, db: TrackedTransaction<PrismaClient>) => {
+    if (call.method === "adminDelete") await deleteChatRows(db, call.id);
+  },
+  transaction: { timeoutMs: CHAT_DELETE_TIMEOUT_MS },
+});
 ...chatAdmin,
 
 // Users' grants are edited on the same screens:
@@ -148,7 +156,7 @@ const chatAdmin = admin.handlers(chatContract, { displayName: "Chats" });
 
   featTesting: {
     path: "apps/api/src/__tests__/services/chat.int.test.ts",
-    lines: [542, 641],
+    lines: [606, 705],
     language: "ts",
     code: `// The same suite runs on in-memory PGlite locally (no PostgreSQL,
 // seconds) and real PostgreSQL in CI — TEST_DATABASE_URL flips the mode.

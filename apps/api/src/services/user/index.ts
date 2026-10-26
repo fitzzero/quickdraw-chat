@@ -1,5 +1,6 @@
 import { admin, anyOf, everyone, owner } from "@fitzzero/quickdraw-core/server";
-import type { Prisma } from "@project/db";
+import type { TrackedTransaction } from "@fitzzero/quickdraw-core/prisma";
+import type { PrismaClient } from "@project/db";
 import { userContract } from "@project/shared";
 import { qd } from "../../quickdraw.js";
 
@@ -20,7 +21,7 @@ const userAdmin = admin.handlers(userContract, {
   // matches no ADMIN_EMAILS entry and links a sign-in only to a user nobody
   // has signed in to yet, until a provider verifies it (auth/users.ts,
   // auth/grants.ts)
-  onWrite: async ({ method, id, before, after }, _ctx, tx: Prisma.TransactionClient) => {
+  onWrite: async ({ method, id, before, after }, _ctx, tx: TrackedTransaction<PrismaClient>) => {
     if (method === "adminUpdate" && before?.email !== after?.email) {
       await tx.user.update({
         where: { id },

@@ -120,8 +120,8 @@ export const SCENARIOS: Record<string, Scenario> = {
     ...BASE,
     name: "bursty-3p",
     description:
-      "Downstream stalls (250ms every 2s) — backpressure grows the server buffer and " +
-      "forces real volatile snapshot drops, then a burst on release.",
+      "Downstream stalls (250ms every 2s): the snapshots wait in the socket buffers, then " +
+      "arrive as a burst on release (the server drops a volatile frame only while 64 wait).",
     clients: [
       {
         name: "bot-a",

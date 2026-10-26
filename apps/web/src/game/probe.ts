@@ -138,7 +138,12 @@ export class GameProbe {
   }
 
   public death(death: GameDeathEvent): void {
-    this.push("death", { id: death.id, len: death.len });
+    this.push("death", {
+      id: death.id,
+      len: death.len,
+      by: death.by?.id ?? null,
+      contact: death.contact ?? null,
+    });
   }
 
   public left(id: string): void {

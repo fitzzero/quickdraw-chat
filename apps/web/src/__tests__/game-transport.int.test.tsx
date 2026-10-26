@@ -121,8 +121,10 @@ describe("PageTransport in bench mode (it joins the world itself)", () => {
     await vi.waitFor(() => expect(wire.keyframes.length).toBeGreaterThanOrEqual(1));
     expect(wire.keyframes[0]?.food?.[0]?.spawned?.length).toBeGreaterThan(0);
 
-    // one tick at a time: the stream is volatile, and three pushes in one
-    // turn of the loop would drop the ones behind an unflushed write
+    // one tick at a time, as the game's loop runs them: one tick a timeout,
+    // and a loop that falls more than a tick behind starts its grid again
+    // from now (GameLoop.scheduleTick), so the world stream never pushes a
+    // burst
     const ticks: number[] = [];
     for (let i = 0; i < 3; i++) {
       const sent = tick();

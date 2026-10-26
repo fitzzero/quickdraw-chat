@@ -242,6 +242,70 @@ describe("ChatService live updates", () => {
     expect(frame.data).toMatchObject({ t: "r", s: "chatService", id: chat.id });
     member.close();
   });
+
+  /**
+   * A chat with a message, and a member's socket subscribed to that message
+   * alone. The chat's own removal closes its lists, and tells a socket
+   * holding one of its messages only that it lost access to it (`qd:revoked`),
+   * never that the message is gone: the delete must say that.
+   */
+  async function chatWithWatchedMessage(): Promise<{
+    chatId: string;
+    messageId: string;
+    member: ApiConnection;
+  }> {
+    const owner = as(users.admin.id);
+    const chat = await owner.chatService.createChat({ title: "To Be Deleted" });
+    await owner.chatService.inviteUser({ id: chat.id, userId: users.regular.id, level: "Read" });
+    const message = await owner.messageService.postMessage({
+      chatId: chat.id,
+      content: "Gone with the chat",
+    });
+    const member = await app.connect(user(users.regular.id));
+    expect(await subscribeEntity(member, "messageService", message.id)).toMatchObject({
+      ok: true,
+      r: [{ ok: true, d: { id: message.id } }],
+    });
+    app.frames.clear();
+    return { chatId: chat.id, messageId: message.id, member };
+  }
+
+  /** The member's socket heard the message removed, and no revocation of it. */
+  async function expectMessageRemoved(messageId: string): Promise<void> {
+    const frame = await app.frames.waitFor({
+      event: "qd:e",
+      userId: users.regular.id,
+      where: ({ data }) => data.s === "messageService" && data.id === messageId,
+    });
+    expect(frame.data).toMatchObject({ t: "r", s: "messageService", id: messageId });
+    expect(
+      app.frames({
+        event: "qd:revoked",
+        userId: users.regular.id,
+        where: ({ data }) =>
+          data.kind === "entity" && data.s === "messageService" && data.id === messageId,
+      }),
+    ).toEqual([]);
+  }
+
+  it("tells a socket holding one of its messages that deleteChat removed it", async () => {
+    const { chatId, messageId, member } = await chatWithWatchedMessage();
+
+    await as(users.admin.id).chatService.deleteChat({ id: chatId });
+
+    await expectMessageRemoved(messageId);
+    member.close();
+  });
+
+  it("tells a socket holding one of its messages that the admin screens' delete removed it", async () => {
+    const { chatId, messageId, member } = await chatWithWatchedMessage();
+
+    // a service-wide Admin, on the admin screens
+    await as(users.admin.id).chatService.adminDelete({ id: chatId });
+
+    await expectMessageRemoved(messageId);
+    member.close();
+  });
 });
 
 describe("ChatService member updates (memberUpdate, to the roster's room)", () => {

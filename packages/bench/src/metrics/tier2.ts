@@ -44,7 +44,9 @@ function frameTimesOf(
  * within the window, so a renderer that mounted again (its count starting
  * over) adds nothing but what it built; a build between the last sample
  * before the window and the first inside it is not seen (the warmup is for
- * that).
+ * that). The work per frame is each sample's p99 of the half second before
+ * it, reported beside the frame times: the gap between frames is capped by
+ * the display, the work says how much of each frame the loop used.
  */
 export function computeTier2(
   clients: readonly ClientTrace[],
@@ -62,6 +64,7 @@ export function computeTier2(
   const longTasks = clients.flatMap((c) => (c.longTasks ?? []).filter((t) => inWindow(t.tWall)));
   const backends = new Set<string>();
   const draws: number[] = [];
+  const work: number[] = [];
   let builds = 0;
   for (const client of clients) {
     const renderer = client.renderer;
@@ -72,6 +75,7 @@ export function computeTier2(
       const sample = samples[i];
       if (!sample) continue;
       if (sample.drawCalls !== null) draws.push(sample.drawCalls);
+      if (sample.frameWorkP99Ms !== undefined) work.push(sample.frameWorkP99Ms);
       const previous = i > 0 ? samples[i - 1] : undefined;
       if (previous && sample.geometryBuilds > previous.geometryBuilds) {
         builds += sample.geometryBuilds - previous.geometryBuilds;
@@ -85,6 +89,7 @@ export function computeTier2(
     geometryBuildsPerMin: builds / minutes,
     pausesPerMin: pauses / minutes,
     drawCalls: computeStats(draws),
+    frameWorkMs: computeStats(work),
     backend: backends.size > 0 ? [...backends].sort().join("+") : "unknown",
   };
 }
@@ -93,7 +98,8 @@ export function computeTier2(
  * The browser tier's headline metrics, present on a card with a Tier-2 block
  * and finite there (a card made before a metric existed leaves it out, so a
  * compare never judges it against nothing); the frame-time tails only when a
- * frame was rendered, since the tails of nothing are 0.
+ * frame was rendered, since the tails of nothing are 0. The work per frame
+ * and the draw calls are reported, not compared.
  */
 export function tier2Metrics(card: Scorecard): Record<string, number> {
   const tier2 = card.tier2;

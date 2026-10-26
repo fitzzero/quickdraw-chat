@@ -27,7 +27,6 @@ import type { AdminRow, AdminScreen } from "@fitzzero/quickdraw-core/client";
 import { ConfirmDialog } from "../feedback";
 import { UserServiceAccessEditor } from "./UserServiceAccessEditor";
 import { useErrorText } from "../../hooks/useErrorText";
-import { qd } from "../../lib/quickdraw";
 import type { AdminServiceMeta, AdminFieldConfig } from "@project/shared";
 
 /** Whether the generic form shows a field: not one an override kept out (the user's grants). */
@@ -188,7 +187,8 @@ interface EditActionsProps {
   editedValues: Record<string, unknown> | null;
   onEdit: () => void;
   onDone: () => void;
-  onSaved: () => void;
+  /** The save's answer: the row as adminUpdate returned it. */
+  onSaved: (row: AdminRow) => void;
 }
 
 /** Edit, then save the changed fields with adminUpdate (services whose kit exposes it). */
@@ -343,12 +343,16 @@ export function AdminEntitySidebar({
   // The values being edited (a form draft); null while viewing
   const [editedValues, setEditedValues] = React.useState<Record<string, unknown> | null>(null);
 
-  const handleSaved = React.useCallback((): void => {
-    setEditedValues(null);
-    // The kit's rows are not live: read this row and the list again
-    qd.invalidate(adminGet, { id: entryId });
-    onChanged();
-  }, [adminGet, entryId, onChanged]);
+  const handleSaved = React.useCallback(
+    (row: AdminRow): void => {
+      setEditedValues(null);
+      // The kit's rows are not live: the cache takes the row the save
+      // returned (no second read), and the list reads its page again
+      adminGet.setData({ id: row.id }, row);
+      onChanged();
+    },
+    [adminGet, onChanged],
+  );
 
   if (isLoading) {
     return (

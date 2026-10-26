@@ -8,10 +8,13 @@
  * - Jitter is FIFO-preserving: a late chunk delays everything behind it
  *   ("clumping"), which is exactly the real-world snapshot-burst pathology.
  * - There is no packet "loss". The `stall` model instead PAUSES reads from
- *   the source socket, propagating genuine TCP backpressure to the sender.
- *   On the server→client direction that grows engine.io's write buffer until
- *   `.volatile.emit` snapshots are genuinely dropped — the real mechanism by
- *   which slow clients miss frames.
+ *   the source socket: what the sender writes meanwhile waits in the socket
+ *   buffers and arrives as a burst on release. The server drops a volatile
+ *   snapshot for a socket only while 64 frames wait on its connection
+ *   (quickdraw 5.1.4), which a stall of a few ticks never reaches:
+ *   `packet.gapRate` is 0 for every client of `bursty-3p` in the committed
+ *   baseline, measured on 5.1.3, which dropped one whenever a write was in
+ *   flight: no gap there means none under 5.1.4's rule.
  * - Delay *samples* are seeded (reproducible); actual chunk timing still
  *   depends on OS scheduling.
  */
@@ -94,8 +97,8 @@ function pipeDelayed(
     }
   };
 
-  // Time-driven stall: pause reads from the source in a fixed cycle so the
-  // sender feels real backpressure (see module header).
+  // Time-driven stall: pause reads from the source in a fixed cycle, so the
+  // sender's writes wait in the socket buffers (see module header).
   if (profile.jitter.kind === "stall") {
     const { periodMs, durationMs } = profile.jitter;
     const cycle = () => {

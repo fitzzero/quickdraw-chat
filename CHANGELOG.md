@@ -1,5 +1,97 @@
 # Changelog
 
+## quickdraw 5.1.4 (2026-10-26)
+
+The template on quickdraw 5.1.4 (`@fitzzero/quickdraw-core`, `-lint` and
+`-skills` at `^5.1.4`, quickdraw release 2026.10.11): a volatile stream and
+`useChannel` drop only on a real backlog, nested transactions on PGlite
+(`withSavepoints`), a React-free live store (`holdStream` among its
+holdings), and the admin kit's `transaction: { timeoutMs }`. Nothing to do
+for the deploy.
+
+### Changed
+
+- **The test databases are ready for nested transactions.** Both PGlite
+  clients (the tests' `setup.ts` and the bench's `server.ts`) wrap their
+  adapter in 5.1.4's `withSavepoints`, as its testing rule asks, so a
+  nested `tx.$transaction(...)` will run there as on PostgreSQL. Prisma
+  7.4.2, which the lockfile holds, nests no transactions on either
+  database (`tx.$transaction` is not a function; Prisma 7.5 adds them),
+  so nothing runs differently until Prisma moves.
+- **The notes on volatile drops say what 5.1.4 does.** A volatile stream
+  drops a frame for a socket only while 64 wait on its connection, where
+  5.1.3's Socket.IO flag dropped one whenever a write was in flight. The
+  web's transport test ticks the loop one tick at a time because the
+  game's loop does, not to dodge a drop. The bench's proxy, `bursty-3p` and
+  `docs/netcode-bench.md` say a stall bursts the snapshots and drops none
+  (`packet.gapRate` is 0 in every server scenario). The game's input wire
+  says what Socket.IO's volatile flag drops (a second send in the same
+  task, never for a backlog), where `useChannel` now drops only on a
+  backlog.
+- **The `quickdraw-5.0 finding` markers say why each still stands.**
+  5.1.4's `holdStream` is React-free but needs a live store of its own
+  connection, which the page's one socket cannot give, and no channel or
+  event has a React-free member, so the game's wire and the party's bridge
+  stay. `qd.rooms` still has no `hostOf` or `clearHost` at run time, and a
+  host's own feed subscribed before `serve` still gets no seed: both are
+  filed upstream as quickdraw suggestions.
+- **Sign-ins tell the screens that show a user, and the clients carry
+  quickdraw's mark.** `db` and `testDb` are typed `Tracked<PrismaClient>`,
+  and the helpers that write take `Tracked<PrismaClient>`, or
+  `TrackedTransaction<PrismaClient>` where they run inside a transaction,
+  so the untracked `prisma` handed to one is a type error.
+  `upsertOAuthUser` writes through the tracked client in `qd.run` (the
+  kit's `onLogin` and the Discord Activity route): an address a provider
+  now verifies reaches the user's subscribed sockets. A new user and its
+  account are two statements in one transaction, since a nested create is
+  not tracked, and quickdraw reloads a created user's grants at the flush:
+  one read more per new user, and an `ADMIN_EMAILS` user's bootstrap
+  grants are stored at the sign-in instead of their first connection. Two
+  writes stay untracked, each saying why: a guest's create (a user made
+  that moment has no subscribers) and the bootstrap admin's grants
+  (`grants.ts`: every load answers a bootstrap admin those grants, so a
+  reload of their sockets would change nothing).
+- **A chat's delete tells whoever holds its messages that they are gone.**
+  `deleteChat` and the admin screens' delete remove the chat's messages
+  and memberships through the tracked client first, in the delete's
+  transaction (`deleteChatRows`; on the admin screens, the kit's
+  `prepare`, with 5.1.4's `transaction: { timeoutMs }`). A socket
+  subscribed to one of its messages now hears it removed, where the
+  database's cascade told it only that it lost access. The transaction may
+  run 20 s (Prisma's default is 5 s), under the 30 s call limit;
+  chatService lists `message` in its `writes`, which the API reference
+  shows. With `prepare` set, every admin write of a chat runs in the
+  kit's transaction, so a rename reads the row once more first.
+- **The admin screens show the row a save returned.** After `adminUpdate`
+  the sidebar puts the write's answer in `adminGet`'s cache
+  (`adminGet.setData`) instead of reading the row again, and the page
+  does the same with the row `adminCreate` returned; the list still reads
+  its page again.
+
+Nothing else moved: `check`, the API reference (`docs:check` renders the
+same pages but for chatService's new `writes` entry), every budget and
+the access snapshot hold as they were on 5.1.3, and Storybook's
+`Disconnected` chat shows its messages as before.
+The game bench measures 5.1.4 as it measured 5.1.3: a same-machine A/B of
+all thirteen headless scenarios finds nothing the core moved, so the
+baselines stay (`docs/netcode-rd/LEDGER.md`).
+
+### What 5.1.4's rules say that the template does not do yet
+
+- The game's input wire (`pageTransport.ts`, and the bots'
+  `socket-transport.ts`) sends a hand-written `qd:ch` on Socket.IO's
+  volatile flag, and the page's gates on the connection's `status` where
+  the client rule says `isReady`. Quickdraw's `channelOf` (card
+  `client-core-streams-channels-and-events-without-react-host-s`) brings
+  both when it replaces the wire.
+- A user's delete (`userService.adminDelete`) still leaves the user's
+  memberships, messages, documents, push subscriptions and game scores to
+  the database's cascade, untracked, and the `users_count_out_of_chats`
+  trigger lowers their chats' `memberCount` unseen: the same rule's next
+  case, which needs a `prepare` and `transaction.timeoutMs` on the user
+  admin kit, `writes` on four other services' models, and the chats'
+  `lastMessageAt` and `memberCount` kept right. It is its own change.
+
 ## Unreleased
 
 ### Fixed
@@ -64,22 +156,11 @@ same pages), every budget and the access snapshot hold as they were on
 
 ### What 5.1.3's rules say that the template does not do yet
 
-The rules linked from `@fitzzero/quickdraw-skills` grew with 5.1.3. No
-check or test fails on these, so they are left for their own change:
-
-- A helper that writes takes the tracked client by its type
-  (`Tracked<PrismaClient>`). The sign-in helpers (`auth/users.ts`,
-  `guest.ts`, `grants.ts`) take `PrismaClient` and are given the untracked
-  `prisma`, so a sign-in's writes to a `User` row reach no subscriber;
-  `@project/db`'s `db` is declared `PrismaClient`, which carries no mark.
-- Before deleting a row whose dependents the database deletes, delete them
-  through `db` first so their lists are told (for the admin kit, in its
-  `prepare`): `deleteChat` and the chat admin screen's delete leave a chat's
-  messages and memberships to the cascade.
-- After an admin screen's own write, put the row the write returned in the
-  cache (`adminGet.setData`); `AdminEntitySidebar` invalidates it instead.
-  The kit's row reads default to `staleTime: 0` now, so a screen reads its
-  row again on every mount.
+The rules linked from `@fitzzero/quickdraw-skills` grew with 5.1.3, with
+three the template did not follow yet. It follows all three since 5.1.4
+(above): a helper that writes takes the tracked client by its type, a
+chat's delete removes its messages and memberships through `db` first,
+and an admin screen puts the row its write returned in the cache.
 
 ## quickdraw 5.1.2 (2026-10-12)
 

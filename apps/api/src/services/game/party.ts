@@ -172,10 +172,11 @@ export async function endParties(
     worldIds.map(async (worldId) => {
       const room = partyRoom(worldId);
       rooms.emit(room, gameContract, end, { worldId });
-      // quickdraw-5.0 finding: `qd.rooms` (core 5.1.3) has no clearHost or
+      // quickdraw-5.0 finding: `qd.rooms` (core 5.1.4) has no clearHost or
       // hostOf at run time, though ServerRooms declares both; only a
       // handler's ctx.rooms has them. The host-leave hook passes qd.rooms, and
-      // needs neither: its room has no host
+      // needs neither: its room has no host. Filed upstream as the quickdraw
+      // suggestion "qd.rooms has no hostOf or clearHost outside a handler"
       if (end === "partyClosed") rooms.clearHost(room);
       const users = await presence.users(room);
       await Promise.all(users.map((userId) => rooms.leave(room, { userId })));

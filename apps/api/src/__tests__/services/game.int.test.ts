@@ -12,7 +12,13 @@ import {
   streamFrames,
 } from "@fitzzero/quickdraw-core/testing";
 import { testDb, testPrisma, resetDatabase, seedTestUsers } from "@project/db/testing";
-import type { GameBootstrap, GameInput, PackedWorldItem, WorldSnapshot } from "@project/shared";
+import type {
+  GameBootstrap,
+  GameInput,
+  PackedWorldItem,
+  SnakeState,
+  WorldSnapshot,
+} from "@project/shared";
 import {
   GAME_FOOD_WINDOW,
   GLOBAL_WORLD_ID,
@@ -370,6 +376,41 @@ describe("GameService spectating and scores", () => {
     } finally {
       runtime.sim.applyTunables({ npcCount: 0, worldWidth: 2400, worldHeight: 2400 });
     }
+  });
+
+  it("sends a death to the world's room naming the snake it ran into, and what of it", async () => {
+    const { socket: watcher, bootstrap } = await joined(users.regular.id);
+    await joined(users.moderator.id);
+    // The regular user's body along y = 500, the moderator's head 14 px below
+    // it, heading up into it (the sim's own snakes): neither client has sent
+    // a frame, so the tick judges this geometry
+    const { sim, loop } = gameRuntime(testDb);
+    const { players } = sim as unknown as { players: Map<string, SnakeState> };
+    const wall = must(players.get(users.regular.id));
+    wall.head = { x: 580, y: 500 };
+    wall.dir = { x: 1, y: 0 };
+    wall.path = Array.from({ length: 12 }, (_, i) => ({ x: 481 + i * 9, y: 500 }));
+    const rammer = must(players.get(users.moderator.id));
+    rammer.head = { x: 500, y: 514 };
+    rammer.dir = { x: 0, y: -1 };
+    rammer.path = [{ ...rammer.head }];
+
+    loop.tickOnce();
+    const death = await worldEvent(watcher, "death", (d) => d.id === users.moderator.id);
+    expect(death).toEqual({
+      id: users.moderator.id,
+      len: 10,
+      by: { id: users.regular.id, name: bootstrap.you.name },
+      contact: "body",
+    });
+    expect(sim.isAlive(users.regular.id)).toBe(true);
+    // the run's best is stored off the tick path: wait for it, so it lands in this test
+    await vi.waitFor(async () => {
+      const stored = await testPrisma.gameScore.findUnique({
+        where: { worldId_userId: { worldId: GLOBAL_WORLD_ID, userId: users.moderator.id } },
+      });
+      expect(stored?.bestLength).toBe(10);
+    });
   });
 });
 

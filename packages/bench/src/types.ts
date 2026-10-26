@@ -54,8 +54,17 @@ export interface ClientTrace {
   renderer?: {
     /** the GPU API the engine ended up on, the last the page reported (null before it said) */
     backend: string | null;
-    /** `geometryBuilds` is the renderer's running count since mount; `drawCalls` is null where the backend does not expose them */
-    samples: { tWall: number; drawCalls: number | null; geometryBuilds: number }[];
+    /**
+     * `geometryBuilds` is the renderer's running count since mount; `drawCalls` is null where the
+     * backend does not expose them; `frameWorkP99Ms` is the p99 of the main thread's work per
+     * frame over the half second before the sample (absent from traces made before it)
+     */
+    samples: {
+      tWall: number;
+      drawCalls: number | null;
+      geometryBuilds: number;
+      frameWorkP99Ms?: number;
+    }[];
   };
   /**
    * the food the client held at the end, as of `tick` (its changes up to that
@@ -312,6 +321,11 @@ export interface Scorecard {
     displayHz?: number;
     /** draw calls per frame, where the backend reports them (WebGL; WebGPU says nothing) */
     drawCalls: Stats;
+    /**
+     * the main thread's work per frame (the core's step, the draw and the engine's render), as
+     * each half second's p99, all clients: reported, not gated (absent from cards made before it)
+     */
+    frameWorkMs?: Stats;
     /** the GPU API the pages ran on: "webgl" or "webgpu", several joined with "+", "unknown" when none said */
     backend: string;
   };

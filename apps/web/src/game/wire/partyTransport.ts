@@ -14,10 +14,14 @@
  * carries none.
  *
  * quickdraw-5.0 finding: the typed client has no React-free way to
- * subscribe to a host-served stream or send on a host-served channel (the
- * React hooks alone speak host mode's link framing, which an app must never
- * hand-write), so the 20 Hz feed crosses a React component; and a stream
- * has no refresh, so a keyframe ask is the bridge's to serve (PartyWire).
+ * subscribe to a host-served stream or send on a host-served channel over
+ * the page's socket. Only quickdraw's client speaks host mode's link
+ * framing, which an app must never hand-write: the React hooks, and
+ * 5.1.4's `holdStream`, which needs a live store of its own connection
+ * (`liveStoreOf` throws on the provider's, the socket the party's room
+ * holds); no channel has a React-free send. So the 20 Hz feed crosses a
+ * React component; and a stream has no refresh, so a keyframe ask is the
+ * bridge's to serve (PartyWire).
  * The quickdraw card
  * `client-core-streams-channels-and-events-without-react-host-s` asks for
  * the API; when it ships, this transport subscribes itself and the bridge
@@ -103,7 +107,12 @@ export class PartyTransport implements GameTransport {
     } else if (event.kind === "left") {
       this.wire?.left(event.id);
     } else if (event.kind === "death") {
-      const death: GameDeathEvent = { id: event.id, len: event.len };
+      const death: GameDeathEvent = {
+        id: event.id,
+        len: event.len,
+        ...(event.by === undefined ? {} : { by: event.by }),
+        ...(event.contact === undefined ? {} : { contact: event.contact }),
+      };
       this.wire?.death(death);
     }
     // the leaderboard is the HUD's (useParty reads it)

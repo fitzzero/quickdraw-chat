@@ -14,6 +14,7 @@ bun run bench:netcode -- --all --runs 3        # full sweep, median-of-3 (~45 mi
 bun run bench:netcode -- --all --runs 3 --remotes present --label remotes-present   # the remotes at the present (A/B)
 bun run bench:compare bench-baselines/baseline-3p-100ms.json bench-results/baseline-3p-100ms/<card>.json
 bun run bench:web                              # the browser tier on a desk: three scenarios, both GPU backends, judged per display rate
+bun run bench:web -- --scenario baseline-3p-100ms --gpu webgl --runs 3   # median-of-3 on one backend, judged on the aggregate
 bun run bench:play -- --url https://quickdraw-dev.techtree.gg/game   # a guest session on a deployed instance, after a deploy
 ```
 
@@ -32,8 +33,10 @@ when a netcode improvement lands on main).
   positions, tick duration, snapshot bytes per tick;
 - a seeded TCP latency proxy per bot (`packages/bench/src/proxy.ts`) — base
   delay + jitter per direction. "Loss" is modeled honestly for TCP as
-  `stall` (paused reads → real backpressure → the volatile world stream
-  genuinely drops snapshots);
+  `stall` (paused reads: the snapshots wait in the socket buffers and
+  arrive as a burst on release). The server drops a volatile frame for a
+  socket only while 64 wait on its connection, which no stall here
+  reaches, so `packet.gapRate` stays 0 in the server scenarios;
 - bot clients (`apps/api/src/bench/bot/`) speaking the production wire,
   quickdraw protocol v5, as the web client does: `qd:stream:sub` of
   the `world` stream, then `joinGame`/`watchWorld` (`qd:call`, which puts the
@@ -49,23 +52,33 @@ Everything shares one machine clock, so cross-client comparisons are exact.
 **Tier 2 (real browsers, the truth lane)** — Playwright drives Chromium
 running the real web app's game client (`apps/web/src/game`: the shared
 netcode core under a PixiJS renderer) with `?bench=1&gpu=webgl|webgpu`; the
-client streams rendered positions, FPS, corrections, the page's long tasks
+client streams rendered positions, FPS, input sends, corrections (each with
+the ack of the own snapshot it reconciled against), the page's long tasks
 and the renderer's draw calls, geometry builds and main-thread work per
-frame to the page (`window.QuickdrawBench`; the work per frame is not yet
-scored), the same latency proxy sits in front of each browser, and the same
-scorecard comes out (`apps/bench-web`, `bun run bench:web`), with a block of
-its own: `tier2.frameTimeMs` (the tails, p95 and p99, are the headline: a
-stall of 200 ms every fifteen seconds leaves the mean and the fps untouched
-and is the whole bug), `tier2.longTasksPerMin`, `tier2.geometryBuildsPerMin`
-and `tier2.pausesPerMin` (all three must be 0: a long task is a main-thread
-stall the player felt, a geometry build within the window is per-frame
-geometry, the renderer rule broken, and a pause is a second without a
-frame, which the frame times leave out), `tier2.drawCalls` and
+frame to the page (`window.QuickdrawBench`), the same latency proxy sits in
+front of each browser, and the same scorecard comes out (`apps/bench-web`,
+`bun run bench:web`). The runner pairs each send with the first own
+snapshot whose ack covers it, as the bots do (`ackInputs` in
+`packages/bench/src/acks.ts`), so a browser card has `packet.inputAckRttMs`
+too. The card's own block: `tier2.frameTimeMs` (the tails, p95 and p99,
+are the headline: a stall of 200 ms every fifteen seconds leaves the mean
+and the fps untouched and is the whole bug), `tier2.longTasksPerMin`,
+`tier2.geometryBuildsPerMin` and `tier2.pausesPerMin` (all three must be 0:
+a long task is a main-thread stall the player felt, a geometry build within
+the window is per-frame geometry, the renderer rule broken, and a pause is
+a second without a frame, which the frame times leave out),
+`tier2.drawCalls`, `tier2.frameWorkMs` (each half second's p99 of the main
+thread's work per frame: the display caps the frame gap, the work says how
+much of each frame the loop used; reported, not gated) and
 `tier2.backend`. `bench:web` runs its default list
 (`baseline-3p-100ms`, `jitter-heavy-3p` and `render-stress-8p`, the
 renderer's load test) on both backends (`--gpu webgl|webgpu|both`, WebGL
 the floor: embedded webviews and older mobile land there), `--all` every
-scenario the tier runs, `--scenario` one. A Tier-2 number is not a
+scenario the tier runs, `--scenario` one. `--runs N` runs each scenario N
+times per backend and aggregates the cards as Tier 1 does; the verdict
+reads the aggregate: the frame-time tails' medians, and each count's worst
+run, as `bench:compare` judges a must-be-zero metric (one run's long task
+fails the card). A Tier-2 number is not a
 cross-machine baseline (a 144 Hz desktop and a 60 Hz laptop render
 different frames), so each card is judged where it ran against an absolute
 acceptance per display rate (`acceptanceFor` in `packages/bench/src/tier2.ts`)
@@ -106,7 +119,7 @@ runner notes it under the verdict: that card gates the backend it ran on.
 | `smoothness.jerkRms`                                              | RMS frame-to-frame acceleration of rendered motion.                                                                                            | Relative metric — compare across runs, not absolutely.                     |
 | `hardSnapsPerMin` / `correctionPx`                                | Reconciliation events on the local snake.                                                                                                      | Rare / small.                                                              |
 | `smoothness.stepCorrectionsPerMin`                                | Per client: corrections of a whole movement step (≥ 8 px), a surge or a stall the player sees; the worst client gates.                         | 0; at most one a minute from a stood-in frame's change of intent.          |
-| `packet.gapRate`                                                  | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted).                         | ~0 except bursty scenarios.                                                |
+| `packet.gapRate`                                                  | Fraction of ticks missed between consecutive snapshot arrivals (tick-numbered, so volatile drops are exactly counted).                         | 0 in the server scenarios; a few % over a party's lossy `fast` link.       |
 | `packet.inputAckRttMs`                                            | Input send → first snapshot acking it.                                                                                                         | RTT + up-to-one-tick alignment.                                            |
 | `server.tickDurMs` / `effectiveTickRate`                          | Sim cost and loop health.                                                                                                                      | ≪ 50ms / 20Hz.                                                             |
 | `server.snapshotBytes`                                            | The stream item's JSON: the packed snapshot, base64 in `{ b }`. On the wire each `qd:stream` frame adds 59 bytes.                              | 23 B a player (31 in base64); add fields consciously.                      |
@@ -115,8 +128,9 @@ runner notes it under the verdict: that card gates the backend it ran on.
 | `tier2.frameTimeMs` (p95, p99)                                    | Tier 2: the time between the page's rendered frames; the tails are the headline, never the mean or the fps.                                    | Within the display rate's acceptance (the table above).                    |
 | `tier2.longTasksPerMin` / `geometryBuildsPerMin` / `pausesPerMin` | Tier 2: the pages' main-thread stalls of 50 ms or more, geometry the renderers built within the window, and seconds without a frame, a minute. | 0, 0 and 0 (must be).                                                      |
 | `tier2.drawCalls` / `tier2.backend`                               | Tier 2: draw calls per frame where the backend reports them (WebGL), and the GPU API the pages ran on.                                         | Reported, not gated.                                                       |
+| `tier2.frameWorkMs`                                               | Tier 2: the main thread's work per frame (the core's step, the draw, the engine's render), each half second's p99, all clients.                | Reported, not gated: well under the display period (6.9 ms at 144 Hz).     |
 
-Aggregated runs (`--runs 3`) report element-wise medians plus `runVariance`
+Aggregated runs (`--runs 3`, on either tier) report element-wise medians plus `runVariance`
 (max−min of headline metrics across runs). `bench:compare` treats deltas
 inside the noise band as `within-noise` — don't ship a "win" that lives there.
 
@@ -274,8 +288,9 @@ against `len-tenths`; `remotes-present.json`, the remotes at the present
   Seeds fix the sampled delays/behaviors; median-of-3 + `runVariance` handle
   the rest. Compare against the noise band, not raw deltas.
 - The proxy cannot reorder or truly drop TCP data; jitter manifests as
-  clumping and `stall` as drop-inducing backpressure — which matches what
-  real WebSocket traffic experiences.
+  clumping and `stall` as a burst on release (nothing is dropped: the
+  server drops a volatile frame only while 64 wait on a connection) —
+  which matches what real WebSocket traffic experiences.
 - Tier-1 bots run the web client's netcode, not its renderer. The page's
   frame pacing and draw cost only show up in Tier 2, whose numbers are a
   desk's (its display rate, its GPU): judged against the acceptance per

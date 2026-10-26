@@ -14,11 +14,22 @@ import type { Chat, Message, Prisma, PrismaClient } from "@project/db";
 - Schema at `packages/db/prisma/schema.prisma`; the generated client is
   `packages/db/prisma/generated` (gitignored, `bun run db:generate`).
   PascalCase models, `@@map("snake_case")` table names.
-- `db` is `trackPrisma(...)` over the same pool: every service writes
-  through it, so quickdraw's flush sends entity frames and collection
-  deltas (the linked `quickdraw-services.md` has the rules: no nested
-  writes, `writes` for other models, `ctx.touch` for raw SQL). `prisma` is
-  untracked: seeds, the auth routes' `Session` rows and signing-in users.
+- `db` is `trackPrisma(...)` over the same pool, typed
+  `Tracked<PrismaClient>`: every service writes through it, and so do
+  sign-ins (in `qd.run`), so quickdraw's flush sends entity frames and
+  collection deltas (the linked `quickdraw-services.md` has the rules: no
+  nested writes, `writes` for other models, `ctx.touch` for raw SQL). A
+  helper that writes takes `Tracked<PrismaClient>`, or
+  `TrackedTransaction<PrismaClient>` when it may run inside
+  `db.$transaction` (both from `@fitzzero/quickdraw-core/prisma`), so the
+  untracked client handed to one is a type error. `prisma` is untracked:
+  seeds, the auth routes' `Session` rows and the bootstrap admin's grants
+  (`grants.ts`: every load answers a bootstrap admin those grants, so a
+  reload of their sockets would change nothing).
+  <!-- ── quickdraw-game:start ── -->
+  The guest sign-in creates its users through it too: no subscriber can
+  hold a user made that moment.
+  <!-- ── quickdraw-game:end ── -->
   Both are created on first use, so importing the package needs no
   `DATABASE_URL`. One-shot scripts end with `disconnectPrisma()`.
 - Access lives in the data three ways, each read by a row policy:

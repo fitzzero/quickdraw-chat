@@ -218,8 +218,8 @@ place of them: one member is served by the server or by a host, never both.
   from a snapshot by its send time (a seed has none); a keyframe ask holds
   the world feed off for a moment, so its next subscription answers a fresh
   seed (a `quickdraw-5.0 finding`, with the bridge itself: no React-free
-  API for a host-served member yet, so the 20 Hz feed crosses a React
-  component, and no refresh for a stream); the dialog respawns with
+  API for a host-served member on the page's socket yet, so the 20 Hz feed
+  crosses a React component, and no refresh for a stream); the dialog respawns with
   `playParty`. Never open a peer link or speak host mode's framing from app
   code.
 - **Limits**: a party runs the default tunables (`PARTY_TUNABLES`; admin
@@ -240,7 +240,20 @@ place of them: one member is served by the server or by a host, never both.
   triggered by loop callbacks; the tracked write changes the service topic
   the score queries watch.
 - A tick that steps a snake several times (its client's backlog) checks
-  collisions at every head the snake passed, not only the last.
+  collisions at every head the snake passed, not only the last, each with
+  the heading it had there.
+- **Who dies** (`world.ts` `resolveCollisions`, the geometry in
+  `collision.ts`): a snake dies only when another snake's path sample or
+  true head lies within reach (`headRadius + bodyRadius`) in the front arc
+  of its head, `killArcDeg` degrees centred on its heading (a tunable, 180
+  by default: the half of the head that faces forward; 360 is the whole
+  head). A head that meets the back of another's head, or its neck, kills
+  only itself; a head-on kills both. Each death names the snake it met
+  (`by`: its id and name) and what of it (`contact`: `"head"` or
+  `"body"`, the nearest killing sample's), on the world's `death` event
+  and a party's `partyEvents` alike, and the death dialog shows it.
+  Self-collision stays off; collisions resolve at the tick's positions (no
+  rewind for a player's lag).
 - Only snake heads go on the wire — bodies are derived from head-path history
   on both sides. Keep snapshots small; add fields consciously (each stream
   frame also carries its `[service, stream, scope]` envelope).
