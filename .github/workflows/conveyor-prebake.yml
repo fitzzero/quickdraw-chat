@@ -152,9 +152,9 @@ jobs:
               curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.2" && \
               npm install -g $NPM_INSTALL_FLAGS turbo@2.11.4 >/dev/null && \
               npm install -g $NPM_INSTALL_FLAGS node-gyp@13.0.2 >/dev/null && \
-              npm install -g $NPM_INSTALL_FLAGS @anthropic-ai/claude-code@2.1.301 >/dev/null && \
+              npm install -g $NPM_INSTALL_FLAGS @anthropic-ai/claude-code@2.1.321 >/dev/null && \
               npm install -g $NPM_INSTALL_FLAGS opencode-ai@1.18.32 >/dev/null && \
-              npm install -g $NPM_INSTALL_FLAGS @openai/codex@0.161.0 >/dev/null && \
+              npm install -g $NPM_INSTALL_FLAGS @openai/codex@0.167.0 >/dev/null && \
               npm --loglevel=error cache clean --force && \
               rm -rf /root/.npm /tmp/* && \
               mkdir -p /workspaces && \
@@ -557,3 +557,17 @@ jobs:
           CONVEYOR_IMPORT
           chmod +x "$RUNNER_TEMP"/conveyor-import-image.sh
           "$RUNNER_TEMP"/conveyor-import-image.sh localhost/fitzzero/quickdraw-chat/conveyor/agent:current localhost/fitzzero/quickdraw-chat/conveyor/postgresql:current
+      - name: Bake the project's local workspace seed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          recipe=infra/conveyor/bake-workspace-image.sh
+          if [ ! -f "$recipe" ]; then exit 0; fi
+          case "$(uname -m)" in
+            x86_64) arch=amd64 ;;
+            aarch64|arm64) arch=arm64 ;;
+            *) echo 'Unsupported workspace bake architecture' >&2; exit 1 ;;
+          esac
+          image='localhost/fitzzero/quickdraw-chat/conveyor/workspace-seed:current'
+          bash "$recipe" "$arch" "$image"
+          "$RUNNER_TEMP"/conveyor-import-image.sh "$image"
